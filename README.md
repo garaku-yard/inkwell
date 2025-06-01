@@ -36,9 +36,9 @@ your system:
 
 ### Development Mode
 
-1. **Navigate to your project directory:** ```bash cd client```
+1. **Navigate to your project directory:** ```cd client```
 
-2. **Start the development server:** ```bash npm run dev```
+2. **Start the development server:** ```npm run dev```
 
 3. **Open your browser** and navigate to: ``` http://localhost:3000 ```
 
