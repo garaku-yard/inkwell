@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -11,14 +11,14 @@
 !.yarn/versions
 
 # testing
-/coverage
+/client/coverage       # Ignore coverage in the client directory
 
 # next.js
-/.next/
-/out/
+.next
+out/           # Ignore output files in the client directory
 
 # production
-/build
+/client/build          # Ignore build files in the client directory
 
 # misc
 .DS_Store
@@ -31,7 +31,7 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+.env
 
 # vercel
 .vercel
