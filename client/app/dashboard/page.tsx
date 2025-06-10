@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import Link from 'next/link'
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { FileText, Plus, Search, Users, Clock, Star, MoreHorizontal } from "lucide-react"
 
@@ -84,12 +84,12 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             <Link href="/login">
-            <Button variant="outline" size="sm">
-              Log In
-            </Button>
+              <Button variant="outline" size="sm">
+                Log In
+              </Button>
             </Link>
             <Link href="/register">
-            <Button size="sm">Sign Up</Button>
+              <Button size="sm">Sign Up</Button>
             </Link>
           </div>
         </div>
@@ -119,10 +119,18 @@ export default function Dashboard() {
             </div>
             <Tabs defaultValue="all" className="w-full sm:w-auto">
               <TabsList className="w-full">
-                <TabsTrigger value="all" className="w-full sm:w-auto">All</TabsTrigger>
-                <TabsTrigger value="recent" className="w-full sm:w-auto">Recent</TabsTrigger>
-                <TabsTrigger value="starred" className="w-full sm:w-auto">Starred</TabsTrigger>
-                <TabsTrigger value="shared" className="w-full sm:w-auto">Shared</TabsTrigger>
+                <TabsTrigger value="all" className="w-full sm:w-auto">
+                  All
+                </TabsTrigger>
+                <TabsTrigger value="recent" className="w-full sm:w-auto">
+                  Recent
+                </TabsTrigger>
+                <TabsTrigger value="starred" className="w-full sm:w-auto">
+                  Starred
+                </TabsTrigger>
+                <TabsTrigger value="shared" className="w-full sm:w-auto">
+                  Shared
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -130,36 +138,36 @@ export default function Dashboard() {
           {/* Projects Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
             {filteredProjects.map((project) => (
-              <Card key={project.id} className="overflow-hidden">
-                <div
-                  className="h-40 bg-muted flex items-center justify-center cursor-pointer"
-                  onClick={() => handleProjectClick(project.id)}
-                >
-                  <FileText className="h-16 w-16 text-muted-foreground/50" />
-                </div>
+              <Card
+                key={project.id}
+                className="overflow-hidden hover:shadow-xl hover:scale-105 transition-all duration-300 ease-in-out transform cursor-pointer"
+                onClick={() => handleProjectClick(project.id)}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3
-                        className="font-semibold text-lg cursor-pointer hover:text-primary"
-                        onClick={() => handleProjectClick(project.id)}
-                      >
-                        {project.title}
-                      </h3>
+                      <h3 className="font-semibold text-lg hover:text-primary">{project.title}</h3>
                       <p className="text-sm text-muted-foreground">{project.type}</p>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={(e) => e.stopPropagation()} // Prevent card click when clicking dropdown
+                        >
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>Rename</DropdownMenuItem>
-                        <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Rename</DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Duplicate</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onClick={(e) => e.stopPropagation()}>
+                          Delete
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
