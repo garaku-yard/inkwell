@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Download, FileText, Plus, Settings } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -31,10 +32,14 @@ export default function ScreenplayEditor() {
             <h1 className="text-lg font-medium">Untitled Screenplay</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              Log In
-            </Button>
-            <Button size="sm">Sign Up</Button>
+            <Link href="/login">
+              <Button variant="outline" size="sm">
+                Log In
+              </Button>
+            </Link>
+            <Link href="/register">
+              <Button size="sm">Sign Up</Button>
+            </Link>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
