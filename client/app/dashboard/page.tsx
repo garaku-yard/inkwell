@@ -25,6 +25,9 @@ const projects = [
   { id: "1", title: "The Last Sunset", type: "Feature Film", lastEdited: "2 hours ago", collaborators: 2, starred: true },
   { id: "2", title: "City Lights", type: "Short Film", lastEdited: "Yesterday", collaborators: 0, starred: true },
   { id: "3", title: "Midnight Express", type: "TV Pilot", lastEdited: "3 days ago", collaborators: 1, starred: false },
+  { id: "4", title: "The Last Sunset", type: "Feature Film", lastEdited: "2 hours ago", collaborators: 2, starred: true },
+  { id: "5", title: "City Lights", type: "Short Film", lastEdited: "Yesterday", collaborators: 0, starred: true },
+  { id: "6", title: "Midnight Express", type: "TV Pilot", lastEdited: "3 days ago", collaborators: 1, starred: false },
 ]
 
 export default function Dashboard() {

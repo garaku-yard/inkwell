@@ -30,7 +30,7 @@ export default function ScreenplayEditor() {
       <header className="border-b bg-background z-10">
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-4">
-            <Link href="/">
+            <Link href="/dashboard">
               <Button variant="ghost" size="icon"  className="mr-2">
                 <ArrowLeft className="h-4 w-4" />
               </Button>

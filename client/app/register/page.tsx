@@ -80,7 +80,7 @@ export default function RegisterPage() {
         <div className="flex items-center gap-2 mb-8">
           <Link href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
-            Back to Editor
+            Back to Home 
           </Link>
         </div>
 

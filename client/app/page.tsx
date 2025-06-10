@@ -1,9 +1,9 @@
-import Dashboard from "@/app/dashboard/page" 
+import HomePage from "@/app/home/page"
 
 export default function Home() {
   return (
     <div className="justify-center">
-      <Dashboard />
+      <HomePage />
     </div>
   )
 }
