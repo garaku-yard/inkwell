@@ -5,7 +5,6 @@ import Link from "next/link"
 
 import { useState } from "react"
 import { Download, FileText, Plus, Settings, ArrowLeft } from "lucide-react"
-import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -23,7 +22,6 @@ export default function ScreenplayEditor() {
     setContent(e.target.value)
   }
 
-  // In a real app, you would fetch the project details based on the projectId
   const projectTitle = "Untitled Screenplay"
 
   return (
@@ -59,9 +57,7 @@ export default function ScreenplayEditor() {
         </div>
       </header>
 
-      {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
         <div className="w-64 border-r bg-muted/30 flex flex-col">
           <div className="p-4">
             <Button className="w-full justify-start gap-2" variant="outline">
@@ -90,7 +86,6 @@ export default function ScreenplayEditor() {
           </Tabs>
         </div>
 
-        {/* Editor */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <FormatToolbar />
           <div className="flex-1 overflow-auto p-4 bg-background">

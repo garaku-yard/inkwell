@@ -1,25 +1,57 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Eye, EyeOff, FileText } from "lucide-react"
+import { useRouter } from "next/navigation" 
+import { ArrowLeft, Eye, EyeOff, FileText, AlertCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+
+// Import the service function to call the API
+import { loginUser } from "@/services/auth"
+
+// Export the type so our service file can use it
+export interface LoginRequest {
+  email:    string
+  password: string
+}
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter() 
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle login logic here
-    console.log("Login attempt:", { email, password })
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const data = await loginUser({ email, password });
+
+      if (data.token) {
+        localStorage.setItem("authToken", data.token)
+        router.push("/") 
+      }
+
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unknown error occurred");
+      }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -39,13 +71,21 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold">Screenwriter</h1>
         </div>
 
-        {/* Login Card */}
         <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
             <CardDescription className="text-center">Sign in to your account to continue writing</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Login Failed</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -56,6 +96,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={isLoading} 
                 />
               </div>
               <div className="space-y-2">
@@ -68,6 +109,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    disabled={isLoading} 
                   />
                   <Button
                     type="button"
@@ -89,8 +131,8 @@ export default function LoginPage() {
                   Forgot password?
                 </Link>
               </div>
-              <Button type="submit" className="w-full">
-                Sign In
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Signing In..." : "Sign In"}
               </Button>
             </form>
 

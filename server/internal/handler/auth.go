@@ -100,10 +100,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	// --- Create JWT Token ---
 	// Define token claims (payload)
 	claims := jwt.MapClaims{
-		"sub": user.ID,                               // Subject (who the token is about)
-		"eml": user.Email,                            // Email
-		"iat": time.Now().Unix(),                     // Issued At
-		"exp": time.Now().Add(time.Hour * 72).Unix(), // Expiration time
+		"sub": user.ID,
+		"eml": user.Email,
+		"nam": user.Name,
+		"lnm": user.LastName,
+		"iat": time.Now().Unix(),
+		"exp": time.Now().Add(time.Hour * 72).Unix(),
 	}
 
 	// Create the token

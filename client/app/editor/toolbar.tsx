@@ -23,7 +23,6 @@ export function FormatToolbar() {
   return (
     <div className="border-b p-2 flex items-center gap-2 bg-background">
       <TooltipProvider>
-        {/* Screenplay Elements */}
         <div className="flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -91,7 +90,6 @@ export function FormatToolbar() {
 
         <Separator orientation="vertical" className="h-6" />
 
-        {/* Text Formatting */}
         <div className="flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -123,7 +121,6 @@ export function FormatToolbar() {
 
         <Separator orientation="vertical" className="h-6" />
 
-        {/* Alignment */}
         <div className="flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
