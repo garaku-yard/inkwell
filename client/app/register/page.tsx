@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -148,12 +147,6 @@ export default function RegisterPage() {
                 Create Account
               </Button>
             </form>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <Separator className="w-full" />
-              </div>
-            </div>
 
             <div className="text-center text-sm">
               Already have an account?{" "}
