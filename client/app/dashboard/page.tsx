@@ -41,7 +41,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <header className="border-b bg-background">
         <div className="container mx-auto flex items-center justify-between py-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
@@ -86,6 +85,7 @@ export default function Dashboard() {
         </div>
       </header>
 
+      <main className="flex-grow flex flex-col items-center py-6">
         <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-bold">My Projects</h2>
@@ -181,7 +181,6 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* New Project Dialog */}
       <NewProjectDialog open={isNewProjectDialogOpen} onOpenChange={setIsNewProjectDialogOpen} />
     </div>
   )
