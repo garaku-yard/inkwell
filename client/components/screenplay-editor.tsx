@@ -31,6 +31,10 @@ export default function ScreenplayEditor() {
             <h1 className="text-lg font-medium">Untitled Screenplay</h1>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm">
+              Log In
+            </Button>
+            <Button size="sm">Sign Up</Button>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
