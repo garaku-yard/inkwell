@@ -1,16 +1,18 @@
 "use client"
 
 import type React from "react"
+import Link from "next/link"
 
 import { useState } from "react"
-import { Download, FileText, Plus, Settings } from "lucide-react"
+import { Download, FileText, Plus, Settings, ArrowLeft } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { FormatToolbar } from "@/components/toolbar"
-import { SceneList } from "@/components/scene-list"
+import { FormatToolbar } from "../editor/toolbar"
+
 
 export default function ScreenplayEditor() {
   const [content, setContent] = useState<string>(
@@ -21,14 +23,22 @@ export default function ScreenplayEditor() {
     setContent(e.target.value)
   }
 
+  // In a real app, you would fetch the project details based on the projectId
+  const projectTitle = "Untitled Screenplay"
+
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
       <header className="border-b bg-background z-10">
         <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <Link href="/">
+              <Button variant="ghost" size="icon"  className="mr-2">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
             <FileText className="h-5 w-5" />
-            <h1 className="text-lg font-medium">Untitled Screenplay</h1>
+            <h1 className="text-lg font-medium">{projectTitle}</h1>
           </div>
           <div className="flex items-center gap-2">
             <TooltipProvider>
@@ -71,7 +81,6 @@ export default function ScreenplayEditor() {
               </TabsList>
             </div>
             <TabsContent value="scenes" className="flex-1 overflow-auto p-2">
-              <SceneList />
             </TabsContent>
             <TabsContent value="structure" className="flex-1 overflow-auto p-4">
               <div className="text-sm text-muted-foreground">

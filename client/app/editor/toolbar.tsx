@@ -7,7 +7,7 @@ import {
   Italic,
   Underline,
   MapPinned,
-  FileText,
+  Clapperboard,
   User,
   MessageSquare,
   Parentheses,
@@ -37,7 +37,7 @@ export function FormatToolbar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
-                <FileText className="h-4 w-4" />
+                <Clapperboard className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Action</TooltipContent>
