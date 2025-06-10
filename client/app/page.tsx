@@ -1,9 +1,9 @@
-import ScreenplayEditor from "@/components/screenplay-editor"
+import Dashboard from "../app/dashboard/page.tsx" 
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-background">
-      <ScreenplayEditor />
+    <div className="justify-center">
+      <Dashboard />
     </div>
   )
 }
