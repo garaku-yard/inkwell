@@ -5,9 +5,10 @@ import (
 	"net/http"
 
 	"github.com/joho/godotenv"
-	"github.com/l1roii/screenwriter/server/internal/database"
 	"github.com/l1roii/screenwriter/server/internal/handler"
 	"github.com/l1roii/screenwriter/server/internal/repository"
+	"github.com/l1roii/screenwriter/server/pkg/database"
+	"github.com/rs/cors"
 
 	"github.com/l1roii/screenwriter/server/internal/router"
 )
@@ -24,20 +25,22 @@ func main() {
 	}
 	defer db.Close()
 
-	// --- Initialize Repositories & Handlers ---
 	userRepo := repository.NewUserRepository(db)
 	projectRepo := repository.NewProjectRepository(db)
 
 	authHandler := handler.NewAuthHandler(userRepo)
 	projectHandler := handler.NewProjectHandler(projectRepo)
 
-	// --- Set up Router ---
-	// All routing logic is now handled by the router package.
-	// We just pass the handlers it needs.
 	mux := router.NewRouter(authHandler, projectHandler)
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"http://localhost:3000"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Authorization", "Content-Type"},
+	})
+	handler := c.Handler(mux)
 
 	log.Println("Starting server on :8080")
-	err = http.ListenAndServe(":8080", mux)
+	err = http.ListenAndServe(":8080", handler)
 	if err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}

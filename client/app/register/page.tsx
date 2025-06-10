@@ -25,7 +25,6 @@ export default function RegisterPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle registration logic here
     console.log("Registration attempt:", formData)
   }
 
@@ -36,7 +35,6 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Header */}
         <div className="flex items-center gap-2 mb-8">
           <Link href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
@@ -44,13 +42,11 @@ export default function RegisterPage() {
           </Link>
         </div>
 
-        {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <FileText className="h-8 w-8" />
           <h1 className="text-2xl font-bold">Screenwriter</h1>
         </div>
 
-        {/* Register Card */}
         <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">Create an account</CardTitle>
