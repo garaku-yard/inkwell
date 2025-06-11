@@ -10,7 +10,6 @@ import (
 	"github.com/l1roii/screenwriter/server/internal/entity"
 	"github.com/l1roii/screenwriter/server/internal/repository"
 
-	// Import the new utils package
 	"github.com/l1roii/screenwriter/server/pkg/utils"
 )
 
@@ -24,7 +23,6 @@ func NewAuthHandler(userRepo repository.UserRepository) *AuthHandler {
 	return &AuthHandler{userRepo: userRepo}
 }
 
-// RegisterRequest defines the shape of the JSON body for a registration request.
 type RegisterRequest struct {
 	Name     string `json:"name"`
 	LastName string `json:"lastName"`
@@ -32,13 +30,11 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
-// LoginRequest defines the shape of the JSON body for a login request.
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-// Register handles new user registration.
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var req RegisterRequest
@@ -47,14 +43,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Hash the password using the new helper function.
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
 		http.Error(w, `{"error": "Internal server error on hashing"}`, http.StatusInternalServerError)
 		return
 	}
 
-	// Create user entity
 	user := &entity.User{
 		Name:     req.Name,
 		LastName: req.LastName,
@@ -62,20 +56,16 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		Password: hashedPassword,
 	}
 
-	// Save to database
 	if err := h.userRepo.Create(user); err != nil {
-		// This should be a more specific error check in a real app (e.g., email already exists)
 		http.Error(w, `{"error": "Could not create user"}`, http.StatusInternalServerError)
 		return
 	}
 
-	// Don't send the password back
 	user.Password = ""
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(user)
 }
 
-// Login handles user login and token generation.
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var req LoginRequest
@@ -84,14 +74,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find user by email
 	user, err := h.userRepo.GetByEmail(req.Email)
 	if err != nil || user == nil {
 		http.Error(w, `{"error": "Invalid email or password"}`, http.StatusUnauthorized)
 		return
 	}
 
-	// Compare the provided password with the stored hash using the new helper.
 	if !utils.CheckPasswordHash(req.Password, user.Password) {
 		http.Error(w, `{"error": "Invalid email or password"}`, http.StatusUnauthorized)
 		return

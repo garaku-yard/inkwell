@@ -24,7 +24,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		if tokenString == authHeader { // No "Bearer " prefix found
+		if tokenString == authHeader {
 			http.Error(w, `{"error": "Invalid token format"}`, http.StatusUnauthorized)
 			return
 		}
@@ -45,10 +45,8 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		// If the token is valid, extract the user ID (subject) from the claims.
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			if sub, ok := claims["sub"].(float64); ok { // JWT numbers are float64
-				// Add the user ID to the request context
+			if sub, ok := claims["sub"].(float64); ok {
 				ctx := context.WithValue(r.Context(), UserIDKey, int64(sub))
-				// Call the next handler in the chain with the new context
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
