@@ -5,123 +5,215 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/l1roii/screenwriter/server/internal/entity"
+	"github.com/l1roii/screenwriter/server/internal/middleware"
 	"github.com/l1roii/screenwriter/server/internal/repository"
 )
 
-// ProjectHandler is responsible for handling all HTTP requests related to projects.
-// It embeds a ProjectRepository interface to interact with the data layer.
 type ProjectHandler struct {
-	// repo is the repository that provides access to the project data storage.
-	// By depending on the interface, this handler is decoupled from the specific
-	// database implementation, making it easier to test.
 	repo repository.ProjectRepository
 }
 
-// NewProjectHandler creates and returns a new ProjectHandler instance.
-// It requires a ProjectRepository to be passed as a dependency.
 func NewProjectHandler(repo repository.ProjectRepository) *ProjectHandler {
 	return &ProjectHandler{repo: repo}
 }
 
-/*
-ServeHTTP acts as the main entry point and router for the /projects endpoint.
-
-It implements the http.Handler interface. Based on the HTTP method and query
-parameters of the request, it delegates the work to more specific internal
-methods like handleListProjects or handleGetProject. It also sets the
-Content-Type header for all responses to application/json.
-*/
+// ServeHTTP acts as a RESTful router for the /projects/ path.
 func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// This handler uses query parameters for routing.
-	// If an 'id' or 'name' is present, it's a request for a single project.
-	// Otherwise, it's a request to list projects.
-	// For more complex routing, a dedicated router library would be used.
-	if r.URL.Query().Get("id") != "" || r.URL.Query().Get("name") != "" {
-		h.handleGetProject(w, r)
+	userID, ok := r.Context().Value(middleware.UserIDKey).(int64)
+	if !ok {
+		http.Error(w, `{"error": "Not authorized"}`, http.StatusUnauthorized)
 		return
 	}
 
-	h.handleListProjects(w, r)
+	// UPDATED: More robust path trimming. This will correctly extract the ID.
+	idStr := strings.TrimPrefix(r.URL.Path, "/projects/")
+
+	// If idStr is empty, the path was exactly "/projects/" or "/projects"
+	if idStr == "" || r.URL.Path == "/projects" {
+		switch r.Method {
+		case http.MethodGet:
+			h.handleListProjects(w, r, userID)
+		case http.MethodPost:
+			h.handleCreateProject(w, r, userID)
+		default:
+			http.Error(w, `{"error": "Method not allowed on /projects collection"}`, http.StatusMethodNotAllowed)
+		}
+		return
+	}
+
+	// If we are here, it means we have an ID in the path.
+	projectID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, `{"error": "Invalid project ID in URL"}`, http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		h.handleUpdateProject(w, r, projectID, userID)
+	case http.MethodDelete:
+		h.handleDeleteProject(w, r, projectID, userID)
+	case http.MethodPatch:
+		h.handleStarProject(w, r, projectID, userID)
+	default:
+		http.Error(w, `{"error": "Method not allowed on specific project"}`, http.StatusMethodNotAllowed)
+	}
 }
 
-/*
-handleListProjects handles GET requests to list all projects for a given user.
+// --- (The rest of your handler functions: handleListProjects, handleCreateProject, etc., do not need to be changed) ---
+// ... handler functions from previous steps ...
 
-It expects a 'userId' query parameter to identify which user's projects to fetch.
-For security in a real application, this ID should come from a validated
-authentication token (e.g., JWT) rather than a query parameter.
-
-On success, it returns a 200 OK status with a JSON array of projects.
-If no projects are found, it returns an empty JSON array `[]`.
-*/
-func (h *ProjectHandler) handleListProjects(w http.ResponseWriter, r *http.Request) {
-	userIDStr := r.URL.Query().Get("userid")
-	userID, err := strconv.ParseInt(userIDStr, 10, 64)
-	if err != nil {
-		http.Error(w, `{"error": "Invalid or missing 'userId' query parameter"}`, http.StatusBadRequest)
-		return
-	}
-
+// handleListProjects handles GET requests to list all projects for a given user.
+func (h *ProjectHandler) handleListProjects(w http.ResponseWriter, _ *http.Request, userID int64) {
 	projects, err := h.repo.ListByUserID(userID)
 	if err != nil {
 		log.Printf("ERROR: Failed to list projects for user %d: %v", userID, err)
 		http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
 		return
 	}
-
-	// To prevent returning 'null' for an empty list, which can be problematic
-	// for some frontend clients, we explicitly initialize an empty slice if needed.
 	if projects == nil {
 		projects = []*entity.Project{}
 	}
-
 	json.NewEncoder(w).Encode(projects)
 }
 
-/*
-handleGetProject handles GET requests to fetch a single project by its ID or by its name.
-
-It routes based on which query parameter is provided:
-  - `id`: Fetches the project with the matching primary key. (e.g., GET /projects?id=123)
-  - `name`: Fetches a project by its name, but also requires a `userId` to ensure the correct project is returned. (e.g., GET /projects?name=MyScript&userId=1)
-
-On success, it returns a 200 OK status with a JSON object for the project.
-If the project is not found, it returns a 404 Not Found error.
-*/
-func (h *ProjectHandler) handleGetProject(w http.ResponseWriter, r *http.Request) {
-	// idStr := r.URL.Query().Get("id")
-	name := r.URL.Query().Get("name")
-
-	var project *entity.Project
-	var err error
-
-	if name != "" {
-		// Logic to find project by its name, scoped to a specific user.
-		userIDStr := r.URL.Query().Get("userId")
-		var userID int64
-		userID, err = strconv.ParseInt(userIDStr, 10, 64)
-		if err != nil {
-			http.Error(w, `{"error": "Invalid or missing 'userId' parameter when searching by name"}`, http.StatusBadRequest)
-			return
-		}
-		project, err = h.repo.GetByName(userID, name)
+// handleCreateProject handles POST requests to create a new project.
+func (h *ProjectHandler) handleCreateProject(w http.ResponseWriter, r *http.Request, userID int64) {
+	var reqBody struct {
+		ProjectName string `json:"projectName"`
+		Description string `json:"description"`
 	}
-
-	if err != nil {
-		log.Printf("ERROR: Failed to get project: %v", err)
-		http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
 		return
 	}
 
-	// If the repository returns nil, nil, it means the project was not found.
-	if project == nil {
-		http.Error(w, `{"error": "Project not found"}`, http.StatusNotFound)
+	project := &entity.Project{
+		UserID:      userID,
+		ProjectName: reqBody.ProjectName,
+		Description: reqBody.Description,
+	}
+
+	if err := h.repo.Create(project); err != nil {
+		log.Printf("ERROR: Failed to create project for user %d: %v", userID, err)
+		http.Error(w, `{"error": "Could not create project"}`, http.StatusInternalServerError)
 		return
 	}
 
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(project)
+}
+
+// handleUpdateProject handles PUT requests to update a project.
+func (h *ProjectHandler) handleUpdateProject(w http.ResponseWriter, r *http.Request, projectID, userID int64) {
+	if err := h.checkOwnership(projectID, userID); err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	var reqBody struct {
+		ProjectName string `json:"projectName"`
+		Description string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	projectToUpdate := &entity.Project{
+		ID:          projectID,
+		UserID:      userID,
+		ProjectName: reqBody.ProjectName,
+		Description: reqBody.Description,
+	}
+
+	updatedProject, err := h.repo.Update(projectToUpdate)
+	if err != nil {
+		log.Printf("ERROR: Failed to update project %d: %v", projectID, err)
+		http.Error(w, `{"error": "Could not update project"}`, http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(updatedProject)
+}
+
+// handleDeleteProject handles DELETE requests for a project.
+func (h *ProjectHandler) handleDeleteProject(w http.ResponseWriter, _ *http.Request, projectID, userID int64) {
+	if err := h.checkOwnership(projectID, userID); err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	if err := h.repo.Delete(projectID, userID); err != nil {
+		log.Printf("ERROR: Failed to delete project %d: %v", projectID, err)
+		http.Error(w, `{"error": "Could not delete project"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleStarProject handles PATCH requests to star/unstar a project.
+func (h *ProjectHandler) handleStarProject(w http.ResponseWriter, r *http.Request, projectID, userID int64) {
+	if err := h.checkOwnership(projectID, userID); err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	var reqBody struct {
+		IsStarred bool `json:"isStarred"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	updatedProject, err := h.repo.UpdateIsStarred(projectID, userID, reqBody.IsStarred)
+	if err != nil {
+		log.Printf("ERROR: Failed to star project %d: %v", projectID, err)
+		http.Error(w, `{"error": "Could not update star status"}`, http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(updatedProject)
+}
+
+// handleError is a small helper to reduce code duplication in error handling.
+func (h *ProjectHandler) handleError(w http.ResponseWriter, err error) {
+	if httpErr, ok := err.(*httpError); ok {
+		http.Error(w, httpErr.message, httpErr.code)
+	} else {
+		http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
+	}
+}
+
+// checkOwnership is a helper method to ensure a user can only modify their own projects.
+func (h *ProjectHandler) checkOwnership(projectID, userID int64) error {
+	project, err := h.repo.GetByID(projectID)
+	if err != nil {
+		log.Printf("DB ERROR in checkOwnership for project %d: %v", projectID, err)
+		return &httpError{message: `{"error": "Server error while verifying ownership"}`, code: http.StatusInternalServerError}
+	}
+	if project == nil {
+		return &httpError{message: `{"error": "Project not found"}`, code: http.StatusNotFound}
+	}
+	if project.UserID != userID {
+		return &httpError{message: `{"error": "Forbidden"}`, code: http.StatusForbidden}
+	}
+	return nil
+}
+
+// httpError is a helper struct for custom errors.
+type httpError struct {
+	message string
+	code    int
+}
+
+func (e *httpError) Error() string {
+	return e.message
 }

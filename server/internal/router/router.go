@@ -8,18 +8,18 @@ import (
 )
 
 // NewRouter creates and configures a new application router.
-// It takes the necessary handlers as dependencies and sets up all the API endpoints.
 func NewRouter(authHandler *handler.AuthHandler, projectHandler *handler.ProjectHandler) *http.ServeMux {
 	mux := http.NewServeMux()
 
-	// Auth routes are public and do not need the auth middleware.
+	// Auth routes are public.
 	mux.HandleFunc("/register", authHandler.Register)
 	mux.HandleFunc("/login", authHandler.Login)
 
-	// Project routes are protected. Any request to /projects will first go
-	// through the AuthMiddleware to check for a valid JWT.
+	// UPDATED: By adding a trailing slash to "/projects/", we tell the router
+	// to send all requests that start with this prefix (e.g., /projects/1, /projects/2/scenes)
+	// to the projectHandler. This is the key fix.
 	protectedProjectsHandler := middleware.AuthMiddleware(projectHandler)
-	mux.Handle("/projects", protectedProjectsHandler)
+	mux.Handle("/projects/", protectedProjectsHandler)
 
 	return mux
 }

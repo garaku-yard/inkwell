@@ -2,11 +2,17 @@ package repository
 
 import "github.com/l1roii/screenwriter/server/internal/entity"
 
-// ProjectRepository defines the interface for project data operations.
-// Using an interface allows for easier testing (mocking) and dependency injection.
 type ProjectRepository interface {
+	// Read operations
 	ListByUserID(userID int64) ([]*entity.Project, error)
+	GetByID(projectID int64) (*entity.Project, error)
 	GetByName(userID int64, name string) (*entity.Project, error)
+
+	// Write operations
+	Create(project *entity.Project) error
+	Update(project *entity.Project) (*entity.Project, error)
+	Delete(projectID int64, userID int64) error
+	UpdateIsStarred(projectID int64, userID int64, isStarred bool) (*entity.Project, error)
 }
 
 type UserRepository interface {
