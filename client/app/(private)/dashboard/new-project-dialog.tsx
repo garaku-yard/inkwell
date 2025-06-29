@@ -19,7 +19,8 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 
-import { createProject, Project } from "@/services/project"
+// Import the service functions and Project type
+import { createProject, addCollaborator, Project } from "@/services/project"
 
 const projectTypes = [
   { value: "feature", label: "Feature Film" },
@@ -33,7 +34,7 @@ const projectTypes = [
 interface NewProjectDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onProjectCreated: (newProject: Project) => void;
+  onProjectCreated: (newProject: Project) => void
 }
 
 export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewProjectDialogProps) {
@@ -70,24 +71,25 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
     setIsLoading(true)
     setError(null)
 
-    // --- DEBUGGING STEP ---
-    const payload = {
-      projectName: projectName,
-      description: projectTypes.find(t => t.value === projectType)?.label || "New Project",
-    };
-
-    console.log("Sending payload to createProject:", payload);
-    // --- END DEBUGGING STEP ---
-
     try {
-      const newProject = await createProject(payload)
+      // Step 1: Create the project
+      const newProject = await createProject({
+        projectName: projectName,
+        description: projectTypes.find(t => t.value === projectType)?.label || "New Project",
+      })
 
-      // TODO: Add collaborators API call here.
+      // Step 2: If project creation is successful, add collaborators
+      if (newProject && newProject.id && collaborators.length > 0) {
+        await Promise.all(
+          collaborators.map(userTag => addCollaborator(newProject.id, userTag))
+        );
+      }
 
+      // Final Step: Update UI, close dialog, and navigate
       onProjectCreated(newProject);
-      onOpenChange(false)
-
+      onOpenChange(false);
       router.push(`/project/${newProject.id}`);
+
 
     } catch (err: any) {
       setError(err.message || "An unknown error occurred.")
@@ -98,7 +100,6 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* ... The rest of your dialog JSX remains the same ... */}
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>

@@ -1,9 +1,10 @@
+// client/app/dashboard/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { FileText, Plus, Search, Users, Clock, Star, MoreHorizontal, User as UserIcon, LogOut, Loader2, AlertCircle } from "lucide-react"
+import { FileText, Plus, Search, Users, Clock, Star, MoreHorizontal, User as UserIcon, LogOut, Loader2, AlertCircle, Inbox } from "lucide-react"
 
 import { useAuth } from "@/lib/AuthContext"
 import { Button } from "@/components/ui/button"
@@ -20,7 +21,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { NewProjectDialog } from "./new-project-dialog"
-import { getMyProjects, starProject, Project } from "@/services/project" // Corrected import
+import { getMyProjects, starProject, Project } from "@/services/project"
 import { cn } from "@/lib/utils"
 
 const formatRelativeTime = (dateString: string) => {
@@ -63,7 +64,6 @@ export default function Dashboard() {
     }
   }, [isAuthenticated])
 
-  // NEW: Callback function to add a new project to the state instantly.
   const handleProjectCreated = (newProject: Project) => {
     setProjects(prevProjects => [newProject, ...prevProjects]);
   };
@@ -110,6 +110,10 @@ export default function Dashboard() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={logout}>
+                    <Inbox className="mr-2 h-4 w-4" />
+                    <span>Invites</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={logout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
@@ -199,20 +203,29 @@ export default function Dashboard() {
                         <Clock className="h-3.5 w-3.5 mr-1" />
                         {formatRelativeTime(project.updatedAt)}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleStarProject(project.id, project.isStarred);
-                        }}
-                      >
-                        <Star className={cn(
-                          "h-4 w-4",
-                          project.isStarred && "fill-yellow-400 text-yellow-400"
-                        )} />
-                      </Button>
+                      <div className="flex items-center gap-3">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStarProject(project.id, project.isStarred);
+                          }}
+                        >
+                          <Star className={cn(
+                            "h-4 w-4 text-muted-foreground hover:text-yellow-400",
+                            project.isStarred && "fill-yellow-400 text-yellow-400"
+                          )} />
+                        </Button>
+                        {project.collaboratorCount > 0 && (
+                          <div className="flex items-center">
+                            <Users className="h-3.5 w-3.5 mr-1" />
+                            {/* The total number of people on the project is the owner (1) + collaborators */}
+                            {project.collaboratorCount + 1}
+                          </div>
+                        )}
+                      </div>
                     </CardFooter>
                   </Card>
                 ))}
@@ -232,7 +245,6 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* Pass the new callback function to the dialog */}
       <NewProjectDialog
         open={isNewProjectDialogOpen}
         onOpenChange={setIsNewProjectDialogOpen}

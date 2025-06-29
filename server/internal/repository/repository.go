@@ -20,4 +20,10 @@ type ProjectRepository interface {
 type UserRepository interface {
 	Create(user *entity.User) error
 	GetByEmail(email string) (*entity.User, error)
+	GetByUsernameAndTag(username, tag string) (*entity.User, error) // <-- NEW
+}
+
+// NEW INTERFACE: For managing collaborators
+type CollaboratorRepository interface {
+	Add(projectID, userID string) error
 }

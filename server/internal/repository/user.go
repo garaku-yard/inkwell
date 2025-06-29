@@ -52,3 +52,13 @@ func (r *postgresUserRepository) GetByEmail(email string) (*entity.User, error) 
 	}
 	return &u, nil
 }
+
+func (r *postgresUserRepository) GetByUsernameAndTag(username, tag string) (*entity.User, error) {
+	query := `SELECT user_id, username, username_tag, name, last_name, email, created_at, updated_at FROM users WHERE username = $1 AND username_tag = $2`
+	var u entity.User
+	err := r.db.QueryRow(query, username, tag).Scan(&u.ID, &u.Username, &u.UsernameTag, &u.Name, &u.LastName, &u.Email, &u.CreatedAt, &u.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil // Not found is not an error here
+	}
+	return &u, err
+}

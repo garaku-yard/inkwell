@@ -17,16 +17,40 @@ func NewProjectRepository(db *sql.DB) ProjectRepository {
 }
 
 func (r *postgresProjectRepository) ListByUserID(userID string) ([]*entity.Project, error) {
-	query := `SELECT project_id, user_id, project_name, description, is_starred, created_at, updated_at FROM projects WHERE user_id = $1 ORDER BY updated_at DESC`
+	// This query now joins with the collaborators table and groups by project
+	// to get an accurate count of additional collaborators for each project.
+	query := `
+		SELECT 
+				p.project_id, 
+				p.user_id, 
+				p.project_name, 
+				p.description, 
+				p.is_starred, 
+				p.created_at, 
+				p.updated_at,
+				(SELECT COUNT(*) FROM project_collaborators pc WHERE pc.project_id = p.project_id) as collaborator_count
+		FROM 
+				projects p
+		WHERE 
+				p.user_id = $1 
+				OR p.project_id IN (
+						SELECT pc.project_id 
+						FROM project_collaborators pc 
+						WHERE pc.user_id = $1
+				)
+		ORDER BY 
+				p.updated_at DESC`
+
 	rows, err := r.db.Query(query, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+
 	var projects []*entity.Project
 	for rows.Next() {
 		var p entity.Project
-		if err := rows.Scan(&p.ID, &p.UserID, &p.ProjectName, &p.Description, &p.IsStarred, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.UserID, &p.ProjectName, &p.Description, &p.IsStarred, &p.CreatedAt, &p.UpdatedAt, &p.CollaboratorCount); err != nil {
 			return nil, err
 		}
 		projects = append(projects, &p)

@@ -5,6 +5,7 @@ export interface Project {
   userId: string;
   projectName: string;
   description: string;
+  collaboratorCount: number;
   isStarred: boolean;
   createdAt: string;
   updatedAt: string;
@@ -80,6 +81,20 @@ export const createProject = (projectData: CreateProjectRequest): Promise<Projec
     body: projectData,
   });
 };
+
+
+/**
+ * Adds a collaborator to a specific project.
+ * @param projectId The ID of the project.
+ * @param usernameWithTag The "username#tag" of the user to add.
+ */
+export const addCollaborator = (projectId: string, usernameWithTag: string): Promise<any> => {
+  return apiClient(`projects/${projectId}/collaborators`, {
+    method: 'POST',
+    body: { usernameWithTag }, // The API expects this specific body shape
+  });
+};
+
 
 /**
  * Updates an existing project.

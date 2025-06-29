@@ -12,11 +12,17 @@ import (
 )
 
 type ProjectHandler struct {
-	repo repository.ProjectRepository
+	repo       repository.ProjectRepository
+	userRepo   repository.UserRepository
+	collabRepo repository.CollaboratorRepository
 }
 
-func NewProjectHandler(repo repository.ProjectRepository) *ProjectHandler {
-	return &ProjectHandler{repo: repo}
+func NewProjectHandler(repo repository.ProjectRepository, userRepo repository.UserRepository, collabRepo repository.CollaboratorRepository) *ProjectHandler {
+	return &ProjectHandler{
+		repo:       repo,
+		userRepo:   userRepo,
+		collabRepo: collabRepo,
+	}
 }
 
 func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -27,33 +33,52 @@ func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idStr := strings.TrimPrefix(r.URL.Path, "/projects/")
+	pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 
-	if idStr == "" {
-		switch r.Method {
-		case http.MethodGet:
-			h.handleListProjects(w, userID)
-		case http.MethodPost:
-			h.handleCreateProject(w, r, userID)
-		default:
-			http.Error(w, `{"error": "Method not allowed on /projects collection"}`, http.StatusMethodNotAllowed)
+	if len(pathParts) > 0 && pathParts[0] == "projects" {
+		// Handle routes like /projects/{id}/collaborators
+		if len(pathParts) == 3 && pathParts[2] == "collaborators" {
+			projectID := pathParts[1]
+			if r.Method == http.MethodPost {
+				h.handleAddCollaborator(w, r, projectID, userID)
+				return
+			}
 		}
-		return
+
+		// Handle routes for the main projects collection: /projects
+		if len(pathParts) == 1 {
+			switch r.Method {
+			case http.MethodGet:
+				h.handleListProjects(w, userID)
+			case http.MethodPost:
+				h.handleCreateProject(w, r, userID)
+			default:
+				http.Error(w, `{"error": "Method not allowed on /projects collection"}`, http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		// Handle routes for a specific project: /projects/{id}
+		if len(pathParts) == 2 {
+			projectID := pathParts[1]
+			switch r.Method {
+			case http.MethodGet:
+				h.handleGetFullProject(w, r, projectID, userID)
+			case http.MethodPut:
+				h.handleUpdateProject(w, r, projectID, userID)
+			case http.MethodDelete:
+				h.handleDeleteProject(w, r, projectID, userID)
+			case http.MethodPatch:
+				h.handleStarProject(w, r, projectID, userID)
+			default:
+				http.Error(w, `{"error": "Method not allowed on this specific project"}`, http.StatusMethodNotAllowed)
+			}
+			return
+		}
 	}
 
-	projectID := idStr
-	switch r.Method {
-	case http.MethodGet:
-		h.handleGetFullProject(w, r, projectID, userID)
-	case http.MethodPut:
-		h.handleUpdateProject(w, r, projectID, userID)
-	case http.MethodDelete:
-		h.handleDeleteProject(w, r, projectID, userID)
-	case http.MethodPatch:
-		h.handleStarProject(w, r, projectID, userID)
-	default:
-		http.Error(w, `{"error": "Method not allowed on specific project"}`, http.StatusMethodNotAllowed)
-	}
+	// If no route matches, return a 404
+	http.NotFound(w, r)
 }
 
 // --- Handler Functions ---
@@ -220,6 +245,52 @@ func (h *ProjectHandler) checkOwnership(projectID, userID string) error {
 		return &httpError{message: `{"error": "Forbidden"}`, code: http.StatusForbidden}
 	}
 	return nil
+}
+
+func (h *ProjectHandler) handleAddCollaborator(w http.ResponseWriter, r *http.Request, projectID, ownerUserID string) {
+	// First, check if the person making the request owns the project.
+	if err := h.checkOwnership(projectID, ownerUserID); err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	var reqBody struct {
+		UsernameWithTag string `json:"usernameWithTag"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Parse the username#tag string
+	parts := strings.Split(reqBody.UsernameWithTag, "#")
+	if len(parts) != 2 {
+		http.Error(w, `{"error": "Invalid username format. Expected 'username#tag'"}`, http.StatusBadRequest)
+		return
+	}
+	username, tag := parts[0], parts[1]
+
+	// Find the user to be added
+	userToAdd, err := h.userRepo.GetByUsernameAndTag(username, tag)
+	if err != nil {
+		log.Printf("DB ERROR: Could not find collaborator %s#%s: %v", username, tag, err)
+		http.Error(w, `{"error": "Could not find user"}`, http.StatusInternalServerError)
+		return
+	}
+	if userToAdd == nil {
+		http.Error(w, `{"error": "User not found"}`, http.StatusNotFound)
+		return
+	}
+
+	// Add the user to the project
+	if err := h.collabRepo.Add(projectID, userToAdd.ID); err != nil {
+		log.Printf("DB ERROR: Could not add collaborator %s to project %s: %v", userToAdd.ID, projectID, err)
+		http.Error(w, `{"error": "Failed to add collaborator"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Collaborator added successfully"})
 }
 
 // httpError is a helper struct for custom errors.
