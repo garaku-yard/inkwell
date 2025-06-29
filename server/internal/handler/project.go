@@ -21,8 +21,6 @@ func NewProjectHandler(repo repository.ProjectRepository) *ProjectHandler {
 
 func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-
-	// The UserID from the context is now a string (UUID).
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
 		http.Error(w, `{"error": "Not authorized"}`, http.StatusUnauthorized)
@@ -31,10 +29,10 @@ func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	idStr := strings.TrimPrefix(r.URL.Path, "/projects/")
 
-	if idStr == "" || r.URL.Path == "/projects" {
+	if idStr == "" {
 		switch r.Method {
 		case http.MethodGet:
-			h.handleListProjects(w, r, userID)
+			h.handleListProjects(w, userID)
 		case http.MethodPost:
 			h.handleCreateProject(w, r, userID)
 		default:
@@ -43,10 +41,10 @@ func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The projectID from the path is already a string (UUID). No conversion needed.
 	projectID := idStr
-
 	switch r.Method {
+	case http.MethodGet:
+		h.handleGetFullProject(w, r, projectID, userID)
 	case http.MethodPut:
 		h.handleUpdateProject(w, r, projectID, userID)
 	case http.MethodDelete:
@@ -60,7 +58,28 @@ func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // --- Handler Functions ---
 
-func (h *ProjectHandler) handleListProjects(w http.ResponseWriter, _ *http.Request, userID string) {
+func (h *ProjectHandler) handleGetFullProject(w http.ResponseWriter, _ *http.Request, projectID, userID string) {
+	// First, check if the user owns this project before fetching all the data.
+	if err := h.checkOwnership(projectID, userID); err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	project, err := h.repo.GetFullProjectByID(projectID)
+	if err != nil {
+		log.Printf("ERROR: Failed to get full project %s: %v", projectID, err)
+		http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
+		return
+	}
+	if project == nil {
+		http.Error(w, `{"error": "Project not found"}`, http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(project)
+}
+
+func (h *ProjectHandler) handleListProjects(w http.ResponseWriter, userID string) {
 	projects, err := h.repo.ListByUserID(userID)
 	if err != nil {
 		log.Printf("ERROR: Failed to list projects for user %s: %v", userID, err)

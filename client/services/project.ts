@@ -10,19 +10,57 @@ export interface Project {
   updatedAt: string;
 }
 
-// The data required to create a new project.
 export interface CreateProjectRequest {
   projectName: string;
   description?: string;
 }
 
-// The data required to update an existing project.
 export interface UpdateProjectRequest {
   projectName?: string;
   description?: string;
 }
 
+export interface ScriptElement {
+  id: string;
+  sceneId: string;
+  elementOrder: number;
+  elementType: 'ACTION' | 'CHARACTER' | 'DIALOG' | 'PARENTHETICAL' | 'SHOT' | 'TRANSITION';
+  content: string;
+  characterId: string | null;
+}
+
+export interface Scene {
+  id: string;
+  actId: string;
+  sceneNumber: number;
+  setting: string;
+  elements: ScriptElement[];
+}
+
+export interface Act {
+  id: string;
+  projectId: string;
+  actNumber: number;
+  title: string | null;
+  scenes: Scene[];
+}
+
+export interface FullProject extends Project {
+  acts: Act[];
+}
+
+
 // --- Service Functions ---
+
+/**
+ * Fetches a single, complete project by its ID, including all acts,
+ * scenes, and script elements.
+ */
+export const getProjectById = (projectId: string): Promise<FullProject> => {
+  return apiClient<FullProject>(`projects/${projectId}`, {
+    method: "GET",
+  });
+};
 
 /**
  * Fetches a list of all projects for the currently authenticated user.

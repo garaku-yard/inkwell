@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/l1roii/screenwriter/server/internal/entity"
@@ -41,6 +42,90 @@ func (r *postgresProjectRepository) GetByID(projectID string) (*entity.Project, 
 		return nil, nil
 	}
 	return &p, err
+}
+
+func (r *postgresProjectRepository) GetFullProjectByID(projectID string) (*entity.FullProject, error) {
+	// Step 1: Fetch the base project details.
+	projectQuery := `SELECT project_id, user_id, project_name, description, is_starred, created_at, updated_at FROM projects WHERE project_id = $1`
+	var fullProject entity.FullProject
+	err := r.db.QueryRow(projectQuery, projectID).Scan(&fullProject.ID, &fullProject.UserID, &fullProject.ProjectName, &fullProject.Description, &fullProject.IsStarred, &fullProject.CreatedAt, &fullProject.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil // Not found
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Step 2: Fetch all acts for this project.
+	actsQuery := `SELECT act_id, project_id, act_number, title FROM acts WHERE project_id = $1 ORDER BY act_number ASC`
+	actsRows, err := r.db.Query(actsQuery, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer actsRows.Close()
+
+	// Use maps for efficient assembly of the nested structure.
+	actMap := make(map[string]*entity.Act)
+	var actIDs []string
+	for actsRows.Next() {
+		var act entity.Act
+		if err := actsRows.Scan(&act.ID, &act.ProjectID, &act.ActNumber, &act.Title); err != nil {
+			return nil, err
+		}
+		act.Scenes = []*entity.Scene{} // Initialize empty slice
+		fullProject.Acts = append(fullProject.Acts, &act)
+		actMap[act.ID] = &act
+		actIDs = append(actIDs, act.ID)
+	}
+	if len(actIDs) == 0 {
+		return &fullProject, nil
+	} // No acts, return project as is.
+
+	// Step 3: Fetch all scenes for all the acts found.
+	scenesQuery := `SELECT scene_id, act_id, scene_number, setting FROM scenes WHERE act_id = ANY($1) ORDER BY scene_number ASC`
+	sceneRows, err := r.db.Query(scenesQuery, "{"+strings.Join(actIDs, ",")+"}")
+	if err != nil {
+		return nil, err
+	}
+	defer sceneRows.Close()
+
+	sceneMap := make(map[string]*entity.Scene)
+	var sceneIDs []string
+	for sceneRows.Next() {
+		var scene entity.Scene
+		if err := sceneRows.Scan(&scene.ID, &scene.ActID, &scene.SceneNumber, &scene.Setting); err != nil {
+			return nil, err
+		}
+		scene.Elements = []*entity.ScriptElement{} // Initialize empty slice
+		if act, ok := actMap[scene.ActID]; ok {
+			act.Scenes = append(act.Scenes, &scene)
+			sceneMap[scene.ID] = &scene
+			sceneIDs = append(sceneIDs, scene.ID)
+		}
+	}
+	if len(sceneIDs) == 0 {
+		return &fullProject, nil
+	} // No scenes, return project with acts.
+
+	// Step 4: Fetch all script elements for all the scenes found.
+	elementsQuery := `SELECT element_id, scene_id, element_order, element_type, content, character_id FROM script_elements WHERE scene_id = ANY($1) ORDER BY element_order ASC`
+	elementRows, err := r.db.Query(elementsQuery, "{"+strings.Join(sceneIDs, ",")+"}")
+	if err != nil {
+		return nil, err
+	}
+	defer elementRows.Close()
+
+	for elementRows.Next() {
+		var el entity.ScriptElement
+		if err := elementRows.Scan(&el.ID, &el.SceneID, &el.ElementOrder, &el.ElementType, &el.Content, &el.CharacterID); err != nil {
+			return nil, err
+		}
+		if scene, ok := sceneMap[el.SceneID]; ok {
+			scene.Elements = append(scene.Elements, &el)
+		}
+	}
+
+	return &fullProject, nil
 }
 
 func (r *postgresProjectRepository) GetByName(userID string, name string) (*entity.Project, error) {

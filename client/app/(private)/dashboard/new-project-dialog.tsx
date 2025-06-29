@@ -19,7 +19,6 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 
-// Import the service and type definitions
 import { createProject, Project } from "@/services/project"
 
 const projectTypes = [
@@ -31,7 +30,6 @@ const projectTypes = [
   { value: "web-series", label: "Web Series" },
 ]
 
-// The props interface now includes the callback function from the Dashboard.
 interface NewProjectDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -72,21 +70,24 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
     setIsLoading(true)
     setError(null)
 
-    try {
-      const payload = {
-        projectName: projectName,
-        description: projectTypes.find(t => t.value === projectType)?.label || "New Project",
-      }
+    // --- DEBUGGING STEP ---
+    const payload = {
+      projectName: projectName,
+      description: projectTypes.find(t => t.value === projectType)?.label || "New Project",
+    };
 
+    console.log("Sending payload to createProject:", payload);
+    // --- END DEBUGGING STEP ---
+
+    try {
       const newProject = await createProject(payload)
 
-      if (newProject && newProject.id) {
-        // Notify the parent Dashboard to update its state
-        onProjectCreated(newProject);
-        onOpenChange(false); // Close the dialog
-      } else {
-        throw new Error("API did not return a valid project.");
-      }
+      // TODO: Add collaborators API call here.
+
+      onProjectCreated(newProject);
+      onOpenChange(false)
+
+      router.push(`/project/${newProject.id}`);
 
     } catch (err: any) {
       setError(err.message || "An unknown error occurred.")
@@ -97,6 +98,7 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* ... The rest of your dialog JSX remains the same ... */}
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
