@@ -1,5 +1,3 @@
-"use client"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, ChevronsUpDown, Plus, X, AlertCircle } from "lucide-react"
@@ -21,8 +19,8 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 
-// Import the service function to create a project
-import { createProject } from "@/services/project"
+// Import the service and type definitions
+import { createProject, Project } from "@/services/project"
 
 const projectTypes = [
   { value: "feature", label: "Feature Film" },
@@ -33,28 +31,31 @@ const projectTypes = [
   { value: "web-series", label: "Web Series" },
 ]
 
+// The props interface now includes the callback function from the Dashboard.
 interface NewProjectDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onProjectCreated: (newProject: Project) => void;
 }
 
-export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) {
+export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewProjectDialogProps) {
   const [projectName, setProjectName] = useState("")
   const [projectType, setProjectType] = useState("")
   const [collaborators, setCollaborators] = useState<string[]>([])
   const [collaboratorInput, setCollaboratorInput] = useState("")
   const [openTypeSelect, setOpenTypeSelect] = useState(false)
 
-  // State for handling API request status
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const router = useRouter()
 
   const handleAddCollaborator = () => {
-    if (collaboratorInput && !collaborators.includes(collaboratorInput)) {
+    if (collaboratorInput && collaboratorInput.includes('#') && !collaborators.includes(collaboratorInput)) {
       setCollaborators([...collaborators, collaboratorInput])
       setCollaboratorInput("")
+    } else {
+      console.log("Invalid format. Please use username#tag");
     }
   }
 
@@ -63,7 +64,6 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
   }
 
   const handleCreateProject = async () => {
-    // Basic validation
     if (!projectName) {
       setError("Project name is required.")
       return
@@ -73,16 +73,20 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
     setError(null)
 
     try {
-      // Call the API service to create the project.
-      // We'll use the projectType as the description for now.
-      const newProject = await createProject({
+      const payload = {
         projectName: projectName,
-        description: projectType ? projectTypes.find(t => t.value === projectType)?.label : "New Project"
-      })
+        description: projectTypes.find(t => t.value === projectType)?.label || "New Project",
+      }
 
-      // On success, close the dialog and navigate to the new project's editor page.
-      onOpenChange(false)
-      router.push(`/project/${newProject.id}`)
+      const newProject = await createProject(payload)
+
+      if (newProject && newProject.id) {
+        // Notify the parent Dashboard to update its state
+        onProjectCreated(newProject);
+        onOpenChange(false); // Close the dialog
+      } else {
+        throw new Error("API did not return a valid project.");
+      }
 
     } catch (err: any) {
       setError(err.message || "An unknown error occurred.")
@@ -97,11 +101,10 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
           <DialogDescription>
-            Set up your new screenplay project. You can add collaborators and choose the project type.
+            Set up your new screenplay project. You can add collaborators by their unique username.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Display API Error Message */}
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -132,7 +135,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-0">
+              <PopoverContent className="w-full p-0">
                 <Command>
                   <CommandInput placeholder="Search project types..." />
                   <CommandList>
@@ -164,7 +167,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
             <div className="flex gap-2">
               <Input
                 id="collaborators"
-                placeholder="Add email address"
+                placeholder="Add user by username#tag"
                 value={collaboratorInput}
                 onChange={(e) => setCollaboratorInput(e.target.value)}
                 onKeyDown={(e) => {

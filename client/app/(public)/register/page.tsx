@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
+// Import the updated service function and type from the correct path
 import { registerUser, RegisterRequest } from "@/services/auth"
 
 export default function RegisterPage() {
@@ -21,6 +22,7 @@ export default function RegisterPage() {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
+    username: "", // <-- NEW: Added username to state
     email: "",
     password: "",
     confirmPassword: "",
@@ -46,31 +48,33 @@ export default function RegisterPage() {
       return
     }
     if (formData.password.length < 6) {
-        setError("Password must be at least 6 characters long.")
-        return
+      setError("Password must be at least 6 characters long.")
+      return
     }
 
     setIsLoading(true)
 
+    // The payload now includes the username.
     const apiPayload: RegisterRequest = {
-        name: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        password: formData.password,
+      name: formData.firstName,
+      lastName: formData.lastName,
+      username: formData.username, // <-- NEW: Added username to payload
+      email: formData.email,
+      password: formData.password,
     }
 
     try {
-        await registerUser(apiPayload)
-        setSuccess("Registration successful! Redirecting to login...")
+      await registerUser(apiPayload)
+      setSuccess("Registration successful! Redirecting to login...")
 
-        setTimeout(() => {
-            router.push("/login")
-        }, 2000)
+      setTimeout(() => {
+        router.push("/login")
+      }, 2000)
 
     } catch (err: any) {
-        setError(err.message)
+      setError(err.message)
     } finally {
-        setIsLoading(false)
+      setIsLoading(false)
     }
   }
 
@@ -80,7 +84,7 @@ export default function RegisterPage() {
         <div className="flex items-center gap-2 mb-8">
           <Link href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
-            Back to Home 
+            Back to Home
           </Link>
         </div>
 
@@ -95,7 +99,7 @@ export default function RegisterPage() {
             <CardDescription className="text-center">Start writing your screenplay today</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            
+
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -122,6 +126,13 @@ export default function RegisterPage() {
                   <Input id="lastName" placeholder="Doe" value={formData.lastName} onChange={handleInputChange} required disabled={isLoading} />
                 </div>
               </div>
+
+              {/* --- NEW USERNAME FIELD --- */}
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input id="username" placeholder="johndoe" value={formData.username} onChange={handleInputChange} required disabled={isLoading} />
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" placeholder="john@example.com" value={formData.email} onChange={handleInputChange} required disabled={isLoading} />

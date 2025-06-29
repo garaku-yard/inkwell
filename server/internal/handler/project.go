@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/l1roii/screenwriter/server/internal/entity"
@@ -20,20 +19,18 @@ func NewProjectHandler(repo repository.ProjectRepository) *ProjectHandler {
 	return &ProjectHandler{repo: repo}
 }
 
-// ServeHTTP acts as a RESTful router for the /projects/ path.
 func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	userID, ok := r.Context().Value(middleware.UserIDKey).(int64)
+	// The UserID from the context is now a string (UUID).
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
 		http.Error(w, `{"error": "Not authorized"}`, http.StatusUnauthorized)
 		return
 	}
 
-	// UPDATED: More robust path trimming. This will correctly extract the ID.
 	idStr := strings.TrimPrefix(r.URL.Path, "/projects/")
 
-	// If idStr is empty, the path was exactly "/projects/" or "/projects"
 	if idStr == "" || r.URL.Path == "/projects" {
 		switch r.Method {
 		case http.MethodGet:
@@ -46,12 +43,8 @@ func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If we are here, it means we have an ID in the path.
-	projectID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		http.Error(w, `{"error": "Invalid project ID in URL"}`, http.StatusBadRequest)
-		return
-	}
+	// The projectID from the path is already a string (UUID). No conversion needed.
+	projectID := idStr
 
 	switch r.Method {
 	case http.MethodPut:
@@ -65,14 +58,12 @@ func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// --- (The rest of your handler functions: handleListProjects, handleCreateProject, etc., do not need to be changed) ---
-// ... handler functions from previous steps ...
+// --- Handler Functions ---
 
-// handleListProjects handles GET requests to list all projects for a given user.
-func (h *ProjectHandler) handleListProjects(w http.ResponseWriter, _ *http.Request, userID int64) {
+func (h *ProjectHandler) handleListProjects(w http.ResponseWriter, _ *http.Request, userID string) {
 	projects, err := h.repo.ListByUserID(userID)
 	if err != nil {
-		log.Printf("ERROR: Failed to list projects for user %d: %v", userID, err)
+		log.Printf("ERROR: Failed to list projects for user %s: %v", userID, err)
 		http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -82,8 +73,7 @@ func (h *ProjectHandler) handleListProjects(w http.ResponseWriter, _ *http.Reque
 	json.NewEncoder(w).Encode(projects)
 }
 
-// handleCreateProject handles POST requests to create a new project.
-func (h *ProjectHandler) handleCreateProject(w http.ResponseWriter, r *http.Request, userID int64) {
+func (h *ProjectHandler) handleCreateProject(w http.ResponseWriter, r *http.Request, userID string) {
 	var reqBody struct {
 		ProjectName string `json:"projectName"`
 		Description string `json:"description"`
@@ -93,6 +83,14 @@ func (h *ProjectHandler) handleCreateProject(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// --- NEW VALIDATION STEP ---
+	// Trim whitespace and check if the project name is empty.
+	if strings.TrimSpace(reqBody.ProjectName) == "" {
+		http.Error(w, `{"error": "Project name cannot be empty"}`, http.StatusBadRequest)
+		return
+	}
+	// --- END VALIDATION ---
+
 	project := &entity.Project{
 		UserID:      userID,
 		ProjectName: reqBody.ProjectName,
@@ -100,7 +98,7 @@ func (h *ProjectHandler) handleCreateProject(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := h.repo.Create(project); err != nil {
-		log.Printf("ERROR: Failed to create project for user %d: %v", userID, err)
+		log.Printf("ERROR: Failed to create project for user %s: %v", userID, err)
 		http.Error(w, `{"error": "Could not create project"}`, http.StatusInternalServerError)
 		return
 	}
@@ -109,8 +107,7 @@ func (h *ProjectHandler) handleCreateProject(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(project)
 }
 
-// handleUpdateProject handles PUT requests to update a project.
-func (h *ProjectHandler) handleUpdateProject(w http.ResponseWriter, r *http.Request, projectID, userID int64) {
+func (h *ProjectHandler) handleUpdateProject(w http.ResponseWriter, r *http.Request, projectID, userID string) {
 	if err := h.checkOwnership(projectID, userID); err != nil {
 		h.handleError(w, err)
 		return
@@ -134,7 +131,7 @@ func (h *ProjectHandler) handleUpdateProject(w http.ResponseWriter, r *http.Requ
 
 	updatedProject, err := h.repo.Update(projectToUpdate)
 	if err != nil {
-		log.Printf("ERROR: Failed to update project %d: %v", projectID, err)
+		log.Printf("ERROR: Failed to update project %s: %v", projectID, err)
 		http.Error(w, `{"error": "Could not update project"}`, http.StatusInternalServerError)
 		return
 	}
@@ -142,15 +139,14 @@ func (h *ProjectHandler) handleUpdateProject(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(updatedProject)
 }
 
-// handleDeleteProject handles DELETE requests for a project.
-func (h *ProjectHandler) handleDeleteProject(w http.ResponseWriter, _ *http.Request, projectID, userID int64) {
+func (h *ProjectHandler) handleDeleteProject(w http.ResponseWriter, _ *http.Request, projectID, userID string) {
 	if err := h.checkOwnership(projectID, userID); err != nil {
 		h.handleError(w, err)
 		return
 	}
 
 	if err := h.repo.Delete(projectID, userID); err != nil {
-		log.Printf("ERROR: Failed to delete project %d: %v", projectID, err)
+		log.Printf("ERROR: Failed to delete project %s: %v", projectID, err)
 		http.Error(w, `{"error": "Could not delete project"}`, http.StatusInternalServerError)
 		return
 	}
@@ -158,8 +154,7 @@ func (h *ProjectHandler) handleDeleteProject(w http.ResponseWriter, _ *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleStarProject handles PATCH requests to star/unstar a project.
-func (h *ProjectHandler) handleStarProject(w http.ResponseWriter, r *http.Request, projectID, userID int64) {
+func (h *ProjectHandler) handleStarProject(w http.ResponseWriter, r *http.Request, projectID, userID string) {
 	if err := h.checkOwnership(projectID, userID); err != nil {
 		h.handleError(w, err)
 		return
@@ -175,7 +170,7 @@ func (h *ProjectHandler) handleStarProject(w http.ResponseWriter, r *http.Reques
 
 	updatedProject, err := h.repo.UpdateIsStarred(projectID, userID, reqBody.IsStarred)
 	if err != nil {
-		log.Printf("ERROR: Failed to star project %d: %v", projectID, err)
+		log.Printf("ERROR: Failed to star project %s: %v", projectID, err)
 		http.Error(w, `{"error": "Could not update star status"}`, http.StatusInternalServerError)
 		return
 	}
@@ -193,10 +188,10 @@ func (h *ProjectHandler) handleError(w http.ResponseWriter, err error) {
 }
 
 // checkOwnership is a helper method to ensure a user can only modify their own projects.
-func (h *ProjectHandler) checkOwnership(projectID, userID int64) error {
+func (h *ProjectHandler) checkOwnership(projectID, userID string) error {
 	project, err := h.repo.GetByID(projectID)
 	if err != nil {
-		log.Printf("DB ERROR in checkOwnership for project %d: %v", projectID, err)
+		log.Printf("DB ERROR in checkOwnership for project %s: %v", projectID, err)
 		return &httpError{message: `{"error": "Server error while verifying ownership"}`, code: http.StatusInternalServerError}
 	}
 	if project == nil {

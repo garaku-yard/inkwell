@@ -1,4 +1,3 @@
-// client/app/dashboard/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -21,10 +20,9 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { NewProjectDialog } from "./new-project-dialog"
-// Import the service functions and Project type
-import { getMyProjects, starProject, Project } from "@/services/project"
+import { getMyProjects, starProject, Project } from "@/services/project" // Corrected import
+import { cn } from "@/lib/utils"
 
-// Helper to format dates nicely (you could use a library like date-fns for more advanced formatting)
 const formatRelativeTime = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();
@@ -40,16 +38,15 @@ export default function Dashboard() {
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
-  const { isAuthenticated, logout, userEmail } = useAuth()
+  const { isAuthenticated, logout, userName } = useAuth()
 
-  // State for projects, loading, and errors
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch projects when the component mounts and the user is authenticated
   useEffect(() => {
     if (isAuthenticated) {
+      setIsLoading(true);
       const fetchProjects = async () => {
         try {
           const fetchedProjects = await getMyProjects()
@@ -61,17 +58,21 @@ export default function Dashboard() {
         }
       }
       fetchProjects()
+    } else {
+      setIsLoading(false);
     }
   }, [isAuthenticated])
 
+  // NEW: Callback function to add a new project to the state instantly.
+  const handleProjectCreated = (newProject: Project) => {
+    setProjects(prevProjects => [newProject, ...prevProjects]);
+  };
 
-  const handleStarProject = async (projectId: number, currentStatus: boolean) => {
+  const handleStarProject = async (projectId: string, currentStatus: boolean) => {
     try {
       const updatedProject = await starProject(projectId, !currentStatus);
-      // Update the project in the local state to reflect the change immediately
       setProjects(projects.map(p => p.id === projectId ? updatedProject : p));
     } catch (error) {
-      // Here you could show a toast notification for the error
       console.error("Failed to star project", error);
     }
   }
@@ -80,7 +81,7 @@ export default function Dashboard() {
     project.projectName.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const handleProjectClick = (projectId: number) => {
+  const handleProjectClick = (projectId: string) => {
     router.push(`/project/${projectId}`)
   }
 
@@ -104,7 +105,7 @@ export default function Dashboard() {
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{userEmail}</p>
+                      <p className="text-sm font-medium leading-none">{userName}</p>
                       <p className="text-xs leading-none text-muted-foreground">Welcome back!</p>
                     </div>
                   </DropdownMenuLabel>
@@ -146,7 +147,6 @@ export default function Dashboard() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            {/* Add filter logic for these tabs later */}
             <Tabs defaultValue="all" className="w-full sm:w-auto">
               <TabsList className="w-full">
                 <TabsTrigger value="all" className="w-full sm:w-auto">All</TabsTrigger>
@@ -155,7 +155,6 @@ export default function Dashboard() {
             </Tabs>
           </div>
 
-          {/* Loading and Error States */}
           {isLoading ? (
             <div className="text-center py-12 w-full flex justify-center items-center">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -173,10 +172,10 @@ export default function Dashboard() {
                 {filteredProjects.map((project) => (
                   <Card
                     key={project.id}
-                    className="overflow-hidden hover:shadow-xl hover:scale-105 transition-all duration-300 ease-in-out transform cursor-pointer"
+                    className="overflow-hidden hover:shadow-xl hover:scale-105 transition-all duration-300 ease-in-out transform cursor-pointer flex flex-col"
                     onClick={() => handleProjectClick(project.id)}
                   >
-                    <CardContent className="p-4">
+                    <CardContent className="p-4 flex-grow">
                       <div className="flex items-start justify-between">
                         <div>
                           <h3 className="font-semibold text-lg hover:text-primary">{project.projectName}</h3>
@@ -190,30 +189,35 @@ export default function Dashboard() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Rename</DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStarProject(project.id, project.isStarred); }}>
-                              {project.isStarred ? "Unstar" : "Star"}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive" onClick={(e) => e.stopPropagation()}>Delete</DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
                     </CardContent>
-                    <CardFooter className="p-4 pt-0 flex justify-between text-sm text-muted-foreground">
+                    <CardFooter className="p-4 pt-0 flex justify-between items-center text-sm text-muted-foreground">
                       <div className="flex items-center">
                         <Clock className="h-3.5 w-3.5 mr-1" />
                         {formatRelativeTime(project.updatedAt)}
                       </div>
-                      <div className="flex items-center gap-3">
-                        {project.isStarred && <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />}
-                        {/* We can add collaborator count here later */}
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStarProject(project.id, project.isStarred);
+                        }}
+                      >
+                        <Star className={cn(
+                          "h-4 w-4",
+                          project.isStarred && "fill-yellow-400 text-yellow-400"
+                        )} />
+                      </Button>
                     </CardFooter>
                   </Card>
                 ))}
               </div>
 
-              {/* Empty State */}
               {filteredProjects.length === 0 && !isLoading && (
                 <div className="text-center py-12 w-full">
                   <FileText className="h-12 w-12 mx-auto text-muted-foreground/50" />
@@ -228,7 +232,12 @@ export default function Dashboard() {
         </div>
       </main>
 
-      <NewProjectDialog open={isNewProjectDialogOpen} onOpenChange={setIsNewProjectDialogOpen} />
+      {/* Pass the new callback function to the dialog */}
+      <NewProjectDialog
+        open={isNewProjectDialogOpen}
+        onOpenChange={setIsNewProjectDialogOpen}
+        onProjectCreated={handleProjectCreated}
+      />
     </div>
   )
 }
