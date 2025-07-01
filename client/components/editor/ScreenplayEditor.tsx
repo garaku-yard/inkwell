@@ -10,37 +10,32 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Toolbar } from "./Toolbar" // Adjust path if needed
-import { FullProject, Scene } from "@/services/project" // Import the types
+import { Toolbar } from "./Toolbar"
+import { FullProject, Scene } from "@/services/project"
 
-// The component now receives the full project data as a prop.
 interface ScreenplayEditorProps {
   projectData: FullProject;
 }
 
-// Helper function to generate the editor content from the project data
 const generateContentFromProject = (project: FullProject): string => {
-  // Defensive check: If there are no acts or acts is null, return a default starting point.
   if (!project.acts || project.acts.length === 0) {
     return "FADE IN:\n\n";
   }
 
-  // Combine all elements from all scenes into one string for the main editor
   return project.acts
     .flatMap(act => act.scenes)
     .flatMap(scene => [
       scene.setting.toUpperCase(),
       ...scene.elements.map(el => {
-        // This logic can be expanded to format each element type correctly.
         switch (el.elementType) {
           case 'CHARACTER': return el.content.toUpperCase();
-          case 'PARENTHETICAL': return `  (${el.content})`; // Parentheticals are usually wrapped in parens
+          case 'PARENTHETICAL': return `  (${el.content})`;
           case 'DIALOG': return `    ${el.content}`;
           default: return el.content;
         }
       })
     ].join('\n\n'))
-    .join('\n\n\n'); // Use triple newline to separate scenes clearly
+    .join('\n\n\n');
 }
 
 
@@ -49,7 +44,6 @@ export function ScreenplayEditor({ projectData }: ScreenplayEditorProps) {
   const [content, setContent] = useState<string>("");
   const [activeTab, setActiveTab] = useState("scenes");
 
-  // When the projectData prop is loaded, generate the initial editor content.
   useEffect(() => {
     if (projectData) {
       setContent(generateContentFromProject(projectData));
@@ -62,7 +56,6 @@ export function ScreenplayEditor({ projectData }: ScreenplayEditorProps) {
     setContent(e.target.value)
   }
 
-  // A helper to safely get all scenes for rendering, even if acts is null or empty.
   const allScenes = projectData?.acts?.flatMap(act => act.scenes) || [];
 
   return (
@@ -99,7 +92,6 @@ export function ScreenplayEditor({ projectData }: ScreenplayEditorProps) {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
         <div className="w-64 border-r bg-muted/30 flex flex-col">
           <div className="p-4">
             <Button className="w-full justify-start gap-2" variant="outline">
@@ -114,7 +106,6 @@ export function ScreenplayEditor({ projectData }: ScreenplayEditorProps) {
                 <TabsTrigger value="structure" className="flex-1">Structure</TabsTrigger>
               </TabsList>
             </div>
-            {/* Render the scene list dynamically */}
             <TabsContent value="scenes" className="flex-1 overflow-auto p-2">
               <div className="space-y-1">
                 {allScenes.length > 0 ? allScenes.map((scene: Scene) => (
@@ -129,7 +120,6 @@ export function ScreenplayEditor({ projectData }: ScreenplayEditorProps) {
                 )}
               </div>
             </TabsContent>
-            {/* Render the act structure dynamically */}
             <TabsContent value="structure" className="flex-1 overflow-auto p-4 space-y-4">
               {projectData.acts && projectData.acts.length > 0 ? projectData.acts.map(act => (
                 <div key={act.id}>

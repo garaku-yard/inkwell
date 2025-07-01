@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-// Import the updated service function and type from the correct path
 import { registerUser, RegisterRequest } from "@/services/auth"
 
 export default function RegisterPage() {
@@ -22,7 +21,7 @@ export default function RegisterPage() {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
-    username: "", // <-- NEW: Added username to state
+    username: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -54,11 +53,10 @@ export default function RegisterPage() {
 
     setIsLoading(true)
 
-    // The payload now includes the username.
     const apiPayload: RegisterRequest = {
       name: formData.firstName,
       lastName: formData.lastName,
-      username: formData.username, // <-- NEW: Added username to payload
+      username: formData.username,
       email: formData.email,
       password: formData.password,
     }
@@ -127,7 +125,6 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* --- NEW USERNAME FIELD --- */}
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
                 <Input id="username" placeholder="johndoe" value={formData.username} onChange={handleInputChange} required disabled={isLoading} />

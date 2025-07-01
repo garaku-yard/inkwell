@@ -19,7 +19,6 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 
-// Import the service functions and Project type
 import { createProject, addCollaborator, Project } from "@/services/project"
 
 const projectTypes = [
@@ -72,20 +71,17 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
     setError(null)
 
     try {
-      // Step 1: Create the project
       const newProject = await createProject({
         projectName: projectName,
         description: projectTypes.find(t => t.value === projectType)?.label || "New Project",
       })
 
-      // Step 2: If project creation is successful, add collaborators
       if (newProject && newProject.id && collaborators.length > 0) {
         await Promise.all(
           collaborators.map(userTag => addCollaborator(newProject.id, userTag))
         );
       }
 
-      // Final Step: Update UI, close dialog, and navigate
       onProjectCreated(newProject);
       onOpenChange(false);
       router.push(`/project/${newProject.id}`);

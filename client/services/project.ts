@@ -56,6 +56,7 @@ export interface FullProject extends Project {
 /**
  * Fetches a single, complete project by its ID, including all acts,
  * scenes, and script elements.
+ * @param projectId The ID of the project.
  */
 export const getProjectById = (projectId: string): Promise<FullProject> => {
   return apiClient<FullProject>(`projects/${projectId}`, {
@@ -98,6 +99,7 @@ export const addCollaborator = (projectId: string, usernameWithTag: string): Pro
 
 /**
  * Updates an existing project.
+ * @param projectId The ID of the project.
  */
 export const updateProject = (projectId: string, projectData: UpdateProjectRequest): Promise<Project> => {
   return apiClient<Project>(`projects/${projectId}`, {
@@ -108,6 +110,7 @@ export const updateProject = (projectId: string, projectData: UpdateProjectReque
 
 /**
  * Deletes a project.
+ * @param projectId The ID of the project.
  */
 export const deleteProject = (projectId: string): Promise<void> => {
   return apiClient<void>(`projects/${projectId}`, {
@@ -117,6 +120,7 @@ export const deleteProject = (projectId: string): Promise<void> => {
 
 /**
  * Updates the 'starred' status of a project.
+ * @param projectId The ID of the project.
  */
 export const starProject = (projectId: string, isStarred: boolean): Promise<Project> => {
   return apiClient<Project>(`projects/${projectId}`, {

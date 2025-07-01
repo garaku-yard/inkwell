@@ -14,7 +14,6 @@ func NewUserRepository(db *sql.DB) UserRepository {
 	return &postgresUserRepository{db: db}
 }
 
-// Create inserts a new user record into the database.
 func (r *postgresUserRepository) Create(user *entity.User) error {
 	query := `
         INSERT INTO users (name, last_name, username, username_tag, email, password)
@@ -32,21 +31,19 @@ func (r *postgresUserRepository) Create(user *entity.User) error {
 	).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
 }
 
-// GetByEmail retrieves a user by their email address.
 func (r *postgresUserRepository) GetByEmail(email string) (*entity.User, error) {
 	query := `
 		SELECT user_id, username, username_tag, name, last_name, email, password, created_at, updated_at 
 		FROM users WHERE email = $1`
 
 	var u entity.User
-	// UPDATED: The email parameter is now correctly passed to the query.
 	err := r.db.QueryRow(query, email).Scan(
 		&u.ID, &u.Username, &u.UsernameTag, &u.Name, &u.LastName,
 		&u.Email, &u.Password, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil // Not found
+			return nil, nil
 		}
 		return nil, err
 	}
@@ -58,7 +55,7 @@ func (r *postgresUserRepository) GetByUsernameAndTag(username, tag string) (*ent
 	var u entity.User
 	err := r.db.QueryRow(query, username, tag).Scan(&u.ID, &u.Username, &u.UsernameTag, &u.Name, &u.LastName, &u.Email, &u.CreatedAt, &u.UpdatedAt)
 	if err == sql.ErrNoRows {
-		return nil, nil // Not found is not an error here
+		return nil, nil
 	}
 	return &u, err
 }

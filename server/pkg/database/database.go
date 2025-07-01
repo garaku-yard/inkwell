@@ -42,18 +42,14 @@ func ConnectDB() (*sql.DB, error) {
 		sslmode = "disable"
 	}
 
-	// Construct the Data Source Name (DSN) string.
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		host, port, user, password, dbname, sslmode)
 
-	// Open a connection to the database. sql.Open doesn't immediately connect,
-	// but rather prepares a connection pool.
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}
 
-	// Ping the database to verify a connection can be established.
 	err = db.Ping()
 	if err != nil {
 		db.Close() // Clean up resources if ping fails.

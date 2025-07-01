@@ -1,4 +1,3 @@
-// client/app/dashboard/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -130,7 +129,6 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-grow flex flex-col items-center py-6">
         <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
@@ -171,7 +169,6 @@ export default function Dashboard() {
             </Alert>
           ) : (
             <>
-              {/* Projects Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
                 {filteredProjects.map((project) => (
                   <Card

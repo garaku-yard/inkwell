@@ -41,10 +41,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			// The 'sub' claim (subject) now holds the user ID as a string (UUID).
 			if sub, ok := claims["sub"].(string); ok {
-				// We still need to parse it to a UUID type for type safety internally,
-				// but for the context value, a string is fine.
 				ctx := context.WithValue(r.Context(), UserIDKey, sub)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return

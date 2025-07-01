@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation" 
+import { useRouter } from "next/navigation"
 import { ArrowLeft, Eye, EyeOff, FileText, AlertCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -12,12 +12,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-// Import the service function to call the API
 import { loginUser } from "@/services/auth"
 
-// Export the type so our service file can use it
 export interface LoginRequest {
-  email:    string
+  email: string
   password: string
 }
 
@@ -28,7 +26,7 @@ export default function LoginPage() {
 
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter() 
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,7 +38,7 @@ export default function LoginPage() {
 
       if (data.token) {
         localStorage.setItem("authToken", data.token)
-        router.push("/dashboard") 
+        router.push("/dashboard")
       }
 
     } catch (err: unknown) {
@@ -61,7 +59,7 @@ export default function LoginPage() {
         <div className="flex items-center gap-2 mb-8">
           <Link href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
-            Back to Home 
+            Back to Home
           </Link>
         </div>
 
@@ -95,7 +93,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  disabled={isLoading} 
+                  disabled={isLoading}
                 />
               </div>
               <div className="space-y-2">
@@ -108,7 +106,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    disabled={isLoading} 
+                    disabled={isLoading}
                   />
                   <Button
                     type="button"

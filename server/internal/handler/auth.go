@@ -8,7 +8,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
-	"strings" // Import the strings package
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -25,7 +25,6 @@ func NewAuthHandler(userRepo repository.UserRepository) *AuthHandler {
 	return &AuthHandler{userRepo: userRepo}
 }
 
-// RegisterRequest now includes the username.
 type RegisterRequest struct {
 	Name     string `json:"name"`
 	LastName string `json:"lastName"`
@@ -53,7 +52,6 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate a random 5-digit tag for the username.
 	tag, err := rand.Int(rand.Reader, big.NewInt(90000))
 	if err != nil {
 		http.Error(w, `{"error": "Internal server error on tag generation"}`, http.StatusInternalServerError)
@@ -66,9 +64,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		UsernameTag: usernameTag,
 		Name:        req.Name,
 		LastName:    req.LastName,
-		// FIX: Convert email to lowercase before storing in the database.
-		Email:    strings.ToLower(req.Email),
-		Password: hashedPassword,
+		Email:       strings.ToLower(req.Email),
+		Password:    hashedPassword,
 	}
 
 	if err := h.userRepo.Create(user); err != nil {
@@ -90,7 +87,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// FIX: Convert email to lowercase before querying the database.
 	email := strings.ToLower(req.Email)
 	user, err := h.userRepo.GetByEmail(email)
 	if err != nil || user == nil {
@@ -103,7 +99,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create JWT Token claims
 	claims := jwt.MapClaims{
 		"sub": user.ID,
 		"eml": user.Email,

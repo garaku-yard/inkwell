@@ -4,22 +4,20 @@ import React, { createContext, useContext, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { jwtDecode } from "jwt-decode";
 
-// UPDATED: The DecodedToken interface now matches the new JWT claims from the Go server.
 interface DecodedToken {
-  sub: string; // Subject (user's UUID)
-  nam: string; // Full Name
-  usn: string; // Username
-  tag: string; // Username Tag
-  eml: string; // Email
-  exp: number; // Expiration time
+  sub: string;
+  nam: string;
+  usn: string;
+  tag: string;
+  eml: string;
+  exp: number;
 }
 
-// UPDATED: The context now provides the user's name and UUID string.
 interface AuthContextType {
   isAuthenticated: boolean;
   logout: () => void;
   userName: string | null;
-  userId: string | null; // Changed to string to hold the UUID
+  userId: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,7 +25,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null); // Changed to string
+  const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -36,12 +34,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const token = localStorage.getItem("authToken");
       if (token) {
         const decodedToken: DecodedToken = jwtDecode(token);
-        // Check if the token is expired
         if (decodedToken.exp * 1000 > Date.now()) {
           setIsAuthenticated(true);
-          // Set the state with the new values from the token
           setUserName(decodedToken.nam);
-          setUserId(decodedToken.sub); // The 'sub' claim is the UUID string
+          setUserId(decodedToken.sub);
         } else {
           localStorage.removeItem("authToken");
         }
@@ -63,7 +59,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   if (isLoading) {
-    // You can replace this with a proper loading spinner component
     return <div>Loading Authentication...</div>;
   }
 

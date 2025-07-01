@@ -9,7 +9,7 @@ type User struct {
 	Name        string    `json:"name"`
 	LastName    string    `json:"lastName"`
 	Email       string    `json:"email"`
-	Password    string    `json:"-"` // Hide password in JSON responses
+	Password    string    `json:"-"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }

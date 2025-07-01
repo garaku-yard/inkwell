@@ -1,14 +1,10 @@
-// client/services/authService.ts
-
 import { apiClient } from "@/lib/api";
-// This path might need to be adjusted based on your final folder structure.
 import { LoginRequest } from "../app/(public)/login/page";
 
-// UPDATED: The request payload for registration now includes a username.
 export interface RegisterRequest {
   name: string;
   lastName: string;
-  username: string; // <-- NEW
+  username: string;
   email: string;
   password: string;
 }
@@ -17,9 +13,8 @@ interface LoginResponse {
   token: string;
 }
 
-// UPDATED: This now reflects the new 'users' table schema with UUIDs and username details.
 interface UserResponse {
-  id: string; // This will now be a UUID string
+  id: string;
   username: string;
   usernameTag: string;
   name: string;
@@ -36,7 +31,6 @@ export const loginUser = (credentials: LoginRequest): Promise<LoginResponse> => 
   });
 };
 
-// This function's signature now matches the new RegisterRequest interface.
 export const registerUser = (userData: RegisterRequest): Promise<UserResponse> => {
   return apiClient<UserResponse>("register", {
     method: "POST",

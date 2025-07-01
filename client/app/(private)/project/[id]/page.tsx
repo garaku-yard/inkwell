@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { Loader2, AlertCircle } from "lucide-react"
-import { ScreenplayEditor } from "@/components/editor/ScreenplayEditor" // Your editor component
+import { ScreenplayEditor } from "@/components/editor/ScreenplayEditor"
 import { getProjectById, FullProject } from "@/services/project"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
@@ -12,9 +12,8 @@ export default function ProjectPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // The useParams hook gets the dynamic part of the URL, in this case, the [id].
   const params = useParams();
-  const projectId = params.id as string; // The ID is a UUID string
+  const projectId = params.id as string;
 
   useEffect(() => {
     if (projectId) {
@@ -55,9 +54,8 @@ export default function ProjectPage() {
   }
 
   if (!project) {
-    return null; // Or a "Project not found" message
+    return null;
   }
 
-  // Pass the fully-loaded project data to the editor component.
   return <ScreenplayEditor projectData={project} />;
 }

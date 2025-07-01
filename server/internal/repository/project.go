@@ -17,8 +17,6 @@ func NewProjectRepository(db *sql.DB) ProjectRepository {
 }
 
 func (r *postgresProjectRepository) ListByUserID(userID string) ([]*entity.Project, error) {
-	// This query now joins with the collaborators table and groups by project
-	// to get an accurate count of additional collaborators for each project.
 	query := `
 		SELECT 
 				p.project_id, 
@@ -69,18 +67,16 @@ func (r *postgresProjectRepository) GetByID(projectID string) (*entity.Project, 
 }
 
 func (r *postgresProjectRepository) GetFullProjectByID(projectID string) (*entity.FullProject, error) {
-	// Step 1: Fetch the base project details.
 	projectQuery := `SELECT project_id, user_id, project_name, description, is_starred, created_at, updated_at FROM projects WHERE project_id = $1`
 	var fullProject entity.FullProject
 	err := r.db.QueryRow(projectQuery, projectID).Scan(&fullProject.ID, &fullProject.UserID, &fullProject.ProjectName, &fullProject.Description, &fullProject.IsStarred, &fullProject.CreatedAt, &fullProject.UpdatedAt)
 	if err == sql.ErrNoRows {
-		return nil, nil // Not found
+		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	// Step 2: Fetch all acts for this project.
 	actsQuery := `SELECT act_id, project_id, act_number, title FROM acts WHERE project_id = $1 ORDER BY act_number ASC`
 	actsRows, err := r.db.Query(actsQuery, projectID)
 	if err != nil {
@@ -88,7 +84,6 @@ func (r *postgresProjectRepository) GetFullProjectByID(projectID string) (*entit
 	}
 	defer actsRows.Close()
 
-	// Use maps for efficient assembly of the nested structure.
 	actMap := make(map[string]*entity.Act)
 	var actIDs []string
 	for actsRows.Next() {
@@ -96,16 +91,15 @@ func (r *postgresProjectRepository) GetFullProjectByID(projectID string) (*entit
 		if err := actsRows.Scan(&act.ID, &act.ProjectID, &act.ActNumber, &act.Title); err != nil {
 			return nil, err
 		}
-		act.Scenes = []*entity.Scene{} // Initialize empty slice
+		act.Scenes = []*entity.Scene{}
 		fullProject.Acts = append(fullProject.Acts, &act)
 		actMap[act.ID] = &act
 		actIDs = append(actIDs, act.ID)
 	}
 	if len(actIDs) == 0 {
 		return &fullProject, nil
-	} // No acts, return project as is.
+	}
 
-	// Step 3: Fetch all scenes for all the acts found.
 	scenesQuery := `SELECT scene_id, act_id, scene_number, setting FROM scenes WHERE act_id = ANY($1) ORDER BY scene_number ASC`
 	sceneRows, err := r.db.Query(scenesQuery, "{"+strings.Join(actIDs, ",")+"}")
 	if err != nil {
@@ -120,7 +114,7 @@ func (r *postgresProjectRepository) GetFullProjectByID(projectID string) (*entit
 		if err := sceneRows.Scan(&scene.ID, &scene.ActID, &scene.SceneNumber, &scene.Setting); err != nil {
 			return nil, err
 		}
-		scene.Elements = []*entity.ScriptElement{} // Initialize empty slice
+		scene.Elements = []*entity.ScriptElement{}
 		if act, ok := actMap[scene.ActID]; ok {
 			act.Scenes = append(act.Scenes, &scene)
 			sceneMap[scene.ID] = &scene
@@ -129,9 +123,8 @@ func (r *postgresProjectRepository) GetFullProjectByID(projectID string) (*entit
 	}
 	if len(sceneIDs) == 0 {
 		return &fullProject, nil
-	} // No scenes, return project with acts.
+	}
 
-	// Step 4: Fetch all script elements for all the scenes found.
 	elementsQuery := `SELECT element_id, scene_id, element_order, element_type, content, character_id FROM script_elements WHERE scene_id = ANY($1) ORDER BY element_order ASC`
 	elementRows, err := r.db.Query(elementsQuery, "{"+strings.Join(sceneIDs, ",")+"}")
 	if err != nil {
