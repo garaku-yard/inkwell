@@ -22,6 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { NewProjectDialog } from "./new-project-dialog"
 import { getMyProjects, starProject, Project } from "@/services/project"
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 
 const formatRelativeTime = (dateString: string) => {
   const date = new Date(dateString);
@@ -34,7 +35,7 @@ const formatRelativeTime = (dateString: string) => {
   return date.toLocaleDateString();
 }
 
-export default function Dashboard() {
+export default function DashboardPage() {
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
@@ -43,6 +44,8 @@ export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const [inviteCount, setInviteCount] = useState(3);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -58,6 +61,7 @@ export default function Dashboard() {
         }
       }
       fetchProjects()
+      // TODO: In the future, you would also fetch the real invite count here.
     } else {
       setIsLoading(false);
     }
@@ -99,6 +103,9 @@ export default function Dashboard() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                     <UserIcon className="h-5 w-5" />
+                    {inviteCount > 0 && (
+                      <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-teal-500 ring-2 ring-white" />
+                    )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -109,9 +116,17 @@ export default function Dashboard() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={logout}>
-                    <Inbox className="mr-2 h-4 w-4" />
-                    <span>Invites</span>
+                  {/* UPDATED: Inbox item now shows a count */}
+                  <DropdownMenuItem>
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center">
+                        <Inbox className="mr-2 h-4 w-4" />
+                        <span>Inbox</span>
+                      </div>
+                      {inviteCount > 0 && (
+                        <Badge className="h-5 bg-teal-100 text-teal-800 dark:bg-teal-800 dark:text-teal-100">{inviteCount}</Badge>
+                      )}
+                    </div>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={logout}>
                     <LogOut className="mr-2 h-4 w-4" />
@@ -129,6 +144,7 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {/* Main Content */}
       <main className="flex-grow flex flex-col items-center py-6">
         <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
@@ -169,6 +185,7 @@ export default function Dashboard() {
             </Alert>
           ) : (
             <>
+              {/* Projects Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
                 {filteredProjects.map((project) => (
                   <Card
@@ -218,7 +235,6 @@ export default function Dashboard() {
                         {project.collaboratorCount > 0 && (
                           <div className="flex items-center">
                             <Users className="h-3.5 w-3.5 mr-1" />
-                            {/* The total number of people on the project is the owner (1) + collaborators */}
                             {project.collaboratorCount + 1}
                           </div>
                         )}
