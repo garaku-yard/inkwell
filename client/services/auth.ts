@@ -1,10 +1,11 @@
-
 import { apiClient } from "@/lib/api";
-import { LoginRequest } from "@/app/login/page";
+import { LoginRequest } from "../app/(public)/login/page";
+
 export interface RegisterRequest {
-  name:     string;
+  name: string;
   lastName: string;
-  email:    string;
+  username: string;
+  email: string;
   password: string;
 }
 
@@ -13,12 +14,14 @@ interface LoginResponse {
 }
 
 interface UserResponse {
-    id: number;
-    name: string;
-    lastName: string;
-    email: string;
-    createdAt: string;
-    updatedAt: string;
+  id: string;
+  username: string;
+  usernameTag: string;
+  name: string;
+  lastName: string;
+  email: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const loginUser = (credentials: LoginRequest): Promise<LoginResponse> => {
@@ -30,7 +33,7 @@ export const loginUser = (credentials: LoginRequest): Promise<LoginResponse> => 
 
 export const registerUser = (userData: RegisterRequest): Promise<UserResponse> => {
   return apiClient<UserResponse>("register", {
-      method: "POST",
-      body: userData,
+    method: "POST",
+    body: userData,
   });
 };

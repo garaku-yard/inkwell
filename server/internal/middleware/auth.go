@@ -9,12 +9,10 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-// contextKey is a custom type to use as a key for context values.
 type contextKey string
 
 const UserIDKey contextKey = "userID"
 
-// AuthMiddleware protects routes that require authentication.
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
@@ -31,7 +29,6 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		jwtSecret := os.Getenv("JWT_SECRET")
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			// Check the signing method
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, http.ErrAbortHandler
 			}
@@ -43,10 +40,9 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// If the token is valid, extract the user ID (subject) from the claims.
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			if sub, ok := claims["sub"].(float64); ok {
-				ctx := context.WithValue(r.Context(), UserIDKey, int64(sub))
+			if sub, ok := claims["sub"].(string); ok {
+				ctx := context.WithValue(r.Context(), UserIDKey, sub)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}

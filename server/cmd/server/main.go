@@ -1,3 +1,4 @@
+// file: cmd/server/main.go
 package main
 
 import (
@@ -5,12 +6,12 @@ import (
 	"net/http"
 
 	"github.com/joho/godotenv"
-	"github.com/l1roii/screenwriter/server/internal/handler"
-	"github.com/l1roii/screenwriter/server/internal/repository"
-	"github.com/l1roii/screenwriter/server/pkg/database"
 	"github.com/rs/cors"
 
+	"github.com/l1roii/screenwriter/server/internal/handler"
+	"github.com/l1roii/screenwriter/server/internal/repository"
 	"github.com/l1roii/screenwriter/server/internal/router"
+	"github.com/l1roii/screenwriter/server/pkg/database"
 )
 
 func main() {
@@ -27,20 +28,22 @@ func main() {
 
 	userRepo := repository.NewUserRepository(db)
 	projectRepo := repository.NewProjectRepository(db)
+	collabRepo := repository.NewCollaboratorRepository(db)
 
 	authHandler := handler.NewAuthHandler(userRepo)
-	projectHandler := handler.NewProjectHandler(projectRepo)
+	projectHandler := handler.NewProjectHandler(projectRepo, userRepo, collabRepo)
 
 	mux := router.NewRouter(authHandler, projectHandler)
+
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"http://localhost:3000"},
-		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders: []string{"Authorization", "Content-Type"},
 	})
-	handler := c.Handler(mux)
+	httpHandler := c.Handler(mux)
 
 	log.Println("Starting server on :8080")
-	err = http.ListenAndServe(":8080", handler)
+	err = http.ListenAndServe(":8080", httpHandler)
 	if err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}

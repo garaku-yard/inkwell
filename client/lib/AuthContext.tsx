@@ -5,25 +5,28 @@ import { useRouter } from "next/navigation"
 import { jwtDecode } from "jwt-decode";
 
 interface DecodedToken {
-  eml: string; 
-  exp: number; 
-  sub: number; 
+  sub: string;
+  nam: string;
+  usn: string;
+  tag: string;
+  eml: string;
+  exp: number;
 }
 
 interface AuthContextType {
   isAuthenticated: boolean;
   logout: () => void;
-  userEmail: string | null; 
-  userId: number | null;
+  userName: string | null;
+  userId: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null); 
-  const [userId, setUserId] = useState<number | null>(null); 
-  const [isLoading, setIsLoading] = useState(true); 
+  const [userName, setUserName] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -33,8 +36,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const decodedToken: DecodedToken = jwtDecode(token);
         if (decodedToken.exp * 1000 > Date.now()) {
           setIsAuthenticated(true);
-          setUserEmail(decodedToken.eml); 
-          setUserId(decodedToken.sub)
+          setUserName(decodedToken.nam);
+          setUserId(decodedToken.sub);
         } else {
           localStorage.removeItem("authToken");
         }
@@ -43,24 +46,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.removeItem("authToken");
       console.error("Invalid token found", error);
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   }, []);
 
   const logout = () => {
     localStorage.removeItem("authToken");
     setIsAuthenticated(false);
-    setUserEmail(null); 
-    setUserId(null); 
+    setUserName(null);
+    setUserId(null);
     router.push("/login");
   };
 
   if (isLoading) {
-      return <div>Loading...</div>; 
+    return <div>Loading Authentication...</div>;
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, userEmail, userId, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, userName, userId, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,1 +1,1 @@
-package servic
+package services

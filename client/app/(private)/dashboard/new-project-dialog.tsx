@@ -1,8 +1,6 @@
-"use client"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, ChevronsUpDown, Plus, X } from "lucide-react"
+import { Check, ChevronsUpDown, Plus, X, AlertCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -18,7 +16,10 @@ import { Label } from "@/components/ui/label"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
+
+import { createProject, addCollaborator, Project } from "@/services/project"
 
 const projectTypes = [
   { value: "feature", label: "Feature Film" },
@@ -32,21 +33,27 @@ const projectTypes = [
 interface NewProjectDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onProjectCreated: (newProject: Project) => void
 }
 
-export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) {
+export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewProjectDialogProps) {
   const [projectName, setProjectName] = useState("")
   const [projectType, setProjectType] = useState("")
   const [collaborators, setCollaborators] = useState<string[]>([])
   const [collaboratorInput, setCollaboratorInput] = useState("")
   const [openTypeSelect, setOpenTypeSelect] = useState(false)
 
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   const router = useRouter()
 
   const handleAddCollaborator = () => {
-    if (collaboratorInput && !collaborators.includes(collaboratorInput)) {
+    if (collaboratorInput && collaboratorInput.includes('#') && !collaborators.includes(collaboratorInput)) {
       setCollaborators([...collaborators, collaboratorInput])
       setCollaboratorInput("")
+    } else {
+      console.log("Invalid format. Please use username#tag");
     }
   }
 
@@ -54,12 +61,37 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
     setCollaborators(collaborators.filter((c) => c !== collaborator))
   }
 
-  const handleCreateProject = () => {
-    // In a real app, you would create the project in the database
-    // For now, we'll just navigate to the editor with a new ID
-    const newProjectId = Math.random().toString(36).substring(2, 9)
-    router.push(`/project/${newProjectId}`)
-    onOpenChange(false)
+  const handleCreateProject = async () => {
+    if (!projectName) {
+      setError("Project name is required.")
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const newProject = await createProject({
+        projectName: projectName,
+        description: projectTypes.find(t => t.value === projectType)?.label || "New Project",
+      })
+
+      if (newProject && newProject.id && collaborators.length > 0) {
+        await Promise.all(
+          collaborators.map(userTag => addCollaborator(newProject.id, userTag))
+        );
+      }
+
+      onProjectCreated(newProject);
+      onOpenChange(false);
+      router.push(`/project/${newProject.id}`);
+
+
+    } catch (err: any) {
+      setError(err.message || "An unknown error occurred.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -68,9 +100,18 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
           <DialogDescription>
-            Set up your new screenplay project. You can add collaborators and choose the project type.
+            Set up your new screenplay project. You can add collaborators by their unique username.
           </DialogDescription>
         </DialogHeader>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="project-name">Project Name</Label>
@@ -79,20 +120,21 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
               placeholder="Enter project name"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
+              disabled={isLoading}
             />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="project-type">Project Type</Label>
             <Popover open={openTypeSelect} onOpenChange={setOpenTypeSelect}>
               <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" aria-expanded={openTypeSelect} className="justify-between">
+                <Button variant="outline" role="combobox" aria-expanded={openTypeSelect} className="justify-between" disabled={isLoading}>
                   {projectType
                     ? projectTypes.find((type) => type.value === projectType)?.label
                     : "Select project type..."}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-0">
+              <PopoverContent className="w-full p-0">
                 <Command>
                   <CommandInput placeholder="Search project types..." />
                   <CommandList>
@@ -124,7 +166,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
             <div className="flex gap-2">
               <Input
                 id="collaborators"
-                placeholder="Add email address"
+                placeholder="Add user by username#tag"
                 value={collaboratorInput}
                 onChange={(e) => setCollaboratorInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -133,8 +175,9 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
                     handleAddCollaborator()
                   }
                 }}
+                disabled={isLoading}
               />
-              <Button type="button" onClick={handleAddCollaborator} size="icon">
+              <Button type="button" onClick={handleAddCollaborator} size="icon" disabled={isLoading}>
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
@@ -148,6 +191,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
                       size="icon"
                       className="h-4 w-4 ml-1 hover:bg-transparent"
                       onClick={() => handleRemoveCollaborator(collaborator)}
+                      disabled={isLoading}
                     >
                       <X className="h-3 w-3" />
                     </Button>
@@ -158,11 +202,11 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancel
           </Button>
-          <Button onClick={handleCreateProject} disabled={!projectName}>
-            Create Project
+          <Button onClick={handleCreateProject} disabled={!projectName || isLoading}>
+            {isLoading ? "Creating..." : "Create Project"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,24 +1,26 @@
 package handler
 
 import (
+	"crypto/rand"
 	"encoding/json"
+	"fmt"
+	"log"
+	"math/big"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/l1roii/screenwriter/server/internal/entity"
 	"github.com/l1roii/screenwriter/server/internal/repository"
-
 	"github.com/l1roii/screenwriter/server/pkg/utils"
 )
 
-// AuthHandler handles authentication-related HTTP requests.
 type AuthHandler struct {
 	userRepo repository.UserRepository
 }
 
-// NewAuthHandler creates a new instance of AuthHandler.
 func NewAuthHandler(userRepo repository.UserRepository) *AuthHandler {
 	return &AuthHandler{userRepo: userRepo}
 }
@@ -26,6 +28,7 @@ func NewAuthHandler(userRepo repository.UserRepository) *AuthHandler {
 type RegisterRequest struct {
 	Name     string `json:"name"`
 	LastName string `json:"lastName"`
+	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
@@ -49,14 +52,24 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tag, err := rand.Int(rand.Reader, big.NewInt(90000))
+	if err != nil {
+		http.Error(w, `{"error": "Internal server error on tag generation"}`, http.StatusInternalServerError)
+		return
+	}
+	usernameTag := fmt.Sprintf("%05d", tag.Int64()+10000) // Ensures 5 digits, e.g., "12345"
+
 	user := &entity.User{
-		Name:     req.Name,
-		LastName: req.LastName,
-		Email:    req.Email,
-		Password: hashedPassword,
+		Username:    req.Username,
+		UsernameTag: usernameTag,
+		Name:        req.Name,
+		LastName:    req.LastName,
+		Email:       strings.ToLower(req.Email),
+		Password:    hashedPassword,
 	}
 
 	if err := h.userRepo.Create(user); err != nil {
+		log.Printf("ERROR: Could not create user: %v", err)
 		http.Error(w, `{"error": "Could not create user"}`, http.StatusInternalServerError)
 		return
 	}
@@ -74,7 +87,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.userRepo.GetByEmail(req.Email)
+	email := strings.ToLower(req.Email)
+	user, err := h.userRepo.GetByEmail(email)
 	if err != nil || user == nil {
 		http.Error(w, `{"error": "Invalid email or password"}`, http.StatusUnauthorized)
 		return
@@ -85,21 +99,17 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Create JWT Token ---
-	// Define token claims (payload)
 	claims := jwt.MapClaims{
 		"sub": user.ID,
 		"eml": user.Email,
-		"nam": user.Name,
-		"lnm": user.LastName,
+		"usn": user.Username,
+		"tag": user.UsernameTag,
+		"nam": fmt.Sprintf("%s %s", user.Name, user.LastName),
 		"iat": time.Now().Unix(),
 		"exp": time.Now().Add(time.Hour * 72).Unix(),
 	}
 
-	// Create the token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	// Sign the token with our secret
 	jwtSecret := os.Getenv("JWT_SECRET")
 	tokenString, err := token.SignedString([]byte(jwtSecret))
 	if err != nil {
@@ -107,8 +117,5 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Send the token back to the client
-	json.NewEncoder(w).Encode(map[string]string{
-		"token": tokenString,
-	})
+	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
 }
