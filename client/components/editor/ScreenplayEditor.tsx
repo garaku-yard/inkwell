@@ -3,17 +3,14 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import Link from "next/link"
-// UPDATED: Removed unused imports
 import { Download, FileText, Plus, ArrowLeft } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Toolbar } from "./Toolbar"
-// UPDATED: Removed unused 'Act' import and imported the base 'ScriptElement' interface.
 import { FullProject, Scene, ScriptElement } from "@/services/project"
 
-// NEW: This is the correct way to get the union type of element strings.
 type ScriptElementType = ScriptElement['elementType'];
 
 interface ScreenplayEditorProps {
@@ -26,15 +23,15 @@ const formatElement = (el: ScriptElement, isForEditor: boolean): string => {
     case 'ACTION':
       return content;
     case 'CHARACTER':
-      return isForEditor ? `\t\t\t${content.toUpperCase()}` : content.toUpperCase();
+      return isForEditor ? `\t\t\t\t${content.toUpperCase()}` : content.toUpperCase();
     case 'PARENTHETICAL':
-      return isForEditor ? `\t\t(${content})` : `(${content})`;
+      return isForEditor ? `\t\t\t(${content})` : `(${content})`;
     case 'DIALOG':
-      return isForEditor ? `\t${content}` : content;
+      return isForEditor ? `\t\t${content}` : content;
     case 'TRANSITION':
-      return isForEditor ? `\t\t\t\t\t${content.toUpperCase()}` : content.toUpperCase();
+      return isForEditor ? `\t\t\t\t\t\t${content.toUpperCase()}` : content.toUpperCase();
     case 'SHOT':
-      return content;
+      return content.toUpperCase();
     default:
       return content;
   }
@@ -48,6 +45,7 @@ const formatContentForEditor = (project: FullProject): string => {
   return project.acts.map(act => {
     return act.scenes.map(scene => {
       const sceneHeader = scene.setting.toUpperCase();
+      // This now correctly calls the top-level formatElement function.
       const formattedElements = scene.elements.map(el => formatElement(el, true)).join('\n');
       return `${sceneHeader}\n${formattedElements}`;
     }).join('\n\n\n');
@@ -67,7 +65,6 @@ export function ScreenplayEditor({ projectData }: ScreenplayEditorProps) {
     setContent(e.target.value);
   }
 
-  // The 'type' parameter is now correctly typed using the derived ScriptElementType.
   const handleInsertElementTemplate = (type: ScriptElementType) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -78,16 +75,16 @@ export function ScreenplayEditor({ projectData }: ScreenplayEditorProps) {
         template = "\n";
         break;
       case 'CHARACTER':
-        template = "\n\n\t\t\tCHARACTER\n\t";
+        template = "\n\n\t\t\t\tCHARACTER\n\t\t";
         break;
       case 'PARENTHETICAL':
-        template = "\n\t\t()";
+        template = "\n\t\t\t()";
         break;
       case 'DIALOG':
-        template = "\n\t";
+        template = "\n\t\t";
         break;
       case 'TRANSITION':
-        template = "\n\n\t\t\t\t\tCUT TO:";
+        template = "\n\n\t\t\t\t\t\tCUT TO:";
         break;
       case 'SHOT':
         template = "\nSHOT: ";
@@ -113,12 +110,9 @@ export function ScreenplayEditor({ projectData }: ScreenplayEditorProps) {
   const handleAddNewScene = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-
     const newSceneTemplate = "\n\n\nINT. NEW LOCATION - DAY\n";
-
     const newText = textarea.value + newSceneTemplate;
     setContent(newText);
-
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
@@ -130,7 +124,6 @@ export function ScreenplayEditor({ projectData }: ScreenplayEditorProps) {
   const scrollToText = (textToFind: string) => {
     if (!textareaRef.current) return;
     const index = content.indexOf(textToFind);
-
     if (index !== -1) {
       textareaRef.current.focus();
       const textToLine = textareaRef.current.value.substring(0, index);
@@ -144,7 +137,6 @@ export function ScreenplayEditor({ projectData }: ScreenplayEditorProps) {
 
   return (
     <div className="flex flex-col h-screen">
-      {/* Header */}
       <header className="border-b bg-background z-10">
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-4">
@@ -161,7 +153,6 @@ export function ScreenplayEditor({ projectData }: ScreenplayEditorProps) {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
         <div className="w-64 border-r bg-muted/30 flex flex-col">
           <div className="p-4">
             <Button className="w-full justify-start gap-2" variant="outline" onClick={handleAddNewScene}>
@@ -217,9 +208,7 @@ export function ScreenplayEditor({ projectData }: ScreenplayEditorProps) {
           </Tabs>
         </div>
 
-        {/* Main Editor */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* UPDATED: Passing the correct props to the Toolbar component */}
           <Toolbar
             onInsertElementTemplate={handleInsertElementTemplate}
             onAddNewScene={handleAddNewScene}
