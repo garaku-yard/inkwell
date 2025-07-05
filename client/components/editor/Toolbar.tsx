@@ -1,7 +1,5 @@
-"use client"
-
+// client/components/editor/Toolbar.tsx
 import type React from "react"
-
 import {
   AlignCenter,
   AlignLeft,
@@ -25,7 +23,8 @@ import type { ScriptElement } from "@/services/project"
 type ScriptElementType = ScriptElement["elementType"]
 
 interface ToolbarProps {
-  onInsertElementTemplate: (type: ScriptElementType) => void
+  // UPDATED: Renamed prop for clarity
+  onInsertElement: (type: ScriptElementType) => void
   onAddNewScene: () => void
 }
 
@@ -38,7 +37,7 @@ const elementButtons: { type: ScriptElementType; tooltip: string; icon: React.El
   { type: "SHOT", tooltip: "Shot", icon: Camera, color: "hover:bg-orange-50 hover:text-orange-700" },
 ]
 
-export function Toolbar({ onInsertElementTemplate, onAddNewScene }: ToolbarProps) {
+export function Toolbar({ onInsertElement, onAddNewScene }: ToolbarProps) {
   return (
     <div className="border-b bg-gradient-to-r from-background to-muted/20 shadow-sm">
       <div className="p-3 flex items-center gap-3">
@@ -81,7 +80,7 @@ export function Toolbar({ onInsertElementTemplate, onAddNewScene }: ToolbarProps
                       variant="ghost"
                       size="sm"
                       className={`h-8 w-8 transition-all duration-200 ${color} border border-transparent hover:border-current/20`}
-                      onClick={() => onInsertElementTemplate(type)}
+                      onClick={() => onInsertElement(type)}
                     >
                       <Icon className="h-4 w-4" />
                     </Button>
@@ -163,60 +162,6 @@ export function Toolbar({ onInsertElementTemplate, onAddNewScene }: ToolbarProps
                   <div className="flex items-center gap-2">
                     <Underline className="h-3 w-3" />
                     Underline
-                    <Badge variant="secondary" className="text-xs">
-                      Soon
-                    </Badge>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </div>
-
-          <Separator orientation="vertical" className="h-8 bg-border/50" />
-
-          {/* Alignment Section */}
-          <div className="flex items-center gap-2 bg-slate-50/50 rounded-lg p-2 border border-slate-200/50">
-            <div className="flex items-center gap-1 text-xs font-medium text-slate-700/80">
-              <AlignLeft className="h-3 w-3" />
-              Align
-            </div>
-            <div className="flex items-center gap-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                    disabled
-                  >
-                    <AlignLeft className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <div className="flex items-center gap-2">
-                    <AlignLeft className="h-3 w-3" />
-                    Align Left
-                    <Badge variant="secondary" className="text-xs">
-                      Soon
-                    </Badge>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                    disabled
-                  >
-                    <AlignCenter className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <div className="flex items-center gap-2">
-                    <AlignCenter className="h-3 w-3" />
-                    Align Center
                     <Badge variant="secondary" className="text-xs">
                       Soon
                     </Badge>
