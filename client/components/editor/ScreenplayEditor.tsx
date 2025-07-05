@@ -1,4 +1,3 @@
-// client/components/editor/ScreenplayEditor.tsx
 "use client"
 
 import React, { useState, useRef } from "react"
@@ -19,36 +18,38 @@ interface ScreenplayEditorProps {
   projectData: FullProject
 }
 
-// This component represents a single, editable line in the script.
-const EditableElement = React.forwardRef<HTMLDivElement, {
-  element: ScriptElement | Scene,
-  onUpdate: (id: string, content: string, isScene: boolean) => void,
-  onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>, elementId: string, isScene: boolean) => void
-}>(({ element, onUpdate, onKeyDown }, ref) => {
-  const isScene = 'setting' in element;
-  const type = isScene ? 'SCENE_HEADING' : element.elementType;
-  const content = isScene ? element.setting : element.content;
+const EditableElement = React.forwardRef<
+  HTMLDivElement,
+  {
+    element: ScriptElement | Scene
+    onUpdate: (id: string, content: string, isScene: boolean) => void
+    onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>, elementId: string, isScene: boolean) => void
+  }
+>(({ element, onUpdate, onKeyDown }, ref) => {
+  const isScene = "setting" in element
+  const type = isScene ? "SCENE_HEADING" : element.elementType
+  const content = isScene ? element.setting : element.content
 
   const getElementClasses = () => {
     switch (type) {
-      case 'SCENE_HEADING':
-        return "uppercase font-bold my-4";
-      case 'ACTION':
-        return "my-2";
-      case 'CHARACTER':
-        return "mt-4 mb-1 text-center";
-      case 'PARENTHETICAL':
-        return "text-center text-sm text-gray-500";
-      case 'DIALOG':
-        return "mx-auto w-[65%]";
-      case 'TRANSITION':
-        return "mt-4 mb-2 text-right uppercase";
-      case 'SHOT':
-        return "my-2 uppercase";
+      case "SCENE_HEADING":
+        return "uppercase font-bold my-4"
+      case "ACTION":
+        return "my-2"
+      case "CHARACTER":
+        return "mt-4 mb-1 text-center"
+      case "PARENTHETICAL":
+        return "text-center text-sm text-gray-500"
+      case "DIALOG":
+        return "mx-auto w-[65%]"
+      case "TRANSITION":
+        return "mt-4 mb-2 text-right uppercase"
+      case "SHOT":
+        return "my-2 uppercase"
       default:
-        return "";
+        return ""
     }
-  };
+  }
 
   return (
     <div
@@ -56,199 +57,200 @@ const EditableElement = React.forwardRef<HTMLDivElement, {
       data-id={element.id}
       contentEditable
       suppressContentEditableWarning
-      onBlur={(e) => onUpdate(element.id, e.currentTarget.textContent || '', isScene)}
+      onBlur={(e) => onUpdate(element.id, e.currentTarget.textContent || "", isScene)}
       onKeyDown={(e) => onKeyDown(e, element.id, isScene)}
       className={cn("outline-none w-full", getElementClasses())}
       dangerouslySetInnerHTML={{ __html: content }}
     />
-  );
-});
-EditableElement.displayName = "EditableElement";
+  )
+})
 
+EditableElement.displayName = "EditableElement"
 
 export function ScreenplayEditor({ projectData: initialProjectData }: ScreenplayEditorProps) {
-  const [project, setProject] = useState(initialProjectData);
-  const [activeTab, setActiveTab] = useState("scenes");
-
-  const elementRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  const [project, setProject] = useState(initialProjectData)
+  const [activeTab, setActiveTab] = useState("scenes")
+  const elementRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
 
   const handleUpdateElement = (id: string, newContent: string, isScene: boolean) => {
-    setProject(prevProject => {
-      const newActs = prevProject.acts.map(act => ({
+    setProject((prevProject) => {
+      const newActs = prevProject.acts.map((act) => ({
         ...act,
-        scenes: act.scenes.map(scene => {
+        scenes: act.scenes.map((scene) => {
           if (isScene && scene.id === id) {
-            return { ...scene, setting: newContent };
+            return { ...scene, setting: newContent }
           }
           return {
             ...scene,
-            elements: scene.elements.map(el =>
-              el.id === id ? { ...el, content: newContent } : el
-            ),
-          };
+            elements: scene.elements.map((el) => (el.id === id ? { ...el, content: newContent } : el)),
+          }
         }),
-      }));
-      return { ...prevProject, acts: newActs };
-    });
-  };
+      }))
+      return { ...prevProject, acts: newActs }
+    })
+  }
 
   // This function finds the element ID based on the current cursor position.
-  const findActiveElement = (): { elementId: string, isScene: boolean } | null => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return null;
+  const findActiveElement = (): { elementId: string; isScene: boolean } | null => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return null
 
-    let node: Node | null = selection.getRangeAt(0).startContainer;
+    let node: Node | null = selection.getRangeAt(0).startContainer
     while (node) {
-      if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).hasAttribute('data-id')) {
-        const elementNode = node as HTMLElement;
-        const id = elementNode.getAttribute('data-id')!;
+      if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).hasAttribute("data-id")) {
+        const elementNode = node as HTMLElement
+        const id = elementNode.getAttribute("data-id")!
         // Check if it's a scene by looking for a specific class on the container
-        const isScene = !!elementNode.closest('.scene-container > [data-id]');
-        return { elementId: id, isScene };
+        const isScene = !!elementNode.closest(".scene-container > [data-id]")
+        return { elementId: id, isScene }
       }
-      node = node.parentNode;
+      node = node.parentNode
     }
-    return null;
-  };
+    return null
+  }
 
   // UPDATED: This function now only takes the 'type' and finds the position itself.
   const handleInsertElement = (type: ScriptElementType) => {
-    const activeElementInfo = findActiveElement();
+    const activeElementInfo = findActiveElement()
     if (!activeElementInfo) {
-      console.warn("Could not find active element to insert after.");
-      return;
-    };
+      console.warn("Could not find active element to insert after.")
+      return
+    }
 
-    const { elementId, isScene } = activeElementInfo;
-
-    let sceneId = "";
-    let insertIndex = -1;
+    const { elementId, isScene } = activeElementInfo
+    let sceneId = ""
+    let insertIndex = -1
 
     for (const act of project.acts) {
       for (const scene of act.scenes) {
         if (isScene && scene.id === elementId) {
-          sceneId = scene.id;
-          insertIndex = 0;
-          break;
+          sceneId = scene.id
+          insertIndex = 0
+          break
         }
-        const foundIndex = scene.elements.findIndex(el => el.id === elementId);
+        const foundIndex = scene.elements.findIndex((el) => el.id === elementId)
         if (foundIndex !== -1) {
-          sceneId = scene.id;
-          insertIndex = foundIndex + 1;
-          break;
+          sceneId = scene.id
+          insertIndex = foundIndex + 1
+          break
         }
       }
-      if (sceneId) break;
+      if (sceneId) break
     }
 
-    if (!sceneId) return;
+    if (!sceneId) return
 
     const newElement: ScriptElement = {
       id: `new-${Date.now()}`,
-      sceneId: sceneId,
-      elementOrder: insertIndex,
       elementType: type,
       content: "",
-      characterId: null,
-    };
+    }
 
-    setProject(prevProject => {
-      const newActs = prevProject.acts.map(act => ({
+    setProject((prevProject) => {
+      const newActs = prevProject.acts.map((act) => ({
         ...act,
-        scenes: act.scenes.map(scene => {
-          if (scene.id !== sceneId) return scene;
-          const newElements = [...scene.elements];
-          newElements.splice(insertIndex, 0, newElement);
-          newElements.forEach((el, index) => el.elementOrder = index + 1);
-          return { ...scene, elements: newElements };
+        scenes: act.scenes.map((scene) => {
+          if (scene.id !== sceneId) return scene
+          const newElements = [...scene.elements]
+          newElements.splice(insertIndex, 0, newElement)
+          return { ...scene, elements: newElements }
         }),
-      }));
-      return { ...prevProject, acts: newActs };
-    });
+      }))
+      return { ...prevProject, acts: newActs }
+    })
 
     setTimeout(() => {
-      const newElementNode = elementRefs.current.get(newElement.id);
+      const newElementNode = elementRefs.current.get(newElement.id)
       if (newElementNode) {
-        newElementNode.focus();
+        newElementNode.focus()
       }
-    }, 0);
-  };
+    }, 0)
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
+    if (e.key === "Enter") {
+      e.preventDefault()
       // FIX: Now correctly calls with only one argument.
-      handleInsertElement('ACTION');
+      handleInsertElement("ACTION")
     }
-  };
+  }
 
   const handleAddNewScene = () => {
-    setProject(prevProject => {
-      const newActs = [...prevProject.acts];
-      let lastAct = newActs[newActs.length - 1];
+    setProject((prevProject) => {
+      const newActs = [...prevProject.acts]
+      let lastAct = newActs[newActs.length - 1]
 
       if (!lastAct) {
         lastAct = {
           id: `new-act-${Date.now()}`,
-          projectId: project.id,
           actNumber: 1,
           title: "Act 1",
-          scenes: []
-        };
-        newActs.push(lastAct);
+          scenes: [],
+        }
+        newActs.push(lastAct)
       }
 
       const newScene: Scene = {
         id: `new-scene-${Date.now()}`,
-        actId: lastAct.id,
         sceneNumber: lastAct.scenes.length + 1,
         setting: "INT. NEW SCENE - DAY",
-        elements: [{
-          id: `new-element-${Date.now()}`,
-          sceneId: `new-scene-${Date.now()}`,
-          elementOrder: 1,
-          elementType: 'ACTION',
-          content: 'A new beginning.',
-          characterId: null,
-        }]
-      };
+        elements: [
+          {
+            id: `new-element-${Date.now()}`,
+            elementType: "ACTION",
+            content: "A new beginning.",
+          },
+        ],
+      }
 
-      lastAct.scenes.push(newScene);
-      return { ...prevProject, acts: newActs };
-    });
-  };
+      lastAct.scenes.push(newScene)
+      return { ...prevProject, acts: newActs }
+    })
+  }
 
   const getElementIcon = (elementType: ScriptElementType) => {
     switch (elementType) {
-      case "CHARACTER": return <Users className="h-3 w-3" />;
-      case "DIALOG": return <MessageSquare className="h-3 w-3" />;
-      case "ACTION": return <Film className="h-3 w-3" />;
-      case "SHOT": return <Camera className="h-3 w-3" />;
-      case "TRANSITION": return <Zap className="h-3 w-3" />;
-      default: return <Hash className="h-3 w-3" />;
+      case "CHARACTER":
+        return <Users className="h-3 w-3" />
+      case "DIALOG":
+        return <MessageSquare className="h-3 w-3" />
+      case "ACTION":
+        return <Film className="h-3 w-3" />
+      case "SHOT":
+        return <Camera className="h-3 w-3" />
+      case "TRANSITION":
+        return <Zap className="h-3 w-3" />
+      default:
+        return <Hash className="h-3 w-3" />
     }
-  };
+  }
 
   const getElementTypeColor = (elementType: ScriptElementType) => {
     switch (elementType) {
-      case "CHARACTER": return "bg-blue-100 text-blue-700 border-blue-200";
-      case "DIALOG": return "bg-green-100 text-green-700 border-green-200";
-      case "ACTION": return "bg-purple-100 text-purple-700 border-purple-200";
-      case "SHOT": return "bg-orange-100 text-orange-700 border-orange-200";
-      case "TRANSITION": return "bg-red-100 text-red-700 border-red-200";
-      default: return "bg-gray-100 text-gray-700 border-gray-200";
+      case "CHARACTER":
+        return "bg-blue-100 text-blue-700 border-blue-200"
+      case "DIALOG":
+        return "bg-green-100 text-green-700 border-green-200"
+      case "ACTION":
+        return "bg-purple-100 text-purple-700 border-purple-200"
+      case "SHOT":
+        return "bg-orange-100 text-orange-700 border-orange-200"
+      case "TRANSITION":
+        return "bg-red-100 text-red-700 border-red-200"
+      default:
+        return "bg-gray-100 text-gray-700 border-gray-200"
     }
-  };
+  }
 
-  const allScenes = project?.acts?.flatMap((act) => act.scenes) || [];
-  const totalScenes = allScenes.length;
-  const totalElements = allScenes.reduce((acc, scene) => acc + scene.elements.length, 0);
+  const allScenes = project?.acts?.flatMap((act) => act.scenes) || []
+  const totalScenes = allScenes.length
+  const totalElements = allScenes.reduce((acc, scene) => acc + scene.elements.length, 0)
 
   const scrollToElement = (elementId: string) => {
-    const node = elementRefs.current.get(elementId);
-    node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    node?.focus();
-  };
+    const node = elementRefs.current.get(elementId)
+    node?.scrollIntoView({ behavior: "smooth", block: "center" })
+    node?.focus()
+  }
 
   return (
     <div className="flex flex-col h-screen">
@@ -273,12 +275,13 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-80 border-r bg-muted/30 flex flex-col">
-          <div className="p-4 space-y-3">
+        <div className="w-80 border-r bg-muted/30 flex flex-col min-h-0">
+          <div className="p-4 space-y-3 flex-shrink-0">
             <Button className="w-full justify-start gap-2 bg-transparent" variant="outline" onClick={handleAddNewScene}>
               <FileText className="h-4 w-4" />
               New Scene
             </Button>
+
             <div className="flex gap-2 text-xs text-muted-foreground">
               <Badge variant="secondary" className="gap-1">
                 <Film className="h-3 w-3" />
@@ -290,18 +293,24 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
               </Badge>
             </div>
           </div>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <div className="px-4">
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+            <div className="px-4 flex-shrink-0">
               <TabsList className="w-full">
-                <TabsTrigger value="scenes" className="flex-1">Scenes</TabsTrigger>
-                <TabsTrigger value="structure" className="flex-1">Structure</TabsTrigger>
+                <TabsTrigger value="scenes" className="flex-1">
+                  Scenes
+                </TabsTrigger>
+                <TabsTrigger value="structure" className="flex-1">
+                  Structure
+                </TabsTrigger>
               </TabsList>
             </div>
-            <TabsContent value="scenes" className="flex-1 overflow-auto p-3 space-y-2">
+
+            <TabsContent value="scenes" className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
               {allScenes.map((scene, index) => (
                 <Card
                   key={scene.id}
-                  className="hover:shadow-sm transition-shadow cursor-pointer group"
+                  className="hover:shadow-sm transition-shadow cursor-pointer group flex-shrink-0"
                   onClick={() => scrollToElement(scene.id)}
                 >
                   <CardContent className="p-3">
@@ -317,14 +326,20 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
                           {scene.elements.length}
                         </Badge>
                       </div>
+
                       {scene.elements.length > 0 && (
                         <div className="flex flex-wrap gap-1">
-                          {Array.from(new Set(scene.elements.map((el) => el.elementType))).slice(0, 4).map((type) => (
-                            <div key={type} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border ${getElementTypeColor(type)}`}>
-                              {getElementIcon(type)}
-                              <span className="capitalize">{type.toLowerCase()}</span>
-                            </div>
-                          ))}
+                          {Array.from(new Set(scene.elements.map((el) => el.elementType)))
+                            .slice(0, 4)
+                            .map((type) => (
+                              <div
+                                key={type}
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border ${getElementTypeColor(type)}`}
+                              >
+                                {getElementIcon(type)}
+                                <span className="capitalize">{type.toLowerCase()}</span>
+                              </div>
+                            ))}
                           {Array.from(new Set(scene.elements.map((el) => el.elementType))).length > 4 && (
                             <Badge variant="secondary" className="text-xs">
                               +{Array.from(new Set(scene.elements.map((el) => el.elementType))).length - 4}
@@ -337,9 +352,10 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
                 </Card>
               ))}
             </TabsContent>
-            <TabsContent value="structure" className="flex-1 overflow-auto p-3 space-y-4">
+
+            <TabsContent value="structure" className="flex-1 overflow-y-auto p-3 space-y-4 min-h-0">
               {project.acts?.map((act) => (
-                <Card key={act.id} className="overflow-hidden">
+                <Card key={act.id} className="overflow-hidden flex-shrink-0">
                   <CardContent className="p-0">
                     <div className="bg-muted/50 p-3 border-b">
                       <div className="flex items-center justify-between">
@@ -425,7 +441,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
                                             <div
                                               className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${getElementTypeColor(el.elementType)}`}
                                             >
-                                              {getElementIcon(el.elementType)}
+                                              {getElementIcon(el.elementType)}{" "}
                                               <span className="font-medium">{el.elementType.substring(0, 3)}</span>
                                             </div>
                                             <span className="text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1">
@@ -471,37 +487,40 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             </TabsContent>
           </Tabs>
         </div>
+
         <div className="flex-1 flex flex-col overflow-hidden">
           <Toolbar onInsertElement={handleInsertElement} onAddNewScene={handleAddNewScene} />
           <div className="flex-1 overflow-auto p-8 bg-gray-100 dark:bg-gray-900">
-            <div
-              className="w-[8.5in] min-h-[11in] mx-auto bg-white shadow-2xl p-[1in] font-mono text-base leading-relaxed space-y-1"
-            >
-              {project.acts?.map(act =>
-                act.scenes.map(scene => (
+            <div className="w-[8.5in] min-h-[11in] mx-auto bg-white shadow-2xl p-[1in] font-mono text-base leading-relaxed space-y-1">
+              {project.acts?.map((act) =>
+                act.scenes.map((scene) => (
                   <div key={scene.id} className="scene-container mb-4">
                     <EditableElement
-                      ref={el => { if (el) elementRefs.current.set(scene.id, el); }}
+                      ref={(el) => {
+                        if (el) elementRefs.current.set(scene.id, el)
+                      }}
                       element={scene}
                       onUpdate={handleUpdateElement}
                       onKeyDown={handleKeyDown}
                     />
-                    {scene.elements.map(el => (
+                    {scene.elements.map((el) => (
                       <EditableElement
                         key={el.id}
-                        ref={elNode => { if (elNode) elementRefs.current.set(el.id, elNode); }}
+                        ref={(elNode) => {
+                          if (elNode) elementRefs.current.set(el.id, elNode)
+                        }}
                         element={el}
                         onUpdate={handleUpdateElement}
                         onKeyDown={handleKeyDown}
                       />
                     ))}
                   </div>
-                ))
+                )),
               )}
             </div>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }
