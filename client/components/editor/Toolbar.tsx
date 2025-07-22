@@ -1,4 +1,3 @@
-// client/components/editor/Toolbar.tsx
 import type React from "react"
 import {
   AlignCenter,
@@ -23,7 +22,6 @@ import type { ScriptElement } from "@/services/project"
 type ScriptElementType = ScriptElement["elementType"]
 
 interface ToolbarProps {
-  // UPDATED: Renamed prop for clarity
   onInsertElement: (type: ScriptElementType) => void
   onAddNewScene: () => void
 }
