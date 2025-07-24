@@ -1,20 +1,24 @@
-import type React from "react"
+"use client"
+
+import React from "react"
 import { MapPinned } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { ToolbarScriptElementType, SCRIPT_ELEMENT_CONFIG } from "@/lib/helpers/screenplay-config"
+import { type ToolbarScriptElementType, SCRIPT_ELEMENT_CONFIG } from "@/lib/helpers/screenplay-config"
 
 const toolbarElementTypes = Object.keys(SCRIPT_ELEMENT_CONFIG).filter(
-  (key) => key !== 'SCENE_HEADING'
-) as ToolbarScriptElementType[];
+  (key) => key !== "SCENE_HEADING",
+) as ToolbarScriptElementType[]
 
 interface ToolbarProps {
   onInsertElement: (type: ToolbarScriptElementType) => void
   onAddNewScene: () => void
 }
 
-export function Toolbar({ onInsertElement, onAddNewScene }: ToolbarProps) {
+export const Toolbar = React.memo(({ onInsertElement, onAddNewScene }: ToolbarProps) => {
+  const ActionIcon = SCRIPT_ELEMENT_CONFIG.ACTION.icon
+
   return (
     <div className="border-b bg-gradient-to-r from-background to-muted/20 shadow-sm">
       <div className="p-3 flex items-center gap-3">
@@ -42,16 +46,15 @@ export function Toolbar({ onInsertElement, onAddNewScene }: ToolbarProps) {
 
           <Separator orientation="vertical" className="h-8 bg-border/50" />
 
-          {/* Script Elements Section */}
           <div className="flex items-center gap-2 bg-muted/30 rounded-lg p-2 border border-muted">
             <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-              <SCRIPT_ELEMENT_CONFIG.ACTION.icon className="h-3 w-3" />
+              <ActionIcon className="h-3 w-3" />
               Elements
             </div>
             <div className="flex items-center gap-1">
               {toolbarElementTypes.map((type) => {
-                const config = SCRIPT_ELEMENT_CONFIG[type];
-                const Icon = config.icon;
+                const config = SCRIPT_ELEMENT_CONFIG[type]
+                const Icon = config.icon
                 return (
                   <Tooltip key={type}>
                     <TooltipTrigger asChild>
@@ -71,7 +74,7 @@ export function Toolbar({ onInsertElement, onAddNewScene }: ToolbarProps) {
                       </div>
                     </TooltipContent>
                   </Tooltip>
-                );
+                )
               })}
             </div>
           </div>
@@ -79,4 +82,4 @@ export function Toolbar({ onInsertElement, onAddNewScene }: ToolbarProps) {
       </div>
     </div>
   )
-}
+})
