@@ -1,9 +1,8 @@
-// client/components/editor/ScreenplayEditor.tsx
 "use client"
 
 import React, { useState, useRef } from "react"
 import Link from "next/link"
-import { Download, FileText, Clipboard, ArrowLeft, Film, Users, MessageSquare, Camera, Zap, Hash } from "lucide-react"
+import { Download, FileText, ArrowLeft, Film, Hash } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -12,6 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { Toolbar } from "./Toolbar"
 import type { FullProject, Scene, ScriptElement } from "@/services/project"
 import { cn } from "@/lib/utils"
+import { SCRIPT_ELEMENT_CONFIG, ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 
 type ScriptElementType = ScriptElement["elementType"]
 
@@ -30,27 +30,7 @@ const EditableElement = React.forwardRef<
   const isScene = "setting" in element
   const type = isScene ? "SCENE_HEADING" : element.elementType
   const content = isScene ? element.setting : element.content
-
-  const getElementClasses = () => {
-    switch (type) {
-      case "SCENE_HEADING":
-        return "uppercase font-bold my-4"
-      case "ACTION":
-        return "my-2"
-      case "CHARACTER":
-        return "mt-4 mb-1 text-center"
-      case "PARENTHETICAL":
-        return "text-center text-sm text-gray-500"
-      case "DIALOG":
-        return "mx-auto w-[65%]"
-      case "TRANSITION":
-        return "mt-4 mb-2 text-right uppercase"
-      case "SHOT":
-        return "my-2 uppercase"
-      default:
-        return ""
-    }
-  }
+  const config = SCRIPT_ELEMENT_CONFIG[type]
 
   return (
     <div
@@ -60,7 +40,7 @@ const EditableElement = React.forwardRef<
       suppressContentEditableWarning
       onBlur={(e) => onUpdate(element.id, e.currentTarget.textContent || "", isScene)}
       onKeyDown={(e) => onKeyDown(e, element.id, isScene)}
-      className={cn("outline-none w-full", getElementClasses())}
+      className={cn("outline-none w-full", config.editorClasses)}
       dangerouslySetInnerHTML={{ __html: content }}
     />
   )
@@ -87,7 +67,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           }
         }),
       }))
-      // TODO: Debounce this and call an API to save changes.
       return { ...prevProject, acts: newActs }
     })
   }
@@ -101,7 +80,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).hasAttribute("data-id")) {
         const elementNode = node as HTMLElement
         const id = elementNode.getAttribute("data-id")!
-        const isScene = elementNode.className.includes("uppercase font-bold")
+        const isScene = !!elementNode.closest(".scene-container > [data-id]")
         return { elementId: id, isScene }
       }
       node = node.parentNode
@@ -111,7 +90,10 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const handleInsertElement = (type: ScriptElementType) => {
     const activeElementInfo = findActiveElement()
-    if (!activeElementInfo) return;
+    if (!activeElementInfo) {
+      console.warn("Could not find active element to insert after.")
+      return
+    }
 
     const { elementId, isScene } = activeElementInfo
     let sceneId = ""
@@ -121,7 +103,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       for (const scene of act.scenes) {
         if (isScene && scene.id === elementId) {
           sceneId = scene.id
-          insertIndex = scene.elements.length; // Insert at the end of the current scene
+          insertIndex = 0
           break
         }
         const foundIndex = scene.elements.findIndex((el) => el.id === elementId)
@@ -133,14 +115,15 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       }
       if (sceneId) break
     }
+
     if (!sceneId) return
 
     const newElement: ScriptElement = {
-      id: crypto.randomUUID(),
-      sceneId: sceneId,
-      elementOrder: insertIndex,
+      id: `new-${Date.now()}`,
       elementType: type,
       content: "",
+      sceneId,
+      elementOrder: insertIndex,
       characterId: null,
     }
 
@@ -151,7 +134,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           if (scene.id !== sceneId) return scene
           const newElements = [...scene.elements]
           newElements.splice(insertIndex, 0, newElement)
-          newElements.forEach((el, i) => el.elementOrder = i + 1);
           return { ...scene, elements: newElements }
         }),
       }))
@@ -166,7 +148,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     }, 0)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, elementId: string, isScene: boolean) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter") {
       e.preventDefault()
       handleInsertElement("ACTION")
@@ -174,66 +156,42 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   }
 
   const handleAddNewScene = () => {
-    const newSceneId = crypto.randomUUID();
-
-    console.log("Hereeeee")
     setProject((prevProject) => {
       const newActs = [...prevProject.acts]
       let lastAct = newActs[newActs.length - 1]
 
+      if (!lastAct) {
+        lastAct = {
+          id: `new-act-${Date.now()}`,
+          actNumber: 1,
+          title: "Act 1",
+          scenes: [],
+          projectId: prevProject.id,
+        }
+        newActs.push(lastAct)
+      }
+
+      const newSceneId = `new-scene-${Date.now()}`
       const newScene: Scene = {
         id: newSceneId,
-        actId: lastAct.id,
         sceneNumber: lastAct.scenes.length + 1,
-        setting: "",
-        elements: [],
+        setting: "INT. NEW SCENE - DAY",
+        elements: [
+          {
+            id: `new-element-${Date.now()}`,
+            elementType: "ACTION",
+            content: "A new beginning.",
+            sceneId: newSceneId,
+            elementOrder: 0,
+            characterId: null,
+          },
+        ],
+        actId: ""
       }
 
       lastAct.scenes.push(newScene)
       return { ...prevProject, acts: newActs }
     })
-
-    setTimeout(() => {
-      const newSceneNode = elementRefs.current.get(newSceneId);
-      if (newSceneNode) {
-        newSceneNode.focus();
-        newSceneNode.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }, 100);
-  }
-
-  const getElementIcon = (elementType: ScriptElementType) => {
-    switch (elementType) {
-      case "CHARACTER":
-        return <Users className="h-3 w-3" />
-      case "DIALOG":
-        return <MessageSquare className="h-3 w-3" />
-      case "ACTION":
-        return <Film className="h-3 w-3" />
-      case "SHOT":
-        return <Camera className="h-3 w-3" />
-      case "TRANSITION":
-        return <Zap className="h-3 w-3" />
-      default:
-        return <Hash className="h-3 w-3" />
-    }
-  }
-
-  const getElementTypeColor = (elementType: ScriptElementType) => {
-    switch (elementType) {
-      case "CHARACTER":
-        return "bg-blue-100 text-blue-700 border-blue-200"
-      case "DIALOG":
-        return "bg-green-100 text-green-700 border-green-200"
-      case "ACTION":
-        return "bg-purple-100 text-purple-700 border-purple-200"
-      case "SHOT":
-        return "bg-orange-100 text-orange-700 border-orange-200"
-      case "TRANSITION":
-        return "bg-red-100 text-red-700 border-red-200"
-      default:
-        return "bg-gray-100 text-gray-700 border-gray-200"
-    }
   }
 
   const allScenes = project?.acts?.flatMap((act) => act.scenes) || []
@@ -271,9 +229,9 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       <div className="flex flex-1 overflow-hidden">
         <div className="w-80 border-r bg-muted/30 flex flex-col min-h-0">
           <div className="p-4 space-y-3 flex-shrink-0">
-            <Button className="w-full justify-start gap-2 bg-transparent" variant="outline" >
-              <Clipboard className="h-4 w-4" />
-              Beat Board
+            <Button className="w-full justify-start gap-2 bg-transparent" variant="outline" onClick={handleAddNewScene}>
+              <FileText className="h-4 w-4" />
+              New Scene
             </Button>
 
             <div className="flex gap-2 text-xs text-muted-foreground">
@@ -312,7 +270,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium text-sm leading-tight group-hover:text-primary transition-colors">
-                            {scene.setting.toUpperCase() || `SCENE ${scene.sceneNumber}`}
+                            {scene.setting.toUpperCase()}
                           </h4>
                           <p className="text-xs text-muted-foreground mt-1">Scene {scene.sceneNumber || index + 1}</p>
                         </div>
@@ -325,15 +283,18 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
                         <div className="flex flex-wrap gap-1">
                           {Array.from(new Set(scene.elements.map((el) => el.elementType)))
                             .slice(0, 4)
-                            .map((type) => (
-                              <div
-                                key={type}
-                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border ${getElementTypeColor(type)}`}
-                              >
-                                {getElementIcon(type)}
-                                <span className="capitalize">{type.toLowerCase()}</span>
-                              </div>
-                            ))}
+                            .map((type) => {
+                              const Icon = SCRIPT_ELEMENT_CONFIG[type].icon
+                              return (
+                                <div
+                                  key={type}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border ${SCRIPT_ELEMENT_CONFIG[type].badgeColor}`}
+                                >
+                                  <Icon className="h-3 w-3" />
+                                  <span className="capitalize">{type.toLowerCase()}</span>
+                                </div>
+                              )
+                            })}
                           {Array.from(new Set(scene.elements.map((el) => el.elementType))).length > 4 && (
                             <Badge variant="secondary" className="text-xs">
                               +{Array.from(new Set(scene.elements.map((el) => el.elementType))).length - 4}
@@ -375,7 +336,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
                                 {sceneIndex + 1}
                               </div>
                               <span className="text-sm font-medium group-hover:text-primary transition-colors truncate">
-                                {scene.setting.toUpperCase() || `SCENE ${scene.sceneNumber}`}
+                                {scene.setting.toUpperCase()}
                               </span>
                             </div>
                             <Badge variant="outline" className="text-xs shrink-0">
@@ -386,59 +347,96 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
                           {scene.elements.length > 0 && (
                             <div className="ml-8 space-y-1">
                               {(() => {
-                                const groupedElements: { type: 'group' | 'single', elements?: ScriptElement[], element?: ScriptElement }[] = [];
-                                let i = 0;
+                                const groupedElements: Array<
+                                  { type: "group"; elements: ScriptElement[] } | { type: "single"; element: ScriptElement }
+                                > = []
+                                let i = 0
+
                                 while (i < scene.elements.length) {
-                                  const currentElement = scene.elements[i];
+                                  const currentElement = scene.elements[i]
+
                                   if (currentElement.elementType === "CHARACTER") {
-                                    const group = [currentElement];
-                                    let j = i + 1;
-                                    if (j < scene.elements.length && scene.elements[j].elementType === "PARENTHETICAL") {
-                                      group.push(scene.elements[j]);
-                                      j++;
+                                    const group: ScriptElement[] = [currentElement]
+                                    let j = i + 1
+
+                                    if (
+                                      j < scene.elements.length &&
+                                      scene.elements[j].elementType === "PARENTHETICAL"
+                                    ) {
+                                      group.push(scene.elements[j])
+                                      j++
                                     }
+
                                     if (j < scene.elements.length && scene.elements[j].elementType === "DIALOG") {
-                                      group.push(scene.elements[j]);
-                                      j++;
+                                      group.push(scene.elements[j])
+                                      j++
                                     }
-                                    groupedElements.push({ type: "group", elements: group });
-                                    i = j;
+
+                                    groupedElements.push({ type: "group", elements: group })
+                                    i = j
                                   } else {
-                                    groupedElements.push({ type: "single", element: currentElement });
-                                    i++;
+                                    groupedElements.push({ type: "single", element: currentElement })
+                                    i++
                                   }
                                 }
+
                                 return groupedElements.map((item, groupIndex) => {
                                   if (item.type === "group" && item.elements) {
                                     return (
                                       <div key={`group-${groupIndex}`} className="space-y-1">
-                                        {item.elements.map((el) => (
-                                          <div key={el.id} className={`flex items-center gap-2 p-1.5 rounded text-xs hover:bg-muted/30 cursor-pointer transition-colors group`} onClick={() => scrollToElement(el.id)}>
-                                            <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${getElementTypeColor(el.elementType)}`}>
-                                              {getElementIcon(el.elementType)}
-                                              <span className="font-medium">{el.elementType.substring(0, 3)}</span>
+                                        {item.elements.map((el, elIndex) => {
+                                          const Icon = SCRIPT_ELEMENT_CONFIG[el.elementType].icon
+                                          return (
+                                            <div
+                                              key={el.id}
+                                              className={`flex items-center gap-2 p-1.5 rounded text-xs hover:bg-muted/30 cursor-pointer transition-colors group ${elIndex > 0 ? "ml-6 border-l-2 border-muted pl-3" : ""
+                                                }`}
+                                              onClick={() => scrollToElement(el.id)}
+                                            >
+                                              <div
+                                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${SCRIPT_ELEMENT_CONFIG[el.elementType].badgeColor
+                                                  }`}
+                                              >
+                                                <Icon className="h-3 w-3" />
+                                                <span className="font-medium">{el.elementType.substring(0, 3)}</span>
+                                              </div>
+                                              <span className="text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1">
+                                                {el.content}
+                                              </span>
                                             </div>
-                                            <span className="text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1">{el.content}</span>
-                                          </div>
-                                        ))}
+                                          )
+                                        })}
                                       </div>
                                     )
-                                  } else if (item.element) {
+                                  } else if (item.type === "single" && item.element) {
+                                    const Icon = SCRIPT_ELEMENT_CONFIG[item.element.elementType].icon
                                     return (
-                                      <div key={item.element.id} className="flex items-center gap-2 p-1.5 rounded text-xs hover:bg-muted/30 cursor-pointer transition-colors group" onClick={() => scrollToElement(item.element!.id)}>
-                                        <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${getElementTypeColor(item.element.elementType)}`}>
-                                          {getElementIcon(item.element.elementType)}
-                                          <span className="font-medium">{item.element.elementType.substring(0, 3)}</span>
+                                      <div
+                                        key={item.element.id}
+                                        className="flex items-center gap-2 p-1.5 rounded text-xs hover:bg-muted/30 cursor-pointer transition-colors group"
+                                        onClick={() => scrollToElement(item.element.id)}
+                                      >
+                                        <div
+                                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${SCRIPT_ELEMENT_CONFIG[item.element.elementType].badgeColor
+                                            }`}
+                                        >
+                                          <Icon className="h-3 w-3" />
+                                          <span className="font-medium">
+                                            {item.element.elementType.substring(0, 3)}
+                                          </span>
                                         </div>
-                                        <span className="text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1">{item.element.content}</span>
+                                        <span className="text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1">
+                                          {item.element.content}
+                                        </span>
                                       </div>
                                     )
                                   }
-                                  return null;
+                                  return null
                                 })
                               })()}
                             </div>
                           )}
+
                           {sceneIndex < act.scenes.length - 1 && <Separator className="ml-8" />}
                         </div>
                       ))}
@@ -449,37 +447,40 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             </TabsContent>
           </Tabs>
         </div>
+
         <div className="flex-1 flex flex-col overflow-hidden">
           <Toolbar onInsertElement={handleInsertElement} onAddNewScene={handleAddNewScene} />
           <div className="flex-1 overflow-auto p-8 bg-gray-100 dark:bg-gray-900">
-            <div
-              className="w-[8.5in] min-h-[11in] mx-auto bg-white shadow-2xl p-[1in] font-mono text-base leading-relaxed space-y-1"
-            >
-              {project.acts?.map(act =>
-                act.scenes.map(scene => (
+            <div className="w-[8.5in] min-h-[11in] mx-auto bg-white shadow-2xl p-[1in] font-mono text-base leading-relaxed space-y-1">
+              {project.acts?.map((act) =>
+                act.scenes.map((scene) => (
                   <div key={scene.id} className="scene-container mb-4">
                     <EditableElement
-                      ref={el => { if (el) elementRefs.current.set(scene.id, el); }}
+                      ref={(el) => {
+                        if (el) elementRefs.current.set(scene.id, el)
+                      }}
                       element={scene}
                       onUpdate={handleUpdateElement}
                       onKeyDown={handleKeyDown}
                     />
-                    {scene.elements.map(el => (
+                    {scene.elements.map((el) => (
                       <EditableElement
                         key={el.id}
-                        ref={elNode => { if (elNode) elementRefs.current.set(el.id, elNode); }}
+                        ref={(elNode) => {
+                          if (elNode) elementRefs.current.set(el.id, elNode)
+                        }}
                         element={el}
                         onUpdate={handleUpdateElement}
                         onKeyDown={handleKeyDown}
                       />
                     ))}
                   </div>
-                ))
+                )),
               )}
             </div>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }
