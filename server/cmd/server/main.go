@@ -1,4 +1,3 @@
-// file: cmd/server/main.go
 package main
 
 import (
@@ -29,11 +28,13 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	projectRepo := repository.NewProjectRepository(db)
 	collabRepo := repository.NewCollaboratorRepository(db)
+	screenplayRepo := repository.NewScreenplayRepository(db)
 
 	authHandler := handler.NewAuthHandler(userRepo)
 	projectHandler := handler.NewProjectHandler(projectRepo, userRepo, collabRepo)
+	screenplayHandler := handler.NewScreenplayHandler(screenplayRepo, projectRepo)
 
-	mux := router.NewRouter(authHandler, projectHandler)
+	mux := router.NewRouter(authHandler, projectHandler, screenplayHandler)
 
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"http://localhost:3000"},
