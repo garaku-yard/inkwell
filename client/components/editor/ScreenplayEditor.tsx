@@ -34,11 +34,12 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   // Flatten the entire script into a single array for the virtualizer
   const flattenedScriptItems: ScriptItem[] = useMemo(() => {
+    if(!project?.acts?.length) return []
     return project.acts.flatMap((act) =>
       act.scenes.flatMap((scene) => [
         { type: "SCENE_HEADING", data: scene },
-        ...scene.elements.map((el): ScriptItem => ({ type: "ELEMENT", data: el })),
-      ]),
+        ...scene.elements.map((el): ScriptItem => ({ type: "ELEMENT", data: el })) || [],
+      ]) || [],
     )
   }, [project.acts])
 
@@ -158,9 +159,10 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const handleAddNewScene = useCallback(() => {
     setProject((prevProject) => {
-      const newActs = [...prevProject.acts]
-      let lastAct = newActs[newActs.length - 1]
-
+      const newActs = [...(prevProject.acts || [])];
+      
+      // Ensure at least one act exists
+      let lastAct = newActs[newActs.length - 1];
       if (!lastAct) {
         lastAct = {
           id: `new-act-${Date.now()}`,
@@ -168,31 +170,43 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           title: "Act 1",
           projectId: prevProject.id,
           scenes: [],
-        }
-        newActs.push(lastAct)
+        };
+        newActs.push(lastAct);
       }
-
+  
+      // Ensure lastAct.scenes is initialized
+      lastAct.scenes = lastAct.scenes || [];
+  
+      // Generate consistent IDs
+      const sceneId = `new-scene-${Date.now()}`;
+      const elementId = `new-element-${Date.now()}`;
+  
       const newScene: Scene = {
-        id: `new-scene-${Date.now()}`,
+        id: sceneId,
         actId: lastAct.id,
         sceneNumber: lastAct.scenes.length + 1,
         setting: "INT. NEW SCENE - DAY",
         elements: [
           {
-            id: `new-element-${Date.now()}`,
-            sceneId: `new-scene-${Date.now()}`,
+            id: elementId,
+            sceneId: sceneId,
             elementOrder: 1,
             elementType: "ACTION",
             content: "A new beginning.",
             characterId: null,
           },
         ],
-      }
-
-      lastAct.scenes.push(newScene)
-      return { ...prevProject, acts: newActs }
-    })
-  }, [])
+      };
+  
+      lastAct.scenes.push(newScene);
+  
+      return {
+        ...prevProject,
+        acts: newActs,
+      };
+    });
+  }, []);
+  
 
   const scrollToElement = useCallback(
     (elementId: string) => {
