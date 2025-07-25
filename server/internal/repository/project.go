@@ -145,6 +145,29 @@ func (r *postgresProjectRepository) GetFullProjectByID(projectID string) (*entit
 	return &fullProject, nil
 }
 
+func (r *postgresProjectRepository) GetFullProjectByIDForUser(projectID string, userID string) (*entity.FullProject, error) {
+	// Check access
+	accessQuery := `
+		SELECT 1 FROM projects p 
+		WHERE p.project_id = $1 AND (p.user_id = $2 OR EXISTS (
+			SELECT 1 FROM project_collaborators pc 
+			WHERE pc.project_id = p.project_id AND pc.user_id = $2
+		))
+	`
+	var access int
+	err := r.db.QueryRow(accessQuery, projectID, userID).Scan(&access)
+	if err == sql.ErrNoRows {
+		return nil, nil // No access
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch full project
+	return r.GetFullProjectByID(projectID)
+}
+
+
 func (r *postgresProjectRepository) GetByName(userID string, name string) (*entity.Project, error) {
 	query := `SELECT project_id, user_id, project_name, description, is_starred, created_at, updated_at FROM projects WHERE user_id = $1 AND project_name = $2`
 	var p entity.Project

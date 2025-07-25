@@ -84,25 +84,20 @@ func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // --- Handler Functions ---
 
 func (h *ProjectHandler) handleGetFullProject(w http.ResponseWriter, _ *http.Request, projectID, userID string) {
-	// First, check if the user owns this project before fetching all the data.
-	if err := h.checkOwnership(projectID, userID); err != nil {
-		h.handleError(w, err)
-		return
-	}
-
-	project, err := h.repo.GetFullProjectByID(projectID)
+	project, err := h.repo.GetFullProjectByIDForUser(projectID, userID)
 	if err != nil {
 		log.Printf("ERROR: Failed to get full project %s: %v", projectID, err)
 		http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
 		return
 	}
 	if project == nil {
-		http.Error(w, `{"error": "Project not found"}`, http.StatusNotFound)
+		http.Error(w, `{"error": "Project not found or access denied"}`, http.StatusNotFound)
 		return
 	}
 
 	json.NewEncoder(w).Encode(project)
 }
+
 
 func (h *ProjectHandler) handleListProjects(w http.ResponseWriter, userID string) {
 	projects, err := h.repo.ListByUserID(userID)

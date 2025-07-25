@@ -11,6 +11,7 @@ type ProjectRepository interface {
 	Update(project *entity.Project) (*entity.Project, error)
 	Delete(projectID string, userID string) error
 	UpdateIsStarred(projectID string, userID string, isStarred bool) (*entity.Project, error)
+	GetFullProjectByIDForUser(projectID string, userID string) (*entity.FullProject, error)
 }
 
 type UserRepository interface {
