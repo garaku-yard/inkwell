@@ -1,15 +1,16 @@
 "use client"
-
 import type React from "react"
 import { useState, useRef, useCallback, useMemo } from "react"
 import Link from "next/link"
 import { Download, FileText, ArrowLeft } from "lucide-react"
+import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { Toolbar } from "./Toolbar"
 import { SidePanel } from "./SidePanel"
 import { EditorPane, type EditorPaneRef } from "./EditorPane"
 import type { FullProject, Scene, ScriptElement } from "@/services/project"
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
+import { updateSceneSetting, updateScriptElementContent, createElement } from "@/services/project"
 
 type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ScriptElement }
 
@@ -23,46 +24,65 @@ interface ScreenplayEditorProps {
  */
 export function ScreenplayEditor({ projectData: initialProjectData }: ScreenplayEditorProps) {
   const [project, setProject] = useState(initialProjectData)
-  const [activeElementId, setActiveElementId] = useState<string | null>(null) // New state for active element
+  const [activeElementId, setActiveElementId] = useState<string | null>(null)
   const elementRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
   const editorPaneRef = useRef<EditorPaneRef>(null)
 
-  // --- DATA DERIVATION (MEMOIZED) ---
+  const debouncedSave = useDebouncedCallback(
+    (id: string, content: string, isScene: boolean) => {
+      console.log("Saving to database...")
+      if (isScene) {
+        updateSceneSetting(id, content).catch((err) => console.error("Scene save failed:", err))
+      } else {
+        updateScriptElementContent(id, content).catch((err) => console.error("Element save failed:", err))
+      }
+    },
+    1500, // Wait 1.5 seconds after user stops typing.
+  )
+
   const allScenes = useMemo(() => project?.acts?.flatMap((act) => act.scenes) || [], [project.acts])
   const totalScenes = allScenes.length
-  const totalElements = useMemo(() => allScenes.reduce((acc, scene) => acc + scene.elements.length, 0), [allScenes])
+  const totalElements = useMemo(
+    () => allScenes.reduce((acc, scene) => acc + scene.elements.length, 0),
+    [allScenes],
+  )
 
-  // Flatten the entire script into a single array for the virtualizer
   const flattenedScriptItems: ScriptItem[] = useMemo(() => {
-    if(!project?.acts?.length) return []
-    return project.acts.flatMap((act) =>
-      act.scenes.flatMap((scene) => [
-        { type: "SCENE_HEADING", data: scene },
-        ...scene.elements.map((el): ScriptItem => ({ type: "ELEMENT", data: el })) || [],
-      ]) || [],
+    if (!project?.acts?.length) return []
+    return project.acts.flatMap(
+      (act) =>
+        act.scenes.flatMap((scene) => [
+          { type: "SCENE_HEADING", data: scene },
+          ...(scene.elements.map((el): ScriptItem => ({ type: "ELEMENT", data: el })) || []),
+        ]) || [],
     )
   }, [project.acts])
 
-  // --- CALLBACKS (MEMOIZED) ---
-  const handleUpdateElement = useCallback((id: string, newContent: string, isScene: boolean) => {
-    setProject((prevProject) => {
-      const newActs = prevProject.acts.map((act) => ({
-        ...act,
-        scenes: act.scenes.map((scene) => {
-          if (isScene && scene.id === id) {
-            return { ...scene, setting: newContent }
-          }
-          return {
-            ...scene,
-            elements: scene.elements.map((el) => (el.id === id ? { ...el, content: newContent } : el)),
-          }
-        }),
-      }))
-      return { ...prevProject, acts: newActs }
-    })
-  }, [])
+  const handleUpdateElement = useCallback(
+    (id: string, newContent: string, isScene: boolean) => {
+      // 1. Update local state immediately for a responsive UI.
+      setProject((prevProject) => {
+        const newActs = prevProject.acts.map((act) => ({
+          ...act,
+          scenes: act.scenes.map((scene) => {
+            if (isScene && scene.id === id) {
+              return { ...scene, setting: newContent }
+            }
+            return {
+              ...scene,
+              elements: scene.elements.map((el) => (el.id === id ? { ...el, content: newContent } : el)),
+            }
+          }),
+        }))
+        return { ...prevProject, acts: newActs }
+      })
 
-  // This function finds the element ID based on the current cursor position.
+      // 2. Trigger the debounced save to the database.
+      debouncedSave(id, newContent, isScene)
+    },
+    [debouncedSave],
+  )
+
   const findActiveElement = useCallback((): { elementId: string; isScene: boolean } | null => {
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0) return null
@@ -72,7 +92,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).hasAttribute("data-id")) {
         const elementNode = node as HTMLElement
         const id = elementNode.getAttribute("data-id")!
-        // Check if it's a scene by looking for a specific class on the container
         const isScene = !!elementNode.closest(".scene-container > [data-id]")
         return { elementId: id, isScene }
       }
@@ -84,7 +103,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const handleInsertElement = useCallback(
     (type: ToolbarScriptElementType) => {
       const activeElementInfo = findActiveElement()
-
       if (!activeElementInfo) {
         console.warn("Could not find active element to insert after.")
         return
@@ -113,36 +131,38 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
       if (!sceneId) return
 
-      const newElement: ScriptElement = {
-        id: `new-${Date.now()}`,
+      const newElementData: Partial<ScriptElement> = {
         elementType: type,
         content: "",
-        sceneId: sceneId,
         elementOrder: insertIndex,
-        characterId: null, // Default to null, can be updated later
       }
 
-      setProject((prevProject) => {
-        const newActs = prevProject.acts.map((act) => ({
-          ...act,
-          scenes: act.scenes.map((scene) => {
-            if (scene.id !== sceneId) return scene
-            const newElements = [...scene.elements]
-            newElements.splice(insertIndex, 0, newElement)
-            // Re-order elements after insertion
-            newElements.forEach((el, index) => (el.elementOrder = index + 1))
-            return { ...scene, elements: newElements }
-          }),
-        }))
-        return { ...prevProject, acts: newActs }
-      })
+      createElement(sceneId, newElementData)
+        .then((createdElement) => {
+          setProject((prevProject) => {
+            const newActs = prevProject.acts.map((act) => ({
+              ...act,
+              scenes: act.scenes.map((scene) => {
+                if (scene.id !== sceneId) return scene
+                const newElements = [...scene.elements]
+                newElements.splice(insertIndex, 0, createdElement)
+                newElements.forEach((el, index) => (el.elementOrder = index + 1))
+                return { ...scene, elements: newElements }
+              }),
+            }))
+            return { ...prevProject, acts: newActs }
+          })
 
-      setTimeout(() => {
-        const newElementNode = elementRefs.current.get(newElement.id)
-        if (newElementNode) {
-          newElementNode.focus()
-        }
-      }, 0)
+          setTimeout(() => {
+            const newElementNode = elementRefs.current.get(createdElement.id)
+            if (newElementNode) {
+              newElementNode.focus()
+            }
+          }, 0)
+        })
+        .catch((err) => {
+          console.error("Failed to create new element:", err)
+        })
     },
     [findActiveElement, project.acts],
   )
@@ -159,10 +179,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const handleAddNewScene = useCallback(() => {
     setProject((prevProject) => {
-      const newActs = [...(prevProject.acts || [])];
-      
-      // Ensure at least one act exists
-      let lastAct = newActs[newActs.length - 1];
+      const newActs = [...(prevProject.acts || [])]
+      let lastAct = newActs[newActs.length - 1]
       if (!lastAct) {
         lastAct = {
           id: `new-act-${Date.now()}`,
@@ -170,17 +188,14 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           title: "Act 1",
           projectId: prevProject.id,
           scenes: [],
-        };
-        newActs.push(lastAct);
+        }
+        newActs.push(lastAct)
       }
-  
-      // Ensure lastAct.scenes is initialized
-      lastAct.scenes = lastAct.scenes || [];
-  
-      // Generate consistent IDs
-      const sceneId = `new-scene-${Date.now()}`;
-      const elementId = `new-element-${Date.now()}`;
-  
+
+      lastAct.scenes = lastAct.scenes || []
+      const sceneId = `new-scene-${Date.now()}`
+      const elementId = `new-element-${Date.now()}`
+
       const newScene: Scene = {
         id: sceneId,
         actId: lastAct.id,
@@ -196,21 +211,14 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             characterId: null,
           },
         ],
-      };
-  
-      lastAct.scenes.push(newScene);
-  
-      return {
-        ...prevProject,
-        acts: newActs,
-      };
-    });
-  }, []);
-  
+      }
+      lastAct.scenes.push(newScene)
+      return { ...prevProject, acts: newActs }
+    })
+  }, [])
 
   const scrollToElement = useCallback(
     (elementId: string) => {
-      console.log("Scrolling to:", elementId)
       const itemIndex = flattenedScriptItems.findIndex((item) => item.data.id === elementId)
       if (itemIndex !== -1) {
         editorPaneRef.current?.scrollToIndex(itemIndex)
@@ -259,8 +267,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             elementRefs={elementRefs}
             onUpdate={handleUpdateElement}
             onKeyDown={handleKeyDown}
-            activeElementId={activeElementId} // Pass activeElementId
-            setActiveElementId={setActiveElementId} // Pass setActiveElementId
+            activeElementId={activeElementId}
+            setActiveElementId={setActiveElementId}
           />
         </div>
       </div>

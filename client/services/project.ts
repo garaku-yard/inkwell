@@ -128,3 +128,42 @@ export const starProject = (projectId: string, isStarred: boolean): Promise<Proj
     body: { isStarred },
   });
 };
+
+/**
+ * Updates the setting of a specific scene for autosaving.
+ * @param sceneId The ID of the scene.
+ * @param setting The new setting text.
+ */
+export const updateSceneSetting = (sceneId: string, setting: string): Promise<void> => {
+  return apiClient<void>(`scenes/${sceneId}`, {
+    method: "PATCH",
+    body: { setting },
+  })
+}
+
+/**
+ * Updates the content of a specific script element for autosaving.
+ * @param elementId The ID of the script element.
+ * @param content The new content text.
+ */
+export const updateScriptElementContent = (elementId: string, content: string): Promise<void> => {
+  return apiClient<void>(`script-elements/${elementId}`, {
+    method: "PATCH",
+    body: { content },
+  })
+}
+
+/**
+ * Creates a new script element within a scene.
+ * @param sceneId The ID of the scene to add the element to.
+ * @param elementData The partial data for the new element.
+ */
+export const createElement = (
+  sceneId: string,
+  elementData: Partial<ScriptElement>,
+): Promise<ScriptElement> => {
+  return apiClient<ScriptElement>(`scenes/${sceneId}/elements`, {
+    method: "POST",
+    body: elementData,
+  })
+}
