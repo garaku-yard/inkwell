@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { type ToolbarScriptElementType, SCRIPT_ELEMENT_CONFIG } from "@/lib/helpers/screenplay-config"
+import { cn } from "@/lib/utils"
 
 const toolbarElementTypes = Object.keys(SCRIPT_ELEMENT_CONFIG).filter(
   (key) => key !== "SCENE_HEADING",
@@ -14,9 +15,10 @@ const toolbarElementTypes = Object.keys(SCRIPT_ELEMENT_CONFIG).filter(
 interface ToolbarProps {
   onInsertElement: (type: ToolbarScriptElementType) => void
   onAddNewScene: () => void
+  activeElementType: ToolbarScriptElementType | null
 }
 
-export const Toolbar = React.memo(({ onInsertElement, onAddNewScene }: ToolbarProps) => {
+export const Toolbar = React.memo(({ onInsertElement, onAddNewScene, activeElementType }: ToolbarProps) => {
   const ActionIcon = SCRIPT_ELEMENT_CONFIG.ACTION.icon
 
   return (
@@ -55,13 +57,21 @@ export const Toolbar = React.memo(({ onInsertElement, onAddNewScene }: ToolbarPr
               {toolbarElementTypes.map((type) => {
                 const config = SCRIPT_ELEMENT_CONFIG[type]
                 const Icon = config.icon
+                const isActive = activeElementType === type
+
                 return (
                   <Tooltip key={type}>
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className={`h-8 w-8 transition-all duration-200 ${config.toolbarColor} border border-transparent hover:border-current/20`}
+                        className={cn(
+                          "h-8 w-8 transition-all duration-200 border",
+                          config.toolbarColor,
+                          isActive
+                            ? "bg-primary/10 text-primary border-primary/20"
+                            : "border-transparent hover:border-current/20",
+                        )}
                         onClick={() => onInsertElement(type)}
                       >
                         <Icon className="h-4 w-4" />
@@ -83,3 +93,5 @@ export const Toolbar = React.memo(({ onInsertElement, onAddNewScene }: ToolbarPr
     </div>
   )
 })
+
+Toolbar.displayName = "Toolbar"
