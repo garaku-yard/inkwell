@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { FileText, Film, Hash } from "lucide-react"
+import { Clipboard, Film, Hash } from "lucide-react"
 import type { FullProject, Scene, ScriptElement } from "@/services/project"
 import { SCRIPT_ELEMENT_CONFIG } from "@/lib/helpers/screenplay-config"
 import { Separator } from "@/components/ui/separator"
@@ -29,12 +29,10 @@ export const SidePanel = React.memo(
 
     const getElementIcon = (elementType: ScriptElement["elementType"]) => {
       const config = SCRIPT_ELEMENT_CONFIG[elementType]
-      // Ensure config exists AND if config.icon exists AND if it's a function
       if (config && typeof config.icon === "function") {
         const IconComponent = config.icon
         return <IconComponent className="h-3 w-3" />
       }
-      // Fallback if the icon is not found or not a function
       return <Hash className="h-3 w-3" />
     }
 
@@ -46,8 +44,8 @@ export const SidePanel = React.memo(
       <div className="w-80 border-r bg-muted/30 flex flex-col min-h-0">
         <div className="p-4 space-y-3 flex-shrink-0">
           <Button className="w-full justify-start gap-2 bg-transparent" variant="outline" onClick={onAddNewScene}>
-            <FileText className="h-4 w-4" />
-            New Scene
+            <Clipboard className="h-4 w-4" />
+            Beat Board
           </Button>
 
           <div className="flex gap-2 text-xs text-muted-foreground">
