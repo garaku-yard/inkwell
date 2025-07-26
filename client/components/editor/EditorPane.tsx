@@ -13,7 +13,12 @@ interface EditorPaneProps {
   elementRefs: React.MutableRefObject<Map<string, HTMLDivElement | null>>
   onContentChange: (id: string, content: string, isScene: boolean) => void
   onFinalizeUpdate: (id: string, content: string, isScene: boolean) => void
-  onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>, elementId: string, isScene: boolean) => void
+  onKeyDown: (
+    e: React.KeyboardEvent<HTMLDivElement>,
+    elementId: string,
+    isScene: boolean,
+    elementType: ToolbarScriptElementType | "SCENE_HEADING",
+  ) => void
   activeElementId: string | null
   onFocus: (id: string, type: ToolbarScriptElementType | "SCENE_HEADING" | null) => void
   onBlur: () => void

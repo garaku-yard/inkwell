@@ -44,6 +44,12 @@ func (h *ScreenplayHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.handleUpdateElement(w, r, elementID, userID)
 			return
 		}
+
+		if r.Method == http.MethodDelete {
+			elementID := pathParts[1]
+			h.handleDeleteElement(w, r, elementID, userID)
+			return
+		}
 	}
 
 	if len(pathParts) == 3 && pathParts[0] == "scenes" && pathParts[2] == "elements" {
@@ -157,4 +163,32 @@ func (h *ScreenplayHandler) checkOwnership(projectID, userID string) error {
 		return http.ErrHijacked
 	}
 	return nil
+}
+
+func (h *ScreenplayHandler) handleDeleteElement(w http.ResponseWriter, r *http.Request, elementID, userID string) {
+	projectID, err := h.repo.GetProjectIDForElement(elementID)
+	if err != nil {
+		log.Printf("DB ERROR: Could not get project ID for element %s: %v", elementID, err)
+		http.Error(w, `{"error": "Server error"}`, http.StatusInternalServerError)
+		return
+	}
+	if projectID == "" {
+		http.Error(w, `{"error": "Element not found"}`, http.StatusNotFound)
+		return
+	}
+
+	// Important: Check if the user owns the project this element belongs to
+	if err := h.checkOwnership(projectID, userID); err != nil {
+		http.Error(w, `{"error": "Forbidden"}`, http.StatusForbidden)
+		return
+	}
+
+	if err := h.repo.DeleteElement(elementID); err != nil {
+		log.Printf("DB ERROR: Failed to delete element: %v", err)
+		http.Error(w, `{"error": "Failed to delete element"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Element deleted successfully"})
 }

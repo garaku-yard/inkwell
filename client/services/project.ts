@@ -167,3 +167,13 @@ export const createElement = (
     body: elementData,
   })
 }
+
+/**
+ * Deletes a script element from a scene.
+ * @param elementId The ID of the script element to delete.
+ */
+export const deleteScriptElement = (elementId: string): Promise<void> => {
+  return apiClient<void>(`script-elements/${elementId}`, {
+    method: "DELETE",
+  });
+};

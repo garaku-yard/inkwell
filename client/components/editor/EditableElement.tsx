@@ -9,7 +9,12 @@ interface EditableElementProps {
   element: ScriptElement | Scene
   onContentChange: (id: string, content: string, isScene: boolean) => void
   onFinalizeUpdate: (id: string, content: string, isScene: boolean) => void
-  onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>, elementId: string, isScene: boolean) => void
+  onKeyDown: (
+    e: React.KeyboardEvent<HTMLDivElement>,
+    elementId: string,
+    isScene: boolean,
+    elementType: ToolbarScriptElementType | "SCENE_HEADING",
+  ) => void
   activeElementId: string | null
   onFocus: (id: string, type: ToolbarScriptElementType | "SCENE_HEADING" | null) => void
   onBlur: () => void
@@ -51,7 +56,7 @@ export const EditableElement = React.memo(
             onFinalizeUpdate(element.id, e.currentTarget.innerHTML, isScene)
             onBlur() // This resets the active element state in the parent.
           }}
-          onKeyDown={(e) => onKeyDown(e, element.id, isScene)}
+          onKeyDown={(e) => onKeyDown(e, element.id, isScene, type)}
           className={cn(
             "outline-none w-full py-2 font-['Courier_New',Courier,monospace] text-[12pt]",
             config.editorClasses,

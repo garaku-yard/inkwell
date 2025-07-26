@@ -11,7 +11,7 @@ import { SidePanel } from "./SidePanel"
 import { EditorPane, type EditorPaneRef } from "./EditorPane"
 import type { FullProject, Scene, ScriptElement } from "@/services/project"
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
-import { updateSceneSetting, updateScriptElementContent, createElement } from "@/services/project"
+import { updateSceneSetting, updateScriptElementContent, createElement, deleteScriptElement } from "@/services/project"
 
 type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ScriptElement }
 
@@ -72,7 +72,17 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     if (elementToFocus) {
       scrollToElement(elementToFocus)
       const focusTimeout = setTimeout(() => {
-        elementRefs.current.get(elementToFocus)?.focus()
+        const element = elementRefs.current.get(elementToFocus)
+        if (element) {
+          element.focus()
+          // Move cursor to the end of the content
+          const selection = window.getSelection()
+          const range = document.createRange()
+          range.selectNodeContents(element)
+          range.collapse(false) // false collapses to the end
+          selection?.removeAllRanges()
+          selection?.addRange(range)
+        }
         setElementToFocus(null)
       }, 100)
       return () => clearTimeout(focusTimeout)
@@ -137,7 +147,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       let sceneId = ""
       let insertIndex = -1
 
-      // This block runs if you are in a row (an element is active).
       if (idToInsertAfter) {
         for (const act of project.acts) {
           for (const scene of act.scenes) {
@@ -149,11 +158,9 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
                 break
               }
             }
-            // It finds the index of your current row...
             const foundIndex = scene.elements.findIndex((el) => el.id === idToInsertAfter)
             if (foundIndex !== -1) {
               sceneId = scene.id
-              // ...and prepares to insert the new element right after it.
               insertIndex = foundIndex + 1
               break
             }
@@ -161,12 +168,9 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           if (sceneId) break
         }
       }
-      // This block runs if you are NOT in any row (no element is active).
       else if (allScenes.length > 0) {
-        // It finds the very last scene...
         const lastScene = allScenes[allScenes.length - 1]
         sceneId = lastScene.id
-        // ...and prepares to insert the new element at the end of it.
         insertIndex = lastScene.elements.length
       }
 
@@ -204,14 +208,84 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     [project.acts, activeElementId, allScenes],
   )
 
+  const handleDeleteElement = useCallback(
+    (elementIdToDelete: string) => {
+      const originalProjectState = project;
+
+      const deletedItemIndex = flattenedScriptItems.findIndex((item) => item.data.id === elementIdToDelete);
+      if (deletedItemIndex > 0) {
+        const previousElementId = flattenedScriptItems[deletedItemIndex - 1].data.id;
+        setElementToFocus(previousElementId);
+      }
+
+      setProject((prevProject) => {
+        const newActs = prevProject.acts.map((act) => ({
+          ...act,
+          scenes: act.scenes.map((scene) => ({
+            ...scene,
+            elements: scene.elements.filter((el) => el.id !== elementIdToDelete),
+          })),
+        }));
+        return { ...prevProject, acts: newActs };
+      });
+
+      deleteScriptElement(elementIdToDelete).catch((err) => {
+        console.error("Failed to delete element:", err);
+        setProject(originalProjectState);
+      });
+    },
+    [project, flattenedScriptItems],
+  );
+
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>, elementId: string, isScene: boolean) => {
+    (
+      e: React.KeyboardEvent<HTMLDivElement>,
+      elementId: string,
+      isScene: boolean,
+      elementType: ToolbarScriptElementType | "SCENE_HEADING",
+    ) => {
+      // --- ENTER KEY LOGIC ---
       if (e.key === "Enter" && !e.shiftKey) {
+        // Default behavior for ACTION is to allow newlines, so we don't handle it here.
+        // For SCENE_HEADING, we prevent newlines entirely.
+        if (elementType === "ACTION") {
+          return
+        }
         e.preventDefault()
-        handleInsertElement("ACTION", elementId, isScene)
+        if (isScene) return
+
+        let nextElementType: ToolbarScriptElementType | null = null
+
+        switch (elementType) {
+          case "CHARACTER":
+            nextElementType = "DIALOG"
+            break
+          case "DIALOG":
+            nextElementType = "ACTION"
+            break
+          case "PARENTHETICAL":
+            nextElementType = "DIALOG"
+            break
+          case "TRANSITION":
+            nextElementType = "ACTION"
+            break
+        }
+
+        if (nextElementType) {
+          handleInsertElement(nextElementType, elementId, isScene)
+        }
+      }
+
+      // --- BACKSPACE KEY LOGIC ---
+      if (e.key === "Backspace" && !isScene) {
+        const content = e.currentTarget.innerHTML
+        if (content === "" || content === "<br>") {
+          e.preventDefault()
+          handleDeleteElement(elementId)
+        }
       }
     },
-    [handleInsertElement],
+    [handleInsertElement, handleDeleteElement],
   )
 
   const handleAddNewScene = useCallback(() => {
