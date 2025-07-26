@@ -10,11 +10,14 @@ import (
 type ScreenplayRepository interface {
 	GetProjectIDForScene(sceneID string) (string, error)
 	GetProjectIDForElement(elementID string) (string, error)
+	GetProjectIDForAct(actID string) (string, error)
+	CreateScene(actID string, setting string) (*entity.Scene, error)
 	CreateElement(element *entity.ScriptElement) (*entity.ScriptElement, error)
 	UpdateSceneSetting(sceneID string, setting string) error
 	UpdateScriptElementContent(elementID string, content string) error
 	UpdateScriptElementsOrder(sceneID string, elements []*entity.ScriptElement) error
 	DeleteElement(elementID string) error
+	DeleteScene(sceneID string) error
 }
 
 type postgresScreenplayRepository struct {
@@ -23,6 +26,53 @@ type postgresScreenplayRepository struct {
 
 func NewScreenplayRepository(db *sql.DB) ScreenplayRepository {
 	return &postgresScreenplayRepository{db: db}
+}
+
+func (r *postgresScreenplayRepository) GetProjectIDForAct(actID string) (string, error) {
+	var projectID string
+	query := `SELECT project_id FROM acts WHERE act_id = $1`
+	err := r.db.QueryRow(query, actID).Scan(&projectID)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return projectID, err
+}
+
+func (r *postgresScreenplayRepository) CreateScene(actID string, setting string) (*entity.Scene, error) {
+	var newScene entity.Scene
+	newScene.ActID = actID
+	newScene.Setting = setting
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	// Determine the next scene number for this act
+	var nextSceneNumber int
+	err = tx.QueryRow(
+		"SELECT COALESCE(MAX(scene_number), 0) + 1 FROM scenes WHERE act_id = $1",
+		actID,
+	).Scan(&nextSceneNumber)
+	if err != nil {
+		return nil, err
+	}
+	newScene.SceneNumber = nextSceneNumber
+
+	// Insert the new scene
+	err = tx.QueryRow(
+		"INSERT INTO scenes (act_id, scene_number, setting) VALUES ($1, $2, $3) RETURNING scene_id",
+		actID, newScene.SceneNumber, newScene.Setting,
+	).Scan(&newScene.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// The new scene has no elements yet
+	newScene.Elements = []*entity.ScriptElement{}
+
+	return &newScene, tx.Commit()
 }
 
 func (r *postgresScreenplayRepository) UpdateSceneSetting(sceneID string, setting string) error {
@@ -164,6 +214,53 @@ func (r *postgresScreenplayRepository) DeleteElement(elementID string) error {
 	)
 	if err != nil {
 		log.Printf("DB ERROR: Failed on Step 2 of re-order (setting to final) for scene %s: %v", sceneID, err)
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (r *postgresScreenplayRepository) DeleteScene(sceneID string) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var actID string
+	var sceneNumber int
+	err = tx.QueryRow(
+		"SELECT act_id, scene_number FROM scenes WHERE scene_id = $1",
+		sceneID,
+	).Scan(&actID, &sceneNumber)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec("DELETE FROM script_elements WHERE scene_id = $1", sceneID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec("DELETE FROM scenes WHERE scene_id = $1", sceneID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(
+		"UPDATE scenes SET scene_number = -scene_number WHERE act_id = $1 AND scene_number > $2",
+		actID,
+		sceneNumber,
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(
+		"UPDATE scenes SET scene_number = -scene_number - 1 WHERE act_id = $1 AND scene_number < 0",
+		actID,
+	)
+	if err != nil {
 		return err
 	}
 

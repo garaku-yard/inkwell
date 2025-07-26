@@ -177,3 +177,28 @@ export const deleteScriptElement = (elementId: string): Promise<void> => {
     method: "DELETE",
   });
 };
+
+/**
+ * Creates a new scene within an act.
+ * @param actId The ID of the act to add the scene to.
+ * @param sceneData The data for the new scene.
+ */
+export const createScene = (
+  actId: string,
+  sceneData: { setting: string },
+): Promise<Scene> => {
+  return apiClient<Scene>(`acts/${actId}/scenes`, {
+    method: "POST",
+    body: sceneData,
+  });
+};
+
+/**
+ * Deletes a scene and all of its contents.
+ * @param sceneId The ID of the scene to delete.
+ */
+export const deleteScene = (sceneId: string): Promise<void> => {
+  return apiClient<void>(`scenes/${sceneId}`, {
+    method: "DELETE",
+  });
+};

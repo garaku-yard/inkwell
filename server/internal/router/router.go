@@ -22,6 +22,7 @@ func NewRouter(
 
 	protectedScreenplayHandler := middleware.AuthMiddleware(screenplayHandler)
 
+	mux.Handle("/acts/", protectedScreenplayHandler)
 	mux.Handle("/scenes/", protectedScreenplayHandler)
 	mux.Handle("/script-elements/", protectedScreenplayHandler)
 

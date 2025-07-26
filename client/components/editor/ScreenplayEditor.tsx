@@ -11,7 +11,7 @@ import { SidePanel } from "./SidePanel"
 import { EditorPane, type EditorPaneRef } from "./EditorPane"
 import type { FullProject, Scene, ScriptElement } from "@/services/project"
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
-import { updateSceneSetting, updateScriptElementContent, createElement, deleteScriptElement } from "@/services/project"
+import { updateSceneSetting, updateScriptElementContent, createElement, deleteScriptElement, createScene, deleteScene } from "@/services/project"
 
 type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ScriptElement }
 
@@ -143,47 +143,45 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const handleInsertElement = useCallback(
     (type: ToolbarScriptElementType, targetElementId?: string, isTargetScene?: boolean) => {
-      const idToInsertAfter = targetElementId || activeElementId
-      let sceneId = ""
-      let insertIndex = -1
+      const idToInsertAfter = targetElementId || activeElementId;
+      let sceneId = "";
+      let insertIndex = -1;
 
       if (idToInsertAfter) {
         for (const act of project.acts) {
           for (const scene of act.scenes) {
-            if (isTargetScene || scene.id === idToInsertAfter) {
-              const isElement = scene.elements.some((el) => el.id === idToInsertAfter)
-              if (!isElement) {
-                sceneId = scene.id
-                insertIndex = targetElementId ? 0 : scene.elements.length
-                break
-              }
+
+            if (isTargetScene && scene.id === idToInsertAfter) {
+              sceneId = scene.id;
+              insertIndex = 0;
+              break;
             }
-            const foundIndex = scene.elements.findIndex((el) => el.id === idToInsertAfter)
+
+            const foundIndex = scene.elements.findIndex((el) => el.id === idToInsertAfter);
             if (foundIndex !== -1) {
-              sceneId = scene.id
-              insertIndex = foundIndex + 1
-              break
+              sceneId = scene.id;
+              insertIndex = foundIndex + 1;
+              break;
             }
+
           }
-          if (sceneId) break
+          if (sceneId) break;
         }
-      }
-      else if (allScenes.length > 0) {
-        const lastScene = allScenes[allScenes.length - 1]
-        sceneId = lastScene.id
-        insertIndex = lastScene.elements.length
+      } else if (allScenes.length > 0) {
+        const lastScene = allScenes[allScenes.length - 1];
+        sceneId = lastScene.id;
+        insertIndex = lastScene.elements.length;
       }
 
       if (!sceneId) {
-        console.warn("No location to insert new element.")
-        return
+        console.warn("No location to insert new element.");
+        return;
       }
 
       const newElementData: Partial<ScriptElement> = {
         elementType: type,
         content: "",
-        elementOrder: insertIndex + 1,
-      }
+      };
 
       createElement(sceneId, newElementData)
         .then((createdElement) => {
@@ -191,22 +189,21 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             const newActs = prevProject.acts.map((act) => ({
               ...act,
               scenes: act.scenes.map((scene) => {
-                if (scene.id !== sceneId) return scene
-                const newElements = [...(scene.elements || [])]
-                newElements.splice(insertIndex, 0, createdElement)
-                newElements.forEach((el, index) => (el.elementOrder = index + 1))
-                return { ...scene, elements: newElements }
+                if (scene.id !== sceneId) return scene;
+                const newElements = [...(scene.elements || [])];
+                newElements.splice(insertIndex, 0, createdElement);
+                return { ...scene, elements: newElements };
               }),
-            }))
-            return { ...prevProject, acts: newActs }
-          })
+            }));
+            return { ...prevProject, acts: newActs };
+          });
 
-          setElementToFocus(createdElement.id)
+          setElementToFocus(createdElement.id);
         })
-        .catch((err) => console.error("Failed to create new element:", err))
+        .catch((err) => console.error("Failed to create new element:", err));
     },
     [project.acts, activeElementId, allScenes],
-  )
+  );
 
   const handleDeleteElement = useCallback(
     (elementIdToDelete: string) => {
@@ -237,6 +234,34 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     [project, flattenedScriptItems],
   );
 
+  const handleDeleteScene = useCallback(
+    (sceneIdToDelete: string) => {
+      const originalProjectState = project;
+
+      const deletedItemIndex = flattenedScriptItems.findIndex(
+        (item) => item.data.id === sceneIdToDelete
+      );
+      if (deletedItemIndex > 0) {
+        const previousElementId = flattenedScriptItems[deletedItemIndex - 1].data.id;
+        setElementToFocus(previousElementId);
+      }
+
+      setProject((prevProject) => {
+        const newActs = prevProject.acts.map((act) => ({
+          ...act,
+          scenes: act.scenes.filter((scene) => scene.id !== sceneIdToDelete),
+        }));
+        return { ...prevProject, acts: newActs };
+      });
+
+      deleteScene(sceneIdToDelete).catch((err) => {
+        console.error("Failed to delete scene:", err);
+        setProject(originalProjectState);
+      });
+    },
+    [project, flattenedScriptItems]
+  );
+
   const handleKeyDown = useCallback(
     (
       e: React.KeyboardEvent<HTMLDivElement>,
@@ -244,53 +269,81 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       isScene: boolean,
       elementType: ToolbarScriptElementType | "SCENE_HEADING",
     ) => {
-      // --- ENTER KEY LOGIC ---
       if (e.key === "Enter" && !e.shiftKey) {
-        // Default behavior for ACTION is to allow newlines, so we don't handle it here.
-        // For SCENE_HEADING, we prevent newlines entirely.
         if (elementType === "ACTION") {
-          return
+          return;
         }
-        e.preventDefault()
-        if (isScene) return
+        e.preventDefault();
+        if (isScene) {
+          handleInsertElement("ACTION", elementId, true);
+          return;
+        }
 
-        let nextElementType: ToolbarScriptElementType | null = null
+        let nextElementType: ToolbarScriptElementType | null = null;
 
         switch (elementType) {
           case "CHARACTER":
-            nextElementType = "DIALOG"
-            break
+            nextElementType = "DIALOG";
+            break;
           case "DIALOG":
-            nextElementType = "ACTION"
-            break
+            nextElementType = "ACTION";
+            break;
           case "PARENTHETICAL":
-            nextElementType = "DIALOG"
-            break
+            nextElementType = "DIALOG";
+            break;
           case "TRANSITION":
-            nextElementType = "ACTION"
-            break
+            nextElementType = "ACTION";
+            break;
         }
 
         if (nextElementType) {
-          handleInsertElement(nextElementType, elementId, isScene)
+          handleInsertElement(nextElementType, elementId, isScene);
         }
       }
 
-      // --- BACKSPACE KEY LOGIC ---
-      if (e.key === "Backspace" && !isScene) {
-        const content = e.currentTarget.innerHTML
+      if (e.key === "Backspace") {
+        const content = e.currentTarget.innerHTML;
         if (content === "" || content === "<br>") {
-          e.preventDefault()
-          handleDeleteElement(elementId)
+          e.preventDefault();
+          if (isScene) {
+            handleDeleteScene(elementId);
+          } else {
+            handleDeleteElement(elementId);
+          }
         }
       }
     },
-    [handleInsertElement, handleDeleteElement],
-  )
+    [handleInsertElement, handleDeleteElement, handleDeleteScene],
+  );
+
 
   const handleAddNewScene = useCallback(() => {
-    console.log("Adding new scene...")
-  }, [])
+    if (!project.acts || project.acts.length === 0) {
+      console.error("Cannot add a scene: No acts exist in the project.");
+      return;
+    }
+
+    const lastAct = project.acts[project.acts.length - 1];
+    const newSceneData = { setting: "" };
+
+    createScene(lastAct.id, newSceneData)
+      .then((createdScene) => {
+        setProject((prevProject) => {
+          const newActs = prevProject.acts.map((act) => {
+            if (act.id === lastAct.id) {
+              return { ...act, scenes: [...act.scenes, createdScene] };
+            }
+            return act;
+          });
+          return { ...prevProject, acts: newActs };
+        });
+
+        setElementToFocus(createdScene.id);
+      })
+      .catch((err) => {
+        console.error("Failed to create new scene:", err);
+      });
+  }, [project.acts]);
 
   return (
     <div className="flex flex-col h-screen">
