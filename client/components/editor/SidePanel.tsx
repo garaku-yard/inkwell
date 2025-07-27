@@ -31,7 +31,6 @@ interface SidePanelProps {
 
 export const SidePanel = React.memo(
   React.forwardRef<HTMLDivElement, SidePanelProps>(
-    // NEW: Forward the ref
     (
       {
         project,
@@ -45,7 +44,7 @@ export const SidePanel = React.memo(
         onDeleteComment,
         onToggleCommentResolved,
       },
-      ref, // NEW: Destructure ref
+      ref,
     ) => {
       const [activeTab, setActiveTab] = useState("scenes")
       const router = useRouter()
@@ -83,6 +82,7 @@ export const SidePanel = React.memo(
         return null
       }, [activeElementId, project.acts])
 
+      // Calculate unresolved comments for the badge
       const unresolvedCommentsCount = useMemo(() => {
         if (!activeElement) return 0
         return activeElement.comments?.filter((c) => !c.isResolved).length || 0
@@ -117,11 +117,14 @@ export const SidePanel = React.memo(
               <TabsList className="w-full grid grid-cols-3">
                 <TabsTrigger value="scenes">Scenes</TabsTrigger>
                 <TabsTrigger value="structure">Structure</TabsTrigger>
-                <TabsTrigger value="comments">
+                <TabsTrigger value="comments" className="relative">
                   Comments
                   {unresolvedCommentsCount > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-xs">
-                      {unresolvedCommentsCount}
+                    <Badge
+                      // NEW: Changed to bg-blue-500 for a blue dot
+                      className="absolute -top-1 right-1 h-2.5 w-2.5 p-0 rounded-full flex items-center justify-center bg-blue-500"
+                    >
+                      <span className="sr-only">{unresolvedCommentsCount} unresolved comments</span>
                     </Badge>
                   )}
                 </TabsTrigger>
