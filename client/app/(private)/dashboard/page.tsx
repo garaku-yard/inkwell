@@ -33,9 +33,12 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "@/hooks/use-toast"
 import { NewProjectDialog } from "./new-project-dialog"
 import { CollaboratorsDialog } from "./collaborators-dialog"
-import { getMyProjects, starProject, type Project } from "@/services/project"
+import { DeleteProjectDialog } from "@/components/delete-project-dialog"
+import { RenameProjectDialog } from "@/components/rename-project-dialog"
+import { deleteProject, getMyProjects, starProject, updateProject, type Project } from "@/services/project"
 import { cn } from "@/lib/utils"
 
 const formatRelativeTime = (dateString: string) => {
@@ -60,11 +63,33 @@ export default function DashboardPage() {
     projectId: "",
     projectName: "",
   })
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean
+    projectId: string
+    projectName: string
+  }>({
+    open: false,
+    projectId: "",
+    projectName: "",
+  })
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
   const { isAuthenticated, logout, userName } = useAuth()
   const [projects, setProjects] = useState<Project[]>([])
+  const [renameDialog, setRenameDialog] = useState<{
+    open: boolean
+    projectId: string
+    projectName: string
+    projectDescription: string
+  }>({
+    open: false,
+    projectId: "",
+    projectName: "",
+    projectDescription: "",
+  })
+  const [isRenaming, setIsRenaming] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [inviteCount, setInviteCount] = useState(3)
 
@@ -97,6 +122,11 @@ export default function DashboardPage() {
       setProjects(projects.map((p) => (p.id === projectId ? updatedProject : p)))
     } catch (error) {
       console.error("Failed to star project", error)
+      toast({
+        title: "Error",
+        description: "Failed to update project. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -106,6 +136,74 @@ export default function DashboardPage() {
       projectId,
       projectName,
     })
+  }
+
+  const handleDeleteProjectClick = (projectId: string, projectName: string) => {
+    setDeleteDialog({
+      open: true,
+      projectId,
+      projectName,
+    })
+  }
+
+  const handleDeleteProject = async () => {
+    if (!deleteDialog.projectId) return
+
+    setIsDeleting(true)
+    try {
+      await deleteProject(deleteDialog.projectId)
+      setProjects((prev) => prev.filter((p) => p.id !== deleteDialog.projectId))
+      setDeleteDialog({ open: false, projectId: "", projectName: "" })
+      toast({
+        title: "Project deleted",
+        description: `"${deleteDialog.projectName}" has been permanently deleted.`,
+      })
+    } catch (error) {
+      console.error("Failed to delete project", error)
+      toast({
+        title: "Error",
+        description: "Could not delete project. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleRenameProjectClick = (projectId: string, projectName: string, projectDescription: string) => {
+    setRenameDialog({
+      open: true,
+      projectId,
+      projectName,
+      projectDescription,
+    })
+  }
+
+  const handleRenameProject = async (newName: string, newDescription: string) => {
+    if (!renameDialog.projectId) return
+
+    setIsRenaming(true)
+    try {
+      const updatedProject = await updateProject(renameDialog.projectId, {
+        projectName: newName,
+        description: newDescription,
+      })
+      setProjects((prev) => prev.map((p) => (p.id === renameDialog.projectId ? updatedProject : p)))
+      setRenameDialog({ open: false, projectId: "", projectName: "", projectDescription: "" })
+      toast({
+        title: "Project updated",
+        description: `"${newName}" has been successfully updated.`,
+      })
+    } catch (error) {
+      console.error("Failed to rename project", error)
+      toast({
+        title: "Error",
+        description: "Could not update project. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRenaming(false)
+    }
   }
 
   const filteredProjects = projects.filter((project) =>
@@ -260,8 +358,23 @@ export default function DashboardPage() {
                               Manage Collaborators
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Rename</DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Delete</DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleRenameProjectClick(project.id, project.projectName, project.description || "")
+                              }}
+                            >
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteProjectClick(project.id, project.projectName)
+                              }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              Delete
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -342,6 +455,23 @@ export default function DashboardPage() {
         onOpenChange={(open) => setCollaboratorsDialog((prev) => ({ ...prev, open }))}
         projectId={collaboratorsDialog.projectId}
         projectName={collaboratorsDialog.projectName}
+      />
+
+      <DeleteProjectDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog((prev) => ({ ...prev, open }))}
+        onConfirm={handleDeleteProject}
+        projectName={deleteDialog.projectName}
+        isDeleting={isDeleting}
+      />
+
+      <RenameProjectDialog
+        open={renameDialog?.open ?? false}
+        onOpenChange={(open) => setRenameDialog((prev) => ({ ...prev, open }))}
+        onConfirm={handleRenameProject}
+        projectName={renameDialog?.projectName ?? ""}
+        projectDescription={renameDialog?.projectDescription ?? ""}
+        isRenaming={isRenaming}
       />
     </div>
   )

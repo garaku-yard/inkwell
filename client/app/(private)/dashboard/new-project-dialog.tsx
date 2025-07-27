@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 
-import { createProject, addCollaborator, Project } from "@/services/project"
+import { createProject, addCollaborator, Project, deleteProject } from "@/services/project"
 
 const projectTypes = [
   { value: "feature", label: "Feature Film" },
@@ -99,6 +99,9 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
       setIsLoading(false)
     }
   }
+
+ 
+  
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
