@@ -30,6 +30,11 @@ export async function apiClient<T>(
 
   const response = await fetch(`${API_BASE_URL}/${endpoint}`, config);
 
+  // ✅ Handle empty response (like 204 No Content)
+  if (response.status === 204) {
+    return {} as T;
+  }
+
   const contentType = response.headers.get("content-type");
   if (!contentType || !contentType.includes("application/json")) {
     if (!response.ok) {
@@ -37,7 +42,7 @@ export async function apiClient<T>(
     }
     return {} as T;
   }
-  
+
   const data = await response.json();
 
   if (!response.ok) {

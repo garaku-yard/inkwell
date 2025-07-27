@@ -3,8 +3,21 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { FileText, Plus, Search, Users, Clock, Star, MoreHorizontal, User as UserIcon, LogOut, Loader2, AlertCircle, Inbox } from "lucide-react"
-
+import {
+  FileText,
+  Plus,
+  Search,
+  Users,
+  Clock,
+  Star,
+  MoreHorizontal,
+  UserIcon,
+  LogOut,
+  Loader2,
+  AlertCircle,
+  Inbox,
+  UserPlus,
+} from "lucide-react"
 import { useAuth } from "@/lib/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,37 +32,45 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { NewProjectDialog } from "./new-project-dialog"
-import { getMyProjects, starProject, Project } from "@/services/project"
-import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
+import { NewProjectDialog } from "./new-project-dialog"
+import { CollaboratorsDialog } from "./collaborators-dialog"
+import { getMyProjects, starProject, type Project } from "@/services/project"
+import { cn } from "@/lib/utils"
 
 const formatRelativeTime = (dateString: string) => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
 
-  if (diffInSeconds < 60) return "Just now";
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-  return date.toLocaleDateString();
+  if (diffInSeconds < 60) return "Just now"
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`
+  return date.toLocaleDateString()
 }
 
 export default function DashboardPage() {
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false)
+  const [collaboratorsDialog, setCollaboratorsDialog] = useState<{
+    open: boolean
+    projectId: string
+    projectName: string
+  }>({
+    open: false,
+    projectId: "",
+    projectName: "",
+  })
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
   const { isAuthenticated, logout, userName } = useAuth()
-
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  const [inviteCount, setInviteCount] = useState(3);
+  const [inviteCount, setInviteCount] = useState(3)
 
   useEffect(() => {
     if (isAuthenticated) {
-      setIsLoading(true);
+      setIsLoading(true)
       const fetchProjects = async () => {
         try {
           const fetchedProjects = await getMyProjects()
@@ -61,27 +82,34 @@ export default function DashboardPage() {
         }
       }
       fetchProjects()
-      // TODO: In the future, you would also fetch the real invite count here.
     } else {
-      setIsLoading(false);
+      setIsLoading(false)
     }
   }, [isAuthenticated])
 
   const handleProjectCreated = (newProject: Project) => {
-    setProjects(prevProjects => [newProject, ...prevProjects]);
-  };
+    setProjects((prevProjects) => [newProject, ...prevProjects])
+  }
 
   const handleStarProject = async (projectId: string, currentStatus: boolean) => {
     try {
-      const updatedProject = await starProject(projectId, !currentStatus);
-      setProjects(projects.map(p => p.id === projectId ? updatedProject : p));
+      const updatedProject = await starProject(projectId, !currentStatus)
+      setProjects(projects.map((p) => (p.id === projectId ? updatedProject : p)))
     } catch (error) {
-      console.error("Failed to star project", error);
+      console.error("Failed to star project", error)
     }
   }
 
+  const handleManageCollaborators = (projectId: string, projectName: string) => {
+    setCollaboratorsDialog({
+      open: true,
+      projectId,
+      projectName,
+    })
+  }
+
   const filteredProjects = projects.filter((project) =>
-    project.projectName.toLowerCase().includes(searchQuery.toLowerCase())
+    project.projectName.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   const handleProjectClick = (projectId: string) => {
@@ -116,7 +144,6 @@ export default function DashboardPage() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {/* UPDATED: Inbox item now shows a count */}
                   <DropdownMenuItem>
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center">
@@ -124,7 +151,9 @@ export default function DashboardPage() {
                         <span>Inbox</span>
                       </div>
                       {inviteCount > 0 && (
-                        <Badge className="h-5 bg-teal-100 text-teal-800 dark:bg-teal-800 dark:text-teal-100">{inviteCount}</Badge>
+                        <Badge className="h-5 bg-teal-100 text-teal-800 dark:bg-teal-800 dark:text-teal-100">
+                          {inviteCount}
+                        </Badge>
                       )}
                     </div>
                   </DropdownMenuItem>
@@ -136,8 +165,14 @@ export default function DashboardPage() {
               </DropdownMenu>
             ) : (
               <>
-                <Link href="/login"><Button variant="outline" size="sm">Log In</Button></Link>
-                <Link href="/register"><Button size="sm">Sign Up</Button></Link>
+                <Link href="/login">
+                  <Button variant="outline" size="sm">
+                    Log In
+                  </Button>
+                </Link>
+                <Link href="/register">
+                  <Button size="sm">Sign Up</Button>
+                </Link>
               </>
             )}
           </div>
@@ -167,8 +202,12 @@ export default function DashboardPage() {
             </div>
             <Tabs defaultValue="all" className="w-full sm:w-auto">
               <TabsList className="w-full">
-                <TabsTrigger value="all" className="w-full sm:w-auto">All</TabsTrigger>
-                <TabsTrigger value="starred" className="w-full sm:w-auto">Starred</TabsTrigger>
+                <TabsTrigger value="all" className="w-full sm:w-auto">
+                  All
+                </TabsTrigger>
+                <TabsTrigger value="starred" className="w-full sm:w-auto">
+                  Starred
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -201,11 +240,26 @@ export default function DashboardPage() {
                         </div>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleManageCollaborators(project.id, project.projectName)
+                              }}
+                            >
+                              <Users className="mr-2 h-4 w-4" />
+                              Manage Collaborators
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Rename</DropdownMenuItem>
                             <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Delete</DropdownMenuItem>
                           </DropdownMenuContent>
@@ -218,20 +272,37 @@ export default function DashboardPage() {
                         {formatRelativeTime(project.updatedAt)}
                       </div>
                       <div className="flex items-center gap-3">
+                        {/* Quick Add Collaborator Button */}
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
                           onClick={(e) => {
-                            e.stopPropagation();
-                            handleStarProject(project.id, project.isStarred);
+                            e.stopPropagation()
+                            handleManageCollaborators(project.id, project.projectName)
+                          }}
+                          title="Add Collaborator"
+                        >
+                          <UserPlus className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleStarProject(project.id, project.isStarred)
                           }}
                         >
-                          <Star className={cn(
-                            "h-4 w-4 text-muted-foreground hover:text-yellow-400",
-                            project.isStarred && "fill-yellow-400 text-yellow-400"
-                          )} />
+                          <Star
+                            className={cn(
+                              "h-4 w-4 text-muted-foreground hover:text-yellow-400",
+                              project.isStarred && "fill-yellow-400 text-yellow-400",
+                            )}
+                          />
                         </Button>
+
                         {project.collaboratorCount > 0 && (
                           <div className="flex items-center">
                             <Users className="h-3.5 w-3.5 mr-1" />
@@ -249,7 +320,9 @@ export default function DashboardPage() {
                   <FileText className="h-12 w-12 mx-auto text-muted-foreground/50" />
                   <h3 className="mt-4 text-lg font-medium">No projects found</h3>
                   <p className="text-muted-foreground mt-2">
-                    {searchQuery ? "Try a different search term" : "Create your first screenplay project to get started."}
+                    {searchQuery
+                      ? "Try a different search term"
+                      : "Create your first screenplay project to get started."}
                   </p>
                 </div>
               )}
@@ -262,6 +335,13 @@ export default function DashboardPage() {
         open={isNewProjectDialogOpen}
         onOpenChange={setIsNewProjectDialogOpen}
         onProjectCreated={handleProjectCreated}
+      />
+
+      <CollaboratorsDialog
+        open={collaboratorsDialog.open}
+        onOpenChange={(open) => setCollaboratorsDialog((prev) => ({ ...prev, open }))}
+        projectId={collaboratorsDialog.projectId}
+        projectName={collaboratorsDialog.projectName}
       />
     </div>
   )

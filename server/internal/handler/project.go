@@ -37,13 +37,30 @@ func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if len(pathParts) > 0 && pathParts[0] == "projects" {
 		// Handle routes like /projects/{id}/collaborators
-		if len(pathParts) == 3 && pathParts[2] == "collaborators" {
+		if len(pathParts) >= 3 && pathParts[2] == "collaborators" {
 			projectID := pathParts[1]
-			if r.Method == http.MethodPost {
+		
+			switch {
+			case len(pathParts) == 3 && r.Method == http.MethodPost:
 				h.handleAddCollaborator(w, r, projectID, userID)
+				return
+		
+			case len(pathParts) == 3 && r.Method == http.MethodGet:
+				h.handleListCollaborators(w, projectID, userID)
+				return
+		
+			case len(pathParts) == 4 && r.Method == http.MethodPatch:
+				collaboratorID := pathParts[3]
+				h.handleUpdateCollaboratorRole(w, r, projectID, collaboratorID, userID)
+				return
+		
+			case len(pathParts) == 4 && r.Method == http.MethodDelete:
+				collaboratorID := pathParts[3]
+				h.handleRemoveCollaborator(w, projectID, collaboratorID, userID)
 				return
 			}
 		}
+		
 
 		// Handle routes for the main projects collection: /projects
 		if len(pathParts) == 1 {
@@ -242,21 +259,24 @@ func (h *ProjectHandler) checkOwnership(projectID, userID string) error {
 }
 
 func (h *ProjectHandler) handleAddCollaborator(w http.ResponseWriter, r *http.Request, projectID, ownerUserID string) {
-	// First, check if the person making the request owns the project.
+	// Check ownership
 	if err := h.checkOwnership(projectID, ownerUserID); err != nil {
 		h.handleError(w, err)
 		return
 	}
 
+	// Parse and decode request
 	var reqBody struct {
 		UsernameWithTag string `json:"usernameWithTag"`
+		Role            string `json:"role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		log.Printf("ERROR: Malformed request body when adding collaborator: %v", err)
 		http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
 		return
 	}
 
-	// Parse the username#tag string
+	// Validate and parse username#tag
 	parts := strings.Split(reqBody.UsernameWithTag, "#")
 	if len(parts) != 2 {
 		http.Error(w, `{"error": "Invalid username format. Expected 'username#tag'"}`, http.StatusBadRequest)
@@ -264,10 +284,10 @@ func (h *ProjectHandler) handleAddCollaborator(w http.ResponseWriter, r *http.Re
 	}
 	username, tag := parts[0], parts[1]
 
-	// Find the user to be added
+	// Lookup user
 	userToAdd, err := h.userRepo.GetByUsernameAndTag(username, tag)
 	if err != nil {
-		log.Printf("DB ERROR: Could not find collaborator %s#%s: %v", username, tag, err)
+		log.Printf("DB ERROR: Failed to look up user %s#%s: %v", username, tag, err)
 		http.Error(w, `{"error": "Could not find user"}`, http.StatusInternalServerError)
 		return
 	}
@@ -276,16 +296,118 @@ func (h *ProjectHandler) handleAddCollaborator(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Add the user to the project
-	if err := h.collabRepo.Add(projectID, userToAdd.ID); err != nil {
-		log.Printf("DB ERROR: Could not add collaborator %s to project %s: %v", userToAdd.ID, projectID, err)
+	// Validate and normalize role
+	validRoles := map[string]entity.CollaboratorRole{
+		"REVIEWER": entity.Reviewer,
+		"EDITOR":   entity.Editor,
+		"WRITER":   entity.Writer,
+	}
+	
+	roleUpper := strings.ToUpper(reqBody.Role)
+	roleEnum, ok := validRoles[roleUpper]
+	if !ok {
+		log.Printf("ERROR: Invalid collaborator role: %s", reqBody.Role)
+		http.Error(w, `{"error": "Invalid collaborator role"}`, http.StatusBadRequest)
+		return
+	}
+	
+	
+
+	// Prepare collaborator insert
+	log.Printf("Adding collaborator: userID=%s, projectID=%s, role=%s", userToAdd.ID, projectID, roleEnum)
+	err = h.collabRepo.Add(projectID, userToAdd.ID, roleEnum)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") {
+			http.Error(w, `{"error": "User is already a collaborator"}`, http.StatusBadRequest)
+			return
+		}
+		log.Printf("DB ERROR: Failed to add collaborator: %v", err)
 		http.Error(w, `{"error": "Failed to add collaborator"}`, http.StatusInternalServerError)
 		return
 	}
 
+	// Respond with success
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Collaborator added successfully"})
 }
+
+
+func (h *ProjectHandler) handleListCollaborators(w http.ResponseWriter, projectID, userID string) {
+	// Ensure owner or collaborator access
+	if err := h.checkOwnership(projectID, userID); err != nil {
+		// TODO: optionally allow collaborators to list others
+		h.handleError(w, err)
+		return
+	}
+
+	collaborators, err := h.collabRepo.ListByProjectID(projectID)
+	if err != nil {
+		log.Printf("DB ERROR: Failed to list collaborators for project %s: %v", projectID, err)
+		http.Error(w, `{"error": "Failed to load collaborators"}`, http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(collaborators)
+}
+
+func (h *ProjectHandler) handleUpdateCollaboratorRole(w http.ResponseWriter, r *http.Request, projectID, collaboratorID, userID string) {
+	// Only owner can update roles
+	if err := h.checkOwnership(projectID, userID); err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	var reqBody struct {
+		Role string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	roleUpper := strings.ToUpper(reqBody.Role)
+	validRoles := map[string]entity.CollaboratorRole{
+		"REVIEWER": entity.Reviewer,
+		"EDITOR":   entity.Editor,
+		"WRITER":   entity.Writer,
+	}
+
+	roleEnum, ok := validRoles[roleUpper]
+	if !ok {
+		http.Error(w, `{"error": "Invalid collaborator role"}`, http.StatusBadRequest)
+		return
+	}
+
+	err := h.collabRepo.UpdateRole(projectID, collaboratorID, roleEnum)
+	if err != nil {
+		log.Printf("DB ERROR: Failed to update role: %v", err)
+		http.Error(w, `{"error": "Failed to update collaborator role"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Collaborator role updated"})
+}
+
+func (h *ProjectHandler) handleRemoveCollaborator(w http.ResponseWriter, projectID, collaboratorID, userID string) {
+	// Only owner can remove collaborators
+	if err := h.checkOwnership(projectID, userID); err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	err := h.collabRepo.Remove(projectID, collaboratorID)
+	if err != nil {
+		log.Printf("DB ERROR: Failed to remove collaborator: %v", err)
+		http.Error(w, `{"error": "Failed to remove collaborator"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+
+
 
 // httpError is a helper struct for custom errors.
 type httpError struct {

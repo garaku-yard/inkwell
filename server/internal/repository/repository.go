@@ -21,5 +21,8 @@ type UserRepository interface {
 }
 
 type CollaboratorRepository interface {
-	Add(projectID, userID string) error
+	Add(projectID string, userID string, role entity.CollaboratorRole) error
+	Remove(projectID string, userID string) error
+    UpdateRole(projectID string, userID string, role entity.CollaboratorRole) error
+    ListByProjectID(projectID string) ([]*entity.ProjectCollaborator, error)
 }

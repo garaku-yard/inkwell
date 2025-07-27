@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, ChevronsUpDown, Plus, X, AlertCircle } from "lucide-react"
-
+import { CollaboratorRoles, CollaboratorRole, collaboratorRoleOptions } from "@/models/constants/collaboratorRoles"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -39,7 +39,7 @@ interface NewProjectDialogProps {
 export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewProjectDialogProps) {
   const [projectName, setProjectName] = useState("")
   const [projectType, setProjectType] = useState("")
-  const [collaborators, setCollaborators] = useState<string[]>([])
+  const [collaborators, setCollaborators] = useState<{ username: string; role: CollaboratorRole }[]>([])
   const [collaboratorInput, setCollaboratorInput] = useState("")
   const [openTypeSelect, setOpenTypeSelect] = useState(false)
 
@@ -49,17 +49,23 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
   const router = useRouter()
 
   const handleAddCollaborator = () => {
-    if (collaboratorInput && collaboratorInput.includes('#') && !collaborators.includes(collaboratorInput)) {
-      setCollaborators([...collaborators, collaboratorInput])
+    const trimmed = collaboratorInput.trim()
+    if (
+      trimmed &&
+      trimmed.includes("#") &&
+      !collaborators.find(c => c.username === trimmed)
+    ) {
+      setCollaborators([...collaborators, { username: trimmed, role: "REVIEWER" }])
       setCollaboratorInput("")
     } else {
-      console.log("Invalid format. Please use username#tag");
+      console.log("Invalid format. Please use username#tag")
     }
   }
 
-  const handleRemoveCollaborator = (collaborator: string) => {
-    setCollaborators(collaborators.filter((c) => c !== collaborator))
+  const handleRemoveCollaborator = (username: string) => {
+    setCollaborators(collaborators.filter((c) => c.username !== username))
   }
+
 
   const handleCreateProject = async () => {
     if (!projectName) {
@@ -77,15 +83,15 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
       })
 
       if (newProject && newProject.id && collaborators.length > 0) {
-        await Promise.all(
-          collaborators.map(userTag => addCollaborator(newProject.id, userTag))
-        );
+        for (const { username, role } of collaborators) {
+          await addCollaborator(newProject.id, username, role);
+        }
+
       }
 
-      onProjectCreated(newProject);
-      onOpenChange(false);
-      router.push(`/project/${newProject.id}`);
-
+      onProjectCreated(newProject)
+      onOpenChange(false)
+      router.push(`/project/${newProject.id}`)
 
     } catch (err: any) {
       setError(err.message || "An unknown error occurred.")
@@ -183,20 +189,60 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
             </div>
             {collaborators.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
-                {collaborators.map((collaborator) => (
-                  <Badge key={collaborator} variant="secondary" className="pl-2">
-                    {collaborator}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-4 w-4 ml-1 hover:bg-transparent"
-                      onClick={() => handleRemoveCollaborator(collaborator)}
-                      disabled={isLoading}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </Badge>
+                {collaborators.map((collaborator, index) => (
+                  <div key={collaborator.username} className="flex items-center gap-2">
+                    <Badge variant="secondary" className="pl-2">
+                      {collaborator.username}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-4 w-4 ml-1 hover:bg-transparent"
+                        onClick={() => handleRemoveCollaborator(collaborator.username)}
+                        disabled={isLoading}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                        >
+                          {CollaboratorRoles[collaborator.role]}
+                          <ChevronsUpDown className="ml-1 h-3 w-3" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-40 p-0">
+                        <Command>
+                          <CommandList>
+                            <CommandGroup>
+                              {collaboratorRoleOptions.map((option) => (
+                                <CommandItem
+                                  key={option.value}
+                                  value={option.value}
+                                  onSelect={() => {
+                                    const updated = [...collaborators]
+                                    updated[index].role = option.value as CollaboratorRole
+                                    setCollaborators(updated)
+                                  }}
+                                >
+                                  <Check
+                                    className={cn("mr-2 h-4 w-4", collaborator.role === option.value ? "opacity-100" : "opacity-0")}
+                                  />
+                                  {option.label}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 ))}
+
               </div>
             )}
           </div>
