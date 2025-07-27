@@ -16,6 +16,7 @@ interface DecodedToken {
 interface AuthContextType {
   isAuthenticated: boolean;
   logout: () => void;
+  fullName: string | null;
   userName: string | null;
   userId: string | null;
 }
@@ -24,7 +25,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userName, setUserName] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
+  const [userName, setUsersName] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
@@ -36,7 +38,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const decodedToken: DecodedToken = jwtDecode(token);
         if (decodedToken.exp * 1000 > Date.now()) {
           setIsAuthenticated(true);
-          setUserName(decodedToken.nam);
+          setFullName(decodedToken.nam);
+          setUsersName(decodedToken.usn + "#" + decodedToken.tag)
           setUserId(decodedToken.sub);
         } else {
           localStorage.removeItem("authToken");
@@ -53,7 +56,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = () => {
     localStorage.removeItem("authToken");
     setIsAuthenticated(false);
-    setUserName(null);
+    setFullName(null);
+    setUsersName(null)
     setUserId(null);
     router.push("/login");
   };
@@ -63,7 +67,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, userName, userId, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, fullName, userName, userId, logout }}>
       {children}
     </AuthContext.Provider>
   );

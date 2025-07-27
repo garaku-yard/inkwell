@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -241,7 +239,6 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
             </div>
           </div>
 
-          {/* Collaborators List */}
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -254,7 +251,11 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
                 <ScrollArea className="max-h-64">
                   <div className="space-y-2">
                     {collaborators.map((collab) => {
-                      const roleStyle = roleConfig[collab.role]
+                      const roleStyle = roleConfig[collab.role] || {
+                        label: "Member",
+                        icon: Users,
+                        color: "bg-gray-100 text-gray-800",
+                      }
                       const isWriter = collab.role === "WRITER"
                       return (
                         <div
