@@ -98,7 +98,6 @@ func (h *ProjectHandler) handleGetFullProject(w http.ResponseWriter, _ *http.Req
 	json.NewEncoder(w).Encode(project)
 }
 
-
 func (h *ProjectHandler) handleListProjects(w http.ResponseWriter, userID string) {
 	projects, err := h.repo.ListByUserID(userID)
 	if err != nil {
@@ -294,6 +293,6 @@ type httpError struct {
 	code    int
 }
 
-func (e *httpError) Error() string {
-	return e.message
-}
+// func (e *httpError) Error() string {
+// 	return e.message
+// }

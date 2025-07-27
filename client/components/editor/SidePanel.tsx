@@ -9,6 +9,7 @@ import { Clipboard, Film, Hash } from "lucide-react"
 import type { FullProject, Scene, ScriptElement } from "@/services/project"
 import { SCRIPT_ELEMENT_CONFIG } from "@/lib/helpers/screenplay-config"
 import { Separator } from "@/components/ui/separator"
+import { useRouter } from "next/navigation"
 
 interface SidePanelProps {
   project: FullProject
@@ -19,6 +20,7 @@ interface SidePanelProps {
   onScrollToElement: (id: string) => void
 }
 
+
 /**
  * A modular component for the entire left-side panel.
  * It contains the scene/structure tabs and project stats.
@@ -26,6 +28,7 @@ interface SidePanelProps {
 export const SidePanel = React.memo(
   ({ project, allScenes, totalScenes, totalElements, onAddNewScene, onScrollToElement }: SidePanelProps) => {
     const [activeTab, setActiveTab] = useState("scenes")
+    const router = useRouter()
 
     const getElementIcon = (elementType: ScriptElement["elementType"]) => {
       const config = SCRIPT_ELEMENT_CONFIG[elementType]
@@ -36,6 +39,10 @@ export const SidePanel = React.memo(
       return <Hash className="h-3 w-3" />
     }
 
+    const handleBeatBoardClick = (projectId: string) => {
+      router.push(`/projects/${projectId}/beat-board`)
+    }
+
     const getElementTypeColor = (elementType: ScriptElement["elementType"]) => {
       return SCRIPT_ELEMENT_CONFIG[elementType]?.badgeColor || "bg-gray-100 text-gray-700 border-gray-200"
     }
@@ -43,7 +50,9 @@ export const SidePanel = React.memo(
     return (
       <div className="w-80 border-r bg-muted/30 flex flex-col min-h-0">
         <div className="p-4 space-y-3 flex-shrink-0">
-          <Button className="w-full justify-start gap-2 bg-transparent" variant="outline" onClick={onAddNewScene}>
+          <Button className="w-full justify-start gap-2 bg-transparent" variant="outline"
+            onClick={() => handleBeatBoardClick(project.id)}
+          >
             <Clipboard className="h-4 w-4" />
             Beat Board
           </Button>

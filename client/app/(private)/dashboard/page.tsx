@@ -85,7 +85,7 @@ export default function DashboardPage() {
   )
 
   const handleProjectClick = (projectId: string) => {
-    router.push(`/project/${projectId}`)
+    router.push(`/projects/${projectId}/editor`)
   }
 
   return (

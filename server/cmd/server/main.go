@@ -29,12 +29,14 @@ func main() {
 	projectRepo := repository.NewProjectRepository(db)
 	collabRepo := repository.NewCollaboratorRepository(db)
 	screenplayRepo := repository.NewScreenplayRepository(db)
+	beatRepo := repository.NewBeatRepository(db)
 
 	authHandler := handler.NewAuthHandler(userRepo)
 	projectHandler := handler.NewProjectHandler(projectRepo, userRepo, collabRepo)
 	screenplayHandler := handler.NewScreenplayHandler(screenplayRepo, projectRepo)
+	beatHandler := handler.NewBeatHandler(beatRepo, projectRepo)
 
-	mux := router.NewRouter(authHandler, projectHandler, screenplayHandler)
+	mux := router.NewRouter(authHandler, projectHandler, screenplayHandler, beatHandler)
 
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"http://localhost:3000"},
