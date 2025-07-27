@@ -19,11 +19,12 @@ func NewRouter(
 	mux.HandleFunc("/register", authHandler.Register)
 	mux.HandleFunc("/login", authHandler.Login)
 
-	// --- Individual Resource Handlers ---
-	// These handlers manage top-level routes like /acts/{id}, /beats/{id}, etc.
 	mux.Handle("/acts/", middleware.AuthMiddleware(screenplayHandler))
 	mux.Handle("/scenes/", middleware.AuthMiddleware(screenplayHandler))
 	mux.Handle("/script-elements/", middleware.AuthMiddleware(screenplayHandler))
+
+	mux.Handle("/comments/", middleware.AuthMiddleware(screenplayHandler))
+
 	mux.Handle("/beats/", middleware.AuthMiddleware(beatHandler))
 	mux.Handle("/connections/", middleware.AuthMiddleware(beatHandler))
 

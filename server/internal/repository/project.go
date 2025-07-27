@@ -115,6 +115,8 @@ func (r *postgresProjectRepository) GetFullProjectByID(projectID string) (*entit
 			return nil, err
 		}
 		scene.Elements = []*entity.ScriptElement{}
+		// --- MODIFICATION: Initialize Comments slice for scenes ---
+		scene.Comments = []*entity.Comment{}
 		if act, ok := actMap[scene.ActID]; ok {
 			act.Scenes = append(act.Scenes, &scene)
 			sceneMap[scene.ID] = &scene
@@ -132,13 +134,59 @@ func (r *postgresProjectRepository) GetFullProjectByID(projectID string) (*entit
 	}
 	defer elementRows.Close()
 
+	// --- MODIFICATION: Create an elementMap for efficient comment lookup ---
+	elementMap := make(map[string]*entity.ScriptElement)
+	var elementIDs []string
 	for elementRows.Next() {
 		var el entity.ScriptElement
 		if err := elementRows.Scan(&el.ID, &el.SceneID, &el.ElementOrder, &el.ElementType, &el.Content, &el.CharacterID); err != nil {
 			return nil, err
 		}
+		// --- MODIFICATION: Initialize Comments slice for elements ---
+		el.Comments = []*entity.Comment{}
 		if scene, ok := sceneMap[el.SceneID]; ok {
 			scene.Elements = append(scene.Elements, &el)
+			elementMap[el.ID] = &el
+			elementIDs = append(elementIDs, el.ID)
+		}
+	}
+
+	// --- NEW SECTION: Fetch and attach comments ---
+	if len(sceneIDs) > 0 {
+		// Handle case where there are no elements, to prevent SQL error on empty ANY()
+		if len(elementIDs) == 0 {
+			elementIDs = append(elementIDs, "00000000-0000-0000-0000-000000000000") // Dummy UUID
+		}
+
+		commentsQuery := `
+			SELECT c.comment_id, c.element_id, c.scene_id, c.user_id, u.username, c.content, c.is_resolved, c.created_at
+			FROM comments c
+			JOIN users u ON c.user_id = u.user_id
+			WHERE c.scene_id = ANY($1) OR c.element_id = ANY($2)
+			ORDER BY c.created_at ASC`
+
+		commentRows, err := r.db.Query(commentsQuery, "{"+strings.Join(sceneIDs, ",")+"}", "{"+strings.Join(elementIDs, ",")+"}")
+		if err != nil {
+			return nil, err
+		}
+		defer commentRows.Close()
+
+		for commentRows.Next() {
+			var comment entity.Comment
+			if err := commentRows.Scan(&comment.ID, &comment.ElementID, &comment.SceneID, &comment.UserID, &comment.UserName, &comment.Content, &comment.IsResolved, &comment.Timestamp); err != nil {
+				return nil, err
+			}
+
+			// Attach comment to either a scene or an element
+			if comment.SceneID != nil {
+				if scene, ok := sceneMap[*comment.SceneID]; ok {
+					scene.Comments = append(scene.Comments, &comment)
+				}
+			} else if comment.ElementID != nil {
+				if element, ok := elementMap[*comment.ElementID]; ok {
+					element.Comments = append(element.Comments, &comment)
+				}
+			}
 		}
 	}
 
@@ -166,7 +214,6 @@ func (r *postgresProjectRepository) GetFullProjectByIDForUser(projectID string, 
 	// Fetch full project
 	return r.GetFullProjectByID(projectID)
 }
-
 
 func (r *postgresProjectRepository) GetByName(userID string, name string) (*entity.Project, error) {
 	query := `SELECT project_id, user_id, project_name, description, is_starred, created_at, updated_at FROM projects WHERE user_id = $1 AND project_name = $2`

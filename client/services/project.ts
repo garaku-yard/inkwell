@@ -29,6 +29,7 @@ export interface ScriptElement {
   elementType: "ACTION" | "CHARACTER" | "DIALOG" | "PARENTHETICAL" | "SHOT" | "TRANSITION"
   content: string
   characterId: string | null
+  comments: Comment[]
 }
 
 export interface Scene {
@@ -37,6 +38,7 @@ export interface Scene {
   sceneNumber: number
   setting: string
   elements: ScriptElement[]
+  comments: Comment[]
 }
 
 export interface Act {
@@ -62,6 +64,14 @@ export interface ProjectCollaborator {
   status: "active" | "pending"
   joinedAt: string
   userId: string
+} // <-- FIX: Added missing closing brace
+
+export interface Comment {
+  id: string
+  userName: string // The name of the user who commented
+  content: string
+  timestamp: string // ISO date string
+  isResolved: boolean
 }
 
 // --- Service Functions ---
@@ -105,7 +115,7 @@ export const createProject = (projectData: CreateProjectRequest): Promise<Projec
 export const addCollaborator = (
   projectId: string,
   usernameWithTag: string,
-  role: CollaboratorRole,
+  role: CollaboratorRole
 ): Promise<ProjectCollaborator> => {
   return apiClient<ProjectCollaborator>(`projects/${projectId}/collaborators`, {
     method: "POST",
@@ -135,7 +145,7 @@ export const getProjectCollaborators = (projectId: string): Promise<ProjectColla
 export const updateCollaboratorRole = (
   projectId: string,
   collaboratorId: string,
-  role: CollaboratorRole,
+  role: CollaboratorRole
 ): Promise<ProjectCollaborator> => {
   return apiClient<ProjectCollaborator>(`projects/${projectId}/collaborators/${collaboratorId}`, {
     method: "PATCH",
@@ -158,7 +168,10 @@ export const removeCollaborator = (projectId: string, collaboratorId: string): P
  * Updates an existing project.
  * @param projectId The ID of the project.
  */
-export const updateProject = (projectId: string, projectData: UpdateProjectRequest): Promise<Project> => {
+export const updateProject = (
+  projectId: string,
+  projectData: UpdateProjectRequest
+): Promise<Project> => {
   return apiClient<Project>(`projects/${projectId}`, {
     method: "PUT",
     body: projectData,
@@ -215,7 +228,10 @@ export const updateScriptElementContent = (elementId: string, content: string): 
  * @param sceneId The ID of the scene to add the element to.
  * @param elementData The partial data for the new element.
  */
-export const createElement = (sceneId: string, elementData: Partial<ScriptElement>): Promise<ScriptElement> => {
+export const createElement = (
+  sceneId: string,
+  elementData: Partial<ScriptElement>
+): Promise<ScriptElement> => {
   return apiClient<ScriptElement>(`scenes/${sceneId}/elements`, {
     method: "POST",
     body: elementData,
@@ -254,7 +270,63 @@ export const deleteScene = (sceneId: string): Promise<void> => {
   })
 }
 
-export const collaboratorRoleOptions = Object.entries(CollaboratorRoles).map(([key, label]) => ({
-  value: key as CollaboratorRole,
-  label,
-}))
+export const collaboratorRoleOptions = Object.entries(CollaboratorRoles).map(
+  ([key, label]) => ({
+    value: key as CollaboratorRole,
+    label,
+  })
+)
+// <-- FIX: Removed extra closing brackets "});" and "};" from here
+
+/**
+ * Adds a new comment to a scene or script element.
+ * @param elementId The ID of the scene or script element.
+ * @param isScene True if the comment is for a scene, false for an element.
+ * @param content The text of the comment.
+ */
+export const addComment = (
+  elementId: string,
+  isScene: boolean,
+  content: string
+): Promise<Comment> => {
+  const url = isScene
+    ? `scenes/${elementId}/comments`
+    : `script-elements/${elementId}/comments`
+
+  return apiClient<Comment>(url, {
+    method: "POST",
+    body: { content },
+  })
+}
+
+/**
+ * Updates an existing comment.
+ * @param commentId The ID of the comment to update.
+ * @param content The new text for the comment.
+ */
+export const updateComment = (commentId: string, content: string): Promise<void> => {
+  return apiClient<void>(`comments/${commentId}`, {
+    method: "PATCH",
+    body: { content },
+  })
+}
+
+/**
+ * Deletes a comment.
+ * @param commentId The ID of the comment to delete.
+ */
+export const deleteComment = (commentId: string): Promise<void> => {
+  return apiClient<void>(`comments/${commentId}`, {
+    method: "DELETE",
+  })
+}
+
+/**
+ * Toggles the resolved status of a comment.
+ */
+export const toggleCommentResolved = (commentId: string, isResolved: boolean): Promise<void> => {
+  return apiClient<void>(`comments/${commentId}`, {
+    method: "PATCH",
+    body: { isResolved },
+  })
+}

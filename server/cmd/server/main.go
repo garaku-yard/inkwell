@@ -30,10 +30,11 @@ func main() {
 	collabRepo := repository.NewCollaboratorRepository(db)
 	screenplayRepo := repository.NewScreenplayRepository(db)
 	beatRepo := repository.NewBeatRepository(db)
+	commentRepo := repository.NewCommentRepository(db)
 
 	authHandler := handler.NewAuthHandler(userRepo)
 	projectHandler := handler.NewProjectHandler(projectRepo, userRepo, collabRepo)
-	screenplayHandler := handler.NewScreenplayHandler(screenplayRepo, projectRepo)
+	screenplayHandler := handler.NewScreenplayHandler(screenplayRepo, projectRepo, commentRepo)
 	beatHandler := handler.NewBeatHandler(beatRepo, projectRepo)
 
 	mux := router.NewRouter(authHandler, projectHandler, screenplayHandler, beatHandler)

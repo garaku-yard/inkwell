@@ -14,10 +14,11 @@ import (
 type ScreenplayHandler struct {
 	repo        repository.ScreenplayRepository
 	projectRepo repository.ProjectRepository
+	commentRepo repository.CommentRepository
 }
 
-func NewScreenplayHandler(repo repository.ScreenplayRepository, projectRepo repository.ProjectRepository) *ScreenplayHandler {
-	return &ScreenplayHandler{repo: repo, projectRepo: projectRepo}
+func NewScreenplayHandler(repo repository.ScreenplayRepository, projectRepo repository.ProjectRepository, commentRepo repository.CommentRepository) *ScreenplayHandler {
+	return &ScreenplayHandler{repo: repo, projectRepo: projectRepo, commentRepo: commentRepo}
 }
 
 func (h *ScreenplayHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -44,6 +45,35 @@ func (h *ScreenplayHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			actID := pathParts[1]
 			h.handleCreateScene(w, r, actID, userID)
+			return
+		}
+	}
+
+	if len(pathParts) == 3 && pathParts[0] == "scenes" && pathParts[2] == "comments" {
+		if r.Method == http.MethodPost {
+			sceneID := pathParts[1]
+			h.handleCreateSceneComment(w, r, sceneID, userID)
+			return
+		}
+	}
+
+	// Route: /script-elements/{elementId}/comments
+	if len(pathParts) == 3 && pathParts[0] == "script-elements" && pathParts[2] == "comments" {
+		if r.Method == http.MethodPost {
+			elementID := pathParts[1]
+			h.handleCreateElementComment(w, r, elementID, userID)
+			return
+		}
+	}
+
+	if len(pathParts) == 2 && pathParts[0] == "comments" {
+		commentID := pathParts[1]
+		switch r.Method {
+		case http.MethodPatch:
+			h.handleUpdateComment(w, r, commentID, userID)
+			return
+		case http.MethodDelete:
+			h.handleDeleteComment(w, r, commentID, userID)
 			return
 		}
 	}
@@ -243,4 +273,129 @@ func (h *ScreenplayHandler) checkOwnership(projectID, userID string, errFromRepo
 		return &httpError{message: `{"error": "Forbidden"}`, code: http.StatusForbidden}
 	}
 	return nil
+}
+
+func (h *ScreenplayHandler) handleCreateSceneComment(w http.ResponseWriter, r *http.Request, sceneID, userID string) {
+	projectID, err := h.repo.GetProjectIDForScene(sceneID)
+	if err := h.checkOwnership(projectID, userID, err); err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	var payload struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	comment := &entity.Comment{
+		SceneID: &sceneID,
+		UserID:  userID,
+		Content: payload.Content,
+	}
+
+	createdComment, err := h.commentRepo.Create(comment)
+	if err != nil {
+		log.Printf("DB ERROR: Failed to create scene comment: %v", err)
+		http.Error(w, `{"error": "Failed to create comment"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Get the user's name to return to the frontend
+	// In a real app, you might get this from the request context or another service
+	user, _ := h.projectRepo.GetByID(userID) // A bit of a hack to get user info, adjust as needed
+	if user != nil {
+		createdComment.UserName = user.ProjectName // Assuming name is stored here for now
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(createdComment)
+}
+
+func (h *ScreenplayHandler) handleCreateElementComment(w http.ResponseWriter, r *http.Request, elementID, userID string) {
+	projectID, err := h.repo.GetProjectIDForElement(elementID)
+	if err := h.checkOwnership(projectID, userID, err); err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	var payload struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	comment := &entity.Comment{
+		ElementID: &elementID,
+		UserID:    userID,
+		Content:   payload.Content,
+	}
+
+	createdComment, err := h.commentRepo.Create(comment)
+	if err != nil {
+		log.Printf("DB ERROR: Failed to create element comment: %v", err)
+		http.Error(w, `{"error": "Failed to create comment"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(createdComment)
+}
+
+func (h *ScreenplayHandler) handleUpdateComment(w http.ResponseWriter, r *http.Request, commentID, userID string) {
+	// Security Check: Only the author of a comment can edit it.
+	authorID, err := h.commentRepo.GetUserIDForComment(commentID)
+	if err != nil {
+		http.Error(w, `{"error": "Comment not found"}`, http.StatusNotFound)
+		return
+	}
+	if authorID != userID {
+		http.Error(w, `{"error": "Forbidden"}`, http.StatusForbidden)
+		return
+	}
+
+	var payload struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	if err := h.commentRepo.Update(commentID, payload.Content); err != nil {
+		log.Printf("DB ERROR: Failed to update comment %s: %v", commentID, err)
+		http.Error(w, `{"error": "Failed to update comment"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Comment updated"})
+}
+
+func (h *ScreenplayHandler) handleDeleteComment(w http.ResponseWriter, r *http.Request, commentID, userID string) {
+	// Security Check: Only the author of a comment can delete it.
+	authorID, err := h.commentRepo.GetUserIDForComment(commentID)
+	if err != nil {
+		// If it's already gone, consider it a success.
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Comment not found"})
+		return
+	}
+	if authorID != userID {
+		http.Error(w, `{"error": "Forbidden"}`, http.StatusForbidden)
+		return
+	}
+
+	if err := h.commentRepo.Delete(commentID); err != nil {
+		log.Printf("DB ERROR: Failed to delete comment %s: %v", commentID, err)
+		http.Error(w, `{"error": "Failed to delete comment"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Comment deleted"})
 }

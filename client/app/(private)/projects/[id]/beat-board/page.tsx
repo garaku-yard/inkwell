@@ -170,8 +170,7 @@ export default function BeatBoardPage() {
   const handleDoubleClick = (beatId: string, field: keyof Beat) => setEditingField({ beatId, field })
   const handleFieldBlur = () => {
     if (editingField) {
-      const beat = beats.find((b) => b.id === editingField.beatId)
-      if (beat) debouncedUpdate.flush(beat.id, { [editingField.field]: beat[editingField.field] })
+      debouncedUpdate.flush()
     }
     setEditingField(null)
   }

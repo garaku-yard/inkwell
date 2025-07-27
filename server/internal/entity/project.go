@@ -32,13 +32,15 @@ type Scene struct {
 	SceneNumber int              `json:"sceneNumber"`
 	Setting     string           `json:"setting"`
 	Elements    []*ScriptElement `json:"elements"`
+	Comments    []*Comment       `json:"comments"`
 }
 
 type ScriptElement struct {
-	ID           string  `json:"id"`
-	SceneID      string  `json:"sceneId"`
-	ElementOrder int     `json:"elementOrder"`
-	ElementType  string  `json:"elementType"`
-	Content      string  `json:"content"`
-	CharacterID  *string `json:"characterId"`
+	ID           string     `json:"id"`
+	SceneID      string     `json:"sceneId"`
+	ElementOrder int        `json:"elementOrder"`
+	ElementType  string     `json:"elementType"`
+	Content      string     `json:"content"`
+	CharacterID  *string    `json:"characterId"`
+	Comments     []*Comment `json:"comments"`
 }
