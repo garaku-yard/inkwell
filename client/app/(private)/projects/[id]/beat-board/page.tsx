@@ -41,7 +41,6 @@ const GRID_SIZE = 20
 const MIN_CARD_WIDTH = 200
 const MIN_CARD_HEIGHT = 150
 export default function BeatBoardPage() {
-  console.log("--- BeatBoardPage component is rendering! ---")
   const [beats, setBeats] = useState<Beat[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -62,11 +61,7 @@ export default function BeatBoardPage() {
   const boardRef = useRef<HTMLDivElement>(null)
   const [newBeat, setNewBeat] = useState({ title: "", description: "", sceneNumbers: "", color: "#fef3c7", act: 1 })
   useEffect(() => {
-    // Log 1: See if the effect runs and what projectId is.
-    console.log("1. useEffect is running. Project ID is:", projectId)
     if (!projectId) {
-      // Log 2: See if the effect is stopping because projectId is missing.
-      console.log("2. Project ID is missing, stopping the fetch.")
       return
     }
     const fetchData = async () => {
