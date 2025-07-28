@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -17,6 +17,9 @@ import {
   AlertCircle,
   Inbox,
   UserPlus,
+  ArrowDownUp,
+  Folder,
+  Briefcase,
 } from "lucide-react"
 import { useAuth } from "@/lib/AuthContext"
 import { Button } from "@/components/ui/button"
@@ -74,7 +77,7 @@ export default function DashboardPage() {
   })
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
-  const { isAuthenticated, logout, userName, fullName } = useAuth()
+  const { isAuthenticated, logout, userName, fullName, userId } = useAuth()
   const [projects, setProjects] = useState<Project[]>([])
   const [renameDialog, setRenameDialog] = useState<{
     open: boolean
@@ -92,6 +95,7 @@ export default function DashboardPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [inviteCount, setInviteCount] = useState(3)
+  const [activeFilter, setActiveFilter] = useState("lastUpdated")
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -117,11 +121,19 @@ export default function DashboardPage() {
   }
 
   const handleStarProject = async (projectId: string, currentStatus: boolean) => {
+    const originalProjects = [...projects]
+    // Optimistic update for instant UI feedback
+    setProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, isStarred: !currentStatus } : p)),
+    )
+
     try {
+      // Update the backend and replace optimistic data with the confirmed data
       const updatedProject = await starProject(projectId, !currentStatus)
-      setProjects(projects.map((p) => (p.id === projectId ? updatedProject : p)))
+      setProjects((prev) => prev.map((p) => (p.id === projectId ? updatedProject : p)))
     } catch (error) {
       console.error("Failed to star project", error)
+      setProjects(originalProjects) // Revert on error
       toast({
         title: "Error",
         description: "Failed to update project. Please try again.",
@@ -184,11 +196,11 @@ export default function DashboardPage() {
 
     setIsRenaming(true)
     try {
-      const updatedProject = await updateProject(renameDialog.projectId, {
+      const updatedData = await updateProject(renameDialog.projectId, {
         projectName: newName,
         description: newDescription,
       })
-      setProjects((prev) => prev.map((p) => (p.id === renameDialog.projectId ? updatedProject : p)))
+      setProjects((prev) => prev.map((p) => (p.id === renameDialog.projectId ? updatedData : p)))
       setRenameDialog({ open: false, projectId: "", projectName: "", projectDescription: "" })
       toast({
         title: "Project updated",
@@ -206,9 +218,34 @@ export default function DashboardPage() {
     }
   }
 
-  const filteredProjects = projects.filter((project) =>
-    project.projectName.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  const filteredProjects = useMemo(() => {
+    let processedProjects = [...projects]
+
+    switch (activeFilter) {
+      case "lastUpdated":
+        processedProjects.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        break
+      case "myProjects":
+        processedProjects = projects.filter((p) => p.userId === userId)
+        break
+      case "collaborations":
+        processedProjects = projects.filter((p) => p.userId !== userId)
+        break
+      case "starred":
+        processedProjects = projects.filter((p) => p.isStarred)
+        break
+      default:
+        break
+    }
+
+    if (!searchQuery) {
+      return processedProjects
+    }
+
+    return processedProjects.filter((project) =>
+      project.projectName.toLowerCase().includes(searchQuery.toLowerCase()),
+    )
+  }, [projects, activeFilter, searchQuery, userId])
 
   const handleProjectClick = (projectId: string) => {
     router.push(`/projects/${projectId}/editor`)
@@ -238,8 +275,7 @@ export default function DashboardPage() {
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none">{fullName}</p>
-                      <p className="text-xs leading-none text-muted-foreground">Username: {userName}</p>
-                      <p className="text-xs leading-none text-muted-foreground">Welcome back!</p>
+                      <p className="text-xs leading-none text-muted-foreground">{userName}</p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
@@ -299,12 +335,24 @@ export default function DashboardPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Tabs defaultValue="all" className="w-full sm:w-auto">
-              <TabsList className="w-full">
-                <TabsTrigger value="all" className="w-full sm:w-auto">
-                  All
+
+            {/* FIX: Replaced old tabs with new, controlled tabs for filtering */}
+            <Tabs value={activeFilter} onValueChange={setActiveFilter} className="w-full sm:w-auto">
+              <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4">
+                <TabsTrigger value="lastUpdated" className="w-full sm:w-auto gap-1">
+                  <ArrowDownUp className="h-4 w-4" />
+                  Recent
                 </TabsTrigger>
-                <TabsTrigger value="starred" className="w-full sm:w-auto">
+                <TabsTrigger value="myProjects" className="w-full sm:w-auto gap-1">
+                  <Folder className="h-4 w-4" />
+                  My Projects
+                </TabsTrigger>
+                <TabsTrigger value="collaborations" className="w-full sm:w-auto gap-1">
+                  <Briefcase className="h-4 w-4" />
+                  Collaborations
+                </TabsTrigger>
+                <TabsTrigger value="starred" className="w-full sm:w-auto gap-1">
+                  <Star className="h-4 w-4" />
                   Starred
                 </TabsTrigger>
               </TabsList>

@@ -346,7 +346,6 @@ export default function BeatBoardPage() {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        {/* --- NEW: EMPTY STATE UI --- */}
         {!isLoading && beats.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center text-gray-500 p-8 rounded-lg bg-white/50 backdrop-blur-sm">
@@ -356,7 +355,7 @@ export default function BeatBoardPage() {
             </div>
           </div>
         )}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
+        <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }}>
           <defs>
             <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
               <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280" />
