@@ -18,7 +18,7 @@ interface CommentPanelProps {
   onAddComment: (elementId: string, isScene: boolean, content: string) => void
   onUpdateComment: (commentId: string, content: string) => void
   onDeleteComment: (commentId: string) => void
-  onToggleCommentResolved: (elementId: string, commentId: string, isScene: boolean) => void
+  onToggleCommentResolved: (elementId: string, commentId: string, isScene: boolean, newResolvedState: boolean) => void
 }
 
 export const CommentPanel = React.memo(
@@ -104,19 +104,20 @@ export const CommentPanel = React.memo(
                             <span className="mx-1.5">&middot;</span>
                             <span>{formatTimestamp(comment.timestamp)}</span>
                           </div>
-                          {/* NEW: Flex container for buttons to prevent overlap */}
                           <div className="flex items-center gap-1 -mt-1">
-                            {/* Resolve/Reopen Button */}
                             <Button
                               variant="ghost"
                               size="icon"
                               className={cn(
-                                "h-6 w-6", // Removed absolute positioning
-                                comment.isResolved ? "text-green-600" : "text-gray-500",
+                                "h-6 w-6",
+                                comment.isResolved ? "text-green-600 pointer-events-auto" : "text-gray-500",
                               )}
-                              onClick={() =>
-                                onToggleCommentResolved(activeElement.id, comment.id, activeElement.isScene)
-                              }
+                              onClick={() => {
+                                if (activeElement) {
+                                  const newResolvedState = !comment.isResolved;
+                                  onToggleCommentResolved(activeElement.id, comment.id, activeElement.isScene, newResolvedState);
+                                }
+                              }}
                               title={comment.isResolved ? "Reopen comment" : "Mark as resolved"}
                             >
                               {comment.isResolved ? <RotateCcw className="h-4 w-4" /> : <Check className="h-4 w-4" />}

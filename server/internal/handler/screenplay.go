@@ -347,40 +347,64 @@ func (h *ScreenplayHandler) handleCreateElementComment(w http.ResponseWriter, r 
 }
 
 func (h *ScreenplayHandler) handleUpdateComment(w http.ResponseWriter, r *http.Request, commentID, userID string) {
-	// Security Check: Only the author of a comment can edit it.
-	authorID, err := h.commentRepo.GetUserIDForComment(commentID)
-	if err != nil {
-		http.Error(w, `{"error": "Comment not found"}`, http.StatusNotFound)
-		return
-	}
-	if authorID != userID {
-		http.Error(w, `{"error": "Forbidden"}`, http.StatusForbidden)
-		return
+	var payload struct {
+		Content    *string `json:"content,omitempty"`
+		IsResolved *bool   `json:"isResolved,omitempty"`
 	}
 
-	var payload struct {
-		Content string `json:"content"`
-	}
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
 		return
 	}
 
-	if err := h.commentRepo.Update(commentID, payload.Content); err != nil {
-		log.Printf("DB ERROR: Failed to update comment %s: %v", commentID, err)
-		http.Error(w, `{"error": "Failed to update comment"}`, http.StatusInternalServerError)
+	if payload.IsResolved != nil {
+		projectID, err := h.commentRepo.GetProjectIDForComment(commentID)
+		if err := h.checkOwnership(projectID, userID, err); err != nil {
+			h.handleError(w, err)
+			return
+		}
+
+		if err := h.commentRepo.ToggleResolved(commentID, *payload.IsResolved); err != nil {
+			log.Printf("DB ERROR: Failed to toggle resolved status for comment %s: %v", commentID, err)
+			http.Error(w, `{"error": "Failed to update comment status"}`, http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Comment status updated"})
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Comment updated"})
+	// --- Handle updating the comment content (original logic) ---
+	if payload.Content != nil {
+		authorID, err := h.commentRepo.GetUserIDForComment(commentID)
+		if err != nil {
+			http.Error(w, `{"error": "Comment not found"}`, http.StatusNotFound)
+			return
+		}
+		if authorID != userID {
+			http.Error(w, `{"error": "Forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		if err := h.commentRepo.Update(commentID, *payload.Content); err != nil {
+			log.Printf("DB ERROR: Failed to update comment %s: %v", commentID, err)
+			http.Error(w, `{"error": "Failed to update comment"}`, http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Comment updated"})
+		return
+	}
+
+	// If neither field was provided
+	http.Error(w, `{"error": "No updateable fields provided"}`, http.StatusBadRequest)
 }
 
 func (h *ScreenplayHandler) handleDeleteComment(w http.ResponseWriter, r *http.Request, commentID, userID string) {
-	// Security Check: Only the author of a comment can delete it.
 	authorID, err := h.commentRepo.GetUserIDForComment(commentID)
 	if err != nil {
-		// If it's already gone, consider it a success.
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Comment not found"})
 		return

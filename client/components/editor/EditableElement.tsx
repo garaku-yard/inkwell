@@ -29,7 +29,6 @@ export const EditableElement = React.memo(
     const content = isScene ? element.setting : element.content
     const config = SCRIPT_ELEMENT_CONFIG[type]
     const isActive = element.id === activeElementId
-    // NEW: Count only unresolved comments for the badge
     const unresolvedCommentsCount = element.comments?.filter((c) => !c.isResolved).length || 0
 
     const elementRef = useRef<HTMLDivElement>(null)

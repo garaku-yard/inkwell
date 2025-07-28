@@ -14,6 +14,8 @@ type CommentRepository interface {
 	Update(commentID string, content string) error
 	Delete(commentID string) error
 	GetUserIDForComment(commentID string) (string, error)
+	ToggleResolved(commentID string, isResolved bool) error
+	GetProjectIDForComment(commentID string) (string, error)
 }
 
 type postgresCommentRepository struct {
@@ -55,6 +57,12 @@ func (r *postgresCommentRepository) Delete(commentID string) error {
 	return err
 }
 
+func (r *postgresCommentRepository) ToggleResolved(commentID string, isResolved bool) error {
+	query := `UPDATE comments SET is_resolved = $1, updated_at = $2 WHERE comment_id = $3`
+	_, err := r.db.Exec(query, isResolved, time.Now(), commentID)
+	return err
+}
+
 func (r *postgresCommentRepository) GetUnresolvedCountsByProject(projectID string) (map[string]int, error) {
 	counts := make(map[string]int)
 
@@ -88,4 +96,17 @@ func (r *postgresCommentRepository) GetUnresolvedCountsByProject(projectID strin
 	}
 
 	return counts, nil
+}
+
+func (r *postgresCommentRepository) GetProjectIDForComment(commentID string) (string, error) {
+	var projectID string
+	query := `
+		SELECT a.project_id FROM comments c
+		LEFT JOIN scenes s ON c.scene_id = s.scene_id
+		LEFT JOIN script_elements se ON c.element_id = se.element_id
+		LEFT JOIN scenes s_for_el ON se.scene_id = s_for_el.scene_id
+		LEFT JOIN acts a ON s.act_id = a.act_id OR s_for_el.act_id = a.act_id
+		WHERE c.comment_id = $1`
+	err := r.db.QueryRow(query, commentID).Scan(&projectID)
+	return projectID, err
 }

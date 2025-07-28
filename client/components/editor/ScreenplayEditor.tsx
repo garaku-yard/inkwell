@@ -151,49 +151,49 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     })
   }, [])
 
-  const handleToggleCommentResolved = useCallback((elementId: string, commentId: string, isScene: boolean) => {
-    setProject((prevProject) => {
-      let newResolvedStatus = false
-      const newActs = prevProject.acts.map((act) => ({
-        ...act,
-        scenes: act.scenes.map((scene) => {
-          if (isScene && scene.id === elementId) {
+  // In ScreenplayEditor.tsx
+
+  const handleToggleCommentResolved = useCallback(
+    (elementId: string, commentId: string, isScene: boolean, newResolvedState: boolean) => {
+      const originalProject = JSON.parse(JSON.stringify(project));
+
+      setProject((prevProject) => {
+        const newActs = prevProject.acts.map((act) => ({
+          ...act,
+          scenes: act.scenes.map((scene) => {
+            if (isScene && scene.id === elementId) {
+              return {
+                ...scene,
+                comments: scene.comments?.map((c) =>
+                  c.id === commentId ? { ...c, isResolved: newResolvedState } : c,
+                ),
+              };
+            }
             return {
               ...scene,
-              comments: scene.comments?.map((c) => {
-                if (c.id === commentId) {
-                  newResolvedStatus = !c.isResolved
-                  return { ...c, resolved: newResolvedStatus }
-                }
-                return c
-              }),
-            }
-          }
-          return {
-            ...scene,
-            elements: scene.elements.map((el) =>
-              el.id === elementId
-                ? {
-                  ...el,
-                  comments: el.comments?.map((c) => {
-                    if (c.id === commentId) {
-                      newResolvedStatus = !c.isResolved
-                      return { ...c, resolved: newResolvedStatus }
-                    }
-                    return c
-                  }),
-                }
-                : el,
-            ),
-          }
-        }),
-      }))
-      toggleCommentResolved(commentId, newResolvedStatus).catch((err) =>
-        console.error("Failed to toggle comment resolved status:", err),
-      )
-      return { ...prevProject, acts: newActs }
-    })
-  }, [])
+              elements: scene.elements.map((el) =>
+                el.id === elementId
+                  ? {
+                    ...el,
+                    comments: el.comments?.map((c) =>
+                      c.id === commentId ? { ...c, isResolved: newResolvedState } : c,
+                    ),
+                  }
+                  : el,
+              ),
+            };
+          }),
+        }));
+        return { ...prevProject, acts: newActs };
+      });
+
+      toggleCommentResolved(commentId, newResolvedState).catch((err) => {
+        console.error("Failed to toggle comment resolved status:", err);
+        setProject(originalProject);
+      });
+    },
+    [project],
+  );
 
   useEffect(() => {
     if (elementToFocus) {

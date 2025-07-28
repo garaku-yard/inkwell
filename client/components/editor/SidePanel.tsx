@@ -26,7 +26,7 @@ interface SidePanelProps {
   onAddComment: (elementId: string, isScene: boolean, content: string) => void
   onUpdateComment: (commentId: string, content: string) => void
   onDeleteComment: (commentId: string) => void
-  onToggleCommentResolved: (elementId: string, commentId: string, isScene: boolean) => void
+  onToggleCommentResolved: (elementId: string, commentId: string, isScene: boolean, newResolvedState: boolean) => void;
 }
 
 export const SidePanel = React.memo(
@@ -82,7 +82,6 @@ export const SidePanel = React.memo(
         return null
       }, [activeElementId, project.acts])
 
-      // Calculate unresolved comments for the badge
       const unresolvedCommentsCount = useMemo(() => {
         if (!activeElement) return 0
         return activeElement.comments?.filter((c) => !c.isResolved).length || 0
