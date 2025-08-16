@@ -13,6 +13,7 @@ func NewRouter(
 	projectHandler *handler.ProjectHandler,
 	screenplayHandler *handler.ScreenplayHandler,
 	beatHandler *handler.BeatHandler,
+	collaboratorHandler *handler.CollaboratorHandler,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
 
@@ -22,17 +23,23 @@ func NewRouter(
 	mux.Handle("/acts/", middleware.AuthMiddleware(screenplayHandler))
 	mux.Handle("/scenes/", middleware.AuthMiddleware(screenplayHandler))
 	mux.Handle("/script-elements/", middleware.AuthMiddleware(screenplayHandler))
-
 	mux.Handle("/comments/", middleware.AuthMiddleware(screenplayHandler))
 
 	mux.Handle("/beats/", middleware.AuthMiddleware(beatHandler))
 	mux.Handle("/connections/", middleware.AuthMiddleware(beatHandler))
 
+	mux.Handle("/invitations/", middleware.AuthMiddleware(collaboratorHandler))
+
 	mux.Handle("/projects/", middleware.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 
-		if len(pathParts) == 3 && (pathParts[2] == "beat-board" || pathParts[2] == "beats" || pathParts[2] == "connections") {
+		if len(pathParts) == 2 && (pathParts[1] == "beat-board" || pathParts[1] == "beats" || pathParts[1] == "connections") {
 			beatHandler.ServeHTTP(w, r)
+			return
+		}
+
+		if len(pathParts) >= 2 && pathParts[1] == "collaborators" {
+			collaboratorHandler.ServeHTTP(w, r)
 			return
 		}
 

@@ -36,8 +36,9 @@ func main() {
 	projectHandler := handler.NewProjectHandler(projectRepo, userRepo, collabRepo)
 	screenplayHandler := handler.NewScreenplayHandler(screenplayRepo, projectRepo, commentRepo)
 	beatHandler := handler.NewBeatHandler(beatRepo, projectRepo)
+	collaboratorHandler := handler.NewCollaboratorHandler(collabRepo, projectRepo, userRepo)
 
-	mux := router.NewRouter(authHandler, projectHandler, screenplayHandler, beatHandler)
+	mux := router.NewRouter(authHandler, projectHandler, screenplayHandler, beatHandler, collaboratorHandler)
 
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"http://localhost:3000"},

@@ -11,7 +11,7 @@ type ScreenplayRepository interface {
 	GetProjectIDForScene(sceneID string) (string, error)
 	GetProjectIDForElement(elementID string) (string, error)
 	GetProjectIDForAct(actID string) (string, error)
-	CreateScene(actID string, setting string) (*entity.Scene, error)
+	CreateScene(actID *string, setting string) (*entity.Scene, error)
 	CreateElement(element *entity.ScriptElement) (*entity.ScriptElement, error)
 	UpdateSceneSetting(sceneID string, setting string) error
 	UpdateScriptElementContent(elementID string, content string) error
@@ -38,9 +38,14 @@ func (r *postgresScreenplayRepository) GetProjectIDForAct(actID string) (string,
 	return projectID, err
 }
 
-func (r *postgresScreenplayRepository) CreateScene(actID string, setting string) (*entity.Scene, error) {
+func (r *postgresScreenplayRepository) CreateScene(actID *string, setting string) (*entity.Scene, error) {
 	var newScene entity.Scene
-	newScene.ActID = actID
+	if actID != nil {
+		newScene.ActID = *actID
+	} else {
+		newScene.ActID = ""
+	}
+
 	newScene.Setting = setting
 
 	tx, err := r.db.Begin()
@@ -49,27 +54,28 @@ func (r *postgresScreenplayRepository) CreateScene(actID string, setting string)
 	}
 	defer tx.Rollback()
 
-	// Determine the next scene number for this act
 	var nextSceneNumber int
-	err = tx.QueryRow(
-		"SELECT COALESCE(MAX(scene_number), 0) + 1 FROM scenes WHERE act_id = $1",
-		actID,
-	).Scan(&nextSceneNumber)
-	if err != nil {
-		return nil, err
+	if actID != nil {
+		err = tx.QueryRow(
+			"SELECT COALESCE(MAX(scene_number), 0) + 1 FROM scenes WHERE act_id = $1",
+			*actID,
+		).Scan(&nextSceneNumber)
+		if err != nil {
+			return nil, err
+		}
+		newScene.SceneNumber = nextSceneNumber
+	} else {
+		newScene.SceneNumber = 1
 	}
-	newScene.SceneNumber = nextSceneNumber
 
-	// Insert the new scene
 	err = tx.QueryRow(
 		"INSERT INTO scenes (act_id, scene_number, setting) VALUES ($1, $2, $3) RETURNING scene_id",
-		actID, newScene.SceneNumber, newScene.Setting,
+		newScene.ActID, newScene.SceneNumber, newScene.Setting,
 	).Scan(&newScene.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	// The new scene has no elements yet
 	newScene.Elements = []*entity.ScriptElement{}
 
 	return &newScene, tx.Commit()

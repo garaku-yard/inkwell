@@ -1,5 +1,3 @@
-// client/services/editorService.ts
-
 import { apiClient } from "@/lib/api";
 import { ScriptElement } from "./project";
 

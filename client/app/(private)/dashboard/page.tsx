@@ -41,6 +41,7 @@ import { NewProjectDialog } from "./new-project-dialog"
 import { CollaboratorsDialog } from "./collaborators-dialog"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { RenameProjectDialog } from "@/components/rename-project-dialog"
+import { getPendingInvites } from "@/services/invites"
 import { deleteProject, getMyProjects, starProject, updateProject, type Project } from "@/services/project"
 import { cn } from "@/lib/utils"
 
@@ -94,23 +95,27 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [inviteCount, setInviteCount] = useState(3)
+  const [inviteCount, setInviteCount] = useState(0)
   const [activeFilter, setActiveFilter] = useState("lastUpdated")
 
   useEffect(() => {
     if (isAuthenticated) {
       setIsLoading(true)
-      const fetchProjects = async () => {
+      const fetchDashboardData = async () => {
         try {
-          const fetchedProjects = await getMyProjects()
+          const [fetchedProjects, fetchedInvites] = await Promise.all([
+            getMyProjects(),
+            getPendingInvites(),
+          ])
           setProjects(fetchedProjects)
+          setInviteCount(fetchedInvites.length)
         } catch (err: any) {
-          setError("Failed to fetch projects. Please try again later.")
+          setError("Failed to fetch dashboard data. Please try again later.")
         } finally {
           setIsLoading(false)
         }
       }
-      fetchProjects()
+      fetchDashboardData()
     } else {
       setIsLoading(false)
     }
@@ -128,12 +133,11 @@ export default function DashboardPage() {
     )
 
     try {
-      // Update the backend and replace optimistic data with the confirmed data
       const updatedProject = await starProject(projectId, !currentStatus)
       setProjects((prev) => prev.map((p) => (p.id === projectId ? updatedProject : p)))
     } catch (error) {
       console.error("Failed to star project", error)
-      setProjects(originalProjects) // Revert on error
+      setProjects(originalProjects)
       toast({
         title: "Error",
         description: "Failed to update project. Please try again.",
@@ -279,19 +283,21 @@ export default function DashboardPage() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center">
-                        <Inbox className="mr-2 h-4 w-4" />
-                        <span>Inbox</span>
+                  <Link href="/invites" passHref>
+                    <DropdownMenuItem>
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center">
+                          <Inbox className="mr-2 h-4 w-4" />
+                          <span>Inbox</span>
+                        </div>
+                        {inviteCount > 0 && (
+                          <Badge className="h-5 bg-teal-100 text-teal-800 dark:bg-teal-800 dark:text-teal-100">
+                            {inviteCount}
+                          </Badge>
+                        )}
                       </div>
-                      {inviteCount > 0 && (
-                        <Badge className="h-5 bg-teal-100 text-teal-800 dark:bg-teal-800 dark:text-teal-100">
-                          {inviteCount}
-                        </Badge>
-                      )}
-                    </div>
-                  </DropdownMenuItem>
+                    </DropdownMenuItem>
+                  </Link>
                   <DropdownMenuItem onClick={logout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
@@ -336,7 +342,6 @@ export default function DashboardPage() {
               />
             </div>
 
-            {/* FIX: Replaced old tabs with new, controlled tabs for filtering */}
             <Tabs value={activeFilter} onValueChange={setActiveFilter} className="w-full sm:w-auto">
               <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4">
                 <TabsTrigger value="lastUpdated" className="w-full sm:w-auto gap-1">

@@ -26,7 +26,7 @@ func (r *postgresProjectRepository) ListByUserID(userID string) ([]*entity.Proje
 				p.is_starred, 
 				p.created_at, 
 				p.updated_at,
-				(SELECT COUNT(*) FROM project_collaborators pc WHERE pc.project_id = p.project_id) as collaborator_count
+				(SELECT COUNT(*) FROM project_collaborators pc WHERE pc.project_id = p.project_id AND pc.status = TRUE) as collaborator_count
 		FROM 
 				projects p
 		WHERE 
@@ -34,7 +34,7 @@ func (r *postgresProjectRepository) ListByUserID(userID string) ([]*entity.Proje
 				OR p.project_id IN (
 						SELECT pc.project_id 
 						FROM project_collaborators pc 
-						WHERE pc.user_id = $1
+						WHERE pc.user_id = $1 AND pc.status = true 
 				)
 		ORDER BY 
 				p.updated_at DESC`

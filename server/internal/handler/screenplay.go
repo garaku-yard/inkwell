@@ -201,10 +201,17 @@ func (h *ScreenplayHandler) handleDeleteElement(w http.ResponseWriter, r *http.R
 }
 
 func (h *ScreenplayHandler) handleCreateScene(w http.ResponseWriter, r *http.Request, actID, userID string) {
-	projectID, err := h.repo.GetProjectIDForAct(actID)
-	if err := h.checkOwnership(projectID, userID, err); err != nil {
-		h.handleError(w, err)
-		return
+	var actIDPtr *string
+	if actID != "" {
+		actIDPtr = &actID
+	}
+
+	if actIDPtr != nil {
+		projectID, err := h.repo.GetProjectIDForAct(*actIDPtr)
+		if err := h.checkOwnership(projectID, userID, err); err != nil {
+			h.handleError(w, err)
+			return
+		}
 	}
 
 	var payload struct {
@@ -215,7 +222,7 @@ func (h *ScreenplayHandler) handleCreateScene(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	createdScene, err := h.repo.CreateScene(actID, payload.Setting)
+	createdScene, err := h.repo.CreateScene(actIDPtr, payload.Setting)
 	if err != nil {
 		log.Printf("DB ERROR: Failed to create scene: %v", err)
 		http.Error(w, `{"error": "Failed to create scene"}`, http.StatusInternalServerError)

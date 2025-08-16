@@ -23,6 +23,9 @@ type UserRepository interface {
 type CollaboratorRepository interface {
 	Add(projectID string, userID string, role entity.CollaboratorRole) error
 	Remove(projectID string, userID string) error
-    UpdateRole(projectID string, userID string, role entity.CollaboratorRole) error
-    ListByProjectID(projectID string) ([]*entity.ProjectCollaborator, error)
+	UpdateRole(projectID string, userID string, role entity.CollaboratorRole) error
+	ListByProjectID(projectID string) ([]*entity.ProjectCollaborator, error)
+	RespondToInvite(projectID string, userID string, accepted bool) error
+	ListPendingInvitesForUser(userID string) ([]*entity.Invitation, error)
+	CleanupExpiredInvitations() (int64, error)
 }
