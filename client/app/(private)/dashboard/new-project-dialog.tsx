@@ -91,7 +91,7 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
 
       onProjectCreated(newProject)
       onOpenChange(false)
-      router.push(`/project/${newProject.id}`)
+      router.push(`/projects/${newProject.id}/editor`)
 
     } catch (err: any) {
       setError(err.message || "An unknown error occurred.")
@@ -100,8 +100,8 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
     }
   }
 
- 
-  
+
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

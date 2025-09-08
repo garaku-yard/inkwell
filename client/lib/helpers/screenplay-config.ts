@@ -2,14 +2,14 @@ import { Clapperboard, User, MessageSquare, Parentheses, ArrowRight, Camera } fr
 
 export const SCRIPT_ELEMENT_CONFIG = {
   SCENE_HEADING: {
-    editorClasses: "uppercase font-bold", // Vertical spacing handled by padding in EditableElement
+    editorClasses: "uppercase font-bold",
   },
   ACTION: {
     tooltip: "Action",
     icon: Clapperboard,
     toolbarColor: "hover:bg-purple-50 hover:text-purple-700",
     badgeColor: "bg-purple-100 text-purple-700 border-purple-200",
-    editorClasses: "w-full", // Action lines span the full width from the left margin.
+    editorClasses: "w-full",
   },
   CHARACTER: {
     tooltip: "Character",
@@ -23,21 +23,21 @@ export const SCRIPT_ELEMENT_CONFIG = {
     icon: MessageSquare,
     toolbarColor: "hover:bg-green-50 hover:text-green-700",
     badgeColor: "bg-green-100 text-green-700 border-green-200",
-    editorClasses: "ml-[1.0in] mr-[1.0in]", // Dialogue is indented from both left and right margins.
+    editorClasses: "ml-[1.0in] mr-[1.0in]",
   },
   PARENTHETICAL: {
     tooltip: "Parenthetical",
     icon: Parentheses,
     toolbarColor: "hover:bg-gray-50 hover:text-gray-700",
     badgeColor: "bg-gray-100 text-gray-700 border-gray-200",
-    editorClasses: "ml-[1.6in] mr-[1.6in] text-sm text-gray-500", // Parentheticals have a smaller indent than dialogue.
+    editorClasses: "ml-[1.6in] mr-[1.6in] text-sm text-gray-500",
   },
   TRANSITION: {
     tooltip: "Transition",
     icon: ArrowRight,
     toolbarColor: "hover:bg-red-50 hover:text-red-700",
     badgeColor: "bg-red-100 text-red-700 border-red-200",
-    editorClasses: "uppercase text-right", // Transitions are aligned to the right.
+    editorClasses: "uppercase text-right",
   },
   SHOT: {
     tooltip: "Shot",

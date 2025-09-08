@@ -262,7 +262,7 @@ export default function DashboardPage() {
         <div className="container mx-auto flex items-center justify-between py-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
             <FileText className="h-6 w-6" />
-            <h1 className="text-xl font-bold">Screenwriter</h1>
+            <h1 className="text-xl font-bold">Scriptalith</h1>
           </div>
           <div className="flex items-center gap-2">
             {isAuthenticated ? (

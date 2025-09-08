@@ -33,7 +33,7 @@ func NewRouter(
 	mux.Handle("/projects/", middleware.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 
-		if len(pathParts) == 2 && (pathParts[1] == "beat-board" || pathParts[1] == "beats" || pathParts[1] == "connections") {
+		if len(pathParts) == 3 && (pathParts[2] == "beat-board" || pathParts[2] == "beats" || pathParts[2] == "connections") {
 			beatHandler.ServeHTTP(w, r)
 			return
 		}

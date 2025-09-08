@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useRef, useCallback, useMemo, useEffect } from "react"
 import Link from "next/link"
-import { Download, FileText, ArrowLeft } from "lucide-react"
+import { Download, FileText, ArrowLeft, Bot } from "lucide-react"
 import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { Toolbar } from "./Toolbar"
@@ -24,7 +24,9 @@ import {
   type Scene,
   type ScriptElement,
 } from "@/services/project"
+import { getKeyString, createKeymap } from "@/lib/editor/keymap";
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
+import { AIChatPanel } from "./AIChatPanel"
 
 type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ScriptElement }
 
@@ -37,12 +39,15 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const [activeElementId, setActiveElementId] = useState<string | null>(null)
   const [activeElementType, setActiveElementType] = useState<ToolbarScriptElementType | null>(null)
   const [elementToFocus, setElementToFocus] = useState<string | null>(null)
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const elementRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
   const editorPaneRef = useRef<EditorPaneRef>(null)
   const sidePanelRef = useRef<HTMLDivElement>(null)
 
-  // Ref to hold the timeout ID for blur handling
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+
+
 
   const debouncedSave = useDebouncedCallback((id: string, content: string, isScene: boolean) => {
     if (id.startsWith("new-")) return
@@ -151,7 +156,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     })
   }, [])
 
-  // In ScreenplayEditor.tsx
 
   const handleToggleCommentResolved = useCallback(
     (elementId: string, commentId: string, isScene: boolean, newResolvedState: boolean) => {
@@ -253,7 +257,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   )
 
   const handleFocus = useCallback((id: string, type: ToolbarScriptElementType | "SCENE_HEADING" | null) => {
-    // Clear any pending blur timeout when an element gains focus
     if (blurTimeoutRef.current) {
       clearTimeout(blurTimeoutRef.current)
       blurTimeoutRef.current = null
@@ -273,10 +276,9 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         // If the new active element is within the side panel, do nothing
         return
       }
-      // Otherwise, clear the active element state
       setActiveElementId(null)
       setActiveElementType(null)
-    }, 50) // A small delay, e.g., 50ms
+    }, 50)
   }, [])
 
   const handleInsertElement = useCallback(
@@ -396,6 +398,35 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     [project, flattenedScriptItems],
   )
 
+  const handleSelectAll = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const scriptContainer = editorPaneRef.current?.getScriptContainer();
+
+    if (scriptContainer && window.getSelection) {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      // Select all the content within the script container div
+      range.selectNodeContents(scriptContainer);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+  }, []);
+
+
+  const keyMap = useMemo(() => createKeymap({
+    handleFinalizeUpdate,
+    handleInsertElement,
+    handleDeleteScene,
+    handleDeleteElement,
+    handleSelectAll,
+  }), [
+    handleFinalizeUpdate,
+    handleInsertElement,
+    handleDeleteScene,
+    handleDeleteElement,
+    handleSelectAll,
+  ]);
+
   const handleKeyDown = useCallback(
     (
       e: React.KeyboardEvent<HTMLDivElement>,
@@ -403,52 +434,15 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       isScene: boolean,
       elementType: ToolbarScriptElementType | "SCENE_HEADING",
     ) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        if (elementType === "ACTION") {
-          return
-        }
-        e.preventDefault()
-        if (isScene) {
-          handleInsertElement("ACTION", elementId, true)
-          return
-        }
+      const keyString = getKeyString(e);
 
-        let nextElementType: ToolbarScriptElementType | null = null
-
-        switch (elementType) {
-          case "CHARACTER":
-            nextElementType = "DIALOG"
-            break
-          case "DIALOG":
-            nextElementType = "ACTION"
-            break
-          case "PARENTHETICAL":
-            nextElementType = "DIALOG"
-            break
-          case "TRANSITION":
-            nextElementType = "ACTION"
-            break
-        }
-
-        if (nextElementType) {
-          handleInsertElement(nextElementType, elementId, isScene)
-        }
-      }
-
-      if (e.key === "Backspace") {
-        const content = e.currentTarget.innerHTML
-        if (content === "" || content === "<br>") {
-          e.preventDefault()
-          if (isScene) {
-            handleDeleteScene(elementId)
-          } else {
-            handleDeleteElement(elementId)
-          }
-        }
+      const handler = keyMap[keyString as keyof typeof keyMap];
+      if (handler) {
+        handler(e, elementId, isScene, elementType);
       }
     },
-    [handleInsertElement, handleDeleteElement, handleDeleteScene],
-  )
+    [keyMap],
+  );
 
   const handleAddNewScene = useCallback(() => {
     if (!project.acts || project.acts.length === 0) {
@@ -478,6 +472,10 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       })
   }, [project.acts])
 
+  const toggleAIChat = useCallback(() => {
+    setIsAIChatOpen((prev) => !prev)
+  }, [])
+
   return (
     <div className="flex flex-col h-screen">
       <header className="border-b bg-background z-10">
@@ -492,6 +490,10 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             <h1 className="text-lg font-medium">{project.projectName}</h1>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" className="gap-2 bg-transparent" onClick={toggleAIChat}>
+              <Bot className="h-4 w-4" />
+              AI Assistant
+            </Button>
             <Button variant="outline" className="gap-2 bg-transparent">
               <Download className="h-4 w-4" />
               Export
@@ -533,6 +535,18 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             onBlur={handleBlur}
           />
         </div>
+        <AIChatPanel
+          isOpen={isAIChatOpen}
+          onClose={() => setIsAIChatOpen(false)}
+          currentScene={
+            activeElementId
+              ? allScenes.find(
+                (scene) => scene.id === activeElementId || scene.elements.some((el) => el.id === activeElementId),
+              )?.setting
+              : undefined
+          }
+          currentElement={activeElementId || undefined}
+        />
       </div>
     </div>
   )

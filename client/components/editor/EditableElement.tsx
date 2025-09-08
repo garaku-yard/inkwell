@@ -44,7 +44,6 @@ export const EditableElement = React.memo(
 
     return (
       <div
-        // This outer div acts as the relative container for the absolute comments badge
         className={cn(
           "outline-none w-full py-2 font-['Courier_New',Courier,monospace] text-[12pt] relative", // Added relative
           config.editorClasses,
