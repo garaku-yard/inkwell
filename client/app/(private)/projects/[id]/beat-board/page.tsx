@@ -125,31 +125,23 @@ export default function BeatBoardPage() {
 
   const handleUpdateOutlineItem = (itemId: string, updates: Partial<OutlineItem>) => {
     setOutlineItems(prevItems => {
-      let laneIdToUpdate: number | null = null;
-      const updatedItems = prevItems.map(item => {
-        if (item.id === itemId) {
-          laneIdToUpdate = item.laneId;
-          return { ...item, ...updates };
+      const newItems = prevItems.map(item =>
+        item.id === itemId ? { ...item, ...updates } : item
+      );
+
+      if (updates.order !== undefined) {
+        const changedItem = newItems.find(item => item.id === itemId);
+        if (changedItem) {
+          return layoutLane(changedItem.laneId, newItems);
         }
-        return item;
-      });
-
-      if (updates.order !== undefined && laneIdToUpdate !== null) {
-        return layoutLane(laneIdToUpdate, updatedItems);
-      }
-      // If only width/position is changing, we don't need to re-layout the whole lane,
-      // but it's safer to do so if overlaps are a concern. Re-layout is cheap.
-      if (laneIdToUpdate !== null) {
-        return layoutLane(laneIdToUpdate, updatedItems);
       }
 
-      return updatedItems;
+      return newItems;
     });
 
     updateOutlineItem(itemId, updates);
   };
 
-  // NEW: Consolidated drop handler for lanes
   const handleDropOnTimeline = (e: React.DragEvent, targetLaneId: number, targetItemId?: string) => {
     e.preventDefault();
     setHoveredLane(null);
@@ -158,7 +150,7 @@ export default function BeatBoardPage() {
     const beatId = e.dataTransfer.getData("text/plain");
     const outlineItemId = e.dataTransfer.getData("application/x-outline-item-id");
 
-    if (beatId) { // Case 1: Dropping a new beat from the canvas
+    if (beatId) {
       const newItemData: Partial<OutlineItem> = { beatId, laneId: targetLaneId, order: 0, width: 5 };
       createOutlineItem(projectId, newItemData).then(createdItem => {
         setOutlineItems(prevItems => {
@@ -171,7 +163,7 @@ export default function BeatBoardPage() {
           return layoutLane(targetLaneId, updatedItems);
         });
       });
-    } else if (outlineItemId) { // Case 2: Moving an existing outline item
+    } else if (outlineItemId) {
       setOutlineItems(prevItems => {
         const draggedItem = prevItems.find(item => item.id === outlineItemId);
         if (!draggedItem) return prevItems;
@@ -179,26 +171,19 @@ export default function BeatBoardPage() {
         const originalLaneId = draggedItem.laneId;
         let allItems = [...prevItems];
 
-        // --- Reorder logic ---
-        // 1. Remove item from its original position
         allItems = allItems.filter(item => item.id !== outlineItemId);
 
-        // 2. Determine new order and insert into target lane's items
         let targetLaneItems = allItems.filter(item => item.laneId === targetLaneId).sort((a, b) => a.order - b.order);
         const targetItemIndex = targetItemId ? targetLaneItems.findIndex(item => item.id === targetItemId) : -1;
 
-        // Insert at the target index, or at the end if no specific target
         const insertIndex = targetItemIndex !== -1 ? targetItemIndex : targetLaneItems.length;
         targetLaneItems.splice(insertIndex, 0, { ...draggedItem, laneId: targetLaneId });
 
-        // 3. Re-assign order for the target lane
         const reorderedTargetLane = targetLaneItems.map((item, index) => ({ ...item, order: index }));
 
-        // 4. Combine with other items
         const otherItems = allItems.filter(item => item.laneId !== targetLaneId);
         let finalItems = [...otherItems, ...reorderedTargetLane];
 
-        // 5. Re-layout both the target lane and, if different, the original lane
         finalItems = layoutLane(targetLaneId, finalItems);
         if (originalLaneId !== targetLaneId) {
           finalItems = layoutLane(originalLaneId, finalItems);
@@ -206,7 +191,7 @@ export default function BeatBoardPage() {
 
         return finalItems;
       });
-      updateOutlineItem(outlineItemId, { laneId: targetLaneId }); // Persist the lane change
+      updateOutlineItem(outlineItemId, { laneId: targetLaneId });
     }
   };
 
@@ -234,7 +219,6 @@ export default function BeatBoardPage() {
           </div>
           <Button onClick={() => setIsAddingBeat(true)} className="bg-blue-600 hover:bg-blue-700"><Plus className="h-4 w-4 mr-2" />New Beat</Button>
         </div>
-        {/* UPDATED: Pass the new handler to StoryLanes */}
         <StoryLanes
           beats={beats} outlineItems={outlineItems} hoveredLane={hoveredLane}
           draggedLaneItem={draggedLaneItem} setHoveredLane={setHoveredLane}

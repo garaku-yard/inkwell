@@ -45,7 +45,6 @@ export function StoryLanes({
   const getPageFromPosition = (position: number) => { const page = (position / 100) * totalPages; return Math.max(1, page); }
   const snapToEighthOfPage = (positionPercent: number) => { const totalEighths = totalPages * 8; const currentEighth = (positionPercent / 100) * totalEighths; const snappedEighth = Math.round(currentEighth); return (snappedEighth / totalEighths) * 100; };
 
-  // UPDATED: handleItemMouseDown now initiates sliding OR resizing
   const handleItemMouseDown = (e: React.MouseEvent, itemId: string, edge?: "left" | "right") => {
     e.preventDefault();
     e.stopPropagation();
@@ -53,8 +52,11 @@ export function StoryLanes({
     if (!item) return;
 
     if (edge) {
+      // --- DEBUG LOG 1 ---
+      console.log(`%c[MOUSEDOWN] Setting RESIZE state:`, 'color: blue; font-weight: bold;', { itemId, edge });
       setResizingItem({ itemId, edge });
     } else {
+      console.log(`%c[MOUSEDOWN] Setting SLIDE state:`, 'color: green; font-weight: bold;', { itemId });
       setSlidingItem({
         itemId,
         startX: e.clientX,
@@ -75,55 +77,51 @@ export function StoryLanes({
       const prevItem = laneItems[currentIndex - 1];
       const nextItem = laneItems[currentIndex + 1];
       const gapPercentage = 0.5;
-
       const leftBoundary = prevItem ? (prevItem.timelinePosition || 0) + (prevItem.width || 0) + gapPercentage : 0;
       const rightBoundary = nextItem ? (nextItem.timelinePosition || 0) - gapPercentage : 100;
       return { leftBoundary, rightBoundary };
     };
 
-    // --- RESIZING LOGIC ---
     if (resizingItem) {
       const item = outlineItems.find((i) => i.id === resizingItem.itemId);
       if (!item) return;
       const { leftBoundary, rightBoundary } = getBoundaries(item);
-
       const rawPosition = ((e.clientX - rect.left) / rect.width) * 100;
       const snappedPosition = snapToEighthOfPage(rawPosition);
 
+      // --- DEBUG LOG 2 ---
       if (resizingItem.edge === "left") {
+        console.log('%c[MOUSEMOVE] Executing LEFT resize logic', 'color: purple; font-weight: bold;');
         const originalEndPosition = (item.timelinePosition || 0) + (item.width || 0);
         const newStartPosition = Math.max(leftBoundary, Math.min(snappedPosition, originalEndPosition));
         const newWidth = originalEndPosition - newStartPosition;
         if (newWidth > 0) onUpdateOutlineItem(resizingItem.itemId, { timelinePosition: newStartPosition, width: newWidth });
-      } else { // Right edge
+      } else {
+        console.log('%c[MOUSEMOVE] Executing RIGHT resize logic', 'color: orange; font-weight: bold;');
         const startPosition = item.timelinePosition || 0;
         const newEndPosition = Math.min(rightBoundary, Math.max(snappedPosition, startPosition));
         const newWidth = newEndPosition - startPosition;
         if (newWidth > 0) onUpdateOutlineItem(resizingItem.itemId, { width: newWidth });
       }
     } else if (slidingItem) {
+      console.log('%c[MOUSEMOVE] Executing SLIDE logic', 'color: green; font-weight: bold;');
       const item = outlineItems.find(i => i.id === slidingItem.itemId);
       if (!item) return;
       const { leftBoundary, rightBoundary } = getBoundaries(item);
-
       const deltaX = e.clientX - slidingItem.startX;
       const deltaPercent = (deltaX / rect.width) * 100;
       const newPosition = slidingItem.originalPosition + deltaPercent;
-
       const itemWidth = item.width || 0;
       const clampedPosition = Math.max(leftBoundary, Math.min(newPosition, rightBoundary - itemWidth));
-
       onUpdateOutlineItem(slidingItem.itemId, { timelinePosition: snapToEighthOfPage(clampedPosition) });
     }
   }, [resizingItem, slidingItem, outlineItems, onUpdateOutlineItem, totalPages]);
 
   const handleMouseUp = useCallback(() => {
-    if (slidingItem) {
-      outlineItems.find(i => i.id === slidingItem.itemId);
-    }
+    console.log('%c[MOUSEUP] Interaction ended', 'color: red; font-weight: bold;');
     setResizingItem(null);
     setSlidingItem(null);
-  }, [slidingItem, outlineItems]);
+  }, []);
 
   React.useEffect(() => {
     if (resizingItem || slidingItem) {
@@ -138,6 +136,7 @@ export function StoryLanes({
 
   return (
     <div className="border-b border-gray-200 bg-gray-50">
+      {/* ... header JSX is unchanged ... */}
       <div className="px-6 py-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Ruler className="h-4 w-4 text-gray-600" />
@@ -152,6 +151,7 @@ export function StoryLanes({
       {isExpanded && (
         <div className="px-6 pb-3" ref={timelineContainerRef}>
           <div className="relative">
+            {/* ... ruler JSX is unchanged ... */}
             <div className="flex h-6 mb-1">
               <div className="w-28 flex-shrink-0" />
               <div className="relative flex-1 bg-white border border-gray-300 rounded-t timeline-area-content">
@@ -170,21 +170,10 @@ export function StoryLanes({
                       const isInteracting = resizingItem?.itemId === item.id || slidingItem?.itemId === item.id;
                       return (
                         <div key={item.id} className={`absolute top-2 bottom-2 rounded border shadow-sm flex items-center text-xs font-medium transition-all group ${draggedLaneItem === item.id ? "opacity-30" : ""} ${isInteracting ? "ring-2 ring-blue-400 z-10" : ""}`} style={{ left: `${position}%`, width: `${width}%`, backgroundColor: beat.color, minWidth: "20px", cursor: isInteracting ? 'grabbing' : 'grab' }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.stopPropagation(); handleDropOnTimeline(e, item.laneId, item.id); }} onMouseDown={(e) => handleItemMouseDown(e, item.id)}>
-                          <div
-                            draggable={true}
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData("application/x-outline-item-id", item.id);
-                              e.dataTransfer.effectAllowed = "move";
-                              handleLaneDragStart(e, item.id)
-                            }}
-                            onDragEnd={() => setDraggedLaneItem(null)}
-                            className="absolute left-1 top-1/2 -translate-y-1/2 p-0.5 cursor-move opacity-0 group-hover:opacity-60 hover:opacity-100"
-                            onMouseDown={(e) => e.stopPropagation()}>
-                            <GripVertical className="h-3 w-3" />
-                          </div>
-                          <div className="absolute left-0 top-0 bottom-0 w-1 opacity-0 group-hover:opacity-100 cursor-ew-resize" onMouseDown={(e) => handleItemMouseDown(e, item.id, "left")} />
+                          <div draggable={true} onDragStart={(e) => { e.dataTransfer.setData("application/x-outline-item-id", item.id); e.dataTransfer.effectAllowed = "move"; handleLaneDragStart(e, item.id) }} onDragEnd={() => setDraggedLaneItem(null)} className="absolute left-1 top-1/2 -translate-y-1/2 p-0.5 cursor-move opacity-0 group-hover:opacity-60 hover:opacity-100 z-20" onMouseDown={(e) => e.stopPropagation()}> <GripVertical className="h-3 w-3" /> </div>
+                          <div className="absolute left-0 top-0 bottom-0 w-2 opacity-0 group-hover:opacity-100 cursor-ew-resize z-20 hover:bg-black/10" onMouseDown={(e) => { e.stopPropagation(); handleItemMouseDown(e, item.id, "left"); }} />
                           <div className="px-2 text-center truncate ml-3"><div className="font-semibold">{beat.title}</div><div className="text-xs opacity-75">Pg. {startPage}-{endPage}</div></div>
-                          <div className="absolute right-0 top-0 bottom-0 w-1 opacity-0 group-hover:opacity-100 cursor-ew-resize" onMouseDown={(e) => handleItemMouseDown(e, item.id, "right")} />
+                          <div className="absolute right-0 top-0 bottom-0 w-2 opacity-0 group-hover:opacity-100 cursor-ew-resize z-20 hover:bg-black/10" onMouseDown={(e) => { e.stopPropagation(); handleItemMouseDown(e, item.id, "right"); }} />
                         </div>
                       );
                     })}
@@ -192,6 +181,7 @@ export function StoryLanes({
                 </div>
               ))}
             </div>
+            {/* ... script markers JSX is unchanged ... */}
             <div className="flex">
               <div className="w-28 flex-shrink-0" />
               <div className="relative flex-1 h-4 bg-gradient-to-r from-green-100 via-yellow-100 to-green-100 border border-gray-300 rounded">
