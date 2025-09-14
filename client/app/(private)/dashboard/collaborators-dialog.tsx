@@ -345,19 +345,18 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
             )
           )}
 
-          {/* Role Descriptions */}
-          <div className="space-y-2 p-4 bg-muted/20 rounded-lg">
-            <h4 className="font-medium text-sm">Role Permissions</h4>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              {Object.entries(roleConfig).map(([role, config]) => (
-                <div key={role} className="flex items-center gap-2">
-                  <config.icon className="h-3 w-3" />
-                  <span className="font-medium">{config.label}:</span>
-                  <span>{config.description}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* <div className="space-y-2 p-4 bg-muted/20 rounded-lg"> */}
+          {/*   <h4 className="font-medium text-sm">Role Permissions</h4> */}
+          {/*   <div className="space-y-1 text-xs text-muted-foreground"> */}
+          {/*     {Object.entries(roleConfig).map(([role, config]) => ( */}
+          {/*       <div key={role} className="flex items-center gap-2"> */}
+          {/*         <config.icon className="h-3 w-3" /> */}
+          {/*         <span className="font-medium">{config.label}:</span> */}
+          {/*         <span>{config.description}</span> */}
+          {/*       </div> */}
+          {/*     ))} */}
+          {/*   </div> */}
+          {/* </div> */}
         </div>
       </DialogContent>
     </Dialog>
