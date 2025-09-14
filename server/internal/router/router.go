@@ -14,32 +14,51 @@ func NewRouter(
 	screenplayHandler *handler.ScreenplayHandler,
 	beatHandler *handler.BeatHandler,
 	collaboratorHandler *handler.CollaboratorHandler,
+	laneHandler *handler.LaneHandler,
+	outlineItemHandler *handler.OutlineItemHandler,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/register", authHandler.Register)
 	mux.HandleFunc("/login", authHandler.Login)
 
+	mux.Handle("/acts", middleware.AuthMiddleware(screenplayHandler))
 	mux.Handle("/acts/", middleware.AuthMiddleware(screenplayHandler))
+	mux.Handle("/scenes", middleware.AuthMiddleware(screenplayHandler))
 	mux.Handle("/scenes/", middleware.AuthMiddleware(screenplayHandler))
+	mux.Handle("/script-elements", middleware.AuthMiddleware(screenplayHandler))
 	mux.Handle("/script-elements/", middleware.AuthMiddleware(screenplayHandler))
+	mux.Handle("/comments", middleware.AuthMiddleware(screenplayHandler))
 	mux.Handle("/comments/", middleware.AuthMiddleware(screenplayHandler))
 
+	mux.Handle("/beats", middleware.AuthMiddleware(beatHandler))
 	mux.Handle("/beats/", middleware.AuthMiddleware(beatHandler))
+	mux.Handle("/connections", middleware.AuthMiddleware(beatHandler))
 	mux.Handle("/connections/", middleware.AuthMiddleware(beatHandler))
 
+	mux.Handle("/invitations", middleware.AuthMiddleware(collaboratorHandler))
 	mux.Handle("/invitations/", middleware.AuthMiddleware(collaboratorHandler))
+
+	mux.Handle("/lanes", middleware.AuthMiddleware(laneHandler))
+	mux.Handle("/lanes/", middleware.AuthMiddleware(laneHandler))
+	mux.Handle("/outline-items", middleware.AuthMiddleware(outlineItemHandler))
+	mux.Handle("/outline-items/", middleware.AuthMiddleware(outlineItemHandler))
 
 	mux.Handle("/projects/", middleware.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 
-		if len(pathParts) == 3 && (pathParts[2] == "beat-board" || pathParts[2] == "beats" || pathParts[2] == "connections") {
+		if len(pathParts) >= 3 && (pathParts[2] == "beat-board" || pathParts[2] == "beats" || pathParts[2] == "connections") {
 			beatHandler.ServeHTTP(w, r)
 			return
 		}
 
-		if len(pathParts) >= 2 && pathParts[1] == "collaborators" {
+		if len(pathParts) >= 3 && pathParts[2] == "collaborators" {
 			collaboratorHandler.ServeHTTP(w, r)
+			return
+		}
+
+		if len(pathParts) >= 3 && pathParts[2] == "lanes" {
+			laneHandler.ServeHTTP(w, r)
 			return
 		}
 

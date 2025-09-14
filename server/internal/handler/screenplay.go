@@ -183,7 +183,7 @@ func (h *ScreenplayHandler) handleCreateElement(w http.ResponseWriter, r *http.R
 	json.NewEncoder(w).Encode(createdElement)
 }
 
-func (h *ScreenplayHandler) handleDeleteElement(w http.ResponseWriter, r *http.Request, elementID, userID string) {
+func (h *ScreenplayHandler) handleDeleteElement(w http.ResponseWriter, _ *http.Request, elementID, userID string) {
 	projectID, err := h.repo.GetProjectIDForElement(elementID)
 	if err := h.checkOwnership(projectID, userID, err); err != nil {
 		h.handleError(w, err)
@@ -233,7 +233,7 @@ func (h *ScreenplayHandler) handleCreateScene(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(createdScene)
 }
 
-func (h *ScreenplayHandler) handleDeleteScene(w http.ResponseWriter, r *http.Request, sceneID, userID string) {
+func (h *ScreenplayHandler) handleDeleteScene(w http.ResponseWriter, _ *http.Request, sceneID, userID string) {
 	projectID, err := h.repo.GetProjectIDForScene(sceneID)
 	if err := h.checkOwnership(projectID, userID, err); err != nil {
 		h.handleError(w, err)
@@ -409,7 +409,7 @@ func (h *ScreenplayHandler) handleUpdateComment(w http.ResponseWriter, r *http.R
 	http.Error(w, `{"error": "No updateable fields provided"}`, http.StatusBadRequest)
 }
 
-func (h *ScreenplayHandler) handleDeleteComment(w http.ResponseWriter, r *http.Request, commentID, userID string) {
+func (h *ScreenplayHandler) handleDeleteComment(w http.ResponseWriter, _ *http.Request, commentID, userID string) {
 	authorID, err := h.commentRepo.GetUserIDForComment(commentID)
 	if err != nil {
 		w.WriteHeader(http.StatusOK)

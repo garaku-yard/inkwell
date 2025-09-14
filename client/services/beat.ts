@@ -1,10 +1,12 @@
 import { apiClient } from "@/lib/api";
+import { Lane, OutlineItem } from "./beat-board";
 
 export interface BeatBoardData {
   beats: Beat[];
   connections: Connection[];
+  lanes: Lane[]; // Add this
+  outlineItems: OutlineItem[]; // Add this
 }
-
 
 export interface Beat {
   id: string
@@ -28,7 +30,7 @@ export interface Connection {
 }
 
 /**
- * Fetches all beats and connections for a specific project.
+ * Fetches all data for the beat board for a specific project.
  */
 export const getBeatBoardForProject = (projectId: string): Promise<BeatBoardData> => {
   return apiClient<BeatBoardData>(`projects/${projectId}/beat-board`);

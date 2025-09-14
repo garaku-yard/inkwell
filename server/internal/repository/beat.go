@@ -11,7 +11,7 @@ import (
 type BeatRepository interface {
 	GetBeatBoard(projectID string) (*entity.BeatBoardData, error)
 	CreateBeat(beat *entity.Beat) (*entity.Beat, error)
-	UpdateBeat(beatID string, updates map[string]interface{}) (*entity.Beat, error)
+	UpdateBeat(beatID string, updates map[string]any) (*entity.Beat, error)
 	DeleteBeat(beatID string) error
 	CreateConnection(conn *entity.Connection) (*entity.Connection, error)
 	DeleteConnection(connID string) error
@@ -41,46 +41,129 @@ func (r *postgresBeatRepository) GetProjectIDForConnection(connID string) (strin
 }
 
 func (r *postgresBeatRepository) GetBeatBoard(projectID string) (*entity.BeatBoardData, error) {
-	data := &entity.BeatBoardData{
-		Beats:       []*entity.Beat{},
-		Connections: []*entity.Connection{},
+	data := &entity.BeatBoardData{}
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback() // Rollback on any error
+
+	beats, err := r.getBeatsByProjectIDTx(tx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	data.Beats = beats
+
+	connections, err := r.getConnectionsByProjectIDTx(tx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	data.Connections = connections
+
+	lanes, err := r.getLanesByProjectIDTx(tx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	data.Lanes = lanes
+
+	outlineItems, err := r.getOutlineItemsByProjectIDTx(tx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	data.OutlineItems = outlineItems
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
 	}
 
-	// Fetch Beats
-	beatRows, err := r.db.Query(`
+	return data, nil
+}
+
+func (r *postgresBeatRepository) getBeatsByProjectIDTx(tx *sql.Tx, projectID string) ([]*entity.Beat, error) {
+	rows, err := tx.Query(`
 		SELECT beat_id, title, description, scene_numbers, color, position_x, position_y, width, height, act_number, beat_order
 		FROM beats WHERE project_id = $1 ORDER BY beat_order ASC`, projectID)
 	if err != nil {
 		return nil, err
 	}
-	defer beatRows.Close()
-	for beatRows.Next() {
+	defer rows.Close()
+
+	var beats []*entity.Beat
+	for rows.Next() {
 		var b entity.Beat
-		if err := beatRows.Scan(&b.ID, &b.Title, &b.Description, &b.SceneNumbers, &b.Color, &b.PositionX, &b.PositionY, &b.Width, &b.Height, &b.Act, &b.Order); err != nil {
+		if err := rows.Scan(&b.ID, &b.Title, &b.Description, &b.SceneNumbers, &b.Color, &b.PositionX, &b.PositionY, &b.Width, &b.Height, &b.Act, &b.Order); err != nil {
 			return nil, err
 		}
 		b.Position.X = b.PositionX
 		b.Position.Y = b.PositionY
-		data.Beats = append(data.Beats, &b)
+		beats = append(beats, &b)
 	}
+	return beats, nil
+}
 
-	// Fetch Connections
-	connRows, err := r.db.Query(`
+func (r *postgresBeatRepository) getConnectionsByProjectIDTx(tx *sql.Tx, projectID string) ([]*entity.Connection, error) {
+	rows, err := tx.Query(`
 		SELECT connection_id, from_beat_id, to_beat_id, from_side, to_side
 		FROM beat_connections WHERE project_id = $1`, projectID)
 	if err != nil {
 		return nil, err
 	}
-	defer connRows.Close()
-	for connRows.Next() {
+	defer rows.Close()
+
+	var connections []*entity.Connection
+	for rows.Next() {
 		var c entity.Connection
-		if err := connRows.Scan(&c.ID, &c.FromId, &c.ToId, &c.FromSide, &c.ToSide); err != nil {
+		if err := rows.Scan(&c.ID, &c.FromId, &c.ToId, &c.FromSide, &c.ToSide); err != nil {
 			return nil, err
 		}
-		data.Connections = append(data.Connections, &c)
+		connections = append(connections, &c)
 	}
+	return connections, nil
+}
 
-	return data, nil
+func (r *postgresBeatRepository) getLanesByProjectIDTx(tx *sql.Tx, projectID string) ([]*entity.Lane, error) {
+	rows, err := tx.Query(`
+		SELECT lane_id, name, color, lane_order
+		FROM lanes
+		WHERE project_id = $1
+		ORDER BY lane_order ASC`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var lanes []*entity.Lane
+	for rows.Next() {
+		var l entity.Lane
+		if err := rows.Scan(&l.ID, &l.Name, &l.Color, &l.Order); err != nil {
+			return nil, err
+		}
+		lanes = append(lanes, &l)
+	}
+	return lanes, nil
+}
+
+func (r *postgresBeatRepository) getOutlineItemsByProjectIDTx(tx *sql.Tx, projectID string) ([]*entity.OutlineItem, error) {
+	rows, err := tx.Query(`
+		SELECT outline_item_id, beat_id, lane_id, item_order, timeline_position, width
+		FROM outline_items
+		WHERE project_id = $1
+		ORDER BY item_order ASC`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []*entity.OutlineItem
+	for rows.Next() {
+		var i entity.OutlineItem
+		if err := rows.Scan(&i.ID, &i.BeatID, &i.LaneID, &i.Order, &i.TimelinePosition, &i.Width); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	return items, nil
 }
 
 func (r *postgresBeatRepository) CreateBeat(beat *entity.Beat) (*entity.Beat, error) {
@@ -95,9 +178,9 @@ func (r *postgresBeatRepository) CreateBeat(beat *entity.Beat) (*entity.Beat, er
 	return beat, nil
 }
 
-func (r *postgresBeatRepository) UpdateBeat(beatID string, updates map[string]interface{}) (*entity.Beat, error) {
+func (r *postgresBeatRepository) UpdateBeat(beatID string, updates map[string]any) (*entity.Beat, error) {
 	var setClauses []string
-	var args []interface{}
+	var args []any
 	argCount := 1
 
 	for key, value := range updates {
@@ -121,7 +204,7 @@ func (r *postgresBeatRepository) UpdateBeat(beatID string, updates map[string]in
 			column = "beat_order"
 		case "position":
 			// Handle nested position object
-			if pos, ok := value.(map[string]interface{}); ok {
+			if pos, ok := value.(map[string]any); ok {
 				if x, ok := pos["x"]; ok {
 					setClauses = append(setClauses, fmt.Sprintf("position_x = $%d", argCount))
 					args = append(args, x)

@@ -29,6 +29,8 @@ type Connection struct {
 }
 
 type BeatBoardData struct {
-	Beats       []*Beat       `json:"beats"`
-	Connections []*Connection `json:"connections"`
+	Beats        []*Beat        `json:"beats"`
+	Connections  []*Connection  `json:"connections"`
+	Lanes        []*Lane        `json:"lanes"`
+	OutlineItems []*OutlineItem `json:"outlineItems"`
 }

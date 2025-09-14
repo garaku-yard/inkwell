@@ -12,6 +12,7 @@ type ProjectRepository interface {
 	Delete(projectID string, userID string) error
 	UpdateIsStarred(projectID string, userID string, isStarred bool) (*entity.Project, error)
 	GetFullProjectByIDForUser(projectID string, userID string) (*entity.FullProject, error)
+	IsCollaborator(projectID string, userID string) (bool, error)
 }
 
 type UserRepository interface {

@@ -63,7 +63,7 @@ func (h *CollaboratorHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	http.NotFound(w, r)
 }
 
-func (h *CollaboratorHandler) handleListInvitations(w http.ResponseWriter, r *http.Request, userID string) {
+func (h *CollaboratorHandler) handleListInvitations(w http.ResponseWriter, _ *http.Request, userID string) {
 	invitations, err := h.collabRepo.ListPendingInvitesForUser(userID)
 	if err != nil {
 		log.Printf("DB ERROR: Failed to list invitations for user %s: %v", userID, err)
@@ -94,7 +94,7 @@ func (h *CollaboratorHandler) handleRespondToInvite(w http.ResponseWriter, r *ht
 	json.NewEncoder(w).Encode(map[string]string{"message": "Response recorded"})
 }
 
-func (h *CollaboratorHandler) handleListCollaborators(w http.ResponseWriter, r *http.Request, projectID, userID string) {
+func (h *CollaboratorHandler) handleListCollaborators(w http.ResponseWriter, _ *http.Request, projectID, userID string) {
 	// Security: Only owners and other collaborators can see the list.
 	if err := h.checkCollaborationAccess(projectID, userID); err != nil {
 		h.handleError(w, err)
@@ -155,7 +155,7 @@ func (h *CollaboratorHandler) handleInviteCollaborator(w http.ResponseWriter, r 
 	json.NewEncoder(w).Encode(map[string]string{"message": "Invitation sent"})
 }
 
-func (h *CollaboratorHandler) handleRemoveCollaborator(w http.ResponseWriter, r *http.Request, projectID, collaboratorID, ownerUserID string) {
+func (h *CollaboratorHandler) handleRemoveCollaborator(w http.ResponseWriter, _ *http.Request, projectID, collaboratorID, ownerUserID string) {
 	// Security: Only the project owner can remove collaborators.
 	if err := h.checkOwnership(projectID, ownerUserID); err != nil {
 		h.handleError(w, err)

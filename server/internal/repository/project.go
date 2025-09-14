@@ -16,6 +16,21 @@ func NewProjectRepository(db *sql.DB) ProjectRepository {
 	return &postgresProjectRepository{db: db}
 }
 
+func (r *postgresProjectRepository) IsCollaborator(projectID string, userID string) (bool, error) {
+	var exists bool
+	query := `
+		SELECT EXISTS (
+			SELECT 1
+			FROM project_collaborators
+			WHERE project_id = $1 AND user_id = $2 AND status = TRUE
+		)`
+	err := r.db.QueryRow(query, projectID, userID).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 func (r *postgresProjectRepository) ListByUserID(userID string) ([]*entity.Project, error) {
 	query := `
 		SELECT 

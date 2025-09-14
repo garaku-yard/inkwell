@@ -80,7 +80,7 @@ func (h *BeatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // --- Handler Functions ---
 
-func (h *BeatHandler) handleGetBeatBoard(w http.ResponseWriter, r *http.Request, projectID, userID string) {
+func (h *BeatHandler) handleGetBeatBoard(w http.ResponseWriter, _ *http.Request, projectID, userID string) {
 	if err := h.checkOwnership(projectID, userID); err != nil {
 		h.handleError(w, err)
 		return
@@ -139,7 +139,7 @@ func (h *BeatHandler) handleUpdateBeat(w http.ResponseWriter, r *http.Request, b
 		return
 	}
 
-	var updates map[string]interface{}
+	var updates map[string]any
 	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
 		http.Error(w, `{"error": "Invalid request body"}`, http.StatusBadRequest)
 		return
@@ -155,7 +155,7 @@ func (h *BeatHandler) handleUpdateBeat(w http.ResponseWriter, r *http.Request, b
 	json.NewEncoder(w).Encode(map[string]string{"message": "Beat updated"})
 }
 
-func (h *BeatHandler) handleDeleteBeat(w http.ResponseWriter, r *http.Request, beatID, userID string) {
+func (h *BeatHandler) handleDeleteBeat(w http.ResponseWriter, _ *http.Request, beatID, userID string) {
 	projectID, err := h.repo.GetProjectIDForBeat(beatID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -204,7 +204,7 @@ func (h *BeatHandler) handleCreateConnection(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(createdConn)
 }
 
-func (h *BeatHandler) handleDeleteConnection(w http.ResponseWriter, r *http.Request, connID, userID string) {
+func (h *BeatHandler) handleDeleteConnection(w http.ResponseWriter, _ *http.Request, connID, userID string) {
 	projectID, err := h.repo.GetProjectIDForConnection(connID)
 	if err != nil {
 		if err == sql.ErrNoRows {

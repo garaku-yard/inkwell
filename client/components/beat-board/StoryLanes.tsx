@@ -1,9 +1,9 @@
 import React, { useState, useRef, useCallback } from "react"
-import { ChevronDown, ChevronUp, GripVertical, Ruler } from "lucide-react"
+import { ChevronDown, ChevronUp, GripVertical, Plus, Ruler } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Beat } from "@/services/beat"
-import { OutlineItem, Lane } from "@/app/(private)/projects/[id]/beat-board/page"
+import { type Beat } from "@/services/beat"
+import { type OutlineItem, type Lane } from "@/services/beat-board"
 
 export interface ScriptMarker {
   name: string;
@@ -13,20 +13,21 @@ export interface ScriptMarker {
 
 interface StoryLanesProps {
   lanes: Lane[];
-  draggedLaneId: number | null;
-  onUpdateLane: (laneId: number, updates: Partial<Lane>) => void;
-  onLaneDragStart: (e: React.DragEvent, laneId: number) => void;
-  onLaneDrop: (targetLaneId: number) => void;
+  draggedLaneId: string | null;
+  onUpdateLane: (laneId: string, updates: Partial<Lane>) => void;
+  onLaneDragStart: (e: React.DragEvent, laneId: string) => void;
+  onLaneDrop: (targetLaneId: string) => void;
   onLaneDragEnd: () => void;
   beats: Beat[];
   outlineItems: OutlineItem[];
-  hoveredLane: number | null;
+  hoveredLane: string | null;
   draggedLaneItem: string | null;
-  setHoveredLane: (id: number | null) => void;
-  handleDropOnTimeline: (e: React.DragEvent, laneId: number, targetItemId?: string) => void;
+  setHoveredLane: (id: string | null) => void;
+  handleDropOnTimeline: (e: React.DragEvent, laneId: string, targetItemId?: string) => void;
   handleLaneDragStart: (e: React.DragEvent, itemId: string) => void;
   setDraggedLaneItem: (id: string | null) => void;
   onUpdateOutlineItem: (itemId: string, updates: Partial<OutlineItem>) => void;
+  onAddLane: () => void;
   scriptMarkers: ScriptMarker[];
   totalPages?: number;
 }
@@ -35,14 +36,15 @@ export function StoryLanes({
   lanes, draggedLaneId, onUpdateLane, onLaneDragStart, onLaneDrop, onLaneDragEnd,
   beats, outlineItems, hoveredLane, draggedLaneItem, setHoveredLane,
   handleDropOnTimeline, handleLaneDragStart, setDraggedLaneItem,
-  onUpdateOutlineItem, totalPages = 120, scriptMarkers
+  onUpdateOutlineItem, totalPages = 120, scriptMarkers,
+  onAddLane
 }: StoryLanesProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const [resizingItem, setResizingItem] = useState<{ itemId: string; edge: "left" | "right" } | null>(null);
   const [slidingItem, setSlidingItem] = useState<{ itemId: string; startX: number; originalPosition: number; } | null>(null);
-  const [editingLaneId, setEditingLaneId] = useState<number | null>(null);
-  const [dropIndicator, setDropIndicator] = useState<number | null>(null);
+  const [editingLaneId, setEditingLaneId] = useState<string | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<string | null>(null);
 
   const getPagePosition = (page: number) => (page / totalPages) * 100;
   const getPageFromPosition = (position: number) => { const page = (position / 100) * totalPages; return Math.max(1, page); }
@@ -132,6 +134,9 @@ export function StoryLanes({
           <Ruler className="h-4 w-4 text-gray-600" />
           <h3 className="text-sm font-medium text-gray-600">Story Structure</h3>
           <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">{outlineItems.length} items</span>
+          <Button variant="ghost" size="sm" className="h-6 p-1" onClick={onAddLane}>
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
         <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="h-6 w-6 p-0">
           {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}

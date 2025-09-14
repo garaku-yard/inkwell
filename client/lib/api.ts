@@ -19,18 +19,21 @@ export async function apiClient<T>(
   }
 
   const config: RequestInit = {
-    method: body ? "POST" : "GET",
     ...customOptions,
     headers,
   };
+
+  if (!config.method) {
+    config.method = body ? "POST" : "GET";
+  }
 
   if (body) {
     config.body = JSON.stringify(body);
   }
 
+
   const response = await fetch(`${API_BASE_URL}/${endpoint}`, config);
 
-  // ✅ Handle empty response (like 204 No Content)
   if (response.status === 204) {
     return {} as T;
   }
