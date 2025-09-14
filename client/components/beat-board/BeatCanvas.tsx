@@ -1,8 +1,9 @@
-// src/components/BeatCanvas.tsx
+// src/components/beat-board/BeatCanvas.tsx
 import type React from "react";
 import { ClipboardList } from "lucide-react";
 import type { Beat, Connection } from "@/services/beat";
 import { BeatCard } from "./BeatCard";
+import type { ConnectionSide } from "@/app/(private)/projects/[id]/beat-board/page";
 
 interface BeatCanvasProps {
   boardRef: React.RefObject<HTMLDivElement | null>;
@@ -15,7 +16,7 @@ interface BeatCanvasProps {
   movingBeatId: string | null;
   isResizing: string | null;
   onMouseDownOnBeat: (e: React.MouseEvent, beatId: string) => void;
-  onDragStartOnBeat: (beatId: string) => void;
+  onDragStartOnBeat: (e: React.DragEvent, beatId: string) => void;
   onDragEndOnBeat: () => void;
   onResizeMouseDown: (e: React.MouseEvent, beatId: string) => void;
   handleFieldChange: (beatId: string, field: keyof Beat, value: any) => void;
@@ -24,13 +25,12 @@ interface BeatCanvasProps {
   setColorPickerOpen: (id: string | null) => void;
   handleChangeColor: (beatId: string, color: string) => void;
   handleDeleteBeat: (beatId: string) => void;
-  handleConnectionStart: (e: React.MouseEvent, beatId: string, side: "top" | "right" | "bottom" | "left") => void;
-  handleConnectionEnd: (beatId: string, side: "top" | "right" | "bottom" | "left") => void;
+  handleConnectionStart: (e: React.MouseEvent, beatId: string, side: ConnectionSide) => void;
+  handleConnectionEnd: (beatId: string, side: ConnectionSide) => void;
   handleDeleteConnection: (connectionId: string) => void;
   tempConnection: { x: number; y: number } | null;
   isConnecting: boolean;
-  // FIXED: Added missing prop
-  connectionStart: { beatId: string; side: string } | null;
+  connectionStart: { beatId: string; side: ConnectionSide } | null;
 }
 
 const GRID_SIZE = 20;
@@ -64,7 +64,7 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
     );
   };
 
-  const ConnectionHandle = ({ beatId, side, position }: { beatId: string; side: "top" | "right" | "bottom" | "left"; position: React.CSSProperties; }) => (
+  const ConnectionHandle = ({ beatId, side, position }: { beatId: string; side: ConnectionSide; position: React.CSSProperties; }) => (
     <div
       className="connection-handle absolute w-3 h-3 bg-blue-500 border border-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-crosshair hover:bg-blue-600"
       style={position}
@@ -102,7 +102,7 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
         {props.isConnecting && props.tempConnection && props.connectionStart && (() => {
           const startBeat = beats.find(b => b.id === props.connectionStart?.beatId);
           if (!startBeat) return null;
-          const startPoint = getConnectionPoint(startBeat, props.connectionStart.side as any);
+          const startPoint = getConnectionPoint(startBeat, props.connectionStart.side);
           return <line x1={startPoint.x} y1={startPoint.y} x2={props.tempConnection.x} y2={props.tempConnection.y} stroke="#3b82f6" strokeWidth="2" strokeDasharray="5,5" />;
         })()}
       </svg>
