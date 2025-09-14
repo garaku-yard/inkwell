@@ -1,14 +1,9 @@
 import React, { useState, useRef, useCallback } from "react"
 import { ChevronDown, ChevronUp, GripVertical, Ruler } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Beat } from "@/services/beat"
-import { OutlineItem } from "@/app/(private)/projects/[id]/beat-board/page"
-
-const LANES = [
-  { id: 1, name: "Main Plot", color: "#dbeafe" },
-  { id: 2, name: "Subplot A", color: "#dcfce7" },
-  { id: 3, name: "Subplot B", color: "#fef3c7" },
-];
+import { OutlineItem, Lane } from "@/app/(private)/projects/[id]/beat-board/page"
 
 export interface ScriptMarker {
   name: string;
@@ -17,6 +12,12 @@ export interface ScriptMarker {
 }
 
 interface StoryLanesProps {
+  lanes: Lane[];
+  draggedLaneId: number | null;
+  onUpdateLane: (laneId: number, updates: Partial<Lane>) => void;
+  onLaneDragStart: (e: React.DragEvent, laneId: number) => void;
+  onLaneDrop: (targetLaneId: number) => void;
+  onLaneDragEnd: () => void;
   beats: Beat[];
   outlineItems: OutlineItem[];
   hoveredLane: number | null;
@@ -31,15 +32,17 @@ interface StoryLanesProps {
 }
 
 export function StoryLanes({
+  lanes, draggedLaneId, onUpdateLane, onLaneDragStart, onLaneDrop, onLaneDragEnd,
   beats, outlineItems, hoveredLane, draggedLaneItem, setHoveredLane,
   handleDropOnTimeline, handleLaneDragStart, setDraggedLaneItem,
   onUpdateOutlineItem, totalPages = 120, scriptMarkers
 }: StoryLanesProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
-
   const [resizingItem, setResizingItem] = useState<{ itemId: string; edge: "left" | "right" } | null>(null);
   const [slidingItem, setSlidingItem] = useState<{ itemId: string; startX: number; originalPosition: number; } | null>(null);
+  const [editingLaneId, setEditingLaneId] = useState<number | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<number | null>(null);
 
   const getPagePosition = (page: number) => (page / totalPages) * 100;
   const getPageFromPosition = (position: number) => { const page = (position / 100) * totalPages; return Math.max(1, page); }
@@ -50,13 +53,9 @@ export function StoryLanes({
     e.stopPropagation();
     const item = outlineItems.find(i => i.id === itemId);
     if (!item) return;
-
     if (edge) {
-      // --- DEBUG LOG 1 ---
-      console.log(`%c[MOUSEDOWN] Setting RESIZE state:`, 'color: blue; font-weight: bold;', { itemId, edge });
       setResizingItem({ itemId, edge });
     } else {
-      console.log(`%c[MOUSEDOWN] Setting SLIDE state:`, 'color: green; font-weight: bold;', { itemId });
       setSlidingItem({
         itemId,
         startX: e.clientX,
@@ -70,7 +69,6 @@ export function StoryLanes({
     const timelineArea = timelineContainerRef.current.querySelector('.timeline-area-content');
     if (!timelineArea) return;
     const rect = timelineArea.getBoundingClientRect();
-
     const getBoundaries = (item: OutlineItem) => {
       const laneItems = outlineItems.filter(i => i.laneId === item.laneId).sort((a, b) => (a.timelinePosition || 0) - (b.timelinePosition || 0));
       const currentIndex = laneItems.findIndex(i => i.id === item.id);
@@ -81,30 +79,24 @@ export function StoryLanes({
       const rightBoundary = nextItem ? (nextItem.timelinePosition || 0) - gapPercentage : 100;
       return { leftBoundary, rightBoundary };
     };
-
     if (resizingItem) {
       const item = outlineItems.find((i) => i.id === resizingItem.itemId);
       if (!item) return;
       const { leftBoundary, rightBoundary } = getBoundaries(item);
       const rawPosition = ((e.clientX - rect.left) / rect.width) * 100;
       const snappedPosition = snapToEighthOfPage(rawPosition);
-
-      // --- DEBUG LOG 2 ---
       if (resizingItem.edge === "left") {
-        console.log('%c[MOUSEMOVE] Executing LEFT resize logic', 'color: purple; font-weight: bold;');
         const originalEndPosition = (item.timelinePosition || 0) + (item.width || 0);
         const newStartPosition = Math.max(leftBoundary, Math.min(snappedPosition, originalEndPosition));
         const newWidth = originalEndPosition - newStartPosition;
         if (newWidth > 0) onUpdateOutlineItem(resizingItem.itemId, { timelinePosition: newStartPosition, width: newWidth });
       } else {
-        console.log('%c[MOUSEMOVE] Executing RIGHT resize logic', 'color: orange; font-weight: bold;');
         const startPosition = item.timelinePosition || 0;
         const newEndPosition = Math.min(rightBoundary, Math.max(snappedPosition, startPosition));
         const newWidth = newEndPosition - startPosition;
         if (newWidth > 0) onUpdateOutlineItem(resizingItem.itemId, { width: newWidth });
       }
     } else if (slidingItem) {
-      console.log('%c[MOUSEMOVE] Executing SLIDE logic', 'color: green; font-weight: bold;');
       const item = outlineItems.find(i => i.id === slidingItem.itemId);
       if (!item) return;
       const { leftBoundary, rightBoundary } = getBoundaries(item);
@@ -118,7 +110,6 @@ export function StoryLanes({
   }, [resizingItem, slidingItem, outlineItems, onUpdateOutlineItem, totalPages]);
 
   const handleMouseUp = useCallback(() => {
-    console.log('%c[MOUSEUP] Interaction ended', 'color: red; font-weight: bold;');
     setResizingItem(null);
     setSlidingItem(null);
   }, []);
@@ -136,7 +127,6 @@ export function StoryLanes({
 
   return (
     <div className="border-b border-gray-200 bg-gray-50">
-      {/* ... header JSX is unchanged ... */}
       <div className="px-6 py-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Ruler className="h-4 w-4 text-gray-600" />
@@ -151,7 +141,6 @@ export function StoryLanes({
       {isExpanded && (
         <div className="px-6 pb-3" ref={timelineContainerRef}>
           <div className="relative">
-            {/* ... ruler JSX is unchanged ... */}
             <div className="flex h-6 mb-1">
               <div className="w-28 flex-shrink-0" />
               <div className="relative flex-1 bg-white border border-gray-300 rounded-t timeline-area-content">
@@ -160,10 +149,49 @@ export function StoryLanes({
               </div>
             </div>
             <div className="space-y-1 mb-3">
-              {LANES.map((lane) => (
-                <div key={lane.id} className={`flex items-center transition-colors rounded border ${hoveredLane === lane.id ? "border-blue-400" : "border-gray-300"}`} onMouseEnter={() => setHoveredLane(lane.id)} onMouseLeave={() => setHoveredLane(null)}>
-                  <div className="w-28 flex-shrink-0 h-16 flex items-center justify-start pl-2 bg-white rounded-l"><span className="font-medium text-gray-700 text-xs">{lane.name}</span></div>
-                  <div className={`relative flex-1 h-16 timeline-area-content ${hoveredLane === lane.id ? "bg-blue-50" : "bg-white"}`} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDropOnTimeline(e, lane.id)}>
+              {lanes.map((lane) => (
+                <div
+                  key={lane.id}
+                  className={`flex items-center transition-colors rounded border-2 ${hoveredLane === lane.id ? "border-blue-400" : "border-transparent"} ${draggedLaneId === lane.id ? "opacity-30" : ""} ${dropIndicator === lane.id ? "!border-blue-500 border-dashed" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (draggedLaneId !== null && draggedLaneId !== lane.id) {
+                      setDropIndicator(lane.id);
+                    }
+                  }}
+                  onDragLeave={() => setDropIndicator(null)}
+                  onDrop={() => {
+                    onLaneDrop(lane.id);
+                    setDropIndicator(null);
+                  }}
+                  onMouseEnter={() => setHoveredLane(lane.id)}
+                  onMouseLeave={() => setHoveredLane(null)}
+                >
+                  <div
+                    className="w-28 flex-shrink-0 h-16 flex items-center justify-start pl-2 bg-white rounded-l cursor-grab"
+                    draggable
+                    onDragStart={(e) => onLaneDragStart(e, lane.id)}
+                    onDragEnd={onLaneDragEnd}
+                  >
+                    {editingLaneId === lane.id ? (
+                      <Input
+                        value={lane.name}
+                        onChange={(e) => onUpdateLane(lane.id, { name: e.target.value })}
+                        onBlur={() => setEditingLaneId(null)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') setEditingLaneId(null); }}
+                        autoFocus
+                        className="h-8 text-xs"
+                      />
+                    ) : (
+                      <span
+                        className="font-medium text-gray-700 text-xs p-2 w-full"
+                        onDoubleClick={() => setEditingLaneId(lane.id)}
+                      >
+                        {lane.name}
+                      </span>
+                    )}
+                  </div>
+                  <div className={`relative flex-1 h-16 timeline-area-content ${hoveredLane === lane.id ? "bg-blue-50" : "bg-white"}`} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.stopPropagation(); handleDropOnTimeline(e, lane.id); }}>
                     {outlineItems.filter((item) => item.laneId === lane.id).map((item) => {
                       const beat = beats.find(b => b.id === item.beatId); if (!beat) return null;
                       const position = item.timelinePosition || 0; const width = item.width || getPagePosition(5); const startPage = Math.max(1, Math.round(getPageFromPosition(position))); const endPage = Math.round(getPageFromPosition(position + width));
@@ -181,7 +209,6 @@ export function StoryLanes({
                 </div>
               ))}
             </div>
-            {/* ... script markers JSX is unchanged ... */}
             <div className="flex">
               <div className="w-28 flex-shrink-0" />
               <div className="relative flex-1 h-4 bg-gradient-to-r from-green-100 via-yellow-100 to-green-100 border border-gray-300 rounded">

@@ -15,7 +15,7 @@ import { BeatCanvas } from "@/components/beat-board/BeatCanvas";
 import { getBeatBoardForProject, createBeat, deleteBeat, updateBeat, createConnection, deleteConnection, type Beat, type Connection } from "@/services/beat"
 import { FullProject } from "@/services/project"
 
-// MOCK BACKEND SERVICES
+// FAKE BACKEND SERVICES
 async function createOutlineItem(projectId: string, data: Partial<OutlineItem>): Promise<OutlineItem> { console.log("Creating item for project:", projectId); return { id: `outline_${Date.now()}`, ...data } as OutlineItem }
 async function updateOutlineItem(itemId: string, data: Partial<OutlineItem>): Promise<OutlineItem> { console.log(`UPDATING item ${itemId}`, data); return { id: itemId, ...data } as OutlineItem }
 // ---
@@ -25,6 +25,13 @@ export type OutlineItem = {
   startPage?: number; endPage?: number; timelinePosition?: number; width?: number;
 }
 export type ConnectionSide = "top" | "right" | "bottom" | "left";
+
+export type Lane = {
+  id: number;
+  name: string;
+  color: string;
+}
+
 
 export default function BeatBoardPage() {
   const [project, setProject] = useState<FullProject | null>(null);
@@ -52,6 +59,13 @@ export default function BeatBoardPage() {
   const [newBeat, setNewBeat] = useState({ title: "", description: "", color: "#fef3c7" })
   const [draggedLaneItem, setDraggedLaneItem] = useState<string | null>(null)
 
+  const [lanes, setLanes] = useState<Lane[]>([
+    { id: 1, name: "Main Plot", color: "#dbeafe" },
+    { id: 2, name: "Subplot A", color: "#dcfce7" },
+    { id: 3, name: "Subplot B", color: "#fef3c7" },
+  ]);
+  const [draggedLaneId, setDraggedLaneId] = useState<number | null>(null);
+
   useEffect(() => {
     if (!projectId) return;
     const fetchData = async () => {
@@ -64,7 +78,6 @@ export default function BeatBoardPage() {
         setBeats(fetchedBeats || []);
         setConnections(fetchedConnections || []);
 
-        // Initialize layout for each lane
         const laneIds = new Set<number>((fetchedOutlineItems || []).map((item: OutlineItem) => item.laneId));
         let laidOutItems = [...(fetchedOutlineItems || [])];
         laneIds.forEach(laneId => {
@@ -106,19 +119,17 @@ export default function BeatBoardPage() {
   const handleMouseDownOnBeat = (e: React.MouseEvent, beatId: string) => { if ((e.target as HTMLElement).closest(".resize-handle, .connection-handle, input, textarea, button, [draggable=true]")) return; setMovingBeatId(beatId); const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); setDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top }); };
   const handleMouseMove = useCallback((e: React.MouseEvent) => { if (movingBeatId && boardRef.current) { const boardRect = boardRef.current.getBoundingClientRect(); const newX = snapToGrid(e.clientX - boardRect.left - dragOffset.x); const newY = snapToGrid(e.clientY - boardRect.top - dragOffset.y); setBeats(prev => prev.map(beat => beat.id === movingBeatId ? { ...beat, position: { x: Math.max(0, newX), y: Math.max(0, newY) } } : beat)); } else if (isResizing && boardRef.current) { const deltaX = e.clientX - resizeStartMousePos.x; const deltaY = e.clientY - resizeStartMousePos.y; setBeats(prev => prev.map(beat => { if (beat.id === isResizing) { const newWidth = snapToGrid(Math.max(200, resizeStartBeatSize.width + deltaX)); const newHeight = snapToGrid(Math.max(150, resizeStartBeatSize.height + deltaY)); return { ...beat, width: newWidth, height: newHeight }; } return beat; })); } if (isConnecting && connectionStart && boardRef.current) { const boardRect = boardRef.current.getBoundingClientRect(); setTempConnection({ x: e.clientX - boardRect.left, y: e.clientY - boardRect.top }); } }, [movingBeatId, dragOffset, isResizing, resizeStartMousePos, resizeStartBeatSize, isConnecting, connectionStart]);
   const handleMouseUp = () => { if (movingBeatId) { const beat = beats.find(b => b.id === movingBeatId); if (beat) debouncedUpdate(beat.id, { position: beat.position }); } if (isResizing) { const beat = beats.find(b => b.id === isResizing); if (beat) debouncedUpdate(beat.id, { width: beat.width, height: beat.height }); } setMovingBeatId(null); setIsResizing(null); };
-  const handleDragStartOnBeat = (_: React.DragEvent, beatId: string) => { setDraggedBeat(beatId); };
+  const handleDragStartOnBeat = (_e: React.DragEvent, beatId: string) => { setDraggedBeat(beatId); };
 
   const layoutLane = (laneId: number, items: OutlineItem[]): OutlineItem[] => {
     const laneItems = items.filter(item => item.laneId === laneId).sort((a, b) => a.order - b.order);
     let currentPosition = 0;
     const gapPercentage = 0.5;
-
     const updatedLaneItemsWithLayout = laneItems.map(item => {
       const newItem = { ...item, timelinePosition: currentPosition };
       currentPosition += (item.width || 5) + gapPercentage;
       return newItem;
     });
-
     const otherItems = items.filter(item => item.laneId !== laneId);
     return [...otherItems, ...updatedLaneItemsWithLayout];
   };
@@ -128,35 +139,27 @@ export default function BeatBoardPage() {
       const newItems = prevItems.map(item =>
         item.id === itemId ? { ...item, ...updates } : item
       );
-
       if (updates.order !== undefined) {
         const changedItem = newItems.find(item => item.id === itemId);
         if (changedItem) {
           return layoutLane(changedItem.laneId, newItems);
         }
       }
-
       return newItems;
     });
-
     updateOutlineItem(itemId, updates);
   };
 
   const handleDropOnTimeline = (e: React.DragEvent, targetLaneId: number, targetItemId?: string) => {
-    e.preventDefault();
-    setHoveredLane(null);
-    setDraggedLaneItem(null);
-
+    e.preventDefault(); setHoveredLane(null); setDraggedLaneItem(null);
     const beatId = e.dataTransfer.getData("text/plain");
     const outlineItemId = e.dataTransfer.getData("application/x-outline-item-id");
-
     if (beatId) {
       const newItemData: Partial<OutlineItem> = { beatId, laneId: targetLaneId, order: 0, width: 5 };
       createOutlineItem(projectId, newItemData).then(createdItem => {
         setOutlineItems(prevItems => {
           const targetLaneItems = prevItems.filter(item => item.laneId === targetLaneId);
           const otherLaneItems = prevItems.filter(item => item.laneId !== targetLaneId);
-          // Simple logic: add to the end
           createdItem.order = targetLaneItems.length;
           const newLaneItems = [...targetLaneItems, createdItem];
           const updatedItems = [...otherLaneItems, ...newLaneItems];
@@ -167,36 +170,51 @@ export default function BeatBoardPage() {
       setOutlineItems(prevItems => {
         const draggedItem = prevItems.find(item => item.id === outlineItemId);
         if (!draggedItem) return prevItems;
-
         const originalLaneId = draggedItem.laneId;
-        let allItems = [...prevItems];
-
-        allItems = allItems.filter(item => item.id !== outlineItemId);
-
+        let allItems = [...prevItems].filter(item => item.id !== outlineItemId);
         let targetLaneItems = allItems.filter(item => item.laneId === targetLaneId).sort((a, b) => a.order - b.order);
         const targetItemIndex = targetItemId ? targetLaneItems.findIndex(item => item.id === targetItemId) : -1;
-
         const insertIndex = targetItemIndex !== -1 ? targetItemIndex : targetLaneItems.length;
         targetLaneItems.splice(insertIndex, 0, { ...draggedItem, laneId: targetLaneId });
-
         const reorderedTargetLane = targetLaneItems.map((item, index) => ({ ...item, order: index }));
-
         const otherItems = allItems.filter(item => item.laneId !== targetLaneId);
         let finalItems = [...otherItems, ...reorderedTargetLane];
-
         finalItems = layoutLane(targetLaneId, finalItems);
         if (originalLaneId !== targetLaneId) {
           finalItems = layoutLane(originalLaneId, finalItems);
         }
-
         return finalItems;
       });
       updateOutlineItem(outlineItemId, { laneId: targetLaneId });
     }
   };
 
+  const handleUpdateLane = (laneId: number, updates: Partial<Lane>) => {
+    setLanes(currentLanes =>
+      currentLanes.map(lane =>
+        lane.id === laneId ? { ...lane, ...updates } : lane
+      )
+    );
+  };
 
-  const handleLaneDragStart = (_: React.DragEvent, itemId: string) => { setDraggedLaneItem(itemId); };
+  const handleLaneDragStart = (_: React.DragEvent, laneId: number) => {
+    setDraggedLaneId(laneId);
+  };
+
+  const handleLaneDrop = (targetLaneId: number) => {
+    if (draggedLaneId === null || draggedLaneId === targetLaneId) return;
+    setLanes(currentLanes => {
+      const draggedLaneIndex = currentLanes.findIndex(l => l.id === draggedLaneId);
+      const targetLaneIndex = currentLanes.findIndex(l => l.id === targetLaneId);
+      const newLanes = [...currentLanes];
+      const [draggedLane] = newLanes.splice(draggedLaneIndex, 1);
+      newLanes.splice(targetLaneIndex, 0, draggedLane);
+      return newLanes;
+    });
+    setDraggedLaneId(null);
+  };
+
+  const handleLaneDragStartFromTimeline = (_e: React.DragEvent, itemId: string) => { setDraggedLaneItem(itemId); };
   const handleResizeMouseDown = (e: React.MouseEvent, beatId: string) => { e.stopPropagation(); setIsResizing(beatId); setResizeStartMousePos({ x: e.clientX, y: e.clientY }); const beat = beats.find(b => b.id === beatId); if (beat) setResizeStartBeatSize({ width: beat.width, height: beat.height }); };
   const handleDoubleClick = (beatId: string, field: keyof Beat) => setEditingField({ beatId, field });
   const handleFieldBlur = () => { if (editingField) debouncedUpdate.flush(); setEditingField(null); };
@@ -220,10 +238,16 @@ export default function BeatBoardPage() {
           <Button onClick={() => setIsAddingBeat(true)} className="bg-blue-600 hover:bg-blue-700"><Plus className="h-4 w-4 mr-2" />New Beat</Button>
         </div>
         <StoryLanes
+          lanes={lanes}
+          draggedLaneId={draggedLaneId}
+          onUpdateLane={handleUpdateLane}
+          onLaneDragStart={handleLaneDragStart}
+          onLaneDrop={handleLaneDrop}
+          onLaneDragEnd={() => setDraggedLaneId(null)}
           beats={beats} outlineItems={outlineItems} hoveredLane={hoveredLane}
           draggedLaneItem={draggedLaneItem} setHoveredLane={setHoveredLane}
           handleDropOnTimeline={handleDropOnTimeline}
-          handleLaneDragStart={handleLaneDragStart}
+          handleLaneDragStart={handleLaneDragStartFromTimeline}
           setDraggedLaneItem={setDraggedLaneItem}
           onUpdateOutlineItem={handleUpdateOutlineItem} scriptMarkers={scriptMarkers} />
       </div>
