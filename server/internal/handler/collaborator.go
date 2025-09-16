@@ -94,8 +94,8 @@ func (h *CollaboratorHandler) handleRespondToInvite(w http.ResponseWriter, r *ht
 	json.NewEncoder(w).Encode(map[string]string{"message": "Response recorded"})
 }
 
+// NOTE: Check why this is not working
 func (h *CollaboratorHandler) handleListCollaborators(w http.ResponseWriter, _ *http.Request, projectID, userID string) {
-	// Security: Only owners and other collaborators can see the list.
 	if err := h.checkCollaborationAccess(projectID, userID); err != nil {
 		h.handleError(w, err)
 		return
@@ -114,7 +114,6 @@ func (h *CollaboratorHandler) handleListCollaborators(w http.ResponseWriter, _ *
 }
 
 func (h *CollaboratorHandler) handleInviteCollaborator(w http.ResponseWriter, r *http.Request, projectID, ownerUserID string) {
-	// Security: Only the project owner can invite people.
 	if err := h.checkOwnership(projectID, ownerUserID); err != nil {
 		h.handleError(w, err)
 		return

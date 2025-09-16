@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
+import Image from 'next/image';
 import { useRouter } from "next/navigation"
 import {
   FileText,
@@ -260,7 +261,12 @@ export default function DashboardPage() {
       <header className="border-b bg-background">
         <div className="container mx-auto flex items-center justify-between py-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
-            <FileText className="h-6 w-6" />
+            <Image
+              src="/scriptalith.png"
+              alt="Scriptalith Logo"
+              width={40}
+              height={40}
+            />
             <h1 className="text-xl font-bold">Scriptalith</h1>
           </div>
           <div className="flex items-center gap-2">
