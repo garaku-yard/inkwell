@@ -26,15 +26,10 @@ export interface StructureElement {
   laneLevel?: number;
 }
 
-export interface LaneWithBeats extends Lane {
-  beats: Beat[];
-}
-
 const parsePageRange = (sceneNumbers: string): { start: number; end: number } | null => {
   if (!sceneNumbers) return null;
   const cleaned = sceneNumbers.replace(/Pg\.\s*/i, '');
   const parts = cleaned.split('-').map(p => parseInt(p.trim(), 10));
-
   if (parts.length === 1 && !isNaN(parts[0])) return { start: parts[0], end: parts[0] };
   if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) return { start: parts[0], end: parts[1] };
   return null;
@@ -71,35 +66,63 @@ export default function OutlineEditorPage() {
         setBeats(beatBoardData.beats || []);
         setLanes((beatBoardData.lanes || []).sort((a, b) => a.order - b.order));
         setOutlineItems(beatBoardData.outlineItems || []);
-      } catch (err) {
-        console.error("Failed to load data", err);
-        setError("Failed to load project data.");
-      } finally {
-        setIsLoading(false);
-      }
+      } catch (err) { console.error("Failed to load data", err); setError("Failed to load project data."); }
+      finally { setIsLoading(false); }
     };
     fetchData();
   }, [projectId]);
 
-  const lanesWithBeats = useMemo((): LaneWithBeats[] => {
-    if (lanes.length === 0 || beats.length === 0) {
-      return [];
-    }
-
+  const transformedStructure = useMemo((): StructureElement[] => {
+    if (lanes.length === 0 || beats.length === 0 || outlineItems.length === 0) return [];
     const beatMap = new Map(beats.map(beat => [beat.id, beat]));
-
-    return lanes.map(lane => {
-      const beatsForLane = outlineItems
-        .filter(item => item.laneId === lane.id)
-        .sort((a, b) => a.order - b.order)
-        .map(item => beatMap.get(item.beatId))
-        .filter((beat): beat is Beat => beat !== undefined);
-
+    const laneOrderMap = new Map(lanes.map((lane, index) => [lane.id, index]));
+    const allItems: StructureElement[] = outlineItems.map(item => {
+      const beat = beatMap.get(item.beatId);
+      const pageRange = beat ? parsePageRange(beat.sceneNumbers) : null;
       return {
-        ...lane,
-        beats: beatsForLane,
+        id: item.beatId,
+        title: beat?.title || '',
+        content: beat?.description || '',
+        color: beat?.color || '#e5e7eb',
+        startPage: pageRange?.start || 0,
+        endPage: pageRange?.end || 0,
+        laneId: item.laneId,
+        laneLevel: laneOrderMap.get(item.laneId) ?? -1,
+        children: [],
       };
-    });
+    }).filter(item => (item.laneLevel ?? -1) !== -1 && item.startPage > 0).sort((a, b) => a.startPage - b.startPage);
+
+    const buildHierarchy = (parents: StructureElement[], potentialChildren: StructureElement[]): StructureElement[] => {
+      let availableChildren = [...potentialChildren];
+
+      // First pass: Assign direct children to each parent from the available pool.
+      for (const parent of parents) {
+        const directChildren = availableChildren.filter(child =>
+          (child.laneLevel ?? -1) === (parent.laneLevel ?? -1) + 1 &&
+          child.startPage >= parent.startPage &&
+          child.endPage <= parent.endPage
+        );
+
+        parent.children = directChildren;
+
+        // Remove assigned children from the pool so they can't be parented by a sibling.
+        availableChildren = availableChildren.filter(child => !directChildren.some(dc => dc.id === child.id));
+      }
+
+      // Second pass: Recurse for each parent's newly assigned children.
+      for (const parent of parents) {
+        if (parent.children.length > 0) {
+          // The pool for the grandchildren is what remains after all parents at this level have claimed their children.
+          buildHierarchy(parent.children, availableChildren);
+        }
+      }
+
+      return parents;
+    };
+
+    const topLevelItems = allItems.filter(item => item.laneLevel === 0);
+    const otherItems = allItems.filter(item => (item.laneLevel ?? 0) > 0);
+    return buildHierarchy(topLevelItems, otherItems);
   }, [lanes, beats, outlineItems]);
 
   const scriptMarkers = useMemo((): ScriptMarker[] => {
@@ -248,7 +271,7 @@ export default function OutlineEditorPage() {
           onItemHover={setActiveElementId}
         />
         <OutlineDocument
-          lanesWithBeats={lanesWithBeats}
+          structure={transformedStructure}
           activeElementId={activeElementId}
           onElementSelect={setActiveElementId}
         />

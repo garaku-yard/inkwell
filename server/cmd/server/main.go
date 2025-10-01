@@ -41,6 +41,7 @@ func main() {
 	collaboratorHandler := handler.NewCollaboratorHandler(collabRepo, projectRepo, userRepo)
 	laneHandler := handler.NewLaneHandler(laneRepo, projectRepo)
 	outlineItemHandler := handler.NewOutlineItemHandler(outlineItemRepo, projectRepo)
+	aiHandler := handler.NewAIHandler()
 
 	mux := router.NewRouter(
 		authHandler,
@@ -50,6 +51,7 @@ func main() {
 		collaboratorHandler,
 		laneHandler,
 		outlineItemHandler,
+		aiHandler,
 	)
 
 	c := cors.New(cors.Options{

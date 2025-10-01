@@ -7,15 +7,16 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Bot, Send, User, Lightbulb, Sparkles, X, ChevronRight } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Bot, Send, User, Lightbulb, Sparkles, X, BrainCircuit } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getAvailableAIModels, streamChatCompletion } from "@/services/ai"
 
 interface Message {
   id: string
   type: "user" | "ai"
   content: string
   timestamp: Date
-  suggestions?: string[]
 }
 
 interface AIChatPanelProps {
@@ -29,47 +30,57 @@ const QUICK_PROMPTS = [
   "Suggest dialogue for this scene",
   "Improve this action line",
   "Add character motivation",
-  "Create scene transition",
-  "Develop conflict",
-  "Add subtext to dialogue",
 ]
 
-const MOCK_RESPONSES = [
-  "Here are some suggestions to enhance your scene:\n\n• Consider adding more visual details to help the reader visualize the setting\n• The dialogue could benefit from more subtext - what are the characters not saying?\n• Try varying sentence length in action lines for better pacing",
-  "For this dialogue, you might want to:\n\n• Give each character a distinct voice and speech pattern\n• Add interruptions or overlapping dialogue for realism\n• Consider what the character wants vs. what they're actually saying",
-  "To strengthen this action sequence:\n\n• Use active voice instead of passive\n• Break up long paragraphs into shorter, punchier lines\n• Focus on the most important visual elements",
-  "Character development suggestions:\n\n• What's driving this character's actions in this moment?\n• How does their background influence their choices?\n• Consider adding a small gesture or habit that reveals personality",
-]
-
-export const AIChatPanel = React.memo(({ isOpen, onClose, currentScene, currentElement }: AIChatPanelProps) => {
+export const AIChatPanel = React.memo(({ isOpen, onClose }: AIChatPanelProps) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       type: "ai",
       content:
-        "Hi! I'm your AI writing assistant. I can help you improve your screenplay with suggestions for dialogue, action lines, character development, and more. What would you like to work on?",
+        "Hi! I'm your AI writing assistant. Select a model and ask me anything about your script.",
       timestamp: new Date(),
     },
   ])
   const [inputValue, setInputValue] = useState("")
   const [isTyping, setIsTyping] = useState(false)
+  const [models, setModels] = useState<string[]>([])
+  const [selectedModel, setSelectedModel] = useState<string>("")
+
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Fetch available models when the panel opens
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus()
-    }
-  }, [isOpen])
+    if (isOpen) {
+      inputRef.current?.focus()
 
+      const fetchModels = async () => {
+        try {
+          // --- 3. Use the new service function ---
+          const data = await getAvailableAIModels()
+          const modelNames = data.map(m => m.name)
+          setModels(modelNames)
+          if (modelNames.length > 0 && !selectedModel) {
+            setSelectedModel(modelNames[0])
+          }
+        } catch (error) {
+          console.error("Could not fetch AI models:", error)
+        }
+      }
+      fetchModels()
+    }
+  }, [isOpen, selectedModel])
+
+  // Auto-scroll to the bottom of the chat
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
-  }, [messages])
+  }, [messages, isTyping])
 
   const handleSendMessage = async (content: string) => {
-    if (!content.trim()) return
+    if (!content.trim() || !selectedModel || isTyping) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -82,26 +93,67 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, currentScene, currentE
     setInputValue("")
     setIsTyping(true)
 
-    // Simulate AI response delay
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
-    const aiResponse: Message = {
-      id: (Date.now() + 1).toString(),
+    const aiMessageId = (Date.now() + 1).toString()
+    const aiResponseShell: Message = {
+      id: aiMessageId,
       type: "ai",
-      content: MOCK_RESPONSES[Math.floor(Math.random() * MOCK_RESPONSES.length)],
+      content: "",
       timestamp: new Date(),
-      suggestions:
-        Math.random() > 0.5
-          ? ["Try this alternative approach", "Consider this character angle", "Add this visual element"]
-          : undefined,
     }
+    setMessages((prev) => [...prev, aiResponseShell])
 
-    setMessages((prev) => [...prev, aiResponse])
-    setIsTyping(false)
+    try {
+      // --- 4. Use the new streaming service function ---
+      const stream = await streamChatCompletion({
+        prompt: content.trim(),
+        model: selectedModel,
+      })
+
+      if (!stream) throw new Error("Stream is null")
+
+      const reader = stream.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() || ""
+
+        for (const line of lines) {
+          if (line.trim() === "") continue
+          try {
+            const chunk = JSON.parse(line)
+            if (chunk.response) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === aiMessageId ? { ...msg, content: msg.content + chunk.response } : msg
+                )
+              )
+            }
+          } catch (error) {
+            console.error("Failed to parse stream chunk:", line, error)
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching AI response:", error)
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === aiMessageId ? { ...msg, content: "Sorry, I encountered an error." } : msg
+        )
+      )
+    } finally {
+      setIsTyping(false)
+    }
   }
 
   const handleQuickPrompt = (prompt: string) => {
-    handleSendMessage(prompt)
+    setInputValue(prompt)
+    inputRef.current?.focus()
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -113,11 +165,12 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, currentScene, currentE
 
   if (!isOpen) return null
 
+  // --- The JSX for the return() statement remains exactly the same ---
   return (
     <div className="w-80 border-l bg-background flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b bg-muted/30 flex-shrink-0">
-        <div className="flex items-center justify-between mb-2">
+      <div className="p-4 border-b bg-muted/30 flex-shrink-0 space-y-3">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="p-1.5 bg-primary/10 rounded-lg">
               <Bot className="h-4 w-4 text-primary" />
@@ -128,7 +181,23 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, currentScene, currentE
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">Get suggestions and improve your screenplay</p>
+
+        {/* Model Selector Dropdown */}
+        <div className="flex items-center gap-2">
+          <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+          <Select value={selectedModel} onValueChange={setSelectedModel} disabled={models.length === 0}>
+            <SelectTrigger className="w-full h-8 text-xs">
+              <SelectValue placeholder={models.length > 0 ? "Select a model..." : "Loading models..."} />
+            </SelectTrigger>
+            <SelectContent>
+              {models.map((model) => (
+                <SelectItem key={model} value={model} className="text-xs">
+                  {model}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Quick Prompts */}
@@ -138,7 +207,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, currentScene, currentE
           <span className="text-xs font-medium text-muted-foreground">Quick suggestions</span>
         </div>
         <div className="flex flex-wrap gap-1">
-          {QUICK_PROMPTS.slice(0, 3).map((prompt, index) => (
+          {QUICK_PROMPTS.map((prompt, index) => (
             <Button
               key={index}
               variant="outline"
@@ -180,23 +249,6 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, currentScene, currentE
                   </CardContent>
                 </Card>
 
-                {message.suggestions && (
-                  <div className="space-y-1">
-                    {message.suggestions.map((suggestion, index) => (
-                      <Button
-                        key={index}
-                        variant="ghost"
-                        size="sm"
-                        className="h-auto p-2 text-xs text-left justify-start w-full bg-muted/30 hover:bg-muted/50"
-                        onClick={() => handleSendMessage(suggestion)}
-                      >
-                        <ChevronRight className="h-3 w-3 mr-1 flex-shrink-0" />
-                        <span className="truncate">{suggestion}</span>
-                      </Button>
-                    ))}
-                  </div>
-                )}
-
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <span>{message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
@@ -212,7 +264,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, currentScene, currentE
             </div>
           ))}
 
-          {isTyping && (
+          {isTyping && messages[messages.length - 1]?.type === 'ai' && messages[messages.length - 1]?.content === '' && (
             <div className="flex gap-2 justify-start">
               <Avatar className="h-7 w-7 mt-1 flex-shrink-0">
                 <AvatarFallback className="bg-primary/10 text-primary">
@@ -236,7 +288,6 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, currentScene, currentE
                         style={{ animationDelay: "300ms" }}
                       />
                     </div>
-                    <span className="text-xs text-muted-foreground ml-2">AI is thinking...</span>
                   </div>
                 </CardContent>
               </Card>
@@ -255,12 +306,12 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, currentScene, currentE
             onKeyPress={handleKeyPress}
             placeholder="Ask for writing suggestions..."
             className="flex-1 text-sm bg-background"
-            disabled={isTyping}
+            disabled={isTyping || !selectedModel}
           />
           <Button
             size="icon"
             onClick={() => handleSendMessage(inputValue)}
-            disabled={!inputValue.trim() || isTyping}
+            disabled={!inputValue.trim() || isTyping || !selectedModel}
             className="h-9 w-9 flex-shrink-0"
           >
             <Send className="h-4 w-4" />

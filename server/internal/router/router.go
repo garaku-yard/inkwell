@@ -16,11 +16,15 @@ func NewRouter(
 	collaboratorHandler *handler.CollaboratorHandler,
 	laneHandler *handler.LaneHandler,
 	outlineItemHandler *handler.OutlineItemHandler,
+	aiHandler *handler.AIHandler,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/register", authHandler.Register)
 	mux.HandleFunc("/login", authHandler.Login)
+
+	mux.Handle("/api/ai/chat", middleware.AuthMiddleware(http.HandlerFunc(aiHandler.Chat)))
+	mux.Handle("/api/ai/models", middleware.AuthMiddleware(http.HandlerFunc(aiHandler.GetModels)))
 
 	mux.Handle("/acts", middleware.AuthMiddleware(screenplayHandler))
 	mux.Handle("/acts/", middleware.AuthMiddleware(screenplayHandler))

@@ -33,7 +33,6 @@ func (r *postgresBeatRepository) GetProjectIDForBeat(beatID string) (string, err
 	return projectID, err
 }
 
-// GetProjectIDForConnection finds the project associated with a connection.
 func (r *postgresBeatRepository) GetProjectIDForConnection(connID string) (string, error) {
 	var projectID string
 	err := r.db.QueryRow(`SELECT project_id FROM beat_connections WHERE connection_id = $1`, connID).Scan(&projectID)
@@ -47,7 +46,7 @@ func (r *postgresBeatRepository) GetBeatBoard(projectID string) (*entity.BeatBoa
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback() // Rollback on any error
+	defer tx.Rollback()
 
 	beats, err := r.getBeatsByProjectIDTx(tx, projectID)
 	if err != nil {
