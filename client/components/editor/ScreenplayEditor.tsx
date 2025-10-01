@@ -492,7 +492,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           <div className="flex items-center gap-2">
             <Button variant="outline" className="gap-2 bg-transparent" onClick={toggleAIChat}>
               <Bot className="h-4 w-4" />
-              AI Assistant
+              Writing Buddy
             </Button>
             <Button variant="outline" className="gap-2 bg-transparent">
               <Download className="h-4 w-4" />
