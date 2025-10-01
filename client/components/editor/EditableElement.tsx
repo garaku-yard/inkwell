@@ -65,9 +65,9 @@ export const EditableElement = React.memo(
           }}
           onKeyDown={(e) => onKeyDown(e, element.id, isScene, type)}
           dangerouslySetInnerHTML={{ __html: content }}
-          className="w-full h-full" // Ensure the inner div takes full space
+          className="w-full h-full"
         />
-        {unresolvedCommentsCount > 0 && ( // Show badge only if there are unresolved comments
+        {unresolvedCommentsCount > 0 && (
           <div className="absolute top-1 right-1 p-1 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs z-10">
             <MessageSquare className="h-3 w-3" />
             <span className="ml-1">{unresolvedCommentsCount}</span>

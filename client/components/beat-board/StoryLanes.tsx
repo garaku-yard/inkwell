@@ -18,6 +18,7 @@ interface StoryLanesProps {
   onLaneDragStart: (e: React.DragEvent, laneId: string) => void;
   onLaneDrop: (targetLaneId: string) => void;
   onLaneDragEnd: () => void;
+  onAddLane: () => void;
   beats: Beat[];
   outlineItems: OutlineItem[];
   hoveredLane: string | null;
@@ -27,9 +28,9 @@ interface StoryLanesProps {
   handleLaneDragStart: (e: React.DragEvent, itemId: string) => void;
   setDraggedLaneItem: (id: string | null) => void;
   onUpdateOutlineItem: (itemId: string, updates: Partial<OutlineItem>) => void;
-  onAddLane: () => void;
   scriptMarkers: ScriptMarker[];
   totalPages?: number;
+  onItemHover?: (beatId: string | null) => void;
 }
 
 export function StoryLanes({
@@ -37,7 +38,7 @@ export function StoryLanes({
   beats, outlineItems, hoveredLane, draggedLaneItem, setHoveredLane,
   handleDropOnTimeline, handleLaneDragStart, setDraggedLaneItem,
   onUpdateOutlineItem, totalPages = 120, scriptMarkers,
-  onAddLane
+  onAddLane, onItemHover
 }: StoryLanesProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
@@ -202,7 +203,15 @@ export function StoryLanes({
                       const position = item.timelinePosition || 0; const width = item.width || getPagePosition(5); const startPage = Math.max(1, Math.round(getPageFromPosition(position))); const endPage = Math.round(getPageFromPosition(position + width));
                       const isInteracting = resizingItem?.itemId === item.id || slidingItem?.itemId === item.id;
                       return (
-                        <div key={item.id} className={`absolute top-2 bottom-2 rounded border shadow-sm flex items-center text-xs font-medium transition-all group ${draggedLaneItem === item.id ? "opacity-30" : ""} ${isInteracting ? "ring-2 ring-blue-400 z-10" : ""}`} style={{ left: `${position}%`, width: `${width}%`, backgroundColor: beat.color, minWidth: "20px", cursor: isInteracting ? 'grabbing' : 'grab' }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.stopPropagation(); handleDropOnTimeline(e, item.laneId, item.id); }} onMouseDown={(e) => handleItemMouseDown(e, item.id)}>
+                        <div
+                          key={item.id}
+                          className={`absolute top-2 bottom-2 rounded border shadow-sm flex items-center text-xs font-medium transition-all group ${draggedLaneItem === item.id ? "opacity-30" : ""} ${isInteracting ? "ring-2 ring-blue-400 z-10" : ""}`} style={{ left: `${position}%`, width: `${width}%`, backgroundColor: beat.color, minWidth: "20px", cursor: isInteracting ? 'grabbing' : 'grab' }}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => { e.stopPropagation(); handleDropOnTimeline(e, item.laneId, item.id); }}
+                          onMouseDown={(e) => handleItemMouseDown(e, item.id)}
+                          onMouseEnter={() => onItemHover?.(beat.id)} // FIX: Call new prop with BEAT id
+                          onMouseLeave={() => onItemHover?.(null)}    // FIX: Call new prop
+                        >
                           <div draggable={true} onDragStart={(e) => { e.dataTransfer.setData("application/x-outline-item-id", item.id); e.dataTransfer.effectAllowed = "move"; handleLaneDragStart(e, item.id) }} onDragEnd={() => setDraggedLaneItem(null)} className="absolute left-1 top-1/2 -translate-y-1/2 p-0.5 cursor-move opacity-0 group-hover:opacity-60 hover:opacity-100 z-20" onMouseDown={(e) => e.stopPropagation()}> <GripVertical className="h-3 w-3" /> </div>
                           <div className="absolute left-0 top-0 bottom-0 w-2 opacity-0 group-hover:opacity-100 cursor-ew-resize z-20 hover:bg-black/10" onMouseDown={(e) => { e.stopPropagation(); handleItemMouseDown(e, item.id, "left"); }} />
                           <div className="px-2 text-center truncate ml-3"><div className="font-semibold">{beat.title}</div><div className="text-xs opacity-75">Pg. {startPage}-{endPage}</div></div>

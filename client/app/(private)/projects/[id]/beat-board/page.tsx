@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useDebouncedCallback } from "use-debounce"
-import { ArrowLeft, Plus, Loader2 } from "lucide-react"
+import { ArrowLeft, Plus, Loader2, LayoutGrid } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -321,6 +321,12 @@ export default function BeatBoardPage() {
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
             <Link href={`/projects/${projectId}/editor`}><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back to Editor</Button></Link>
+            <Link href={`/projects/${projectId}/outline-editor`}>
+              <Button variant="outline" size="sm">
+                <LayoutGrid className="h-4 w-4 mr-2" />
+                Go to Outline Editor
+              </Button>
+            </Link>
             <div className="h-6 w-px bg-gray-200" />
             <h1 className="text-xl font-semibold text-gray-900">{project?.projectName || 'Beat Board'}</h1>
           </div>
