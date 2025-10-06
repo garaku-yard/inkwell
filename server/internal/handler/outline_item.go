@@ -31,7 +31,6 @@ func (h *OutlineItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 
-	// Route: POST /outline-items
 	if len(pathParts) == 1 && pathParts[0] == "outline-items" {
 		if r.Method == http.MethodPost {
 			h.handleCreateOutlineItem(w, r, userID)
@@ -39,7 +38,6 @@ func (h *OutlineItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Route: PATCH or DELETE /outline-items/{id}
 	if len(pathParts) == 2 && pathParts[0] == "outline-items" {
 		itemID := pathParts[1]
 		switch r.Method {
@@ -54,8 +52,6 @@ func (h *OutlineItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
-// --- Handler Functions ---
-
 func (h *OutlineItemHandler) handleCreateOutlineItem(w http.ResponseWriter, r *http.Request, userID string) {
 	var newItem entity.OutlineItem
 	if err := json.NewDecoder(r.Body).Decode(&newItem); err != nil {
@@ -63,7 +59,6 @@ func (h *OutlineItemHandler) handleCreateOutlineItem(w http.ResponseWriter, r *h
 		return
 	}
 
-	// Security: Check ownership of the project the item is being added to
 	if err := h.checkOwnership(newItem.ProjectID, userID); err != nil {
 		h.handleError(w, err)
 		return

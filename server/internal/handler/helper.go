@@ -22,7 +22,6 @@ func HandleError(w http.ResponseWriter, err error) {
 	}
 }
 
-// CheckOwnership verifies if a user is either the owner or a collaborator on a project.
 func CheckOwnership(projectRepo repository.ProjectRepository, projectID, userID string) error {
 	project, err := projectRepo.GetByID(projectID)
 	if err != nil {
@@ -32,21 +31,18 @@ func CheckOwnership(projectRepo repository.ProjectRepository, projectID, userID 
 		return &HttpError{Message: `{"error": "Server error"}`, Code: http.StatusInternalServerError}
 	}
 
-	// Check 1: Is the user the direct owner?
 	if project.UserID == userID {
-		return nil // Access granted
+		return nil
 	}
 
-	// Check 2: If not the owner, are they a collaborator?
 	isCollab, err := projectRepo.IsCollaborator(projectID, userID)
 	if err != nil {
 		return &HttpError{Message: `{"error": "Server error"}`, Code: http.StatusInternalServerError}
 	}
 
 	if isCollab {
-		return nil // Access granted
+		return nil
 	}
 
-	// If neither, access is denied.
 	return &HttpError{Message: `{"error": "Forbidden"}`, Code: http.StatusForbidden}
 }

@@ -2,7 +2,7 @@ package entity
 
 type Beat struct {
 	ID           string `json:"id"`
-	ProjectID    string `json:"-"` // Ignored by JSON response, used internally
+	ProjectID    string `json:"-"`
 	Title        string `json:"title"`
 	Description  string `json:"description"`
 	SceneNumbers string `json:"sceneNumbers"`

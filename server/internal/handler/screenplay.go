@@ -31,7 +31,6 @@ func (h *ScreenplayHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 
-	// Route: /scenes/{sceneId}/elements
 	if len(pathParts) == 3 && pathParts[0] == "scenes" && pathParts[2] == "elements" {
 		if r.Method == http.MethodPost {
 			sceneID := pathParts[1]
@@ -40,7 +39,6 @@ func (h *ScreenplayHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Route: /acts/{actId}/scenes
 	if len(pathParts) == 3 && pathParts[0] == "acts" && pathParts[2] == "scenes" {
 		if r.Method == http.MethodPost {
 			actID := pathParts[1]
@@ -57,7 +55,6 @@ func (h *ScreenplayHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Route: /script-elements/{elementId}/comments
 	if len(pathParts) == 3 && pathParts[0] == "script-elements" && pathParts[2] == "comments" {
 		if r.Method == http.MethodPost {
 			elementID := pathParts[1]
@@ -78,7 +75,6 @@ func (h *ScreenplayHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Routes for a specific resource: /scenes/{id} or /script-elements/{id}
 	if len(pathParts) == 2 {
 		resourceType := pathParts[0]
 		resourceID := pathParts[1]
@@ -107,8 +103,6 @@ func (h *ScreenplayHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	http.NotFound(w, r)
 }
-
-// --- Handler Functions ---
 
 func (h *ScreenplayHandler) handleUpdateScene(w http.ResponseWriter, r *http.Request, sceneID, userID string) {
 	projectID, err := h.repo.GetProjectIDForScene(sceneID)
@@ -276,7 +270,6 @@ func (h *ScreenplayHandler) checkOwnership(projectID, userID string, errFromRepo
 		return &httpError{message: `{"error": "Project not found for resource"}`, code: http.StatusNotFound}
 	}
 	if project.UserID != userID {
-		// A more advanced check could look for collaborators here
 		return &httpError{message: `{"error": "Forbidden"}`, code: http.StatusForbidden}
 	}
 	return nil
@@ -310,11 +303,9 @@ func (h *ScreenplayHandler) handleCreateSceneComment(w http.ResponseWriter, r *h
 		return
 	}
 
-	// Get the user's name to return to the frontend
-	// In a real app, you might get this from the request context or another service
-	user, _ := h.projectRepo.GetByID(userID) // A bit of a hack to get user info, adjust as needed
+	user, _ := h.projectRepo.GetByID(userID)
 	if user != nil {
-		createdComment.UserName = user.ProjectName // Assuming name is stored here for now
+		createdComment.UserName = user.ProjectName
 	}
 
 	w.WriteHeader(http.StatusCreated)
@@ -382,7 +373,6 @@ func (h *ScreenplayHandler) handleUpdateComment(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// --- Handle updating the comment content (original logic) ---
 	if payload.Content != nil {
 		authorID, err := h.commentRepo.GetUserIDForComment(commentID)
 		if err != nil {
@@ -405,7 +395,6 @@ func (h *ScreenplayHandler) handleUpdateComment(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// If neither field was provided
 	http.Error(w, `{"error": "No updateable fields provided"}`, http.StatusBadRequest)
 }
 

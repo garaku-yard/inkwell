@@ -8,29 +8,24 @@ import (
 	"net/http"
 )
 
-// AIHandler will hold methods for AI-related requests
 type AIHandler struct{}
 
-// NewAIHandler creates a new AIHandler
 func NewAIHandler() *AIHandler {
 	return &AIHandler{}
 }
 
-// OllamaRequest represents the request body we'll send to Ollama
 type OllamaRequest struct {
 	Model  string `json:"model"`
 	Prompt string `json:"prompt"`
 	Stream bool   `json:"stream"`
 }
 
-// OllamaTagsResponse represents Ollama's response for the list of models
 type OllamaTagsResponse struct {
 	Models []struct {
 		Name string `json:"name"`
 	} `json:"models"`
 }
 
-// Chat handles the streaming chat request
 func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	var requestData struct {
 		Prompt string `json:"prompt"`
@@ -41,9 +36,21 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	systemPrompt := `You are a professional scriptwriting assistant. 
+		Your purpose is to help writers develop and refine scripts, whether for film, television, theater, or other media.
+
+		Behavior guidelines:
+		- Always begin by asking clarifying questions to fully understand the user’s goals, genre, audience, and constraints before giving suggestions.
+		- Maintain a professional, respectful, and collaborative tone at all times.
+		- Provide structured, actionable advice tailored to the user’s needs.
+		- Offer examples, formatting tips, and creative alternatives where relevant.
+		- If the request is ambiguous, ask for more detail rather than making assumptions.
+		- Stay focused on scriptwriting craft (plot, characters, dialogue, structure, pacing, themes).
+		- Avoid unnecessary filler; be clear, concise, and practical.`
+
 	ollamaReqPayload := OllamaRequest{
 		Model:  requestData.Model,
-		Prompt: requestData.Prompt,
+		Prompt: systemPrompt + "\n User Input: \n" + requestData.Prompt,
 		Stream: true,
 	}
 
@@ -96,7 +103,6 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetModels fetches and returns the list of available Ollama models
 func (h *AIHandler) GetModels(w http.ResponseWriter, r *http.Request) {
 	ollamaURL := "http://localhost:11434/api/tags"
 	resp, err := http.Get(ollamaURL)

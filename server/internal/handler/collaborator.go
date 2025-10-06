@@ -191,7 +191,6 @@ func (h *CollaboratorHandler) checkOwnership(projectID, userID string) error {
 	return nil
 }
 
-// checkCollaborationAccess confirms if a user is either the owner or an accepted collaborator.
 func (h *CollaboratorHandler) checkCollaborationAccess(projectID, userID string) error {
 	project, err := h.projectRepo.GetFullProjectByIDForUser(projectID, userID)
 	if err != nil {

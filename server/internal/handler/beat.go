@@ -66,7 +66,6 @@ func (h *BeatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Route: /connections/{id}
 	if len(pathParts) == 2 && pathParts[0] == "connections" {
 		if r.Method == http.MethodDelete {
 			connID := pathParts[1]
@@ -77,8 +76,6 @@ func (h *BeatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	http.NotFound(w, r)
 }
-
-// --- Handler Functions ---
 
 func (h *BeatHandler) handleGetBeatBoard(w http.ResponseWriter, _ *http.Request, projectID, userID string) {
 	if err := h.checkOwnership(projectID, userID); err != nil {
@@ -92,11 +89,6 @@ func (h *BeatHandler) handleGetBeatBoard(w http.ResponseWriter, _ *http.Request,
 		http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
 		return
 	}
-
-	// --- ADD THIS LOGGING BLOCK ---
-	log.Printf("SUCCESS: Fetched %d beats and %d connections for project %s.", len(data.Beats), len(data.Connections), projectID)
-	// This will confirm that the database query worked and we are about to send the JSON response.
-	// --- END LOGGING BLOCK ---
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
@@ -159,7 +151,6 @@ func (h *BeatHandler) handleDeleteBeat(w http.ResponseWriter, _ *http.Request, b
 	projectID, err := h.repo.GetProjectIDForBeat(beatID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// If beat doesn't exist, it's effectively deleted. Return success.
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]string{"message": "Beat not found, considered deleted"})
 			return

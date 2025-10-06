@@ -31,7 +31,6 @@ func (h *LaneHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 
-	// Route: PATCH /lanes/{id} - For updating a lane's details (e.g., name)
 	if len(pathParts) == 2 && pathParts[0] == "lanes" {
 		if r.Method == http.MethodPatch {
 			laneID := pathParts[1]
@@ -46,7 +45,6 @@ func (h *LaneHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Route: PATCH /projects/{id}/lanes/order - For reordering all lanes in a project
 	if len(pathParts) == 4 && pathParts[0] == "projects" && pathParts[2] == "lanes" && pathParts[3] == "order" {
 		if r.Method == http.MethodPatch {
 			projectID := pathParts[1]
@@ -58,11 +56,7 @@ func (h *LaneHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
-// --- Handler Functions ---
-
-// handleUpdateLane handles requests to change a lane's properties, like its name.
 func (h *LaneHandler) handleUpdateLane(w http.ResponseWriter, r *http.Request, laneID, userID string) {
-	// Security: First get the projectID associated with the lane
 	projectID, err := h.repo.GetProjectIDForLane(laneID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -96,7 +90,6 @@ func (h *LaneHandler) handleUpdateLane(w http.ResponseWriter, r *http.Request, l
 }
 
 func (h *LaneHandler) handleCreateLane(w http.ResponseWriter, r *http.Request, projectID, userID string) {
-	// Security: Check if the user has access to this project
 	if err := CheckOwnership(h.projectRepo, projectID, userID); err != nil {
 		HandleError(w, err)
 		return
@@ -108,7 +101,6 @@ func (h *LaneHandler) handleCreateLane(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 
-	// Set the project ID from the URL path
 	newLane.ProjectID = projectID
 
 	createdLane, err := h.repo.CreateLane(&newLane)
@@ -122,14 +114,11 @@ func (h *LaneHandler) handleCreateLane(w http.ResponseWriter, r *http.Request, p
 	json.NewEncoder(w).Encode(createdLane)
 }
 
-// reorderLanesPayload defines the expected JSON structure for the reordering request.
 type reorderLanesPayload struct {
 	OrderedIDs []string `json:"orderedIds"`
 }
 
-// handleUpdateLaneOrder handles requests to save the new vertical order of lanes.
 func (h *LaneHandler) handleUpdateLaneOrder(w http.ResponseWriter, r *http.Request, projectID, userID string) {
-	// Security: Check if the user owns the project before performing the action
 	if err := CheckOwnership(h.projectRepo, projectID, userID); err != nil {
 		HandleError(w, err)
 		return

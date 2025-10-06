@@ -36,33 +36,30 @@ func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 
 	if len(pathParts) > 0 && pathParts[0] == "projects" {
-		// Handle routes like /projects/{id}/collaborators
 		if len(pathParts) >= 3 && pathParts[2] == "collaborators" {
 			projectID := pathParts[1]
-		
+
 			switch {
 			case len(pathParts) == 3 && r.Method == http.MethodPost:
 				h.handleAddCollaborator(w, r, projectID, userID)
 				return
-		
+
 			case len(pathParts) == 3 && r.Method == http.MethodGet:
 				h.handleListCollaborators(w, projectID, userID)
 				return
-		
+
 			case len(pathParts) == 4 && r.Method == http.MethodPatch:
 				collaboratorID := pathParts[3]
 				h.handleUpdateCollaboratorRole(w, r, projectID, collaboratorID, userID)
 				return
-		
+
 			case len(pathParts) == 4 && r.Method == http.MethodDelete:
 				collaboratorID := pathParts[3]
 				h.handleRemoveCollaborator(w, projectID, collaboratorID, userID)
 				return
 			}
 		}
-		
 
-		// Handle routes for the main projects collection: /projects
 		if len(pathParts) == 1 {
 			switch r.Method {
 			case http.MethodGet:
@@ -75,7 +72,6 @@ func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Handle routes for a specific project: /projects/{id}
 		if len(pathParts) == 2 {
 			projectID := pathParts[1]
 			switch r.Method {
@@ -94,11 +90,8 @@ func (h *ProjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// If no route matches, return a 404
 	http.NotFound(w, r)
 }
-
-// --- Handler Functions ---
 
 func (h *ProjectHandler) handleGetFullProject(w http.ResponseWriter, _ *http.Request, projectID, userID string) {
 	project, err := h.repo.GetFullProjectByIDForUser(projectID, userID)
@@ -138,13 +131,10 @@ func (h *ProjectHandler) handleCreateProject(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// --- NEW VALIDATION STEP ---
-	// Trim whitespace and check if the project name is empty.
 	if strings.TrimSpace(reqBody.ProjectName) == "" {
 		http.Error(w, `{"error": "Project name cannot be empty"}`, http.StatusBadRequest)
 		return
 	}
-	// --- END VALIDATION ---
 
 	project := &entity.Project{
 		UserID:      userID,
@@ -233,7 +223,6 @@ func (h *ProjectHandler) handleStarProject(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(updatedProject)
 }
 
-// handleError is a small helper to reduce code duplication in error handling.
 func (h *ProjectHandler) handleError(w http.ResponseWriter, err error) {
 	if httpErr, ok := err.(*httpError); ok {
 		http.Error(w, httpErr.message, httpErr.code)
@@ -242,7 +231,6 @@ func (h *ProjectHandler) handleError(w http.ResponseWriter, err error) {
 	}
 }
 
-// checkOwnership is a helper method to ensure a user can only modify their own projects.
 func (h *ProjectHandler) checkOwnership(projectID, userID string) error {
 	project, err := h.repo.GetByID(projectID)
 	if err != nil {
@@ -259,13 +247,11 @@ func (h *ProjectHandler) checkOwnership(projectID, userID string) error {
 }
 
 func (h *ProjectHandler) handleAddCollaborator(w http.ResponseWriter, r *http.Request, projectID, ownerUserID string) {
-	// Check ownership
 	if err := h.checkOwnership(projectID, ownerUserID); err != nil {
 		h.handleError(w, err)
 		return
 	}
 
-	// Parse and decode request
 	var reqBody struct {
 		UsernameWithTag string `json:"usernameWithTag"`
 		Role            string `json:"role"`
@@ -276,7 +262,6 @@ func (h *ProjectHandler) handleAddCollaborator(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Validate and parse username#tag
 	parts := strings.Split(reqBody.UsernameWithTag, "#")
 	if len(parts) != 2 {
 		http.Error(w, `{"error": "Invalid username format. Expected 'username#tag'"}`, http.StatusBadRequest)
@@ -284,7 +269,6 @@ func (h *ProjectHandler) handleAddCollaborator(w http.ResponseWriter, r *http.Re
 	}
 	username, tag := parts[0], parts[1]
 
-	// Lookup user
 	userToAdd, err := h.userRepo.GetByUsernameAndTag(username, tag)
 	if err != nil {
 		log.Printf("DB ERROR: Failed to look up user %s#%s: %v", username, tag, err)
@@ -296,13 +280,12 @@ func (h *ProjectHandler) handleAddCollaborator(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Validate and normalize role
 	validRoles := map[string]entity.CollaboratorRole{
 		"REVIEWER": entity.Reviewer,
 		"EDITOR":   entity.Editor,
 		"WRITER":   entity.Writer,
 	}
-	
+
 	roleUpper := strings.ToUpper(reqBody.Role)
 	roleEnum, ok := validRoles[roleUpper]
 	if !ok {
@@ -310,10 +293,7 @@ func (h *ProjectHandler) handleAddCollaborator(w http.ResponseWriter, r *http.Re
 		http.Error(w, `{"error": "Invalid collaborator role"}`, http.StatusBadRequest)
 		return
 	}
-	
-	
 
-	// Prepare collaborator insert
 	log.Printf("Adding collaborator: userID=%s, projectID=%s, role=%s", userToAdd.ID, projectID, roleEnum)
 	err = h.collabRepo.Add(projectID, userToAdd.ID, roleEnum)
 	if err != nil {
@@ -326,14 +306,11 @@ func (h *ProjectHandler) handleAddCollaborator(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Respond with success
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Collaborator added successfully"})
 }
 
-
 func (h *ProjectHandler) handleListCollaborators(w http.ResponseWriter, projectID, userID string) {
-	// Ensure owner or collaborator access
 	if err := h.checkOwnership(projectID, userID); err != nil {
 		// TODO: optionally allow collaborators to list others
 		h.handleError(w, err)
@@ -351,7 +328,6 @@ func (h *ProjectHandler) handleListCollaborators(w http.ResponseWriter, projectI
 }
 
 func (h *ProjectHandler) handleUpdateCollaboratorRole(w http.ResponseWriter, r *http.Request, projectID, collaboratorID, userID string) {
-	// Only owner can update roles
 	if err := h.checkOwnership(projectID, userID); err != nil {
 		h.handleError(w, err)
 		return
@@ -390,7 +366,6 @@ func (h *ProjectHandler) handleUpdateCollaboratorRole(w http.ResponseWriter, r *
 }
 
 func (h *ProjectHandler) handleRemoveCollaborator(w http.ResponseWriter, projectID, collaboratorID, userID string) {
-	// Only owner can remove collaborators
 	if err := h.checkOwnership(projectID, userID); err != nil {
 		h.handleError(w, err)
 		return
@@ -406,15 +381,7 @@ func (h *ProjectHandler) handleRemoveCollaborator(w http.ResponseWriter, project
 	w.WriteHeader(http.StatusNoContent)
 }
 
-
-
-
-// httpError is a helper struct for custom errors.
 type httpError struct {
 	message string
 	code    int
 }
-
-// func (e *httpError) Error() string {
-// 	return e.message
-// }

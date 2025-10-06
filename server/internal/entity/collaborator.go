@@ -18,14 +18,13 @@ type ProjectCollaborator struct {
 	UsernameWithTag string           `json:"usernameWithTag"`
 	Avatar          *string          `json:"avatar,omitempty"`
 	Role            CollaboratorRole `json:"role"`
-	Status          bool             `json:"status"` // false (pending) or true (accepted)
+	Status          bool             `json:"status"`
 	JoinedAt        string           `json:"joinedAt"`
 }
 
-// Invitation represents a pending invite from the perspective of the invited user.
 type Invitation struct {
 	ProjectID   string    `json:"projectId"`
 	ProjectName string    `json:"projectName"`
-	InvitedBy   string    `json:"invitedBy"` // Name of the project owner
+	InvitedBy   string    `json:"invitedBy"`
 	InvitedAt   time.Time `json:"createdAt"`
 }
