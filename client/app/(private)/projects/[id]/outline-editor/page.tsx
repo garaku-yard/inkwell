@@ -21,9 +21,11 @@ export interface StructureElement {
   color: string;
   startPage: number;
   endPage: number;
+  type: string; // <-- Confirms 'type' is required
   children: StructureElement[];
   laneId?: string;
   laneLevel?: number;
+  outlineId?: string; // <-- Adds the property needed in OutlineTimeline.tsx
 }
 
 const parsePageRange = (sceneNumbers: string): { start: number; end: number } | null => {
@@ -89,6 +91,8 @@ export default function OutlineEditorPage() {
         laneId: item.laneId,
         laneLevel: laneOrderMap.get(item.laneId) ?? -1,
         children: [],
+        type: 'BEAT', // <--- ADDED: Fixes the 'type is missing' error
+        outlineId: item.id,
       };
     }).filter(item => (item.laneLevel ?? -1) !== -1 && item.startPage > 0).sort((a, b) => a.startPage - b.startPage);
 

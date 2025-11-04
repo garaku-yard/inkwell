@@ -263,11 +263,11 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <Image
               src="/scriptalith.png"
-              alt="Scriptalith Logo"
+              alt="Scriptlith Logo"
               width={40}
               height={40}
             />
-            <h1 className="text-xl font-bold">Scriptalith</h1>
+            <h1 className="text-xl font-bold">Scriptlith</h1>
           </div>
           <div className="flex items-center gap-2">
             {isAuthenticated ? (

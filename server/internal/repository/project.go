@@ -244,8 +244,47 @@ func (r *postgresProjectRepository) GetByName(userID string, name string) (*enti
 }
 
 func (r *postgresProjectRepository) Create(project *entity.Project) error {
-	query := `INSERT INTO projects (user_id, project_name, description) VALUES ($1, $2, $3) RETURNING project_id, is_starred, created_at, updated_at`
-	return r.db.QueryRow(query, project.UserID, project.ProjectName, project.Description).Scan(&project.ID, &project.IsStarred, &project.CreatedAt, &project.UpdatedAt)
+	// Start a transaction to ensure both project and the default Act are created atomically
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. Insert the new project and retrieve generated fields
+	projectQuery := `
+		INSERT INTO projects (user_id, project_name, description) 
+		VALUES ($1, $2, $3) 
+		RETURNING project_id, is_starred, created_at, updated_at`
+
+	err = tx.QueryRow(
+		projectQuery,
+		project.UserID,
+		project.ProjectName,
+		project.Description,
+	).Scan(
+		&project.ID,
+		&project.IsStarred,
+		&project.CreatedAt,
+		&project.UpdatedAt,
+	)
+	if err != nil {
+		return err
+	}
+
+	// 2. Insert the default "Act I"
+	actQuery := `
+		INSERT INTO acts (project_id, act_number, title) 
+		VALUES ($1, $2, $3)`
+
+	// Default Act is number 1 and titled "Act I"
+	_, err = tx.Exec(actQuery, project.ID, 1, "Act I")
+	if err != nil {
+		return err
+	}
+
+	// 3. Commit the transaction
+	return tx.Commit()
 }
 
 func (r *postgresProjectRepository) Update(project *entity.Project) (*entity.Project, error) {
