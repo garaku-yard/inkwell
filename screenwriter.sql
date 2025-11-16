@@ -177,8 +177,8 @@ CREATE TABLE public.project_collaborators (
     user_id uuid NOT NULL,
     role character varying(50) DEFAULT 'Editor'::character varying NOT NULL,
     status boolean,
-    created_at date,
-    updated_at date
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 
 
@@ -269,7 +269,6 @@ e80c86f4-5603-40d7-b871-b229ae8af200	979832c1-e4d9-46d4-9dcd-2d34e12a86db	1	Act 
 --
 
 COPY public.beat_connections (connection_id, project_id, from_beat_id, to_beat_id, from_side, to_side) FROM stdin;
-afa1ab4c-0de8-467b-b048-969f7666a28d	96db33bf-d5d9-4f55-9e2e-dea866374a22	51cab12d-dbd9-4abb-b9fd-ffe584b47ba0	f41d4979-573c-4c14-85c1-7f8b7aeed1dc	left	top
 \.
 
 
@@ -278,12 +277,12 @@ afa1ab4c-0de8-467b-b048-969f7666a28d	96db33bf-d5d9-4f55-9e2e-dea866374a22	51cab1
 --
 
 COPY public.beats (beat_id, project_id, title, description, scene_numbers, color, position_x, position_y, width, height, act_number, beat_order) FROM stdin;
-f41d4979-573c-4c14-85c1-7f8b7aeed1dc	96db33bf-d5d9-4f55-9e2e-dea866374a22	A test beat	Describe what happens...	Pg.20-25	#fef3c7	580	280	288	192	0	0
-51cab12d-dbd9-4abb-b9fd-ffe584b47ba0	96db33bf-d5d9-4f55-9e2e-dea866374a22	First Beat E	This is my first beat	Pg.1-5	#fee2e2	1120	60	260	160	2	1
-a2385527-8fcb-4366-8b50-9ff797be21cc	96db33bf-d5d9-4f55-9e2e-dea866374a22	A test beat	This is just a test beat	Pg X-Y	#dcfce7	180	140	200	160	1	0
-8ffca21d-5f11-4ebb-a100-11ef782f9629	96db33bf-d5d9-4f55-9e2e-dea866374a22	This is the second beat	This is my second beaaat	Pg.1-5	#fce7f3	440	60	200	160	1	3
-11830ebe-eaba-4aa3-90df-cb707a34ff86	96db33bf-d5d9-4f55-9e2e-dea866374a22	Coffe Shop	They go to coffee shop	Pg X-Y	#ecfdf5	1460	20	288	192	1	4
-3d884df6-e56d-422a-86f5-ddb511bce2de	96db33bf-d5d9-4f55-9e2e-dea866374a22	Act 3	shkjsdf	Pg X-Y	#f1f5f9	1320	320	240	160	1	1
+3d884df6-e56d-422a-86f5-ddb511bce2de	96db33bf-d5d9-4f55-9e2e-dea866374a22	Second Lane	shkjsdf	Pg X-Y	#f1f5f9	1360	280	240	160	1	1
+11830ebe-eaba-4aa3-90df-cb707a34ff86	96db33bf-d5d9-4f55-9e2e-dea866374a22	Coffe Shop	They go to coffee shop	Pg X-Y	#ecfdf5	1440	60	288	192	1	4
+f41d4979-573c-4c14-85c1-7f8b7aeed1dc	96db33bf-d5d9-4f55-9e2e-dea866374a22	Second Lane	Describe what happens...	Pg.20-25	#fef3c7	380	20	288	192	0	0
+8ffca21d-5f11-4ebb-a100-11ef782f9629	96db33bf-d5d9-4f55-9e2e-dea866374a22	This is the second beat	This is my second beaaat	Pg.1-5	#fce7f3	120	320	380	180	1	3
+51cab12d-dbd9-4abb-b9fd-ffe584b47ba0	96db33bf-d5d9-4f55-9e2e-dea866374a22	First Beat E	This is my first beat	Pg.1-5	#fee2e2	840	60	260	160	2	1
+a2385527-8fcb-4366-8b50-9ff797be21cc	96db33bf-d5d9-4f55-9e2e-dea866374a22	First Lane	This is just a test beat	Pg X-Y	#dcfce7	40	40	260	200	1	0
 0a42c77a-1eec-408c-892b-86abaefd98af	96db33bf-d5d9-4f55-9e2e-dea866374a22	New Beat	This is a new beat	Pg X-Y	#dcfce7	960	320	288	192	1	2
 \.
 
@@ -319,6 +318,10 @@ ee44d07a-ed70-42a6-a795-7e49242f169b	\N	492dd000-65cb-4724-bc74-292f79fe2d7a	New
 --
 
 COPY public.lanes (lane_id, project_id, name, color, lane_order) FROM stdin;
+9c39fa50-ae5d-47ae-9cff-1624e2a56ec5	96db33bf-d5d9-4f55-9e2e-dea866374a22	Main	#e5e7eb	0
+94ed31c3-61b1-442e-b000-9f11cc84e880	96db33bf-d5d9-4f55-9e2e-dea866374a22	Sub Plot	#e5e7eb	1
+37efdc97-2916-41d1-9a62-d583fa1d78a2	96db33bf-d5d9-4f55-9e2e-dea866374a22	Newww	#e5e7eb	2
+35089f56-49e4-45b7-98e8-e06751a3848b	96db33bf-d5d9-4f55-9e2e-dea866374a22	New Lane	#e5e7eb	3
 \.
 
 
@@ -327,6 +330,12 @@ COPY public.lanes (lane_id, project_id, name, color, lane_order) FROM stdin;
 --
 
 COPY public.outline_items (outline_item_id, project_id, beat_id, lane_id, item_order, timeline_position, width) FROM stdin;
+0ffba08e-89c3-4eab-b4ad-00f4b89703cf	96db33bf-d5d9-4f55-9e2e-dea866374a22	51cab12d-dbd9-4abb-b9fd-ffe584b47ba0	9c39fa50-ae5d-47ae-9cff-1624e2a56ec5	1	17.604166666666668	34.166666666666664
+da107b55-1bb2-4ef1-b8e7-84c270d07b95	96db33bf-d5d9-4f55-9e2e-dea866374a22	3d884df6-e56d-422a-86f5-ddb511bce2de	94ed31c3-61b1-442e-b000-9f11cc84e880	1	16.979166666666668	8.041666666666664
+5c77d24a-5837-4249-b23a-f84309946cef	96db33bf-d5d9-4f55-9e2e-dea866374a22	f41d4979-573c-4c14-85c1-7f8b7aeed1dc	94ed31c3-61b1-442e-b000-9f11cc84e880	2	8.645833333333334	7.9375000000000036
+eda2c6ec-fea6-44bc-bb46-1f353f604708	96db33bf-d5d9-4f55-9e2e-dea866374a22	0a42c77a-1eec-408c-892b-86abaefd98af	37efdc97-2916-41d1-9a62-d583fa1d78a2	0	21.145833333333332	15.208333333333332
+cb41a97b-e7cf-4230-8cf2-a83a6bb457ee	96db33bf-d5d9-4f55-9e2e-dea866374a22	a2385527-8fcb-4366-8b50-9ff797be21cc	9c39fa50-ae5d-47ae-9cff-1624e2a56ec5	0	0	17.083333333333332
+c3fe71cb-d561-49ab-8cff-eb1e604417ef	96db33bf-d5d9-4f55-9e2e-dea866374a22	f41d4979-573c-4c14-85c1-7f8b7aeed1dc	94ed31c3-61b1-442e-b000-9f11cc84e880	0	0	8.125
 \.
 
 
@@ -335,9 +344,9 @@ COPY public.outline_items (outline_item_id, project_id, beat_id, lane_id, item_o
 --
 
 COPY public.project_collaborators (project_id, user_id, role, status, created_at, updated_at) FROM stdin;
-89ed34be-c65c-45f4-9ef2-205a45feaffb	4c962283-396e-4c35-b5bc-4f69fd2e2b9f	Editor	t	2025-06-29	2025-09-03
-5e7e90f3-a03d-4160-a408-a4ac5cf5694c	492dd000-65cb-4724-bc74-292f79fe2d7a	Editor	t	2025-06-29	2025-09-04
-2558401d-7b8c-4c09-a9de-316b2e5b1547	492dd000-65cb-4724-bc74-292f79fe2d7a	REVIEWER	t	2025-06-29	2025-09-04
+89ed34be-c65c-45f4-9ef2-205a45feaffb	4c962283-396e-4c35-b5bc-4f69fd2e2b9f	Editor	t	2025-06-29 00:00:00+00	2025-09-03 00:00:00+00
+5e7e90f3-a03d-4160-a408-a4ac5cf5694c	492dd000-65cb-4724-bc74-292f79fe2d7a	Editor	t	2025-06-29 00:00:00+00	2025-09-04 00:00:00+00
+2558401d-7b8c-4c09-a9de-316b2e5b1547	492dd000-65cb-4724-bc74-292f79fe2d7a	REVIEWER	t	2025-06-29 00:00:00+00	2025-09-04 00:00:00+00
 \.
 
 
@@ -354,6 +363,7 @@ COPY public.projects (project_id, user_id, project_name, description, is_starred
 75c73463-a957-4665-8144-71aefa8fb27b	4c962283-396e-4c35-b5bc-4f69fd2e2b9f	Koffee	Documentary	f	2025-08-24 18:57:48.087816+00	2025-08-24 18:59:20.286626+00
 2219b912-4924-4d2b-9d35-9b8704339114	492dd000-65cb-4724-bc74-292f79fe2d7a	Project 	TV Pilot	t	2025-07-17 16:29:02.479511+00	2025-09-04 19:10:23.846018+00
 96db33bf-d5d9-4f55-9e2e-dea866374a22	492dd000-65cb-4724-bc74-292f79fe2d7a	Midnight Star	Documentary	t	2025-06-29 10:45:43.382653+00	2025-09-04 20:10:17.538215+00
+bb573b50-aed2-4124-936c-25e591321e6e	a92baccc-49bd-44c4-a9f7-88f38a6fce94	AITest	Feature Film	f	2025-10-01 17:08:45.473935+00	2025-10-01 17:08:45.473935+00
 \.
 
 
@@ -362,11 +372,11 @@ COPY public.projects (project_id, user_id, project_name, description, is_starred
 --
 
 COPY public.scenes (scene_id, act_id, scene_number, setting, created_at, updated_at, project_id) FROM stdin;
+e9edd0a0-42b2-4a7d-9310-b0df62877b22	5ed33dc0-cfce-40fa-82f1-619c47a2f2ed	2	INT. OFFICE - LATER	2025-07-01 14:27:11.446336+00	2025-07-01 14:27:11.446336+00	96db33bf-d5d9-4f55-9e2e-dea866374a22
+589e7585-3a30-46dc-92e2-bb5b2926639d	5ed33dc0-cfce-40fa-82f1-619c47a2f2ed	1	INT. COFFEE SHOP - DAY	2025-07-01 14:27:11.446336+00	2025-07-01 14:27:11.446336+00	96db33bf-d5d9-4f55-9e2e-dea866374a22
 53e0317b-e92e-4722-9afb-4fd5ea626ca7	5ed33dc0-cfce-40fa-82f1-619c47a2f2ed	4	INT - ROOM - DAY	2025-07-27 14:54:39.441763+00	2025-07-27 14:54:39.441763+00	96db33bf-d5d9-4f55-9e2e-dea866374a22
 fe0ba54f-95a8-4e1a-a21c-9383e8abdaf4	5ed33dc0-cfce-40fa-82f1-619c47a2f2ed	3	int - office - night	2025-07-26 19:43:12.808328+00	2025-07-26 19:43:12.808328+00	96db33bf-d5d9-4f55-9e2e-dea866374a22
 e08f82cf-862d-4e72-8cc9-b10f9ef9edcf	0eff75b2-bb27-47f5-926c-24ce5cebc4b5	1	int. scene - later	2025-09-03 14:29:02.404166+00	2025-09-03 14:29:02.404166+00	2219b912-4924-4d2b-9d35-9b8704339114
-e9edd0a0-42b2-4a7d-9310-b0df62877b22	5ed33dc0-cfce-40fa-82f1-619c47a2f2ed	2	INT. OFFICE - LATER	2025-07-01 14:27:11.446336+00	2025-07-01 14:27:11.446336+00	96db33bf-d5d9-4f55-9e2e-dea866374a22
-589e7585-3a30-46dc-92e2-bb5b2926639d	5ed33dc0-cfce-40fa-82f1-619c47a2f2ed	1	INT. COFFEE SHOP - DAY	2025-07-01 14:27:11.446336+00	2025-07-01 14:27:11.446336+00	96db33bf-d5d9-4f55-9e2e-dea866374a22
 8bd3a709-1910-4869-84e7-0b4bbc341c1f	e80c86f4-5603-40d7-b871-b229ae8af200	1	INT. COFFEE SHOP - DAY	2025-09-03 13:16:31.163836+00	2025-09-03 13:16:31.163836+00	979832c1-e4d9-46d4-9dcd-2d34e12a86db
 \.
 
@@ -378,39 +388,47 @@ e9edd0a0-42b2-4a7d-9310-b0df62877b22	5ed33dc0-cfce-40fa-82f1-619c47a2f2ed	2	INT.
 COPY public.script_elements (element_id, scene_id, element_order, element_type, content, character_id) FROM stdin;
 f8f21e73-c035-4eb8-b7eb-edbca94af102	589e7585-3a30-46dc-92e2-bb5b2926639d	7	TRANSITION	CUT TO:	\N
 69eb0c59-fefa-4565-bf33-30affa5522ab	fe0ba54f-95a8-4e1a-a21c-9383e8abdaf4	3	DIALOG	This is the dialog of Jane&nbsp;	\N
+d67d483b-dc14-48bd-9e52-eecf90e2e14e	53e0317b-e92e-4722-9afb-4fd5ea626ca7	6	DIALOG	This is puhizas dialog	\N
 adb39bb7-f964-4570-ae68-0e423e91907d	e9edd0a0-42b2-4a7d-9310-b0df62877b22	5	CHARACTER	JANE	98c7fb3d-a642-4529-acae-a333449370cf
 32097e7e-b55f-4d26-9562-a9a91a6b96f0	e9edd0a0-42b2-4a7d-9310-b0df62877b22	4	DIALOG	You're late. You're so late.	\N
 bfdd5ca0-45b7-42d7-8bae-38fd53dd842b	e9edd0a0-42b2-4a7d-9310-b0df62877b22	7	DIALOG	Only fashionably. Did you get it?	98c7fb3d-a642-4529-acae-a333449370cf
 65e4e071-c11e-4572-b33d-153f0c0c36d7	53e0317b-e92e-4722-9afb-4fd5ea626ca7	3	DIALOG	DIALOG	\N
-0b50eb91-27c4-4034-a800-f21bf54be227	589e7585-3a30-46dc-92e2-bb5b2926639d	2	ACTION	JANE strides purposefully through the crowd, phone pressed to her ear.	\N
+b65943d5-9a4c-4867-aac5-c92c5094696d	53e0317b-e92e-4722-9afb-4fd5ea626ca7	5	CHARACTER	PUHIZA	\N
 b954c0e9-0e97-4ba5-b1b9-cb442abec5b6	e9edd0a0-42b2-4a7d-9310-b0df62877b22	2	ACTION	The door opens. Jane enters, composed as ever.	\N
 8293ca24-e85d-4aad-ae11-7831f8d0c869	e9edd0a0-42b2-4a7d-9310-b0df62877b22	10	PARENTHETICAL	(this is a parathentical)	\N
-f0ab26fb-e2e7-4167-990e-44dfdff10008	589e7585-3a30-46dc-92e2-bb5b2926639d	9	ACTION	This is another action	\N
 53deb28f-6429-4633-b4bf-0c6915094071	e9edd0a0-42b2-4a7d-9310-b0df62877b22	11	DIALOG	THis is a dialog	\N
 4d6de19e-3926-49a7-9fa3-0a17b3cde0a6	e9edd0a0-42b2-4a7d-9310-b0df62877b22	6	ACTION	Another act is here. Here is something	\N
-f61450e2-8038-47c2-a37d-d7ccff7f2774	e9edd0a0-42b2-4a7d-9310-b0df62877b22	1	ACTION	A sterile, modern office. MARK (40s, anxious) paces by a large window overlooking the city. The city	\N
 e4667fcf-109d-473d-a1f7-5c9611620831	e9edd0a0-42b2-4a7d-9310-b0df62877b22	12	CHARACTER	NAME	\N
 15de42b7-133e-43c6-9ae1-6fe2addc2001	e9edd0a0-42b2-4a7d-9310-b0df62877b22	15	ACTION	THIS IS AN Aactionnnn	\N
+d107a57a-b626-470c-b779-485e073a96f2	53e0317b-e92e-4722-9afb-4fd5ea626ca7	7	ACTION	THIS IS THE ACTION	\N
 6e10d0bc-235d-4317-8312-cf4474e6b67e	e9edd0a0-42b2-4a7d-9310-b0df62877b22	17	ACTION	This is another action element	\N
 41b1cc09-378a-42f7-9b9d-8b6a44c7b82c	e9edd0a0-42b2-4a7d-9310-b0df62877b22	14	ACTION	This is another action	\N
 ed3a855f-5e9c-4121-964c-3b2868879516	e9edd0a0-42b2-4a7d-9310-b0df62877b22	13	DIALOG	THIS IS A DIALOG	\N
-8f6ace0c-ccac-4e9b-92ce-7579ce06bc59	e9edd0a0-42b2-4a7d-9310-b0df62877b22	18	ACTION		\N
 39fb1bb8-f9c5-4def-a2a2-7ad5fd7e0c49	e9edd0a0-42b2-4a7d-9310-b0df62877b22	9	CHARACTER	JANE	\N
-fb9be7aa-360b-4be3-97e9-4019fdd44071	589e7585-3a30-46dc-92e2-bb5b2926639d	6	ACTION	She hangs up and quickens her pace, disappearing into the throng. Hello there this is a dialog just to see how this&nbsp;	\N
-bc9d0d2f-b532-4b18-9d5b-f8a16235f41d	589e7585-3a30-46dc-92e2-bb5b2926639d	3	CHARACTER	JANE	98c7fb3d-a642-4529-acae-a333449370cf
-a25819f4-55b6-40da-97c8-34f6eb6ded0d	589e7585-3a30-46dc-92e2-bb5b2926639d	10	ACTION	This is another actionm&nbsp;	\N
+f62e179d-d77f-42f1-ba53-cfe0da761b1d	53e0317b-e92e-4722-9afb-4fd5ea626ca7	2	ACTION	Hello, how are you&nbsp;	\N
+8672d832-0b9f-45de-aada-50007170555b	53e0317b-e92e-4722-9afb-4fd5ea626ca7	10	ACTION	I am writeing	\N
+41123a86-3a5a-46a2-93bd-a3ad0985a1d2	53e0317b-e92e-4722-9afb-4fd5ea626ca7	11	ACTION		\N
 85dd526e-4879-4615-8060-ed24fa3310ea	589e7585-3a30-46dc-92e2-bb5b2926639d	5	DIALOG	I'll be there in five minutes. Don't start without me.	98c7fb3d-a642-4529-acae-a333449370cf
-8a801217-e7d4-4482-9dce-3d617a2eba49	589e7585-3a30-46dc-92e2-bb5b2926639d	1	ACTION	A busy downtown street. People hurry past each other, lost in their own worlds.	\N
+7bf99b15-dbfc-4df1-9bdb-636ec5f7d2e2	53e0317b-e92e-4722-9afb-4fd5ea626ca7	12	CHARACTER	char	\N
+164e9cf0-8fe6-4b65-8fc1-711c80d0a1c9	53e0317b-e92e-4722-9afb-4fd5ea626ca7	14	ACTION	jksaldkjas	\N
 9fc28fe9-9aa8-4ba9-a8d9-e28d39848a8e	e9edd0a0-42b2-4a7d-9310-b0df62877b22	8	ACTION	&nbsp;This is a new component&nbsp;	\N
+acb66e12-32b4-4e54-a8a5-af7cbe328c55	e9edd0a0-42b2-4a7d-9310-b0df62877b22	16	TRANSITION	CUT TO:	\N
+f20bdbc5-63fc-43d3-b1b7-cb95efb71092	589e7585-3a30-46dc-92e2-bb5b2926639d	4	PARENTHETICAL	(into phone)	98c7fb3d-a642-4529-acae-a333449370cf
+589ee9b7-f8fb-4508-b23d-f150380118bf	53e0317b-e92e-4722-9afb-4fd5ea626ca7	13	DIALOG	<br>	\N
 25065b0f-b113-43aa-8115-94b15c24f8b0	fe0ba54f-95a8-4e1a-a21c-9383e8abdaf4	1	ACTION	This is the first element to be inserted	\N
 bc7254d0-22b4-4161-9fa9-dd62022276d8	fe0ba54f-95a8-4e1a-a21c-9383e8abdaf4	2	CHARACTER	JANE&nbsp;	\N
+c95dc5d3-8407-4f0f-beff-6a9978f0a460	589e7585-3a30-46dc-92e2-bb5b2926639d	8	ACTION	Here we have an empty action i am typing	\N
 dd53e732-8e17-4ea7-ac67-f445bc2eb590	e9edd0a0-42b2-4a7d-9310-b0df62877b22	3	CHARACTER	MARK	\N
-c95dc5d3-8407-4f0f-beff-6a9978f0a460	589e7585-3a30-46dc-92e2-bb5b2926639d	8	ACTION	Here we have an empty action	\N
-f62e179d-d77f-42f1-ba53-cfe0da761b1d	53e0317b-e92e-4722-9afb-4fd5ea626ca7	2	ACTION	Hello, how are you&nbsp;	\N
+8a801217-e7d4-4482-9dce-3d617a2eba49	589e7585-3a30-46dc-92e2-bb5b2926639d	1	ACTION	A busy downtown street. People hurry past each other, lost in their own worlds.	\N
+e7d38c32-528c-4c9b-9d96-ed4cfa924cea	589e7585-3a30-46dc-92e2-bb5b2926639d	11	ACTION	THis is a new actio nlone	\N
 8fa5e463-a990-44b8-8608-8668daeed09a	53e0317b-e92e-4722-9afb-4fd5ea626ca7	1	CHARACTER	JANE	\N
-f20bdbc5-63fc-43d3-b1b7-cb95efb71092	589e7585-3a30-46dc-92e2-bb5b2926639d	4	PARENTHETICAL	(into phone)	98c7fb3d-a642-4529-acae-a333449370cf
-acb66e12-32b4-4e54-a8a5-af7cbe328c55	e9edd0a0-42b2-4a7d-9310-b0df62877b22	16	TRANSITION	CUT TO:	\N
-23ea6183-56dd-4ce1-a2fc-9d7adeb70160	53e0317b-e92e-4722-9afb-4fd5ea626ca7	4	ACTION	<br><div><br></div>	\N
+08abcc9e-ccdf-45b2-8b26-b5d9bd6889a6	53e0317b-e92e-4722-9afb-4fd5ea626ca7	9	SHOT	THIS IS&nbsp;	\N
+fb9be7aa-360b-4be3-97e9-4019fdd44071	589e7585-3a30-46dc-92e2-bb5b2926639d	6	ACTION	She hangs up and quickens her pace, disappearing into the throng. Hello there this is a dialog just to see how this&nbsp;	\N
+f61450e2-8038-47c2-a37d-d7ccff7f2774	e9edd0a0-42b2-4a7d-9310-b0df62877b22	1	ACTION	A sterile, modern office. MARK (40s, anxious) paces by a large window overlooking the city. The city	\N
+0b50eb91-27c4-4034-a800-f21bf54be227	589e7585-3a30-46dc-92e2-bb5b2926639d	2	ACTION	JANE strides purposefully through the crowd, phone pressed to her ear.	\N
+a25819f4-55b6-40da-97c8-34f6eb6ded0d	589e7585-3a30-46dc-92e2-bb5b2926639d	10	ACTION	This is another actionm&nbsp;	\N
+f0ab26fb-e2e7-4167-990e-44dfdff10008	589e7585-3a30-46dc-92e2-bb5b2926639d	9	ACTION	This is another action	\N
+bc9d0d2f-b532-4b18-9d5b-f8a16235f41d	589e7585-3a30-46dc-92e2-bb5b2926639d	3	CHARACTER	JANE	98c7fb3d-a642-4529-acae-a333449370cf
 \.
 
 
@@ -421,6 +439,7 @@ acb66e12-32b4-4e54-a8a5-af7cbe328c55	e9edd0a0-42b2-4a7d-9310-b0df62877b22	16	TRA
 COPY public.users (user_id, username, username_tag, name, last_name, email, password, created_at, updated_at) FROM stdin;
 492dd000-65cb-4724-bc74-292f79fe2d7a	l1roii	13576	Lirianë	Berisha	lira@hotmail.com	$2a$10$DzjhUTF8nppIHy8BZqM2KeWpyUlBccQYhJwn9wryd3Rk80zk0/uS.	2025-06-28 16:07:27.605028+00	2025-06-28 16:07:27.605028+00
 4c962283-396e-4c35-b5bc-4f69fd2e2b9f	loni	41218	Leon	Berisha	leon@hotmail.com	$2a$10$45yhm/VzG1aP23dYslA42uTWvTu.ckwr0Q/SpABaYHaFsSlap3h2e	2025-06-29 14:18:24.149797+00	2025-06-29 14:18:24.149797+00
+a92baccc-49bd-44c4-a9f7-88f38a6fce94	puhizar	97816	Puhiza	RExha	puhiza@gmail.com	$2a$10$z8xDw02UMqyrUv64irQlUeoOLqf1ib./bdtHBz7GRga8yvDj.DjqG	2025-10-01 17:08:16.558232+00	2025-10-01 17:08:16.558232+00
 \.
 
 
