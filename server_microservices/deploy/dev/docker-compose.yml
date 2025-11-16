@@ -1,0 +1,290 @@
+version: '3.8'
+
+services:
+  # Databases
+  postgres-identity:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: identity_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_identity_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d identity_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-scripts:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: scripts_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_scripts_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d scripts_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-collab:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: collab_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_collab_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d collab_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-billing:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: billing_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_billing_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d billing_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Kafka and Zookeeper for event streaming
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Microservices
+  api-gateway:
+    build:
+      context: ../..
+      dockerfile: cmd/gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - IDENTITY_SERVICE_URL=identity-service:50051
+      - SCRIPTS_SERVICE_URL=scripts-service:50052
+      - COLLAB_SERVICE_URL=collab-service:50053
+      - BILLING_SERVICE_URL=billing-service:50054
+      - AI_SERVICE_URL=ai-service:50051
+      - REDIS_URL=redis:6379
+      - JWT_SECRET=dev-secret-key-change-in-production
+    depends_on:
+      - redis
+      - identity-service
+      - scripts-service
+      - collab-service
+      - billing-service
+      - ai-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  identity-service:
+    build:
+      context: ../..
+      dockerfile: cmd/identity/Dockerfile
+    ports:
+      - "50051:50051"
+    environment:
+      - GRPC_PORT=50051
+      - IDENTITY_DB_HOST=postgres-identity
+      - IDENTITY_DB_PORT=5432
+      - IDENTITY_DB_USER=postgres
+      - IDENTITY_DB_PASSWORD=postgres
+      - IDENTITY_DB_NAME=identity_db
+      - IDENTITY_DB_SSLMODE=disable
+      - JWT_SECRET=dev-secret-key-change-in-production
+      - KAFKA_BROKERS=kafka:29092
+    depends_on:
+      postgres-identity:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  scripts-service:
+    build:
+      context: .
+      dockerfile: cmd/scripts/Dockerfile
+    ports:
+      - "50052:50052"
+    environment:
+      - GRPC_PORT=50052
+      - SCRIPTS_DB_HOST=postgres-scripts
+      - SCRIPTS_DB_PORT=5432
+      - SCRIPTS_DB_USER=postgres
+      - SCRIPTS_DB_PASSWORD=postgres
+      - SCRIPTS_DB_NAME=scripts_db
+      - SCRIPTS_DB_SSLMODE=disable
+      - KAFKA_BROKERS=kafka:29092
+      - IDENTITY_SERVICE_URL=identity-service:50051
+    depends_on:
+      postgres-scripts:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      identity-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50052"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  collab-service:
+    build:
+      context: .
+      dockerfile: cmd/collab/Dockerfile
+    ports:
+      - "50053:50053"
+    environment:
+      - GRPC_PORT=50053
+      - COLLAB_DB_HOST=postgres-collab
+      - COLLAB_DB_PORT=5432
+      - COLLAB_DB_USER=postgres
+      - COLLAB_DB_PASSWORD=postgres
+      - COLLAB_DB_NAME=collab_db
+      - COLLAB_DB_SSLMODE=disable
+      - KAFKA_BROKERS=kafka:29092
+      - IDENTITY_SERVICE_URL=identity-service:50051
+      - SCRIPTS_SERVICE_URL=scripts-service:50052
+    depends_on:
+      postgres-collab:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      identity-service:
+        condition: service_started
+      scripts-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50053"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  billing-service:
+    build:
+      context: .
+      dockerfile: cmd/billing/Dockerfile
+    ports:
+      - "50054:50054"
+    environment:
+      - GRPC_PORT=50054
+      - BILLING_DB_HOST=postgres-billing
+      - BILLING_DB_PORT=5432
+      - BILLING_DB_USER=postgres
+      - BILLING_DB_PASSWORD=postgres
+      - BILLING_DB_NAME=billing_db
+      - BILLING_DB_SSLMODE=disable
+      - KAFKA_BROKERS=kafka:29092
+      - IDENTITY_SERVICE_URL=identity-service:50051
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-sk_test_xxx}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-whsec_xxx}
+    depends_on:
+      postgres-billing:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      identity-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50054"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  ai-service:
+    build:
+      context: services/ai
+      dockerfile: Dockerfile
+    ports:
+      - "50055:50051"
+    environment:
+      - AI_SERVICE_PORT=50051
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - KAFKA_BROKERS=kafka:29092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.insecure_channel('localhost:50051').get_state()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_identity_data:
+  postgres_scripts_data:
+  postgres_collab_data:
+  postgres_billing_data:
+  redis_data:
+
+networks:
+  default:
+    driver: bridge

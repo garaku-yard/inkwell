@@ -1,0 +1,130 @@
+syntax = "proto3";
+
+package ai;
+
+option go_package = "scriptlith/server_microservices/pkg/grpc/ai";
+
+import "common/types.proto";
+
+// AI analysis result
+message AnalysisResult {
+  string id = 1;
+  string type = 2; // "character_analysis", "plot_analysis", "dialogue_analysis"
+  string content = 3; // JSON string with analysis results
+  float confidence_score = 4;
+  repeated string suggestions = 5;
+  common.Timestamp created_at = 6;
+}
+
+// AI generation request
+message GenerateRequest {
+  string user_id = 1;
+  string project_id = 2;
+  string type = 3; // \"dialogue\", \"action\", \"character\", \"scene_heading\", \"transition\"
+  string prompt = 4;
+  map<string, string> context = 5; // Additional context (characters, setting, etc.)
+  optional string target_script_element_id = 6; // For inserting after specific element
+  int32 max_length = 7;
+  float temperature = 8; // Creativity level 0.0-1.0
+}
+
+message GenerateResponse {
+  repeated string generated_elements = 1; // Array of script elements to insert
+  repeated string element_types = 2; // Corresponding types for each element
+  repeated string alternatives = 3; // Alternative suggestions
+  float confidence_score = 4;
+  string request_id = 5;
+}
+
+// Analysis request
+message AnalyzeRequest {
+  string user_id = 1;
+  string project_id = 2;
+  string content = 3; // Script content to analyze
+  repeated string analysis_types = 4; // Types of analysis to perform
+}
+
+message AnalyzeResponse {
+  repeated AnalysisResult results = 1;
+  string request_id = 2;
+}
+
+// Script improvement suggestions
+message ImprovementRequest {
+  string user_id = 1;
+  string project_id = 2;
+  string screenplay_content = 3;
+  string focus_area = 4; // "dialogue", "pacing", "structure", "characters"
+}
+
+message ImprovementResponse {
+  repeated string suggestions = 1;
+  repeated string specific_improvements = 2; // Line-specific suggestions
+  float overall_score = 3;
+  map<string, float> category_scores = 4; // Scores by category
+}
+
+// Character development suggestions
+message CharacterDevelopmentRequest {
+  string user_id = 1;
+  string project_id = 2;
+  string character_name = 3;
+  string character_description = 4;
+  string story_context = 5;
+}
+
+message CharacterDevelopmentResponse {
+  repeated string personality_traits = 1;
+  repeated string backstory_elements = 2;
+  repeated string arc_suggestions = 3;
+  repeated string dialogue_style_notes = 4;
+}
+
+// Genre and tone analysis
+message GenreAnalysisRequest {
+  string user_id = 1;
+  string project_id = 2;
+  string screenplay_content = 3;
+}
+
+message GenreAnalysisResponse {
+  map<string, float> genre_probabilities = 1; // Genre -> probability
+  string dominant_tone = 2;
+  repeated string tone_indicators = 3;
+  float genre_consistency_score = 4;
+}
+
+// Format checking and correction
+message FormatCheckRequest {
+  string user_id = 1;
+  string screenplay_content = 2;
+  string format_type = 3; // "feature", "tv", "stage"
+}
+
+message FormatCheckResponse {
+  repeated string format_errors = 1;
+  repeated string format_suggestions = 2;
+  string corrected_content = 3;
+  float format_score = 4;
+}
+
+// AI service definition
+service AIService {
+  // Content generation
+  rpc Generate(GenerateRequest) returns (GenerateResponse);
+  
+  // Content analysis
+  rpc Analyze(AnalyzeRequest) returns (AnalyzeResponse);
+  
+  // Script improvement
+  rpc GetImprovements(ImprovementRequest) returns (ImprovementResponse);
+  
+  // Character development
+  rpc DevelopCharacter(CharacterDevelopmentRequest) returns (CharacterDevelopmentResponse);
+  
+  // Genre and tone analysis
+  rpc AnalyzeGenre(GenreAnalysisRequest) returns (GenreAnalysisResponse);
+  
+  // Format checking
+  rpc CheckFormat(FormatCheckRequest) returns (FormatCheckResponse);
+}

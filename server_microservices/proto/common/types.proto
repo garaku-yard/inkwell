@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "scriptlith/server_microservices/pkg/grpc/common";
+
+// Common timestamp message
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
+
+// Common UUID message
+message UUID {
+  string value = 1;
+}
+
+// Common pagination request
+message PaginationRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  string sort_by = 3;
+  string sort_order = 4; // "asc" or "desc"
+}
+
+// Common pagination response
+message PaginationResponse {
+  int32 current_page = 1;
+  int32 total_pages = 2;
+  int64 total_items = 3;
+  int32 items_per_page = 4;
+}
+
+// Common error response
+message ErrorResponse {
+  string code = 1;
+  string message = 2;
+  repeated string details = 3;
+}
+
+// Common success response
+message SuccessResponse {
+  string message = 1;
+  map<string, string> metadata = 2;
+}

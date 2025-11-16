@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package identity;
+
+option go_package = "scriptlith/server_microservices/pkg/grpc/identity";
+
+import "common/types.proto";
+
+// User entity
+message User {
+  string id = 1;
+  string email = 2;
+  string username = 3;
+  string first_name = 4;
+  string last_name = 5;
+  string avatar_url = 6;
+  common.Timestamp created_at = 7;
+  common.Timestamp updated_at = 8;
+  bool is_active = 9;
+  string role = 10; // "admin", "user", "premium"
+}
+
+// Authentication requests/responses
+message RegisterRequest {
+  string email = 1;
+  string username = 2;
+  string password = 3;
+  string first_name = 4;
+  string last_name = 5;
+}
+
+message RegisterResponse {
+  User user = 1;
+  string access_token = 2;
+  string refresh_token = 3;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  User user = 1;
+  string access_token = 2;
+  string refresh_token = 3;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message RefreshTokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+}
+
+message ValidateTokenRequest {
+  string access_token = 1;
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  User user = 2;
+  common.Timestamp expires_at = 3;
+}
+
+// User management requests/responses
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message UpdateUserRequest {
+  string user_id = 1;
+  optional string email = 2;
+  optional string username = 3;
+  optional string first_name = 4;
+  optional string last_name = 5;
+  optional string avatar_url = 6;
+}
+
+message UpdateUserResponse {
+  User user = 1;
+}
+
+message GetUsersRequest {
+  repeated string user_ids = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message GetUsersResponse {
+  repeated User users = 1;
+  common.PaginationResponse pagination = 2;
+}
+
+message ChangePasswordRequest {
+  string user_id = 1;
+  string current_password = 2;
+  string new_password = 3;
+}
+
+message ChangePasswordResponse {
+  bool success = 1;
+}
+
+// Identity service definition
+service IdentityService {
+  // Authentication
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+  
+  // User management
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+}

@@ -1,0 +1,234 @@
+syntax = "proto3";
+
+package collab;
+
+option go_package = "scriptlith/server_microservices/pkg/grpc/collab";
+
+import "common/types.proto";
+
+// Collaborator entity
+message Collaborator {
+  string id = 1;
+  string project_id = 2;
+  string user_id = 3;
+  string role = 4; // "owner", "editor", "viewer"
+  common.Timestamp invited_at = 5;
+  common.Timestamp joined_at = 6;
+  string status = 7; // "pending", "active", "inactive"
+}
+
+// Comment entity
+message Comment {
+  string id = 1;
+  string project_id = 2;
+  string screenplay_id = 3;
+  string script_element_id = 4; // Link to specific script element
+  string user_id = 5;
+  string content = 6;
+  int32 line_number = 7; // Line in screenplay where comment is attached
+  int32 char_position = 8; // Character position in line
+  string parent_id = 9; // For reply threads
+  common.Timestamp created_at = 10;
+  common.Timestamp updated_at = 11;
+  bool is_resolved = 12;
+}
+
+// Real-time editing session
+message EditSession {
+  string id = 1;
+  string project_id = 2;
+  string screenplay_id = 3;
+  string user_id = 4;
+  common.Timestamp started_at = 5;
+  common.Timestamp last_activity = 6;
+  bool is_active = 7;
+}
+
+// Live editing operation
+message EditOperation {
+  string session_id = 1;
+  string user_id = 2;
+  string operation_type = 3; // "insert", "delete", "replace"
+  int32 position = 4;
+  string content = 5;
+  common.Timestamp timestamp = 6;
+}
+
+// User presence information
+message UserPresence {
+  string user_id = 1;
+  string project_id = 2;
+  string screenplay_id = 3;
+  int32 cursor_position = 4;
+  common.Timestamp last_seen = 5;
+  bool is_online = 6;
+}
+
+// Collaborator requests/responses
+message AddCollaboratorRequest {
+  string project_id = 1;
+  string inviter_id = 2; // User making the invitation
+  string email = 3; // Email of user to invite
+  string role = 4;
+}
+
+message AddCollaboratorResponse {
+  Collaborator collaborator = 1;
+}
+
+message GetProjectCollaboratorsRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+message GetProjectCollaboratorsResponse {
+  repeated Collaborator collaborators = 1;
+}
+
+message UpdateCollaboratorRoleRequest {
+  string collaborator_id = 1;
+  string user_id = 2; // User making the change (must be owner)
+  string new_role = 3;
+}
+
+message UpdateCollaboratorRoleResponse {
+  Collaborator collaborator = 1;
+}
+
+message RemoveCollaboratorRequest {
+  string collaborator_id = 1;
+  string user_id = 2; // User making the change (must be owner or self)
+}
+
+message RemoveCollaboratorResponse {
+  bool success = 1;
+}
+
+// Comment requests/responses
+message AddCommentRequest {
+  string project_id = 1;
+  string screenplay_id = 2;
+  string user_id = 3;
+  string content = 4;
+  optional string script_element_id = 5; // Link to specific script element
+  int32 line_number = 6;
+  int32 char_position = 7;
+  optional string parent_id = 8; // For replies
+}
+
+message AddCommentResponse {
+  Comment comment = 1;
+}
+
+message GetCommentsRequest {
+  string screenplay_id = 1;
+  string user_id = 2; // For authorization check
+  optional int32 line_number = 3; // Filter by line
+}
+
+message GetCommentsResponse {
+  repeated Comment comments = 1;
+}
+
+message UpdateCommentRequest {
+  string comment_id = 1;
+  string user_id = 2; // Must be comment author
+  optional string content = 3;
+  optional bool is_resolved = 4;
+}
+
+message UpdateCommentResponse {
+  Comment comment = 1;
+}
+
+message DeleteCommentRequest {
+  string comment_id = 1;
+  string user_id = 2; // Must be comment author or project owner
+}
+
+message DeleteCommentResponse {
+  bool success = 1;
+}
+
+// Real-time editing requests/responses
+message StartEditSessionRequest {
+  string project_id = 1;
+  string screenplay_id = 2;
+  string user_id = 3;
+}
+
+message StartEditSessionResponse {
+  EditSession session = 1;
+}
+
+message EndEditSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message EndEditSessionResponse {
+  bool success = 1;
+}
+
+message SendEditOperationRequest {
+  EditOperation operation = 1;
+}
+
+message SendEditOperationResponse {
+  bool success = 1;
+}
+
+message GetActiveSessionsRequest {
+  string screenplay_id = 1;
+  string user_id = 2;
+}
+
+message GetActiveSessionsResponse {
+  repeated EditSession sessions = 1;
+}
+
+// User presence requests/responses
+message UpdatePresenceRequest {
+  string user_id = 1;
+  string project_id = 2;
+  string screenplay_id = 3;
+  int32 cursor_position = 4;
+}
+
+message UpdatePresenceResponse {
+  UserPresence presence = 1;
+}
+
+message GetPresenceRequest {
+  string screenplay_id = 1;
+  string user_id = 2;
+}
+
+message GetPresenceResponse {
+  repeated UserPresence presences = 1;
+}
+
+// Collaboration service definition
+service CollaborationService {
+  // Collaborator management
+  rpc AddCollaborator(AddCollaboratorRequest) returns (AddCollaboratorResponse);
+  rpc GetProjectCollaborators(GetProjectCollaboratorsRequest) returns (GetProjectCollaboratorsResponse);
+  rpc UpdateCollaboratorRole(UpdateCollaboratorRoleRequest) returns (UpdateCollaboratorRoleResponse);
+  rpc RemoveCollaborator(RemoveCollaboratorRequest) returns (RemoveCollaboratorResponse);
+  
+  // Comment management
+  rpc AddComment(AddCommentRequest) returns (AddCommentResponse);
+  rpc GetComments(GetCommentsRequest) returns (GetCommentsResponse);
+  rpc UpdateComment(UpdateCommentRequest) returns (UpdateCommentResponse);
+  rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse);
+  
+  // Real-time editing
+  rpc StartEditSession(StartEditSessionRequest) returns (StartEditSessionResponse);
+  rpc EndEditSession(EndEditSessionRequest) returns (EndEditSessionResponse);
+  rpc SendEditOperation(SendEditOperationRequest) returns (SendEditOperationResponse);
+  rpc GetActiveSessions(GetActiveSessionsRequest) returns (GetActiveSessionsResponse);
+  
+  // User presence
+  rpc UpdatePresence(UpdatePresenceRequest) returns (UpdatePresenceResponse);
+  rpc GetPresence(GetPresenceRequest) returns (GetPresenceResponse);
+}

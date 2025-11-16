@@ -1,0 +1,435 @@
+syntax = "proto3";
+
+package scripts;
+
+option go_package = "scriptlith/server_microservices/pkg/grpc/scripts";
+
+import "common/types.proto";
+
+// Project entity
+message Project {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  string owner_id = 4;
+  common.Timestamp created_at = 5;
+  common.Timestamp updated_at = 6;
+  string status = 7; // "draft", "active", "completed", "archived"
+}
+
+// Screenplay entity
+message Screenplay {
+  string id = 1;
+  string project_id = 2;
+  string title = 3;
+  string content = 4;
+  int32 version = 5;
+  common.Timestamp created_at = 6;
+  common.Timestamp updated_at = 7;
+}
+
+// Scene entity
+message Scene {
+  string id = 1;
+  string project_id = 2;
+  string outline_unit_id = 3; // Optional link to outline unit
+  string scene_heading = 4; // INT./EXT. LOCATION - TIME
+  string content = 5; // Scene content/action
+  int32 order_index = 6;
+  common.Timestamp created_at = 7;
+  common.Timestamp updated_at = 8;
+}
+
+// Script element entity (individual lines/elements of a screenplay)
+message ScriptElement {
+  string id = 1;
+  string screenplay_id = 2;
+  string scene_id = 3; // Optional link to scene
+  string type = 4; // "scene_heading", "character", "dialogue", "action", "parenthetical", "transition", "shot"
+  string content = 5; // The actual text content
+  string character_id = 6; // For dialogue elements, link to character
+  int32 line_number = 7; // Position in screenplay
+  map<string, string> formatting = 8; // Additional formatting attributes
+  common.Timestamp created_at = 9;
+  common.Timestamp updated_at = 10;
+}
+
+// Unified outline unit entity (acts, sequences, beats, sub-beats)
+message OutlineUnit {
+  string id = 1;
+  string project_id = 2;
+  string parent_id = 3; // For hierarchical structure
+  string type = 4; // "act", "sequence", "beat", "sub-beat"
+  string title = 5;
+  string description = 6;
+  string color = 7; // For color coding in editor
+  repeated string tags = 8; // Array of tags
+  string icon = 9; // Icon name for display
+  string scene_id = 10; // Optional link to scene
+  int32 order_index = 11;
+  common.Timestamp created_at = 12;
+  common.Timestamp updated_at = 13;
+}
+
+// Character entity
+message Character {
+  string id = 1;
+  string project_id = 2;
+  string name = 3;
+  string description = 4;
+  string role = 5; // "protagonist", "antagonist", "supporting", etc.
+  map<string, string> attributes = 6; // Key-value pairs for character traits
+  common.Timestamp created_at = 7;
+  common.Timestamp updated_at = 8;
+}
+
+// Location entity
+message Location {
+  string id = 1;
+  string project_id = 2;
+  string name = 3;
+  string description = 4;
+  string type = 5; // "interior", "exterior"
+  common.Timestamp created_at = 6;
+  common.Timestamp updated_at = 7;
+}
+
+// Project requests/responses
+message CreateProjectRequest {
+  string title = 1;
+  string description = 2;
+  string owner_id = 3;
+}
+
+message CreateProjectResponse {
+  Project project = 1;
+}
+
+message GetProjectRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+message GetProjectResponse {
+  Project project = 1;
+}
+
+message UpdateProjectRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+  optional string title = 3;
+  optional string description = 4;
+  optional string status = 5;
+}
+
+message UpdateProjectResponse {
+  Project project = 1;
+}
+
+message DeleteProjectRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+message DeleteProjectResponse {
+  bool success = 1;
+}
+
+message GetUserProjectsRequest {
+  string user_id = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message GetUserProjectsResponse {
+  repeated Project projects = 1;
+  common.PaginationResponse pagination = 2;
+}
+
+// Screenplay requests/responses
+message CreateScreenplayRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+  string title = 3;
+  string content = 4;
+}
+
+message CreateScreenplayResponse {
+  Screenplay screenplay = 1;
+}
+
+message GetScreenplayRequest {
+  string screenplay_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+message GetScreenplayResponse {
+  Screenplay screenplay = 1;
+}
+
+message UpdateScreenplayRequest {
+  string screenplay_id = 1;
+  string user_id = 2; // For authorization check
+  optional string title = 3;
+  optional string content = 4;
+}
+
+message UpdateScreenplayResponse {
+  Screenplay screenplay = 1;
+}
+
+// Outline unit requests/responses
+message CreateOutlineUnitRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+  optional string parent_id = 3;
+  string type = 4; // "act", "sequence", "beat", "sub-beat"
+  string title = 5;
+  string description = 6;
+  optional string color = 7;
+  repeated string tags = 8;
+  optional string icon = 9;
+  optional string scene_id = 10;
+  int32 order_index = 11;
+}
+
+message CreateOutlineUnitResponse {
+  OutlineUnit outline_unit = 1;
+}
+
+message GetProjectOutlineRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+  optional string type_filter = 3; // Filter by type
+}
+
+message GetProjectOutlineResponse {
+  repeated OutlineUnit outline_units = 1;
+}
+
+message UpdateOutlineUnitRequest {
+  string outline_unit_id = 1;
+  string user_id = 2; // For authorization check
+  optional string parent_id = 3;
+  optional string type = 4;
+  optional string title = 5;
+  optional string description = 6;
+  optional string color = 7;
+  repeated string tags = 8;
+  optional string icon = 9;
+  optional string scene_id = 10;
+  optional int32 order_index = 11;
+}
+
+message UpdateOutlineUnitResponse {
+  OutlineUnit outline_unit = 1;
+}
+
+message DeleteOutlineUnitRequest {
+  string outline_unit_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+message DeleteOutlineUnitResponse {
+  bool success = 1;
+}
+
+// Scene requests/responses
+message CreateSceneRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+  optional string outline_unit_id = 3;
+  string scene_heading = 4;
+  string content = 5;
+  int32 order_index = 6;
+}
+
+message CreateSceneResponse {
+  Scene scene = 1;
+}
+
+message GetProjectScenesRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+message GetProjectScenesResponse {
+  repeated Scene scenes = 1;
+}
+
+message UpdateSceneRequest {
+  string scene_id = 1;
+  string user_id = 2; // For authorization check
+  optional string outline_unit_id = 3;
+  optional string scene_heading = 4;
+  optional string content = 5;
+  optional int32 order_index = 6;
+}
+
+message UpdateSceneResponse {
+  Scene scene = 1;
+}
+
+// Character requests/responses
+message CreateCharacterRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+  string name = 3;
+  string description = 4;
+  string role = 5;
+  map<string, string> attributes = 6;
+}
+
+message CreateCharacterResponse {
+  Character character = 1;
+}
+
+message GetProjectCharactersRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+message GetProjectCharactersResponse {
+  repeated Character characters = 1;
+}
+
+message UpdateCharacterRequest {
+  string character_id = 1;
+  string user_id = 2; // For authorization check
+  optional string name = 3;
+  optional string description = 4;
+  optional string role = 5;
+  map<string, string> attributes = 6;
+}
+
+message UpdateCharacterResponse {
+  Character character = 1;
+}
+
+// Location requests/responses
+message CreateLocationRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+  string name = 3;
+  string description = 4;
+  string type = 5;
+}
+
+message CreateLocationResponse {
+  Location location = 1;
+}
+
+message UpdateLocationResponse {
+  Location location = 1;
+}
+
+// Script element requests/responses
+message CreateScriptElementRequest {
+  string screenplay_id = 1;
+  string user_id = 2; // For authorization check
+  optional string scene_id = 3;
+  string type = 4;
+  string content = 5;
+  optional string character_id = 6;
+  int32 line_number = 7;
+  map<string, string> formatting = 8;
+}
+
+message CreateScriptElementResponse {
+  ScriptElement script_element = 1;
+}
+
+message GetScreenplayElementsRequest {
+  string screenplay_id = 1;
+  string user_id = 2; // For authorization check
+  optional int32 start_line = 3; // For pagination
+  optional int32 end_line = 4;
+}
+
+message GetScreenplayElementsResponse {
+  repeated ScriptElement script_elements = 1;
+}
+
+message UpdateScriptElementRequest {
+  string script_element_id = 1;
+  string user_id = 2; // For authorization check
+  optional string content = 3;
+  optional string type = 4;
+  optional string character_id = 5;
+  optional int32 line_number = 6;
+  map<string, string> formatting = 7;
+}
+
+message UpdateScriptElementResponse {
+  ScriptElement script_element = 1;
+}
+
+message DeleteScriptElementRequest {
+  string script_element_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+message DeleteScriptElementResponse {
+  bool success = 1;
+}
+
+// Bulk operations for real-time editing
+message BulkUpdateScriptElementsRequest {
+  string screenplay_id = 1;
+  string user_id = 2;
+  repeated ScriptElement elements = 3;
+}
+
+message BulkUpdateScriptElementsResponse {
+  repeated ScriptElement updated_elements = 1;
+}
+
+message GetProjectLocationsRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+message GetProjectLocationsResponse {
+  repeated Location locations = 1;
+}
+
+// Scripts service definition
+service ScriptsService {
+  // Project management
+  rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
+  rpc GetProject(GetProjectRequest) returns (GetProjectResponse);
+  rpc UpdateProject(UpdateProjectRequest) returns (UpdateProjectResponse);
+  rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse);
+  rpc GetUserProjects(GetUserProjectsRequest) returns (GetUserProjectsResponse);
+  
+  // Screenplay management
+  rpc CreateScreenplay(CreateScreenplayRequest) returns (CreateScreenplayResponse);
+  rpc GetScreenplay(GetScreenplayRequest) returns (GetScreenplayResponse);
+  rpc UpdateScreenplay(UpdateScreenplayRequest) returns (UpdateScreenplayResponse);
+  
+  // Outline unit management (acts, sequences, beats, sub-beats)
+  rpc CreateOutlineUnit(CreateOutlineUnitRequest) returns (CreateOutlineUnitResponse);
+  rpc GetProjectOutline(GetProjectOutlineRequest) returns (GetProjectOutlineResponse);
+  rpc UpdateOutlineUnit(UpdateOutlineUnitRequest) returns (UpdateOutlineUnitResponse);
+  rpc DeleteOutlineUnit(DeleteOutlineUnitRequest) returns (DeleteOutlineUnitResponse);
+  
+  // Scene management
+  rpc CreateScene(CreateSceneRequest) returns (CreateSceneResponse);
+  rpc GetProjectScenes(GetProjectScenesRequest) returns (GetProjectScenesResponse);
+  rpc UpdateScene(UpdateSceneRequest) returns (UpdateSceneResponse);
+  
+  // Character management
+  rpc CreateCharacter(CreateCharacterRequest) returns (CreateCharacterResponse);
+  rpc GetProjectCharacters(GetProjectCharactersRequest) returns (GetProjectCharactersResponse);
+  rpc UpdateCharacter(UpdateCharacterRequest) returns (UpdateCharacterResponse);
+  
+  // Location management
+  rpc CreateLocation(CreateLocationRequest) returns (CreateLocationResponse);
+  rpc GetProjectLocations(GetProjectLocationsRequest) returns (GetProjectLocationsResponse);
+  
+  // Script element management (for line-by-line editing)
+  rpc CreateScriptElement(CreateScriptElementRequest) returns (CreateScriptElementResponse);
+  rpc GetScreenplayElements(GetScreenplayElementsRequest) returns (GetScreenplayElementsResponse);
+  rpc UpdateScriptElement(UpdateScriptElementRequest) returns (UpdateScriptElementResponse);
+  rpc DeleteScriptElement(DeleteScriptElementRequest) returns (DeleteScriptElementResponse);
+  rpc BulkUpdateScriptElements(BulkUpdateScriptElementsRequest) returns (BulkUpdateScriptElementsResponse);
+}

@@ -1,0 +1,248 @@
+syntax = "proto3";
+
+package billing;
+
+option go_package = "scriptlith/server_microservices/pkg/grpc/billing";
+
+import "common/types.proto";
+
+// Subscription plan
+message Plan {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int64 price_cents = 4; // Price in cents
+  string currency = 5;
+  string billing_interval = 6; // "monthly", "yearly"
+  int32 max_projects = 7;
+  int32 max_collaborators_per_project = 8;
+  bool ai_features_enabled = 9;
+  bool priority_support = 10;
+}
+
+// User subscription
+message Subscription {
+  string id = 1;
+  string user_id = 2;
+  string plan_id = 3;
+  string status = 4; // "active", "cancelled", "past_due", "trialing"
+  common.Timestamp current_period_start = 5;
+  common.Timestamp current_period_end = 6;
+  common.Timestamp trial_end = 7;
+  common.Timestamp cancelled_at = 8;
+  string stripe_subscription_id = 9;
+  common.Timestamp created_at = 10;
+  common.Timestamp updated_at = 11;
+}
+
+// Payment method
+message PaymentMethod {
+  string id = 1;
+  string user_id = 2;
+  string type = 3; // "card", "bank_account"
+  string last_four = 4; // Last 4 digits
+  string brand = 5; // "visa", "mastercard", etc.
+  int32 exp_month = 6;
+  int32 exp_year = 7;
+  bool is_default = 8;
+  string stripe_payment_method_id = 9;
+  common.Timestamp created_at = 10;
+}
+
+// Invoice
+message Invoice {
+  string id = 1;
+  string user_id = 2;
+  string subscription_id = 3;
+  int64 amount_paid = 4; // Amount in cents
+  string currency = 5;
+  string status = 6; // "paid", "unpaid", "voided"
+  common.Timestamp invoice_date = 7;
+  common.Timestamp due_date = 8;
+  common.Timestamp paid_at = 9;
+  string stripe_invoice_id = 10;
+  string hosted_invoice_url = 11;
+  common.Timestamp created_at = 12;
+}
+
+// Usage tracking
+message Usage {
+  string id = 1;
+  string user_id = 2;
+  string metric_name = 3; // "projects_created", "ai_requests", etc.
+  int64 quantity = 4;
+  common.Timestamp period_start = 5;
+  common.Timestamp period_end = 6;
+  common.Timestamp created_at = 7;
+}
+
+// Plan requests/responses
+message GetPlansRequest {
+  string currency = 1; // Optional filter
+}
+
+message GetPlansResponse {
+  repeated Plan plans = 1;
+}
+
+message GetPlanRequest {
+  string plan_id = 1;
+}
+
+message GetPlanResponse {
+  Plan plan = 1;
+}
+
+// Subscription requests/responses
+message CreateSubscriptionRequest {
+  string user_id = 1;
+  string plan_id = 2;
+  string payment_method_id = 3;
+  optional int32 trial_days = 4;
+}
+
+message CreateSubscriptionResponse {
+  Subscription subscription = 1;
+  string client_secret = 2; // For 3D Secure authentication if needed
+}
+
+message GetUserSubscriptionRequest {
+  string user_id = 1;
+}
+
+message GetUserSubscriptionResponse {
+  Subscription subscription = 1;
+  Plan plan = 2;
+}
+
+message UpdateSubscriptionRequest {
+  string subscription_id = 1;
+  string user_id = 2;
+  optional string new_plan_id = 3;
+}
+
+message UpdateSubscriptionResponse {
+  Subscription subscription = 1;
+}
+
+message CancelSubscriptionRequest {
+  string subscription_id = 1;
+  string user_id = 2;
+  bool cancel_at_period_end = 3;
+}
+
+message CancelSubscriptionResponse {
+  Subscription subscription = 1;
+}
+
+// Payment method requests/responses
+message AddPaymentMethodRequest {
+  string user_id = 1;
+  string stripe_payment_method_id = 2;
+  bool set_as_default = 3;
+}
+
+message AddPaymentMethodResponse {
+  PaymentMethod payment_method = 1;
+}
+
+message GetUserPaymentMethodsRequest {
+  string user_id = 1;
+}
+
+message GetUserPaymentMethodsResponse {
+  repeated PaymentMethod payment_methods = 1;
+}
+
+message DeletePaymentMethodRequest {
+  string payment_method_id = 1;
+  string user_id = 2;
+}
+
+message DeletePaymentMethodResponse {
+  bool success = 1;
+}
+
+// Invoice requests/responses
+message GetUserInvoicesRequest {
+  string user_id = 1;
+  common.PaginationRequest pagination = 2;
+}
+
+message GetUserInvoicesResponse {
+  repeated Invoice invoices = 1;
+  common.PaginationResponse pagination = 2;
+}
+
+message GetInvoiceRequest {
+  string invoice_id = 1;
+  string user_id = 2;
+}
+
+message GetInvoiceResponse {
+  Invoice invoice = 1;
+}
+
+// Usage requests/responses
+message TrackUsageRequest {
+  string user_id = 1;
+  string metric_name = 2;
+  int64 quantity = 3;
+  common.Timestamp timestamp = 4;
+}
+
+message TrackUsageResponse {
+  bool success = 1;
+}
+
+message GetUserUsageRequest {
+  string user_id = 1;
+  string metric_name = 2; // Optional filter
+  common.Timestamp period_start = 3;
+  common.Timestamp period_end = 4;
+}
+
+message GetUserUsageResponse {
+  repeated Usage usage = 1;
+}
+
+// Webhook handling
+message ProcessWebhookRequest {
+  string event_type = 1;
+  string stripe_event_id = 2;
+  bytes event_data = 3;
+}
+
+message ProcessWebhookResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Billing service definition
+service BillingService {
+  // Plan management
+  rpc GetPlans(GetPlansRequest) returns (GetPlansResponse);
+  rpc GetPlan(GetPlanRequest) returns (GetPlanResponse);
+  
+  // Subscription management
+  rpc CreateSubscription(CreateSubscriptionRequest) returns (CreateSubscriptionResponse);
+  rpc GetUserSubscription(GetUserSubscriptionRequest) returns (GetUserSubscriptionResponse);
+  rpc UpdateSubscription(UpdateSubscriptionRequest) returns (UpdateSubscriptionResponse);
+  rpc CancelSubscription(CancelSubscriptionRequest) returns (CancelSubscriptionResponse);
+  
+  // Payment method management
+  rpc AddPaymentMethod(AddPaymentMethodRequest) returns (AddPaymentMethodResponse);
+  rpc GetUserPaymentMethods(GetUserPaymentMethodsRequest) returns (GetUserPaymentMethodsResponse);
+  rpc DeletePaymentMethod(DeletePaymentMethodRequest) returns (DeletePaymentMethodResponse);
+  
+  // Invoice management
+  rpc GetUserInvoices(GetUserInvoicesRequest) returns (GetUserInvoicesResponse);
+  rpc GetInvoice(GetInvoiceRequest) returns (GetInvoiceResponse);
+  
+  // Usage tracking
+  rpc TrackUsage(TrackUsageRequest) returns (TrackUsageResponse);
+  rpc GetUserUsage(GetUserUsageRequest) returns (GetUserUsageResponse);
+  
+  // Webhook processing
+  rpc ProcessWebhook(ProcessWebhookRequest) returns (ProcessWebhookResponse);
+}
