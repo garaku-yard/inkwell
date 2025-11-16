@@ -1,7 +1,5 @@
 import { apiClient, apiStreamClient } from "@/lib/api";
 
-// --- Interfaces ---
-
 /**
  * Represents a single AI model available from the backend.
  */

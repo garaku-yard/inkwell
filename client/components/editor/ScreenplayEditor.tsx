@@ -3,12 +3,13 @@
 import type React from "react"
 import { useState, useRef, useCallback, useMemo, useEffect } from "react"
 import Link from "next/link"
-import { Download, FileText, ArrowLeft, Bot } from "lucide-react"
+import { Download, FileText, ArrowLeft, Bot, FilePlus2Icon } from "lucide-react"
 import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { Toolbar } from "./Toolbar"
 import { SidePanel } from "./SidePanel"
 import { EditorPane, type EditorPaneRef } from "./EditorPane"
+import { ImportProjectDialog } from "../import-dialog" // Already imported
 import {
   updateSceneSetting,
   updateScriptElementContent,
@@ -23,6 +24,7 @@ import {
   type FullProject,
   type Scene,
   type ScriptElement,
+  type Project // Added Project type for the handler
 } from "@/services/project"
 import { getKeyString, createKeymap } from "@/lib/editor/keymap";
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
@@ -40,6 +42,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const [activeElementType, setActiveElementType] = useState<ToolbarScriptElementType | null>(null)
   const [elementToFocus, setElementToFocus] = useState<string | null>(null)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
+  const [isImportProjectDialogOpen, setIsImportProjectDialogOpen] = useState(false) // New state for import dialog
   const elementRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
   const editorPaneRef = useRef<EditorPaneRef>(null)
   const sidePanelRef = useRef<HTMLDivElement>(null)
@@ -476,6 +479,13 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     setIsAIChatOpen((prev) => !prev)
   }, [])
 
+  // Handler for successful project import (though the dialog handles navigation)
+  const handleProjectImported = (importedProject: Project) => {
+    console.log(`Successfully imported project: ${importedProject.projectName}`);
+    // The dialog should handle routing, but this ensures the state is closed
+    setIsImportProjectDialogOpen(false);
+  }
+
   return (
     <div className="flex flex-col h-screen">
       <header className="border-b bg-background z-10">
@@ -497,6 +507,11 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             <Button variant="outline" className="gap-2 bg-transparent">
               <Download className="h-4 w-4" />
               Export
+            </Button>
+            {/* Connect the Import button to open the dialog */}
+            <Button variant="outline" className="gap-2 bg-transparent" onClick={() => setIsImportProjectDialogOpen(true)}>
+              <FilePlus2Icon className="h-4 w-4" />
+              Import
             </Button>
           </div>
         </div>
@@ -548,6 +563,13 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           currentElement={activeElementId || undefined}
         />
       </div>
+
+      {/* Render the Import Dialog */}
+      <ImportProjectDialog
+        open={isImportProjectDialogOpen}
+        onOpenChange={setIsImportProjectDialogOpen}
+        onProjectImported={handleProjectImported}
+      />
     </div>
   )
 }

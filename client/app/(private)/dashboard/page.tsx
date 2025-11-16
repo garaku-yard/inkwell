@@ -21,6 +21,7 @@ import {
   ArrowDownUp,
   Folder,
   Briefcase,
+  FilePlus2Icon
 } from "lucide-react"
 import { useAuth } from "@/lib/AuthContext"
 import { Button } from "@/components/ui/button"
@@ -128,7 +129,6 @@ export default function DashboardPage() {
 
   const handleStarProject = async (projectId: string, currentStatus: boolean) => {
     const originalProjects = [...projects]
-    // Optimistic update for instant UI feedback
     setProjects((prev) =>
       prev.map((p) => (p.id === projectId ? { ...p, isStarred: !currentStatus } : p)),
     )
@@ -330,10 +330,17 @@ export default function DashboardPage() {
         <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-bold">My Projects</h2>
-            <Button onClick={() => setIsNewProjectDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Project
-            </Button>
+
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setIsNewProjectDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Project
+              </Button>
+              <Button>
+                <FilePlus2Icon className="h-4 w-4 mr-2" />
+                Import
+              </Button>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6 w-full">

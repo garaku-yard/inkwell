@@ -1,7 +1,10 @@
-import { Clapperboard, User, MessageSquare, Parentheses, ArrowRight, Camera } from "lucide-react"
+import { Clapperboard, User, MessageSquare, Parentheses, ArrowRight, Camera, MapPinned } from "lucide-react"
 
 export const SCRIPT_ELEMENT_CONFIG = {
   SCENE_HEADING: {
+    tooltip: "Scene",
+    toolbarColor: "hover:bg-green-50 hover:text-green-700",
+    icon: MapPinned,
     editorClasses: "uppercase font-bold",
   },
   ACTION: {
@@ -44,7 +47,7 @@ export const SCRIPT_ELEMENT_CONFIG = {
     icon: Camera,
     toolbarColor: "hover:bg-orange-50 hover:text-orange-700",
     badgeColor: "bg-orange-100 text-orange-700 border-orange-200",
-    editorClasses: "uppercase", // Shots are in all caps and aligned to the left margin.
+    editorClasses: "uppercase",
   },
 } as const
 
