@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strings"
 )
@@ -30,6 +31,24 @@ type Config struct {
 type ServiceConfig struct {
 	Host string
 	Port string
+}
+
+// URL returns the full service URL
+func (s ServiceConfig) URL() string {
+	return fmt.Sprintf("%s:%s", s.Host, s.Port)
+}
+
+// Config URL getters
+func (c *Config) IdentityServiceURL() string {
+	return c.IdentityService.URL()
+}
+
+func (c *Config) ScriptsServiceURL() string {
+	return c.ScriptsService.URL()
+}
+
+func (c *Config) CollaborationServiceURL() string {
+	return c.CollabService.URL()
 }
 
 // Load loads configuration from environment variables

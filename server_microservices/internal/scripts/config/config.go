@@ -60,7 +60,7 @@ type StorageConfig struct {
 // Load loads configuration from environment variables with defaults
 func Load() (*Config, error) {
 	cfg := &Config{
-		GRPCPort: getEnvOrDefault("GRPC_PORT", "50052"),
+		GRPCPort: getEnvOrDefault("SCRIPTS_GRPC_PORT", "50052"),
 		DatabaseConfig: DatabaseConfig{
 			Host:            getEnvOrDefault("SCRIPTS_DB_HOST", "localhost"),
 			Port:            getEnvOrDefault("SCRIPTS_DB_PORT", "5432"),

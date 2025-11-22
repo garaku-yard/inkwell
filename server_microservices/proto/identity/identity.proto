@@ -11,13 +11,14 @@ message User {
   string id = 1;
   string email = 2;
   string username = 3;
-  string first_name = 4;
-  string last_name = 5;
-  string avatar_url = 6;
-  common.Timestamp created_at = 7;
-  common.Timestamp updated_at = 8;
-  bool is_active = 9;
-  string role = 10; // "admin", "user", "premium"
+  string user_tag = 4;
+  string first_name = 5;
+  string last_name = 6;
+  string avatar_url = 7;
+  common.Timestamp created_at = 8;
+  common.Timestamp updated_at = 9;
+  bool is_active = 10;
+  string role = 11; // "admin", "user", "premium"
 }
 
 // Authentication requests/responses
@@ -70,6 +71,11 @@ message GetUserRequest {
   string user_id = 1;
 }
 
+message GetUserByUsernameTagRequest {
+  string username = 1;
+  string user_tag = 2;
+}
+
 message GetUserResponse {
   User user = 1;
 }
@@ -117,6 +123,7 @@ service IdentityService {
   
   // User management
   rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc GetUserByUsernameTag(GetUserByUsernameTagRequest) returns (GetUserResponse);
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);

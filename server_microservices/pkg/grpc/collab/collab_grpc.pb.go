@@ -33,6 +33,9 @@ const (
 	CollaborationService_GetActiveSessions_FullMethodName       = "/collab.CollaborationService/GetActiveSessions"
 	CollaborationService_UpdatePresence_FullMethodName          = "/collab.CollaborationService/UpdatePresence"
 	CollaborationService_GetPresence_FullMethodName             = "/collab.CollaborationService/GetPresence"
+	CollaborationService_GetUserInvitations_FullMethodName      = "/collab.CollaborationService/GetUserInvitations"
+	CollaborationService_AcceptInvitation_FullMethodName        = "/collab.CollaborationService/AcceptInvitation"
+	CollaborationService_DeclineInvitation_FullMethodName       = "/collab.CollaborationService/DeclineInvitation"
 )
 
 // CollaborationServiceClient is the client API for CollaborationService service.
@@ -59,6 +62,10 @@ type CollaborationServiceClient interface {
 	// User presence
 	UpdatePresence(ctx context.Context, in *UpdatePresenceRequest, opts ...grpc.CallOption) (*UpdatePresenceResponse, error)
 	GetPresence(ctx context.Context, in *GetPresenceRequest, opts ...grpc.CallOption) (*GetPresenceResponse, error)
+	// Invitation management
+	GetUserInvitations(ctx context.Context, in *GetUserInvitationsRequest, opts ...grpc.CallOption) (*GetUserInvitationsResponse, error)
+	AcceptInvitation(ctx context.Context, in *AcceptInvitationRequest, opts ...grpc.CallOption) (*AcceptInvitationResponse, error)
+	DeclineInvitation(ctx context.Context, in *DeclineInvitationRequest, opts ...grpc.CallOption) (*DeclineInvitationResponse, error)
 }
 
 type collaborationServiceClient struct {
@@ -209,6 +216,36 @@ func (c *collaborationServiceClient) GetPresence(ctx context.Context, in *GetPre
 	return out, nil
 }
 
+func (c *collaborationServiceClient) GetUserInvitations(ctx context.Context, in *GetUserInvitationsRequest, opts ...grpc.CallOption) (*GetUserInvitationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserInvitationsResponse)
+	err := c.cc.Invoke(ctx, CollaborationService_GetUserInvitations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *collaborationServiceClient) AcceptInvitation(ctx context.Context, in *AcceptInvitationRequest, opts ...grpc.CallOption) (*AcceptInvitationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AcceptInvitationResponse)
+	err := c.cc.Invoke(ctx, CollaborationService_AcceptInvitation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *collaborationServiceClient) DeclineInvitation(ctx context.Context, in *DeclineInvitationRequest, opts ...grpc.CallOption) (*DeclineInvitationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeclineInvitationResponse)
+	err := c.cc.Invoke(ctx, CollaborationService_DeclineInvitation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CollaborationServiceServer is the server API for CollaborationService service.
 // All implementations must embed UnimplementedCollaborationServiceServer
 // for forward compatibility.
@@ -233,6 +270,10 @@ type CollaborationServiceServer interface {
 	// User presence
 	UpdatePresence(context.Context, *UpdatePresenceRequest) (*UpdatePresenceResponse, error)
 	GetPresence(context.Context, *GetPresenceRequest) (*GetPresenceResponse, error)
+	// Invitation management
+	GetUserInvitations(context.Context, *GetUserInvitationsRequest) (*GetUserInvitationsResponse, error)
+	AcceptInvitation(context.Context, *AcceptInvitationRequest) (*AcceptInvitationResponse, error)
+	DeclineInvitation(context.Context, *DeclineInvitationRequest) (*DeclineInvitationResponse, error)
 	mustEmbedUnimplementedCollaborationServiceServer()
 }
 
@@ -284,6 +325,15 @@ func (UnimplementedCollaborationServiceServer) UpdatePresence(context.Context, *
 }
 func (UnimplementedCollaborationServiceServer) GetPresence(context.Context, *GetPresenceRequest) (*GetPresenceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPresence not implemented")
+}
+func (UnimplementedCollaborationServiceServer) GetUserInvitations(context.Context, *GetUserInvitationsRequest) (*GetUserInvitationsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserInvitations not implemented")
+}
+func (UnimplementedCollaborationServiceServer) AcceptInvitation(context.Context, *AcceptInvitationRequest) (*AcceptInvitationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AcceptInvitation not implemented")
+}
+func (UnimplementedCollaborationServiceServer) DeclineInvitation(context.Context, *DeclineInvitationRequest) (*DeclineInvitationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeclineInvitation not implemented")
 }
 func (UnimplementedCollaborationServiceServer) mustEmbedUnimplementedCollaborationServiceServer() {}
 func (UnimplementedCollaborationServiceServer) testEmbeddedByValue()                              {}
@@ -558,6 +608,60 @@ func _CollaborationService_GetPresence_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CollaborationService_GetUserInvitations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserInvitationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CollaborationServiceServer).GetUserInvitations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CollaborationService_GetUserInvitations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CollaborationServiceServer).GetUserInvitations(ctx, req.(*GetUserInvitationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CollaborationService_AcceptInvitation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AcceptInvitationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CollaborationServiceServer).AcceptInvitation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CollaborationService_AcceptInvitation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CollaborationServiceServer).AcceptInvitation(ctx, req.(*AcceptInvitationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CollaborationService_DeclineInvitation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeclineInvitationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CollaborationServiceServer).DeclineInvitation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CollaborationService_DeclineInvitation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CollaborationServiceServer).DeclineInvitation(ctx, req.(*DeclineInvitationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CollaborationService_ServiceDesc is the grpc.ServiceDesc for CollaborationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -620,6 +724,18 @@ var CollaborationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPresence",
 			Handler:    _CollaborationService_GetPresence_Handler,
+		},
+		{
+			MethodName: "GetUserInvitations",
+			Handler:    _CollaborationService_GetUserInvitations_Handler,
+		},
+		{
+			MethodName: "AcceptInvitation",
+			Handler:    _CollaborationService_AcceptInvitation_Handler,
+		},
+		{
+			MethodName: "DeclineInvitation",
+			Handler:    _CollaborationService_DeclineInvitation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -19,6 +19,7 @@ type UserRepository interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*domain.User, error)
+	GetUserByUsernameAndTag(ctx context.Context, username, userTag string) (*domain.User, error)
 	UpdateUser(ctx context.Context, user *domain.User) error
 	UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error
 	UpdateLastLogin(ctx context.Context, userID uuid.UUID) error
@@ -52,14 +53,15 @@ func NewUserRepository(db *sql.DB) UserRepository {
 // CreateUser creates a new user in the database
 func (r *userRepository) CreateUser(ctx context.Context, user *domain.User) error {
 	query := `
-		INSERT INTO users (user_id, email, username, password_hash, first_name, last_name, avatar_url, role, is_active, is_verified, email_verified, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		INSERT INTO users (user_id, email, username, user_tag, password_hash, first_name, last_name, avatar_url, role, is_active, is_verified, email_verified, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
 		user.ID,
 		user.Email,
 		user.Username,
+		user.UserTag,
 		user.PasswordHash,
 		user.FirstName,
 		user.LastName,
@@ -93,7 +95,7 @@ func (r *userRepository) CreateUser(ctx context.Context, user *domain.User) erro
 // GetUserByID retrieves a user by ID
 func (r *userRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	query := `
-		SELECT user_id, email, username, password_hash, first_name, last_name, avatar_url, role, is_active, is_verified, email_verified, last_login_at, created_at, updated_at, deleted_at
+		SELECT user_id, email, username, user_tag, password_hash, first_name, last_name, avatar_url, role, is_active, is_verified, email_verified, last_login_at, created_at, updated_at, deleted_at
 		FROM users 
 		WHERE user_id = $1 AND deleted_at IS NULL
 	`
@@ -105,6 +107,7 @@ func (r *userRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*domain
 		&user.ID,
 		&user.Email,
 		&user.Username,
+		&user.UserTag,
 		&user.PasswordHash,
 		&user.FirstName,
 		&user.LastName,
@@ -136,7 +139,7 @@ func (r *userRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*domain
 // GetUserByEmail retrieves a user by email
 func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
 	query := `
-		SELECT user_id, email, username, password_hash, first_name, last_name, avatar_url, role, is_active, is_verified, email_verified, last_login_at, created_at, updated_at, deleted_at
+		SELECT user_id, email, username, user_tag, password_hash, first_name, last_name, avatar_url, role, is_active, is_verified, email_verified, last_login_at, created_at, updated_at, deleted_at
 		FROM users 
 		WHERE email = $1 AND deleted_at IS NULL
 	`
@@ -148,6 +151,7 @@ func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 		&user.ID,
 		&user.Email,
 		&user.Username,
+		&user.UserTag,
 		&user.PasswordHash,
 		&user.FirstName,
 		&user.LastName,
@@ -179,7 +183,7 @@ func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 // GetUserByUsername retrieves a user by username
 func (r *userRepository) GetUserByUsername(ctx context.Context, username string) (*domain.User, error) {
 	query := `
-		SELECT user_id, email, username, password_hash, first_name, last_name, avatar_url, role, is_active, is_verified, email_verified, last_login_at, created_at, updated_at, deleted_at
+		SELECT user_id, email, username, user_tag, password_hash, first_name, last_name, avatar_url, role, is_active, is_verified, email_verified, last_login_at, created_at, updated_at, deleted_at
 		FROM users 
 		WHERE username = $1 AND deleted_at IS NULL
 	`
@@ -191,6 +195,7 @@ func (r *userRepository) GetUserByUsername(ctx context.Context, username string)
 		&user.ID,
 		&user.Email,
 		&user.Username,
+		&user.UserTag,
 		&user.PasswordHash,
 		&user.FirstName,
 		&user.LastName,
@@ -210,6 +215,50 @@ func (r *userRepository) GetUserByUsername(ctx context.Context, username string)
 			return nil, domain.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to get user by username: %w", err)
+	}
+
+	if lastLogin.Valid {
+		user.LastLoginAt = &lastLogin.Time
+	}
+
+	return user, nil
+}
+
+// GetUserByUsernameAndTag retrieves a user by username and user tag
+func (r *userRepository) GetUserByUsernameAndTag(ctx context.Context, username, userTag string) (*domain.User, error) {
+	query := `
+		SELECT user_id, email, username, user_tag, password_hash, first_name, last_name, avatar_url, role, is_active, is_verified, email_verified, last_login_at, created_at, updated_at, deleted_at
+		FROM users 
+		WHERE username = $1 AND user_tag = $2 AND deleted_at IS NULL
+	`
+
+	user := &domain.User{}
+	var lastLogin sql.NullTime
+
+	err := r.db.QueryRowContext(ctx, query, username, userTag).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Username,
+		&user.UserTag,
+		&user.PasswordHash,
+		&user.FirstName,
+		&user.LastName,
+		&user.AvatarURL,
+		&user.Role,
+		&user.IsActive,
+		&user.IsVerified,
+		&user.EmailVerified,
+		&lastLogin,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.DeletedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrUserNotFound
+		}
+		return nil, fmt.Errorf("failed to get user by username and tag: %w", err)
 	}
 
 	if lastLogin.Valid {

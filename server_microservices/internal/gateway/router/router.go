@@ -23,6 +23,11 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		return nil, err
 	}
 
+	collaborationHandler, err := handlers.NewCollaborationHandler(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	// Auth routes
 	mux.HandleFunc("/login", authHandler.Login)
 	mux.HandleFunc("/register", authHandler.Register)
@@ -68,6 +73,57 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	})
 
 	mux.HandleFunc("/elements/", scriptsHandler.UpdateElement)
+
+	// Collaboration routes
+	mux.HandleFunc("/collaborators", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			collaborationHandler.AddCollaborator(w, r)
+		case http.MethodGet:
+			collaborationHandler.GetProjectCollaborators(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/comments", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			collaborationHandler.AddComment(w, r)
+		case http.MethodGet:
+			collaborationHandler.GetComments(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/presence", collaborationHandler.UpdatePresence)
+
+	// Invitation routes
+	mux.HandleFunc("/invitations", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			collaborationHandler.GetUserInvitations(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/invitations/accept", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			collaborationHandler.AcceptInvitation(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/invitations/decline", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			collaborationHandler.DeclineInvitation(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
 	// Health check
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

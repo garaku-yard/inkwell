@@ -1,7 +1,10 @@
 package domain
 
 import (
+	"crypto/rand"
 	"errors"
+	"fmt"
+	"math/big"
 	"regexp"
 	"strings"
 	"time"
@@ -14,7 +17,8 @@ type User struct {
 	ID            uuid.UUID  `json:"id" db:"user_id"`
 	Email         string     `json:"email" db:"email"`
 	Username      string     `json:"username" db:"username"`
-	PasswordHash  string     `json:"-" db:"password_hash"` // Never serialize password
+	UserTag       string     `json:"user_tag" db:"user_tag"` // 5-digit unique tag for username#tag invitations
+	PasswordHash  string     `json:"-" db:"password_hash"`   // Never serialize password
 	FirstName     *string    `json:"first_name" db:"first_name"`
 	LastName      *string    `json:"last_name" db:"last_name"`
 	AvatarURL     *string    `json:"avatar_url" db:"avatar_url"`
@@ -240,4 +244,38 @@ func (t *PasswordResetToken) IsExpired() bool {
 
 func (t *EmailVerificationToken) IsExpired() bool {
 	return time.Now().After(t.ExpiresAt)
+}
+
+// GenerateUserTag generates a random 5-digit user tag
+func GenerateUserTag() string {
+	// Generate a random number between 10000 and 99999
+	n, _ := rand.Int(rand.Reader, big.NewInt(90000))
+	return fmt.Sprintf("%05d", n.Int64()+10000)
+}
+
+// GetDisplayName returns the username#tag format
+func (u *User) GetDisplayName() string {
+	return fmt.Sprintf("%s#%s", u.Username, u.UserTag)
+}
+
+// ParseUserIdentifier parses either email or username#tag format
+func ParseUserIdentifier(identifier string) (string, string, bool) {
+	// Check if it's an email
+	if strings.Contains(identifier, "@") {
+		return identifier, "", true // email format
+	}
+
+	// Check if it's username#tag format
+	parts := strings.Split(identifier, "#")
+	if len(parts) == 2 && len(parts[1]) == 5 {
+		// Validate that tag is numeric
+		for _, r := range parts[1] {
+			if r < '0' || r > '9' {
+				return "", "", false
+			}
+		}
+		return parts[0], parts[1], false // username#tag format
+	}
+
+	return "", "", false // invalid format
 }

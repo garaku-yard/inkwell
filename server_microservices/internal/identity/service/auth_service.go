@@ -27,6 +27,7 @@ type AuthService interface {
 
 	// User management
 	GetUserProfile(ctx context.Context, userID uuid.UUID) (*UserProfileResponse, error)
+	GetUserByUsernameTag(ctx context.Context, username, userTag string) (*UserInfo, error)
 	UpdateUserProfile(ctx context.Context, userID uuid.UUID, req *UpdateProfileRequest) error
 	ChangePassword(ctx context.Context, userID uuid.UUID, req *ChangePasswordRequest) error
 	DeleteAccount(ctx context.Context, userID uuid.UUID) error
@@ -65,6 +66,7 @@ type UserInfo struct {
 	ID          uuid.UUID  `json:"id"`
 	Email       string     `json:"email"`
 	Username    string     `json:"username"`
+	UserTag     string     `json:"user_tag"`
 	FirstName   *string    `json:"first_name"`
 	LastName    *string    `json:"last_name"`
 	AvatarURL   *string    `json:"avatar_url"`
@@ -80,6 +82,7 @@ type UserProfileResponse struct {
 	ID          uuid.UUID  `json:"id"`
 	Email       string     `json:"email"`
 	Username    string     `json:"username"`
+	UserTag     string     `json:"user_tag"`
 	FirstName   *string    `json:"first_name"`
 	LastName    *string    `json:"last_name"`
 	AvatarURL   *string    `json:"avatar_url"`
@@ -112,6 +115,7 @@ type TokenClaims struct {
 	UserID   uuid.UUID `json:"user_id"`
 	Email    string    `json:"email"`
 	Username string    `json:"username"`
+	UserTag  string    `json:"user_tag"`
 	Role     string    `json:"role"`
 	jwt.RegisteredClaims
 }
@@ -171,11 +175,17 @@ func (s *authService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 	// Set default role
 	role := "user"
 
+	// Generate unique user tag
+	userTag := domain.GenerateUserTag()
+	// TODO: In a production environment, ensure uniqueness by checking database
+	// For now, the 5-digit random generation should be sufficient for most cases
+
 	// Create user
 	user := &domain.User{
 		ID:           uuid.New(),
 		Email:        req.Email,
 		Username:     req.Username,
+		UserTag:      userTag,
 		PasswordHash: passwordHash,
 		FirstName:    req.FirstName,
 		LastName:     req.LastName,
@@ -207,6 +217,7 @@ func (s *authService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 			ID:          user.ID,
 			Email:       user.Email,
 			Username:    user.Username,
+			UserTag:     user.UserTag,
 			FirstName:   user.FirstName,
 			LastName:    user.LastName,
 			AvatarURL:   user.AvatarURL,
@@ -255,6 +266,7 @@ func (s *authService) Login(ctx context.Context, req *LoginRequest) (*AuthRespon
 			ID:          user.ID,
 			Email:       user.Email,
 			Username:    user.Username,
+			UserTag:     user.UserTag,
 			FirstName:   user.FirstName,
 			LastName:    user.LastName,
 			AvatarURL:   user.AvatarURL,
@@ -436,6 +448,7 @@ func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*U
 		ID:          user.ID,
 		Email:       user.Email,
 		Username:    user.Username,
+		UserTag:     user.UserTag,
 		FirstName:   user.FirstName,
 		LastName:    user.LastName,
 		AvatarURL:   user.AvatarURL,
@@ -450,7 +463,7 @@ func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*U
 
 // ValidateAccessToken validates and parses an access token
 func (s *authService) ValidateAccessToken(ctx context.Context, tokenString string) (*TokenClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -461,8 +474,30 @@ func (s *authService) ValidateAccessToken(ctx context.Context, tokenString strin
 		return nil, domain.ErrInvalidToken
 	}
 
-	if claims, ok := token.Claims.(*TokenClaims); ok && token.Valid {
-		return claims, nil
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		// Convert MapClaims back to TokenClaims for backward compatibility
+		userIDStr, ok := claims["sub"].(string)
+		if !ok {
+			return nil, domain.ErrInvalidToken
+		}
+
+		userID, err := uuid.Parse(userIDStr)
+		if err != nil {
+			return nil, domain.ErrInvalidToken
+		}
+
+		email, _ := claims["eml"].(string)
+		username, _ := claims["usn"].(string)
+		userTag, _ := claims["tag"].(string)
+		role, _ := claims["role"].(string)
+
+		return &TokenClaims{
+			UserID:   userID,
+			Email:    email,
+			Username: username,
+			UserTag:  userTag,
+			Role:     role,
+		}, nil
 	}
 
 	return nil, domain.ErrInvalidToken
@@ -547,19 +582,17 @@ func (s *authService) createUserSession(ctx context.Context, user *domain.User) 
 
 // generateTokenPair generates access and refresh tokens for a user
 func (s *authService) generateTokenPair(user *domain.User) (*domain.TokenPair, error) {
-	// Generate access token
-	accessClaims := &TokenClaims{
-		UserID:   user.ID,
-		Email:    user.Email,
-		Username: user.Username,
-		Role:     user.Role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.config.JWTConfig.AccessTokenExpiry)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-			Issuer:    s.config.JWTConfig.Issuer,
-			Subject:   user.ID.String(),
-		},
+	// Generate access token with abbreviated field names to match old server format
+	accessClaims := jwt.MapClaims{
+		"sub":  user.ID.String(),
+		"eml":  user.Email,
+		"usn":  user.Username,
+		"tag":  user.UserTag,
+		"role": user.Role,
+		"iat":  time.Now().Unix(),
+		"exp":  time.Now().Add(s.config.JWTConfig.AccessTokenExpiry).Unix(),
+		"nbf":  time.Now().Unix(),
+		"iss":  s.config.JWTConfig.Issuer,
 	}
 
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
@@ -605,4 +638,29 @@ func (s *authService) hashRefreshToken(token string) string {
 	// For simplicity, we're using the token directly as hash
 	// In production, you might want to use a proper hash function
 	return token
+}
+
+// GetUserByUsernameTag returns user information for a given username and tag
+func (s *authService) GetUserByUsernameTag(ctx context.Context, username, userTag string) (*UserInfo, error) {
+	user, err := s.userRepo.GetUserByUsernameAndTag(ctx, username, userTag)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to UserInfo
+	return &UserInfo{
+		ID:          user.ID,
+		Email:       user.Email,
+		Username:    user.Username,
+		UserTag:     user.UserTag,
+		FirstName:   user.FirstName,
+		LastName:    user.LastName,
+		AvatarURL:   user.AvatarURL,
+		Role:        user.Role,
+		IsActive:    user.IsActive,
+		IsVerified:  user.IsVerified,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		LastLoginAt: user.LastLoginAt,
+	}, nil
 }

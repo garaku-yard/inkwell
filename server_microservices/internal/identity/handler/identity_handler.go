@@ -48,6 +48,7 @@ func (h *IdentityHandler) Register(ctx context.Context, req *identitypb.Register
 			Id:        resp.User.ID.String(),
 			Email:     resp.User.Email,
 			Username:  resp.User.Username,
+			UserTag:   resp.User.UserTag,
 			FirstName: stringValue(resp.User.FirstName),
 			LastName:  stringValue(resp.User.LastName),
 			AvatarUrl: stringValue(resp.User.AvatarURL),
@@ -78,6 +79,7 @@ func (h *IdentityHandler) Login(ctx context.Context, req *identitypb.LoginReques
 			Id:        resp.User.ID.String(),
 			Email:     resp.User.Email,
 			Username:  resp.User.Username,
+			UserTag:   resp.User.UserTag,
 			FirstName: stringValue(resp.User.FirstName),
 			LastName:  stringValue(resp.User.LastName),
 			AvatarUrl: stringValue(resp.User.AvatarURL),
@@ -119,6 +121,7 @@ func (h *IdentityHandler) ValidateToken(ctx context.Context, req *identitypb.Val
 			Id:        userInfo.ID.String(),
 			Email:     userInfo.Email,
 			Username:  userInfo.Username,
+			UserTag:   userInfo.UserTag,
 			FirstName: stringValue(userInfo.FirstName),
 			LastName:  stringValue(userInfo.LastName),
 			AvatarUrl: stringValue(userInfo.AvatarURL),
@@ -148,6 +151,7 @@ func (h *IdentityHandler) GetUser(ctx context.Context, req *identitypb.GetUserRe
 			Id:        profile.ID.String(),
 			Email:     profile.Email,
 			Username:  profile.Username,
+			UserTag:   profile.UserTag,
 			FirstName: stringValue(profile.FirstName),
 			LastName:  stringValue(profile.LastName),
 			AvatarUrl: stringValue(profile.AvatarURL),
@@ -155,6 +159,30 @@ func (h *IdentityHandler) GetUser(ctx context.Context, req *identitypb.GetUserRe
 			UpdatedAt: timeToCommonTimestamp(profile.UpdatedAt),
 			IsActive:  profile.IsActive,
 			Role:      profile.Role,
+		},
+	}, nil
+}
+
+// GetUserByUsernameTag handles getting user by username and tag
+func (h *IdentityHandler) GetUserByUsernameTag(ctx context.Context, req *identitypb.GetUserByUsernameTagRequest) (*identitypb.GetUserResponse, error) {
+	userInfo, err := h.authService.GetUserByUsernameTag(ctx, req.Username, req.UserTag)
+	if err != nil {
+		return nil, h.handleError(err)
+	}
+
+	return &identitypb.GetUserResponse{
+		User: &identitypb.User{
+			Id:        userInfo.ID.String(),
+			Email:     userInfo.Email,
+			Username:  userInfo.Username,
+			UserTag:   userInfo.UserTag,
+			FirstName: stringValue(userInfo.FirstName),
+			LastName:  stringValue(userInfo.LastName),
+			AvatarUrl: stringValue(userInfo.AvatarURL),
+			CreatedAt: timeToCommonTimestamp(userInfo.CreatedAt),
+			UpdatedAt: timeToCommonTimestamp(userInfo.UpdatedAt),
+			IsActive:  userInfo.IsActive,
+			Role:      userInfo.Role,
 		},
 	}, nil
 }

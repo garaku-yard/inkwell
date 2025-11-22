@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -22,6 +23,11 @@ import (
 )
 
 func main() {
+	// Load environment variables from .env file
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: Could not load .env file: %v", err)
+	}
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {

@@ -83,6 +83,10 @@ server_microservices/
 # Clone the repository (if not already done)
 cd server_microservices
 
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your database credentials
+
 # Install protobuf dependencies and set up development environment
 make dev-setup
 
@@ -211,11 +215,38 @@ make clean             # Clean all artifacts
 
 ## 🔒 Environment Variables
 
+### Configuration Setup
+
+All microservices use a centralized `.env` file for configuration. Copy the example file and customize it:
+
+```bash
+cp .env.example .env
+```
+
+Edit the `.env` file with your specific settings:
+
+```bash
+# Database Credentials (Required)
+IDENTITY_DB_PASSWORD=your_postgres_password
+SCRIPTS_DB_PASSWORD=your_postgres_password
+COLLAB_DB_PASSWORD=your_postgres_password
+
+# JWT Secrets (Required - change for production)
+JWT_ACCESS_SECRET=your_access_secret_key
+JWT_REFRESH_SECRET=your_refresh_secret_key
+JWT_SECRET=your_gateway_secret_key
+
+# Service Ports (Optional - defaults provided)
+IDENTITY_GRPC_PORT=50051
+SCRIPTS_GRPC_PORT=50052
+COLLAB_GRPC_PORT=50053
+GATEWAY_PORT=8080
+```
+
 ### Required for Development
 ```bash
-# Database connections are auto-configured in docker-compose
-# JWT signing (change for production)
-JWT_SECRET=dev-secret-key-change-in-production
+# Database connections - configured automatically from .env
+# No need to manually export environment variables
 
 # Optional: AI service integration
 OPENAI_API_KEY=your_openai_api_key
@@ -224,6 +255,12 @@ OPENAI_API_KEY=your_openai_api_key
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 ```
+
+### .env File Benefits
+- ✅ No more manual `export` commands for each terminal session
+- ✅ Consistent configuration across all services
+- ✅ Easy deployment with different environments
+- ✅ Secure secrets management (`.env` is in `.gitignore`)
 
 ## 📡 API Communication
 
@@ -403,6 +440,111 @@ For development questions or issues:
 2. Verify service health with health checks
 3. Review database schema in `migrations/`
 4. Check Kafka events for debugging async issues
+
+## 📋 Implementation Status
+
+### ✅ Completed Services
+- **API Gateway** (Port 8080) - Complete REST API with gRPC backend communication
+- **Identity Service** (Port 50051) - User authentication and JWT token management
+- **Scripts Service** (Port 50052) - Projects, scenes, elements, characters management  
+- **Collaboration Service** (Port 50053) - Comments, collaborators, presence, editing sessions
+
+### 🏗️ Service Implementation Details
+
+#### Identity Service
+- ✅ User registration and login
+- ✅ JWT token generation and validation
+- ✅ Password hashing with bcrypt
+- ✅ Database schema and migrations
+- ✅ gRPC API implementation
+
+#### Scripts Service  
+- ✅ Project CRUD operations
+- ✅ Scene management
+- ✅ Script element handling
+- ✅ Character and location management
+- ✅ Database relationships and indexing
+- ✅ gRPC API implementation
+
+#### Collaboration Service
+- ✅ Role-based collaborator management (owner/editor/viewer)
+- ✅ Comments with threading support
+- ✅ Real-time editing session tracking  
+- ✅ User presence management
+- ✅ Permission-based access control
+- ✅ Database schema with proper indexing
+
+#### API Gateway
+- ✅ HTTP to gRPC translation
+- ✅ Authentication endpoints
+- ✅ Scripts management endpoints  
+- ✅ Collaboration endpoints
+- ✅ CORS, logging, recovery middleware
+
+### 🚀 Quick Start (Current Implementation)
+
+```bash
+# Build all services
+cd server_microservices
+go build -o bin/scriptlith-identity ./cmd/identity
+go build -o bin/scriptlith-scripts ./cmd/scripts  
+go build -o bin/scriptlith-collab ./cmd/collab
+go build -o bin/scriptlith-gateway ./cmd/gateway
+
+# Start all services (requires PostgreSQL databases)
+./start-services.sh
+
+# Health check
+curl http://localhost:8080/health
+```
+
+### 📊 Current API Endpoints
+
+#### Authentication
+- `POST /login` - User authentication
+- `POST /register` - User registration
+
+#### Scripts Management
+- `POST /projects` - Create project
+- `GET /projects` - List user projects
+- `GET /projects/{id}` - Get project details
+- `POST /scenes` - Create scene
+- `GET /scenes?project_id={id}` - Get project scenes
+- `PUT /scenes/{id}` - Update scene
+- `POST /elements` - Create script element
+- `GET /elements?scene_id={id}` - Get scene elements
+- `PUT /elements/{id}` - Update element
+
+#### Collaboration
+- `POST /collaborators` - Add project collaborator
+- `GET /collaborators?project_id={id}` - Get collaborators
+- `POST /comments` - Add comment
+- `GET /comments?screenplay_id={id}` - Get comments
+- `POST /presence` - Update user presence
+
+### 🔧 Development Status
+
+#### Working Features
+- ✅ All microservices compile and run
+- ✅ Database migrations and schema creation
+- ✅ Service-to-service gRPC communication
+- ✅ HTTP REST API through gateway
+- ✅ JWT authentication flow
+- ✅ Role-based authorization
+- ✅ Error handling and logging
+
+#### Deployment Ready
+- ✅ Binary builds for all services
+- ✅ Startup script for local development
+- ✅ Environment variable configuration
+- ✅ Health check endpoints
+- ✅ Graceful shutdown handling
+
+---
+
+**Implementation Status**: ✅ **Core Services Complete and Functional**  
+**Version**: 1.0.0 (November 2025)
+**Next Steps**: Add remaining services (Billing, AI), enhance real-time features, production deployment
 
 ## 📋 TODO
 

@@ -76,7 +76,7 @@ type SecurityConfig struct {
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	config := &Config{
-		GRPCPort: getEnvOrDefault("GRPC_PORT", "50051"),
+		GRPCPort: getEnvOrDefault("IDENTITY_GRPC_PORT", "50051"),
 
 		DatabaseConfig: DatabaseConfig{
 			Host:            getEnvOrDefault("IDENTITY_DB_HOST", "localhost"),

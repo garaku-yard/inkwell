@@ -208,6 +208,33 @@ message GetPresenceResponse {
   repeated UserPresence presences = 1;
 }
 
+// Invitation management requests/responses
+message GetUserInvitationsRequest {
+  string user_id = 1; // User to get invitations for
+}
+
+message GetUserInvitationsResponse {
+  repeated Collaborator invitations = 1;
+}
+
+message AcceptInvitationRequest {
+  string collaborator_id = 1;
+  string user_id = 2; // User accepting the invitation
+}
+
+message AcceptInvitationResponse {
+  Collaborator collaborator = 1;
+}
+
+message DeclineInvitationRequest {
+  string collaborator_id = 1;
+  string user_id = 2; // User declining the invitation
+}
+
+message DeclineInvitationResponse {
+  bool success = 1;
+}
+
 // Collaboration service definition
 service CollaborationService {
   // Collaborator management
@@ -231,4 +258,9 @@ service CollaborationService {
   // User presence
   rpc UpdatePresence(UpdatePresenceRequest) returns (UpdatePresenceResponse);
   rpc GetPresence(GetPresenceRequest) returns (GetPresenceResponse);
+  
+  // Invitation management
+  rpc GetUserInvitations(GetUserInvitationsRequest) returns (GetUserInvitationsResponse);
+  rpc AcceptInvitation(AcceptInvitationRequest) returns (AcceptInvitationResponse);
+  rpc DeclineInvitation(DeclineInvitationRequest) returns (DeclineInvitationResponse);
 }

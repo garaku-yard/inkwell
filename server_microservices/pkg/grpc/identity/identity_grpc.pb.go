@@ -19,14 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	IdentityService_Register_FullMethodName       = "/identity.IdentityService/Register"
-	IdentityService_Login_FullMethodName          = "/identity.IdentityService/Login"
-	IdentityService_RefreshToken_FullMethodName   = "/identity.IdentityService/RefreshToken"
-	IdentityService_ValidateToken_FullMethodName  = "/identity.IdentityService/ValidateToken"
-	IdentityService_GetUser_FullMethodName        = "/identity.IdentityService/GetUser"
-	IdentityService_GetUsers_FullMethodName       = "/identity.IdentityService/GetUsers"
-	IdentityService_UpdateUser_FullMethodName     = "/identity.IdentityService/UpdateUser"
-	IdentityService_ChangePassword_FullMethodName = "/identity.IdentityService/ChangePassword"
+	IdentityService_Register_FullMethodName             = "/identity.IdentityService/Register"
+	IdentityService_Login_FullMethodName                = "/identity.IdentityService/Login"
+	IdentityService_RefreshToken_FullMethodName         = "/identity.IdentityService/RefreshToken"
+	IdentityService_ValidateToken_FullMethodName        = "/identity.IdentityService/ValidateToken"
+	IdentityService_GetUser_FullMethodName              = "/identity.IdentityService/GetUser"
+	IdentityService_GetUserByUsernameTag_FullMethodName = "/identity.IdentityService/GetUserByUsernameTag"
+	IdentityService_GetUsers_FullMethodName             = "/identity.IdentityService/GetUsers"
+	IdentityService_UpdateUser_FullMethodName           = "/identity.IdentityService/UpdateUser"
+	IdentityService_ChangePassword_FullMethodName       = "/identity.IdentityService/ChangePassword"
 )
 
 // IdentityServiceClient is the client API for IdentityService service.
@@ -42,6 +43,7 @@ type IdentityServiceClient interface {
 	ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error)
 	// User management
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
+	GetUserByUsernameTag(ctx context.Context, in *GetUserByUsernameTagRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
 	GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (*GetUsersResponse, error)
 	UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*UpdateUserResponse, error)
 	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ChangePasswordResponse, error)
@@ -105,6 +107,16 @@ func (c *identityServiceClient) GetUser(ctx context.Context, in *GetUserRequest,
 	return out, nil
 }
 
+func (c *identityServiceClient) GetUserByUsernameTag(ctx context.Context, in *GetUserByUsernameTagRequest, opts ...grpc.CallOption) (*GetUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserResponse)
+	err := c.cc.Invoke(ctx, IdentityService_GetUserByUsernameTag_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *identityServiceClient) GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (*GetUsersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetUsersResponse)
@@ -148,6 +160,7 @@ type IdentityServiceServer interface {
 	ValidateToken(context.Context, *ValidateTokenRequest) (*ValidateTokenResponse, error)
 	// User management
 	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
+	GetUserByUsernameTag(context.Context, *GetUserByUsernameTagRequest) (*GetUserResponse, error)
 	GetUsers(context.Context, *GetUsersRequest) (*GetUsersResponse, error)
 	UpdateUser(context.Context, *UpdateUserRequest) (*UpdateUserResponse, error)
 	ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error)
@@ -175,6 +188,9 @@ func (UnimplementedIdentityServiceServer) ValidateToken(context.Context, *Valida
 }
 func (UnimplementedIdentityServiceServer) GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
+}
+func (UnimplementedIdentityServiceServer) GetUserByUsernameTag(context.Context, *GetUserByUsernameTagRequest) (*GetUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserByUsernameTag not implemented")
 }
 func (UnimplementedIdentityServiceServer) GetUsers(context.Context, *GetUsersRequest) (*GetUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUsers not implemented")
@@ -296,6 +312,24 @@ func _IdentityService_GetUser_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IdentityService_GetUserByUsernameTag_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserByUsernameTagRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityServiceServer).GetUserByUsernameTag(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityService_GetUserByUsernameTag_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityServiceServer).GetUserByUsernameTag(ctx, req.(*GetUserByUsernameTagRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _IdentityService_GetUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetUsersRequest)
 	if err := dec(in); err != nil {
@@ -376,6 +410,10 @@ var IdentityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUser",
 			Handler:    _IdentityService_GetUser_Handler,
+		},
+		{
+			MethodName: "GetUserByUsernameTag",
+			Handler:    _IdentityService_GetUserByUsernameTag_Handler,
 		},
 		{
 			MethodName: "GetUsers",
