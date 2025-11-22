@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/lib/AuthContext"
 
 import { createProject, addCollaborator, Project, deleteProject } from "@/services/project"
 
@@ -38,6 +39,7 @@ interface NewProjectDialogProps {
 
 export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewProjectDialogProps) {
   const [projectName, setProjectName] = useState("")
+  const [description, setDescription] = useState("")
   const [projectType, setProjectType] = useState("")
   const [collaborators, setCollaborators] = useState<{ username: string; role: CollaboratorRole }[]>([])
   const [collaboratorInput, setCollaboratorInput] = useState("")
@@ -47,6 +49,8 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
   const [error, setError] = useState<string | null>(null)
 
   const router = useRouter()
+  const { user } = useAuth()
+  const userId = user?.id
 
   const handleAddCollaborator = () => {
     const trimmed = collaboratorInput.trim()
@@ -73,20 +77,24 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
       return
     }
 
+    if (!userId) {
+      setError("User not authenticated.")
+      return
+    }
+
     setIsLoading(true)
     setError(null)
 
     try {
       const newProject = await createProject({
-        projectName: projectName,
-        description: projectTypes.find(t => t.value === projectType)?.label || "New Project",
+        title: projectName,
+        description: description || projectTypes.find(t => t.value === projectType)?.label || "New Project",
+        owner_id: userId,
       })
 
-      if (newProject && newProject.id && collaborators.length > 0) {
-        for (const { username, role } of collaborators) {
-          await addCollaborator(newProject.id, username, role);
-        }
-
+      // Note: Collaborators will be implemented later in collaboration service
+      if (collaborators.length > 0) {
+        console.warn("Collaborators not yet implemented in microservices backend")
       }
 
       onProjectCreated(newProject)
@@ -129,6 +137,16 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
               placeholder="Enter project name"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
+              disabled={isLoading}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="project-description">Description (Optional)</Label>
+            <Input
+              id="project-description"
+              placeholder="Brief description of your project"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               disabled={isLoading}
             />
           </div>

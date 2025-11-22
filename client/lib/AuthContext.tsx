@@ -5,29 +5,38 @@ import { useRouter } from "next/navigation"
 import { jwtDecode } from "jwt-decode";
 
 interface DecodedToken {
-  sub: string;
-  nam: string;
-  usn: string;
-  tag: string;
-  eml: string;
-  exp: number;
+  sub: string;        // Subject (User ID as UUID string)
+  user_id: string;    // Also includes user_id for compatibility
+  email: string;      // User email
+  username: string;   // Username
+  role: string;       // User role
+  exp: number;        // Expiration timestamp
+  iat: number;        // Issued at timestamp
+  nbf: number;        // Not before timestamp
+  iss: string;        // Issuer
 }
 
 interface AuthContextType {
   isAuthenticated: boolean;
   logout: () => void;
-  fullName: string | null;
-  userName: string | null;
-  userId: string | null;
+  user: {
+    id: string;
+    email: string;
+    username: string;
+    role: string;
+  } | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [fullName, setFullName] = useState<string | null>(null);
-  const [userName, setUsersName] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [user, setUser] = useState<{
+    id: string;
+    email: string;
+    username: string;
+    role: string;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -37,10 +46,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (token) {
         const decodedToken: DecodedToken = jwtDecode(token);
         if (decodedToken.exp * 1000 > Date.now()) {
-          setIsAuthenticated(true);
-          setFullName(decodedToken.nam);
-          setUsersName(decodedToken.usn + "#" + decodedToken.tag)
-          setUserId(decodedToken.sub);
+          // Validate that the user ID is a proper UUID (36 characters with dashes)
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (uuidRegex.test(decodedToken.sub)) {
+            setIsAuthenticated(true);
+            setUser({
+              id: decodedToken.sub,
+              email: decodedToken.email,
+              username: decodedToken.username,
+              role: decodedToken.role,
+            });
+          } else {
+            // Clear old token with invalid UUID format
+            console.log('Clearing old token with invalid user ID format');
+            localStorage.removeItem("authToken");
+          }
         } else {
           localStorage.removeItem("authToken");
         }
@@ -56,9 +76,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = () => {
     localStorage.removeItem("authToken");
     setIsAuthenticated(false);
-    setFullName(null);
-    setUsersName(null)
-    setUserId(null);
+    setUser(null);
     router.push("/login");
   };
 
@@ -67,7 +85,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, fullName, userName, userId, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, logout }}>
       {children}
     </AuthContext.Provider>
   );

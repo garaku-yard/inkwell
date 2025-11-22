@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strings"
 )
 
 // Config holds all configuration for the API Gateway
@@ -14,15 +15,21 @@ type Config struct {
 	// CORS configuration
 	AllowedOrigins []string `env:"ALLOWED_ORIGINS" default:"http://localhost:3000"`
 
-	// Service endpoints
-	IdentityServiceURL string `env:"IDENTITY_SERVICE_URL" default:"localhost:50051"`
-	ScriptsServiceURL  string `env:"SCRIPTS_SERVICE_URL" default:"localhost:50052"`
-	CollabServiceURL   string `env:"COLLAB_SERVICE_URL" default:"localhost:50053"`
-	BillingServiceURL  string `env:"BILLING_SERVICE_URL" default:"localhost:50054"`
-	AIServiceURL       string `env:"AI_SERVICE_URL" default:"localhost:50055"`
+	// Service configurations
+	IdentityService ServiceConfig
+	ScriptsService  ServiceConfig
+	CollabService   ServiceConfig
+	BillingService  ServiceConfig
+	AIService       ServiceConfig
 
 	// JWT configuration (for token validation)
 	JWTSecret string `env:"JWT_SECRET" default:"dev-gateway-secret"`
+}
+
+// ServiceConfig holds configuration for a microservice
+type ServiceConfig struct {
+	Host string
+	Port string
 }
 
 // Load loads configuration from environment variables
@@ -31,21 +38,34 @@ func Load() (*Config, error) {
 		Port:        getEnvOrDefault("GATEWAY_PORT", "8080"),
 		Host:        getEnvOrDefault("GATEWAY_HOST", "0.0.0.0"),
 		Environment: getEnvOrDefault("ENVIRONMENT", "development"),
+		JWTSecret:   getEnvOrDefault("JWT_SECRET", "dev-gateway-secret"),
 
-		// Service URLs
-		IdentityServiceURL: getEnvOrDefault("IDENTITY_SERVICE_URL", "localhost:50051"),
-		ScriptsServiceURL:  getEnvOrDefault("SCRIPTS_SERVICE_URL", "localhost:50052"),
-		CollabServiceURL:   getEnvOrDefault("COLLAB_SERVICE_URL", "localhost:50053"),
-		BillingServiceURL:  getEnvOrDefault("BILLING_SERVICE_URL", "localhost:50054"),
-		AIServiceURL:       getEnvOrDefault("AI_SERVICE_URL", "localhost:50055"),
-
-		// JWT
-		JWTSecret: getEnvOrDefault("JWT_SECRET", "dev-gateway-secret"),
+		// Service configurations
+		IdentityService: ServiceConfig{
+			Host: getEnvOrDefault("IDENTITY_SERVICE_HOST", "localhost"),
+			Port: getEnvOrDefault("IDENTITY_SERVICE_PORT", "50051"),
+		},
+		ScriptsService: ServiceConfig{
+			Host: getEnvOrDefault("SCRIPTS_SERVICE_HOST", "localhost"),
+			Port: getEnvOrDefault("SCRIPTS_SERVICE_PORT", "50052"),
+		},
+		CollabService: ServiceConfig{
+			Host: getEnvOrDefault("COLLAB_SERVICE_HOST", "localhost"),
+			Port: getEnvOrDefault("COLLAB_SERVICE_PORT", "50053"),
+		},
+		BillingService: ServiceConfig{
+			Host: getEnvOrDefault("BILLING_SERVICE_HOST", "localhost"),
+			Port: getEnvOrDefault("BILLING_SERVICE_PORT", "50054"),
+		},
+		AIService: ServiceConfig{
+			Host: getEnvOrDefault("AI_SERVICE_HOST", "localhost"),
+			Port: getEnvOrDefault("AI_SERVICE_PORT", "50055"),
+		},
 	}
 
 	// Parse allowed origins
-	originsEnv := getEnvOrDefault("ALLOWED_ORIGINS", "http://localhost:3000")
-	config.AllowedOrigins = []string{originsEnv} // Simplified for now
+	originsEnv := getEnvOrDefault("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001")
+	config.AllowedOrigins = strings.Split(originsEnv, ",")
 
 	return config, nil
 }

@@ -17,16 +17,8 @@ message Project {
   string status = 7; // "draft", "active", "completed", "archived"
 }
 
-// Screenplay entity
-message Screenplay {
-  string id = 1;
-  string project_id = 2;
-  string title = 3;
-  string content = 4;
-  int32 version = 5;
-  common.Timestamp created_at = 6;
-  common.Timestamp updated_at = 7;
-}
+// Note: Screenplay is now represented by Project entity
+// The Project contains the script content through ScriptElements
 
 // Scene entity
 message Scene {
@@ -43,8 +35,8 @@ message Scene {
 // Script element entity (individual lines/elements of a screenplay)
 message ScriptElement {
   string id = 1;
-  string screenplay_id = 2;
-  string scene_id = 3; // Optional link to scene
+  string project_id = 2; // Changed from screenplay_id to project_id
+  string scene_id = 3; // Required link to scene - elements must belong to a scene
   string type = 4; // "scene_heading", "character", "dialogue", "action", "parenthetical", "transition", "shot"
   string content = 5; // The actual text content
   string character_id = 6; // For dialogue elements, link to character
@@ -145,37 +137,7 @@ message GetUserProjectsResponse {
   common.PaginationResponse pagination = 2;
 }
 
-// Screenplay requests/responses
-message CreateScreenplayRequest {
-  string project_id = 1;
-  string user_id = 2; // For authorization check
-  string title = 3;
-  string content = 4;
-}
-
-message CreateScreenplayResponse {
-  Screenplay screenplay = 1;
-}
-
-message GetScreenplayRequest {
-  string screenplay_id = 1;
-  string user_id = 2; // For authorization check
-}
-
-message GetScreenplayResponse {
-  Screenplay screenplay = 1;
-}
-
-message UpdateScreenplayRequest {
-  string screenplay_id = 1;
-  string user_id = 2; // For authorization check
-  optional string title = 3;
-  optional string content = 4;
-}
-
-message UpdateScreenplayResponse {
-  Screenplay screenplay = 1;
-}
+// Script content is now managed through ScriptElements linked to Project
 
 // Outline unit requests/responses
 message CreateOutlineUnitRequest {
@@ -324,7 +286,7 @@ message UpdateLocationResponse {
 
 // Script element requests/responses
 message CreateScriptElementRequest {
-  string screenplay_id = 1;
+  string project_id = 1; // Changed from screenplay_id to project_id
   string user_id = 2; // For authorization check
   optional string scene_id = 3;
   string type = 4;
@@ -338,14 +300,14 @@ message CreateScriptElementResponse {
   ScriptElement script_element = 1;
 }
 
-message GetScreenplayElementsRequest {
-  string screenplay_id = 1;
+message GetProjectScriptElementsRequest {
+  string project_id = 1; // Changed from screenplay_id to project_id
   string user_id = 2; // For authorization check
   optional int32 start_line = 3; // For pagination
   optional int32 end_line = 4;
 }
 
-message GetScreenplayElementsResponse {
+message GetProjectScriptElementsResponse {
   repeated ScriptElement script_elements = 1;
 }
 
@@ -372,9 +334,44 @@ message DeleteScriptElementResponse {
   bool success = 1;
 }
 
+// Simplified Element operations for gateway
+message CreateElementRequest {
+  string project_id = 1;
+  string user_id = 2;
+  string scene_id = 3;
+  string element_type = 4; // "ACTION", "CHARACTER", "DIALOG", "PARENTHETICAL", "SHOT", "TRANSITION"
+  string content = 5;
+  optional string character_id = 6;
+  int32 line_number = 7;
+  map<string, string> formatting = 8;
+}
+
+message CreateElementResponse {
+  ScriptElement element = 1;
+}
+
+message UpdateElementRequest {
+  string element_id = 1;
+  string user_id = 2;
+  string content = 3;
+}
+
+message UpdateElementResponse {
+  ScriptElement element = 1;
+}
+
+message GetSceneElementsRequest {
+  string scene_id = 1;
+  string user_id = 2;
+}
+
+message GetSceneElementsResponse {
+  repeated ScriptElement elements = 1;
+}
+
 // Bulk operations for real-time editing
 message BulkUpdateScriptElementsRequest {
-  string screenplay_id = 1;
+  string project_id = 1; // Changed from screenplay_id to project_id
   string user_id = 2;
   repeated ScriptElement elements = 3;
 }
@@ -394,17 +391,12 @@ message GetProjectLocationsResponse {
 
 // Scripts service definition
 service ScriptsService {
-  // Project management
+  // Project management (Project now represents the screenplay)
   rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
   rpc GetProject(GetProjectRequest) returns (GetProjectResponse);
   rpc UpdateProject(UpdateProjectRequest) returns (UpdateProjectResponse);
   rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse);
   rpc GetUserProjects(GetUserProjectsRequest) returns (GetUserProjectsResponse);
-  
-  // Screenplay management
-  rpc CreateScreenplay(CreateScreenplayRequest) returns (CreateScreenplayResponse);
-  rpc GetScreenplay(GetScreenplayRequest) returns (GetScreenplayResponse);
-  rpc UpdateScreenplay(UpdateScreenplayRequest) returns (UpdateScreenplayResponse);
   
   // Outline unit management (acts, sequences, beats, sub-beats)
   rpc CreateOutlineUnit(CreateOutlineUnitRequest) returns (CreateOutlineUnitResponse);
@@ -426,10 +418,15 @@ service ScriptsService {
   rpc CreateLocation(CreateLocationRequest) returns (CreateLocationResponse);
   rpc GetProjectLocations(GetProjectLocationsRequest) returns (GetProjectLocationsResponse);
   
-  // Script element management (for line-by-line editing)
+  // Script element management (for line-by-line editing of the screenplay content)
   rpc CreateScriptElement(CreateScriptElementRequest) returns (CreateScriptElementResponse);
-  rpc GetScreenplayElements(GetScreenplayElementsRequest) returns (GetScreenplayElementsResponse);
+  rpc GetProjectScriptElements(GetProjectScriptElementsRequest) returns (GetProjectScriptElementsResponse);
   rpc UpdateScriptElement(UpdateScriptElementRequest) returns (UpdateScriptElementResponse);
   rpc DeleteScriptElement(DeleteScriptElementRequest) returns (DeleteScriptElementResponse);
   rpc BulkUpdateScriptElements(BulkUpdateScriptElementsRequest) returns (BulkUpdateScriptElementsResponse);
+  
+  // Simplified element operations for gateway
+  rpc CreateElement(CreateElementRequest) returns (CreateElementResponse);
+  rpc UpdateElement(UpdateElementRequest) returns (UpdateElementResponse);
+  rpc GetSceneElements(GetSceneElementsRequest) returns (GetSceneElementsResponse);
 }

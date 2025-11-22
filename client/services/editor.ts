@@ -2,7 +2,7 @@ import { apiClient } from "@/lib/api";
 import { ScriptElement } from "./project";
 
 export interface CreateElementRequest {
-  sceneId: string;
+  sceneId: string; // Required - elements must belong to a scene
   elementOrder: number;
   elementType: ScriptElement['elementType'];
   content: string;

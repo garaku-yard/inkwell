@@ -41,28 +41,28 @@ proto-deps:
 # Build all services
 build-all: proto
 	@echo "Building all services..."
-	@go build -o bin/api-gateway ./cmd/gateway
-	@go build -o bin/identity-service ./cmd/identity
-	@go build -o bin/scripts-service ./cmd/scripts
-	@go build -o bin/collab-service ./cmd/collab
-	@go build -o bin/billing-service ./cmd/billing
+	@go build -o bin/scriptlith-gateway ./cmd/gateway
+	@go build -o bin/scriptlith-identity ./cmd/identity
+	@go build -o bin/scriptlith-scripts ./cmd/scripts
+	@go build -o bin/scriptlith-collab ./cmd/collab
+	@go build -o bin/scriptlith-billing ./cmd/billing
 	@echo "✅ All services built successfully"
 
 # Build specific service
 build-gateway: proto
-	@go build -o bin/api-gateway ./cmd/api-gateway
+	@go build -o bin/scriptlith-gateway ./cmd/gateway
 
 build-identity: proto
-	@go build -o bin/identity-service ./cmd/identity
+	@go build -o bin/scriptlith-identity ./cmd/identity
 
 build-scripts: proto
-	@go build -o bin/scripts-service ./cmd/scripts
+	@go build -o bin/scriptlith-scripts ./cmd/scripts
 
 build-collab: proto
-	@go build -o bin/collab-service ./cmd/collab
+	@go build -o bin/scriptlith-collab ./cmd/collab
 
 build-billing: proto
-	@go build -o bin/billing-service ./cmd/billing
+	@go build -o bin/scriptlith-billing ./cmd/billing
 
 # Development environment
 run-dev:

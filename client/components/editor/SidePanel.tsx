@@ -49,7 +49,7 @@ export const SidePanel = React.memo(
       const [activeTab, setActiveTab] = useState("scenes")
       const router = useRouter()
 
-      const getElementIcon = (elementType: ScriptElement["elementType"]) => {
+      const getElementIcon = (elementType: ScriptElement["element_type"]) => {
         const config = SCRIPT_ELEMENT_CONFIG[elementType]
         if (config && typeof config.icon === "function") {
           const IconComponent = config.icon
@@ -58,7 +58,7 @@ export const SidePanel = React.memo(
         return <Hash className="h-3 w-3" />
       }
 
-      const getElementTypeColor = (elementType: ScriptElement["elementType"]) => {
+      const getElementTypeColor = (elementType: ScriptElement["element_type"]) => {
         return SCRIPT_ELEMENT_CONFIG[elementType]?.badgeColor || "bg-gray-100 text-gray-700 border-gray-200"
       }
 
@@ -68,8 +68,9 @@ export const SidePanel = React.memo(
 
       const activeElement = useMemo((): ActiveScriptItem | null => {
         if (!activeElementId) return null
-        for (const act of project.acts) {
-          for (const scene of act.scenes) {
+        // Check scenes directly (no acts structure in microservices)
+        if (project.scenes) {
+          for (const scene of project.scenes) {
             if (scene.id === activeElementId) {
               return { ...scene, isScene: true }
             }
@@ -80,7 +81,7 @@ export const SidePanel = React.memo(
           }
         }
         return null
-      }, [activeElementId, project.acts])
+      }, [activeElementId, project.scenes])
 
       const unresolvedCommentsCount = useMemo(() => {
         if (!activeElement) return 0
@@ -142,9 +143,9 @@ export const SidePanel = React.memo(
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium text-sm leading-tight group-hover:text-primary transition-colors">
-                            {scene.setting.toUpperCase()}
+                            {scene.scene_heading.toUpperCase()}
                           </h4>
-                          <p className="text-xs text-muted-foreground mt-1">Scene {scene.sceneNumber || index + 1}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Scene {scene.scene_number || index + 1}</p>
                         </div>
                         <Badge variant="outline" className="text-xs shrink-0">
                           {scene.elements?.length || 0}
@@ -153,7 +154,7 @@ export const SidePanel = React.memo(
 
                       {scene.elements && scene.elements.length > 0 && (
                         <div className="flex flex-wrap gap-1">
-                          {Array.from(new Set(scene.elements.map((el) => el.elementType)))
+                          {Array.from(new Set(scene.elements.map((el) => el.element_type).filter(Boolean)))
                             .slice(0, 4)
                             .map((type) => (
                               <div
@@ -166,9 +167,9 @@ export const SidePanel = React.memo(
                                 <span className="capitalize">{type.toLowerCase()}</span>
                               </div>
                             ))}
-                          {Array.from(new Set(scene.elements.map((el) => el.elementType))).length > 4 && (
+                          {Array.from(new Set(scene.elements.map((el) => el.element_type).filter(Boolean))).length > 4 && (
                             <Badge variant="secondary" className="text-xs">
-                              +{Array.from(new Set(scene.elements.map((el) => el.elementType))).length - 4}
+                              +{Array.from(new Set(scene.elements.map((el) => el.element_type).filter(Boolean))).length - 4}
                             </Badge>
                           )}
                         </div>
@@ -224,17 +225,17 @@ export const SidePanel = React.memo(
                                 while (i < scene.elements.length) {
                                   const currentElement = scene.elements[i]
 
-                                  if (currentElement.elementType === "CHARACTER") {
+                                  if (currentElement.element_type === "CHARACTER") {
                                     const group = [currentElement]
                                     let j = i + 1
                                     if (
                                       j < scene.elements.length &&
-                                      scene.elements[j].elementType === "PARENTHETICAL"
+                                      scene.elements[j].element_type === "PARENTHETICAL"
                                     ) {
                                       group.push(scene.elements[j])
                                       j++
                                     }
-                                    if (j < scene.elements.length && scene.elements[j].elementType === "DIALOG") {
+                                    if (j < scene.elements.length && scene.elements[j].element_type === "DIALOG") {
                                       group.push(scene.elements[j])
                                       j++
                                     }
@@ -259,11 +260,11 @@ export const SidePanel = React.memo(
                                           >
                                             <div
                                               className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${getElementTypeColor(
-                                                el.elementType,
+                                                el.element_type,
                                               )}`}
                                             >
-                                              {getElementIcon(el.elementType)}{" "}
-                                              <span className="font-medium">{el.elementType.substring(0, 3)}</span>
+                                              {getElementIcon(el.element_type)}{" "}
+                                              <span className="font-medium">{el.element_type.substring(0, 3)}</span>
                                             </div>
                                             <span className="text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1">
                                               {el.content}
@@ -281,12 +282,12 @@ export const SidePanel = React.memo(
                                       >
                                         <div
                                           className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${getElementTypeColor(
-                                            item.element.elementType,
+                                            item.element.element_type,
                                           )}`}
                                         >
-                                          {getElementIcon(item.element.elementType)}
+                                          {getElementIcon(item.element.element_type)}
                                           <span className="font-medium">
-                                            {item.element.elementType.substring(0, 3)}
+                                            {item.element.element_type.substring(0, 3)}
                                           </span>
                                         </div>
                                         <span className="text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1">

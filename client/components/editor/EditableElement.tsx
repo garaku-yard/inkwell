@@ -24,9 +24,9 @@ interface EditableElementProps {
 export const EditableElement = React.memo(
   React.forwardRef<HTMLDivElement, EditableElementProps>((props, fwdRef) => {
     const { element, onContentChange, onFinalizeUpdate, onKeyDown, activeElementId, onFocus, onBlur } = props
-    const isScene = "setting" in element
-    const type = isScene ? "SCENE_HEADING" : element.elementType
-    const content = isScene ? element.setting : element.content
+    const isScene = "scene_heading" in element
+    const type = isScene ? "SCENE_HEADING" : element.element_type
+    const content = isScene ? element.scene_heading : element.content
     const config = SCRIPT_ELEMENT_CONFIG[type]
     const isActive = element.id === activeElementId
     const unresolvedCommentsCount = element.comments?.filter((c) => !c.isResolved).length || 0

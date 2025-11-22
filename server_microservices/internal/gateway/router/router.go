@@ -18,9 +18,56 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		return nil, err
 	}
 
+	scriptsHandler, err := handlers.NewScriptsHandler(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	// Auth routes
 	mux.HandleFunc("/login", authHandler.Login)
 	mux.HandleFunc("/register", authHandler.Register)
+
+	// Scripts routes
+	mux.HandleFunc("/projects", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			scriptsHandler.CreateProject(w, r)
+		case http.MethodGet:
+			scriptsHandler.GetUserProjects(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/projects/", scriptsHandler.GetProject)
+
+	// Scenes routes
+	mux.HandleFunc("/scenes", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			scriptsHandler.CreateScene(w, r)
+		case http.MethodGet:
+			scriptsHandler.GetProjectScenes(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/scenes/", scriptsHandler.UpdateScene)
+
+	// Elements routes
+	mux.HandleFunc("/elements", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			scriptsHandler.CreateElement(w, r)
+		case http.MethodGet:
+			scriptsHandler.GetSceneElements(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/elements/", scriptsHandler.UpdateElement)
 
 	// Health check
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

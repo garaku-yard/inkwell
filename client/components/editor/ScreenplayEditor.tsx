@@ -11,24 +11,22 @@ import { SidePanel } from "./SidePanel"
 import { EditorPane, type EditorPaneRef } from "./EditorPane"
 import { ImportProjectDialog } from "../import-dialog" // Already imported
 import {
-  updateSceneSetting,
-  updateScriptElementContent,
-  createElement,
-  deleteScriptElement,
   createScene,
-  deleteScene,
-  addComment,
-  updateComment,
-  deleteComment,
-  toggleCommentResolved,
+  createElement,
+  updateElementContent,
+  updateSceneHeading,
+  getProjectScenes,
+  getProjectScriptElements,
   type FullProject,
   type Scene,
   type ScriptElement,
-  type Project // Added Project type for the handler
+  type Project,
+  type Comment // Added Comment type for the handler
 } from "@/services/project"
 import { getKeyString, createKeymap } from "@/lib/editor/keymap";
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { AIChatPanel } from "./AIChatPanel"
+import { useAuth } from "@/lib/AuthContext"
 
 type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ScriptElement }
 
@@ -36,7 +34,49 @@ interface ScreenplayEditorProps {
   projectData: FullProject
 }
 
+// Placeholder functions for features not yet implemented in microservices
+const updateSceneSetting = async (sceneId: string, content: string) => {
+  console.warn('updateSceneSetting not yet implemented in microservices')
+  // TODO: Implement scene update endpoint
+}
+
+const updateScriptElementContent = async (elementId: string, content: string) => {
+  console.warn('updateScriptElementContent not yet implemented in microservices')
+  // TODO: Implement script element update endpoint
+}
+
+const deleteScriptElement = async (elementId: string) => {
+  console.warn('deleteScriptElement not yet implemented in microservices')
+  // TODO: Implement script element delete endpoint
+}
+
+const deleteScene = async (sceneId: string) => {
+  console.warn('deleteScene not yet implemented in microservices')
+  // TODO: Implement scene delete endpoint
+}
+
+const addComment = async (elementId: string, isScene: boolean, content: string) => {
+  console.warn('addComment not yet implemented in microservices')
+  // TODO: Implement comments service
+}
+
+const updateComment = async (commentId: string, content: string) => {
+  console.warn('updateComment not yet implemented in microservices')
+  // TODO: Implement comments service
+}
+
+const deleteComment = async (commentId: string) => {
+  console.warn('deleteComment not yet implemented in microservices')
+  // TODO: Implement comments service
+}
+
+const toggleCommentResolved = async (commentId: string) => {
+  console.warn('toggleCommentResolved not yet implemented in microservices')
+  // TODO: Implement comments service
+}
+
 export function ScreenplayEditor({ projectData: initialProjectData }: ScreenplayEditorProps) {
+  const { user } = useAuth()
   const [project, setProject] = useState<FullProject>(initialProjectData)
   const [activeElementId, setActiveElementId] = useState<string | null>(null)
   const [activeElementType, setActiveElementType] = useState<ToolbarScriptElementType | null>(null)
@@ -62,7 +102,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     }
   }, 1500)
 
-  const allScenes = useMemo(() => project?.acts?.flatMap((act) => act.scenes) || [], [project.acts])
+  const allScenes = useMemo(() => project?.scenes || [], [project.scenes])
   const totalScenes = allScenes.length
   const totalElements = useMemo(
     () => allScenes.reduce((acc, scene) => acc + (scene.elements?.length || 0), 0),
@@ -70,15 +110,13 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   )
 
   const flattenedScriptItems: ScriptItem[] = useMemo(() => {
-    if (!project?.acts?.length) return []
-    return project.acts.flatMap(
-      (act) =>
-        act.scenes.flatMap((scene) => [
-          { type: "SCENE_HEADING", data: scene },
-          ...(scene.elements?.map((el): ScriptItem => ({ type: "ELEMENT", data: el })) || []),
-        ]) || [],
-    )
-  }, [project.acts])
+    if (!project?.scenes?.length) return []
+    
+    return project.scenes.flatMap((scene) => [
+      { type: "SCENE_HEADING", data: scene },
+      ...(scene.elements?.map((el): ScriptItem => ({ type: "ELEMENT", data: el })) || []),
+    ])
+  }, [project.scenes])
 
   const scrollToElement = useCallback(
     (elementId: string) => {
@@ -234,26 +272,35 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       debouncedSave.cancel()
 
       setProject((prevProject) => {
-        const newActs = prevProject.acts.map((act) => ({
-          ...act,
-          scenes: act.scenes.map((scene) => {
-            if (isScene && scene.id === id) {
-              return { ...scene, setting: content }
-            }
-            return {
-              ...scene,
-              elements: scene.elements.map((el) => (el.id === id ? { ...el, content: content } : el)),
-            }
-          }),
-        }))
-        return { ...prevProject, acts: newActs }
+        if (isScene) {
+          // Update scene in flat scenes array
+          const newScenes = prevProject.scenes?.map((scene) => 
+            scene.id === id ? { ...scene, scene_heading: content } : scene
+          ) || []
+          return { ...prevProject, scenes: newScenes }
+        } else {
+          // Update element within scenes
+          const newScenes = prevProject.scenes?.map((scene) => ({
+            ...scene,
+            elements: scene.elements?.map((el) => (el.id === id ? { ...el, content: content } : el)),
+          })) || []
+          return { ...prevProject, scenes: newScenes }
+        }
       })
 
       if (id.startsWith("new-")) return
       if (isScene) {
-        updateSceneSetting(id, content).catch((err) => console.error("Scene save failed on blur:", err))
+        if (!user?.id) {
+          console.error("Cannot update scene: No user ID available.")
+          return
+        }
+        updateSceneHeading(id, user.id, content).catch((err) => console.error("Scene save failed on blur:", err))
       } else {
-        updateScriptElementContent(id, content).catch((err) => console.error("Element save failed on blur:", err))
+        if (!user?.id) {
+          console.error("Cannot update element: No user ID available.")
+          return
+        }
+        updateElementContent(id, user.id, content).catch((err) => console.error("Element save failed on blur:", err))
       }
     },
     [debouncedSave],
@@ -290,28 +337,25 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       let sceneId = ""
       let insertIndex = -1
 
-      if (idToInsertAfter) {
-        for (const act of project.acts) {
-          for (const scene of act.scenes) {
-            if (isTargetScene && scene.id === idToInsertAfter) {
-              sceneId = scene.id
-              insertIndex = 0
-              break
-            }
-
-            const foundIndex = scene.elements.findIndex((el) => el.id === idToInsertAfter)
-            if (foundIndex !== -1) {
-              sceneId = scene.id
-              insertIndex = foundIndex + 1
-              break
-            }
+      if (idToInsertAfter && project.scenes) {
+        for (const scene of project.scenes) {
+          if (isTargetScene && scene.id === idToInsertAfter) {
+            sceneId = scene.id
+            insertIndex = 0
+            break
           }
-          if (sceneId) break
+
+          const foundIndex = scene.elements?.findIndex((el) => el.id === idToInsertAfter) ?? -1
+          if (foundIndex !== -1) {
+            sceneId = scene.id
+            insertIndex = foundIndex + 1
+            break
+          }
         }
       } else if (allScenes.length > 0) {
         const lastScene = allScenes[allScenes.length - 1]
         sceneId = lastScene.id
-        insertIndex = lastScene.elements.length
+        insertIndex = lastScene.elements?.length || 0
       }
 
       if (!sceneId) {
@@ -319,31 +363,40 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         return
       }
 
-      const newElementData: Partial<ScriptElement> = {
-        elementType: type,
-        content: "",
+      if (!project.id || !user?.id) {
+        console.error("Cannot add element: No project ID or user ID available.")
+        return
       }
 
-      createElement(sceneId, newElementData)
+      if (!sceneId) {
+        console.error("Cannot add element: Scene ID is required.")
+        return
+      }
+
+      const newElementData = {
+        scene_id: sceneId,
+        element_type: type,
+        content: "",
+        line_number: Math.max(insertIndex, 1) // Ensure line number is at least 1
+      }
+
+      createElement(project.id, user.id, newElementData)
         .then((createdElement) => {
           setProject((prevProject) => {
-            const newActs = prevProject.acts.map((act) => ({
-              ...act,
-              scenes: act.scenes.map((scene) => {
-                if (scene.id !== sceneId) return scene
-                const newElements = [...(scene.elements || [])]
-                newElements.splice(insertIndex, 0, createdElement)
-                return { ...scene, elements: newElements }
-              }),
-            }))
-            return { ...prevProject, acts: newActs }
+            const newScenes = prevProject.scenes?.map((scene) => {
+              if (scene.id !== sceneId) return scene
+              const newElements = [...(scene.elements || [])]
+              newElements.splice(insertIndex, 0, createdElement)
+              return { ...scene, elements: newElements }
+            }) || []
+            return { ...prevProject, scenes: newScenes }
           })
 
           setElementToFocus(createdElement.id)
         })
         .catch((err) => console.error("Failed to create new element:", err))
     },
-    [project.acts, activeElementId, allScenes],
+    [project.scenes, activeElementId, allScenes],
   )
 
   const handleDeleteElement = useCallback(
@@ -448,32 +501,31 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   );
 
   const handleAddNewScene = useCallback(() => {
-    if (!project.acts || project.acts.length === 0) {
-      console.error("Cannot add a scene: No acts exist in the project.")
+    if (!project.id || !user?.id) {
+      console.error("Cannot add a scene: No project ID or user ID available.")
       return
     }
 
-    const lastAct = project.acts[project.acts.length - 1]
-    const newSceneData = { setting: "" }
+    // Create scene data for microservices structure
+    const newSceneData = {
+      scene_heading: "",
+      content: "",
+      order_index: project.scenes?.length || 0
+    }
 
-    createScene(lastAct.id, newSceneData)
+    createScene(project.id, user.id, newSceneData)
       .then((createdScene) => {
-        setProject((prevProject) => {
-          const newActs = prevProject.acts.map((act) => {
-            if (act.id === lastAct.id) {
-              return { ...act, scenes: [...act.scenes, createdScene] }
-            }
-            return act
-          })
-          return { ...prevProject, acts: newActs }
-        })
+        setProject((prevProject) => ({
+          ...prevProject,
+          scenes: [...(prevProject.scenes || []), createdScene]
+        }))
 
         setElementToFocus(createdScene.id)
       })
       .catch((err) => {
         console.error("Failed to create new scene:", err)
       })
-  }, [project.acts])
+  }, [project.id, project.scenes, user?.id])
 
   const toggleAIChat = useCallback(() => {
     setIsAIChatOpen((prev) => !prev)

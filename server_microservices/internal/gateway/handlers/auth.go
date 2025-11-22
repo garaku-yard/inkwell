@@ -22,7 +22,8 @@ type AuthHandler struct {
 // NewAuthHandler creates a new AuthHandler
 func NewAuthHandler(cfg *config.Config) (*AuthHandler, error) {
 	// Connect to Identity service
-	conn, err := grpc.NewClient(cfg.IdentityServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	serviceURL := cfg.IdentityService.Host + ":" + cfg.IdentityService.Port
+	conn, err := grpc.NewClient(serviceURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}

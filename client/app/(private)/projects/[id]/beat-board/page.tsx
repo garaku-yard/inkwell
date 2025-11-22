@@ -16,10 +16,12 @@ import { BeatCanvas } from "@/components/beat-board/BeatCanvas";
 import { getBeatBoardForProject, createBeat, deleteBeat, updateBeat, createConnection, deleteConnection, type Beat, type Connection } from "@/services/beat"
 import { type Lane, type OutlineItem, updateLane, updateLaneOrder, createOutlineItem, updateOutlineItem, createLane } from "@/services/beat-board";
 import { getProjectById, type FullProject } from "@/services/project"
+import { useAuth } from "@/lib/AuthContext"
 
 export type ConnectionSide = "top" | "right" | "bottom" | "left";
 
 export default function BeatBoardPage() {
+  const { user } = useAuth()
   const [project, setProject] = useState<FullProject | null>(null);
   const [beats, setBeats] = useState<Beat[]>([])
   const [outlineItems, setOutlineItems] = useState<OutlineItem[]>([])
@@ -50,13 +52,13 @@ export default function BeatBoardPage() {
   const [draggedLaneId, setDraggedLaneId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || !user?.id) return;
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
       try {
         const [projectData, beatBoardData] = await Promise.all([
-          getProjectById(projectId),
+          getProjectById(projectId, user.id),
           getBeatBoardForProject(projectId)
         ]);
 
@@ -77,14 +79,14 @@ export default function BeatBoardPage() {
   }, [projectId]);
 
   const scriptMarkers = useMemo((): ScriptMarker[] => {
-    if (!project?.acts) return [];
+    // Acts are not yet implemented in microservices, return default structure
     const actMarkers: ScriptMarker[] = [
-      { name: `Act 1: ${project.acts[0]?.title || 'Setup'}`, page: 1, color: "#10b981" },
-      { name: `Act 2: ${project.acts[1]?.title || 'Confrontation'}`, page: 30, color: "#8b5cf6" },
-      { name: `Act 3: ${project.acts[2]?.title || 'Resolution'}`, page: 90, color: "#ef4444" },
+      { name: 'Act 1: Setup', page: 1, color: "#10b981" },
+      { name: 'Act 2: Confrontation', page: 30, color: "#8b5cf6" },
+      { name: 'Act 3: Resolution', page: 90, color: "#ef4444" },
     ]
-    return actMarkers.filter(act => project.acts.some(a => a.actNumber === parseInt(act.name.charAt(4))));
-  }, [project?.acts]);
+    return actMarkers;
+  }, [project]);
 
   const debouncedUpdateBeat = useDebouncedCallback((beatId: string, data: Partial<Beat>) => { updateBeat(beatId, data) }, 800);
   const debouncedUpdateOutlineItem = useDebouncedCallback((itemId: string, data: Partial<OutlineItem>) => { updateOutlineItem(itemId, data) }, 500);

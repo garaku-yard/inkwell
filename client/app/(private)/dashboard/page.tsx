@@ -44,7 +44,7 @@ import { CollaboratorsDialog } from "./collaborators-dialog"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { RenameProjectDialog } from "@/components/rename-project-dialog"
 import { getPendingInvites } from "@/services/invites"
-import { deleteProject, getMyProjects, starProject, updateProject, type Project } from "@/services/project"
+import { deleteProject, getMyProjects, updateProject, type Project } from "@/services/project"
 import { cn } from "@/lib/utils"
 
 const formatRelativeTime = (dateString: string) => {
@@ -80,7 +80,8 @@ export default function DashboardPage() {
   })
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
-  const { isAuthenticated, logout, userName, fullName, userId } = useAuth()
+  const { isAuthenticated, logout, user } = useAuth()
+  const userId = user?.id
   const [projects, setProjects] = useState<Project[]>([])
   const [renameDialog, setRenameDialog] = useState<{
     open: boolean
@@ -101,18 +102,22 @@ export default function DashboardPage() {
   const [activeFilter, setActiveFilter] = useState("lastUpdated")
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && userId) {
       setIsLoading(true)
       const fetchDashboardData = async () => {
         try {
-          const [fetchedProjects, fetchedInvites] = await Promise.all([
-            getMyProjects(),
-            getPendingInvites(),
+          const [projectsResponse, fetchedInvites] = await Promise.all([
+            getMyProjects(userId),
+            getPendingInvites().catch(err => {
+              console.warn('Invites service not available:', err.message)
+              return [] // Return empty array if invites service is not available
+            }),
           ])
-          setProjects(fetchedProjects)
+          setProjects(projectsResponse.projects)
           setInviteCount(fetchedInvites.length)
         } catch (err: any) {
-          setError("Failed to fetch dashboard data. Please try again later.")
+          console.error('Dashboard fetch error:', err)
+          setError(`Failed to fetch dashboard data: ${err.message || err}`)
         } finally {
           setIsLoading(false)
         }
@@ -121,45 +126,31 @@ export default function DashboardPage() {
     } else {
       setIsLoading(false)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, userId])
 
   const handleProjectCreated = (newProject: Project) => {
     setProjects((prevProjects) => [newProject, ...prevProjects])
   }
 
-  const handleStarProject = async (projectId: string, currentStatus: boolean) => {
-    const originalProjects = [...projects]
-    setProjects((prev) =>
-      prev.map((p) => (p.id === projectId ? { ...p, isStarred: !currentStatus } : p)),
-    )
-
-    try {
-      const updatedProject = await starProject(projectId, !currentStatus)
-      setProjects((prev) => prev.map((p) => (p.id === projectId ? updatedProject : p)))
-    } catch (error) {
-      console.error("Failed to star project", error)
-      setProjects(originalProjects)
-      toast({
-        title: "Error",
-        description: "Failed to update project. Please try again.",
-        variant: "destructive",
-      })
-    }
+  // Star functionality not implemented yet  
+  const handleStarProject = () => {
+    // TODO: Implement star functionality when available
+    console.log('Star functionality not implemented yet')
   }
 
-  const handleManageCollaborators = (projectId: string, projectName: string) => {
+  const handleManageCollaborators = (projectId: string, projectTitle: string) => {
     setCollaboratorsDialog({
       open: true,
       projectId,
-      projectName,
+      projectName: projectTitle,
     })
   }
 
-  const handleDeleteProjectClick = (projectId: string, projectName: string) => {
+  const handleDeleteProjectClick = (projectId: string, projectTitle: string) => {
     setDeleteDialog({
       open: true,
       projectId,
-      projectName,
+      projectName: projectTitle,
     })
   }
 
@@ -168,7 +159,7 @@ export default function DashboardPage() {
 
     setIsDeleting(true)
     try {
-      await deleteProject(deleteDialog.projectId)
+      await deleteProject(deleteDialog.projectId, userId!)
       setProjects((prev) => prev.filter((p) => p.id !== deleteDialog.projectId))
       setDeleteDialog({ open: false, projectId: "", projectName: "" })
       toast({
@@ -187,11 +178,11 @@ export default function DashboardPage() {
     }
   }
 
-  const handleRenameProjectClick = (projectId: string, projectName: string, projectDescription: string) => {
+  const handleRenameProjectClick = (projectId: string, projectTitle: string, projectDescription: string) => {
     setRenameDialog({
       open: true,
       projectId,
-      projectName,
+      projectName: projectTitle,
       projectDescription,
     })
   }
@@ -201,8 +192,8 @@ export default function DashboardPage() {
 
     setIsRenaming(true)
     try {
-      const updatedData = await updateProject(renameDialog.projectId, {
-        projectName: newName,
+      const updatedData = await updateProject(renameDialog.projectId, userId!, {
+        title: newName,
         description: newDescription,
       })
       setProjects((prev) => prev.map((p) => (p.id === renameDialog.projectId ? updatedData : p)))
@@ -228,16 +219,17 @@ export default function DashboardPage() {
 
     switch (activeFilter) {
       case "lastUpdated":
-        processedProjects.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        processedProjects.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
         break
       case "myProjects":
-        processedProjects = projects.filter((p) => p.userId === userId)
+        processedProjects = projects.filter((p) => p.owner_id === userId)
         break
       case "collaborations":
-        processedProjects = projects.filter((p) => p.userId !== userId)
+        processedProjects = projects.filter((p) => p.owner_id !== userId)
         break
       case "starred":
-        processedProjects = projects.filter((p) => p.isStarred)
+        // Starred functionality not yet implemented in microservices
+        processedProjects = []
         break
       default:
         break
@@ -248,7 +240,7 @@ export default function DashboardPage() {
     }
 
     return processedProjects.filter((project) =>
-      project.projectName.toLowerCase().includes(searchQuery.toLowerCase()),
+      project.title.toLowerCase().includes(searchQuery.toLowerCase()),
     )
   }, [projects, activeFilter, searchQuery, userId])
 
@@ -283,8 +275,8 @@ export default function DashboardPage() {
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{fullName}</p>
-                      <p className="text-xs leading-none text-muted-foreground">{userName}</p>
+                      <p className="text-sm font-medium leading-none">{user?.username}</p>
+                      <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
@@ -399,7 +391,7 @@ export default function DashboardPage() {
                     <CardContent className="p-4 flex-grow">
                       <div className="flex items-start justify-between">
                         <div>
-                          <h3 className="font-semibold text-lg hover:text-primary">{project.projectName}</h3>
+                          <h3 className="font-semibold text-lg hover:text-primary">{project.title}</h3>
                           <p className="text-sm text-muted-foreground">{project.description}</p>
                         </div>
                         <DropdownMenu>
@@ -417,7 +409,7 @@ export default function DashboardPage() {
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation()
-                                handleManageCollaborators(project.id, project.projectName)
+                                handleManageCollaborators(project.id, project.title)
                               }}
                             >
                               <Users className="mr-2 h-4 w-4" />
@@ -427,7 +419,7 @@ export default function DashboardPage() {
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation()
-                                handleRenameProjectClick(project.id, project.projectName, project.description || "")
+                                handleRenameProjectClick(project.id, project.title, project.description || "")
                               }}
                             >
                               Edit
@@ -435,7 +427,7 @@ export default function DashboardPage() {
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation()
-                                handleDeleteProjectClick(project.id, project.projectName)
+                                handleDeleteProjectClick(project.id, project.title)
                               }}
                               className="text-destructive focus:text-destructive"
                             >
@@ -448,7 +440,7 @@ export default function DashboardPage() {
                     <CardFooter className="p-4 pt-0 flex justify-between items-center text-sm text-muted-foreground">
                       <div className="flex items-center">
                         <Clock className="h-3.5 w-3.5 mr-1" />
-                        {formatRelativeTime(project.updatedAt)}
+                        {formatRelativeTime(project.updated_at)}
                       </div>
                       <div className="flex items-center gap-3">
                         {/* Quick Add Collaborator Button */}
@@ -458,7 +450,7 @@ export default function DashboardPage() {
                           className="h-6 w-6"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleManageCollaborators(project.id, project.projectName)
+                            handleManageCollaborators(project.id, project.title)
                           }}
                           title="Add Collaborator"
                         >
@@ -471,23 +463,27 @@ export default function DashboardPage() {
                           className="h-6 w-6"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleStarProject(project.id, project.isStarred)
+                            // Star functionality not yet implemented
+                            console.warn('Star functionality not yet implemented')
                           }}
                         >
                           <Star
                             className={cn(
                               "h-4 w-4 text-muted-foreground hover:text-yellow-400",
-                              project.isStarred && "fill-yellow-400 text-yellow-400",
+                              // Star functionality not implemented yet
+                              false && "fill-yellow-400 text-yellow-400",
                             )}
                           />
                         </Button>
 
+                        {/* Collaborator count not implemented yet
                         {project.collaboratorCount > 0 && (
                           <div className="flex items-center">
                             <Users className="h-3.5 w-3.5 mr-1" />
                             {project.collaboratorCount + 1}
                           </div>
                         )}
+                        */}
                       </div>
                     </CardFooter>
                   </Card>
