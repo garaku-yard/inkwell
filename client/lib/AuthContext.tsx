@@ -6,14 +6,19 @@ import { jwtDecode } from "jwt-decode";
 
 interface DecodedToken {
   sub: string;        // Subject (User ID as UUID string)
-  user_id: string;    // Also includes user_id for compatibility
-  email: string;      // User email
-  username: string;   // Username
-  role: string;       // User role
+  user_id?: string;   // Also includes user_id for compatibility
+  eml?: string;       // User email (abbreviated)
+  usn?: string;       // Username (abbreviated)
+  tag?: string;       // UserTag (abbreviated)
+  email?: string;     // User email (full)
+  username?: string;  // Username (full)
+  user_tag?: string;  // UserTag (full)
+  role?: string;      // User role
   exp: number;        // Expiration timestamp
   iat: number;        // Issued at timestamp
-  nbf: number;        // Not before timestamp
-  iss: string;        // Issuer
+  nbf?: number;       // Not before timestamp
+  iss?: string;       // Issuer
+  [key: string]: any; // Allow any other fields
 }
 
 interface AuthContextType {
@@ -45,6 +50,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const token = localStorage.getItem("authToken");
       if (token) {
         const decodedToken: DecodedToken = jwtDecode(token);
+        console.log("Full decoded token:", decodedToken); // Debug log
+        
         if (decodedToken.exp * 1000 > Date.now()) {
           // Validate that the user ID is a proper UUID (36 characters with dashes)
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,9 +59,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setIsAuthenticated(true);
             setUser({
               id: decodedToken.sub,
-              email: decodedToken.email,
-              username: decodedToken.username,
-              role: decodedToken.role,
+              email: decodedToken.email || decodedToken.eml || '',
+              username: decodedToken.username || decodedToken.usn || '',
+              role: decodedToken.role || 'user',
             });
           } else {
             // Clear old token with invalid UUID format

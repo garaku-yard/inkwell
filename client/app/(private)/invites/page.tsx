@@ -89,11 +89,11 @@ export default function InvitesPage() {
           <div className="flex items-center gap-3 mb-4 p-2 rounded-lg bg-muted/30 border border-border/30">
             <Avatar className="h-10 w-10 border-2 border-background shadow-sm">
               <AvatarFallback className="text-sm bg-primary/10 text-primary font-semibold">
-                {invite.invitedBy.charAt(0).toUpperCase()}
+                {invite.invitedBy?.charAt(0)?.toUpperCase() || '?'}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate">{invite.invitedBy}</p>
+              <p className="text-sm font-semibold text-foreground truncate">{invite.invitedBy || 'Unknown'}</p>
               <p className="text-xs text-muted-foreground">Project Owner</p>
             </div>
           </div>
@@ -166,8 +166,8 @@ export default function InvitesPage() {
           <>
             {invites.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-                {invites.map((invite) => (
-                  <InviteCard key={invite.projectId} invite={invite} />
+                {invites.map((invite, index) => (
+                  <InviteCard key={`${invite.projectId}-${invite.invitedBy}-${invite.createdAt}`} invite={invite} />
                 ))}
               </div>
             ) : (

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import Image from 'next/image';
 import { useRouter } from "next/navigation"
+import { jwtDecode } from "jwt-decode"
 import {
   FileText,
   Plus,
@@ -100,6 +101,27 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [inviteCount, setInviteCount] = useState(0)
   const [activeFilter, setActiveFilter] = useState("lastUpdated")
+
+  // Get userTag from JWT token
+  const getUserTag = () => {
+    try {
+      const token = localStorage.getItem("authToken")
+      if (token) {
+        const decoded: any = jwtDecode(token)
+        console.log("Full token for userTag:", decoded) // Debug log
+        console.log("Looking for tag field:", decoded.tag) // Debug log
+        console.log("Looking for user_tag field:", decoded.user_tag) // Debug log
+        return decoded.tag || decoded.user_tag || ""
+      }
+    } catch (error) {
+      console.error("Error decoding token:", error)
+    }
+    return ""
+  }
+
+  const userTag = getUserTag()
+  console.log("User:", user) // Debug log
+  console.log("UserTag extracted:", userTag) // Debug log
 
   useEffect(() => {
     if (isAuthenticated && userId) {
@@ -275,7 +297,9 @@ export default function DashboardPage() {
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{user?.username}</p>
+                      <p className="text-sm font-medium leading-none">
+                        {user?.username && userTag ? `${user.username}#${userTag}` : user?.username || 'User'}
+                      </p>
                       <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                     </div>
                   </DropdownMenuLabel>
