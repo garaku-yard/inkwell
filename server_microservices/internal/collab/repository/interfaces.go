@@ -12,6 +12,7 @@ type CollaborationRepository interface {
 	// Collaborator operations
 	CreateCollaborator(ctx context.Context, collaborator *domain.Collaborator) error
 	GetCollaboratorByID(ctx context.Context, id uuid.UUID) (*domain.Collaborator, error)
+	GetPendingCollaboratorByUserAndProject(ctx context.Context, userID, projectID uuid.UUID) (*domain.Collaborator, error)
 	GetProjectCollaborators(ctx context.Context, projectID uuid.UUID) ([]*domain.Collaborator, error)
 	GetUserInvitations(ctx context.Context, userID uuid.UUID) ([]*domain.Collaborator, error)
 	UpdateCollaboratorStatus(ctx context.Context, id uuid.UUID, status string) error

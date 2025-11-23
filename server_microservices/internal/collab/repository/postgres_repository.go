@@ -65,6 +65,34 @@ func (r *PostgresCollaborationRepository) GetCollaboratorByID(ctx context.Contex
 	return collaborator, nil
 }
 
+func (r *PostgresCollaborationRepository) GetPendingCollaboratorByUserAndProject(ctx context.Context, userID, projectID uuid.UUID) (*domain.Collaborator, error) {
+	query := `
+		SELECT collaborator_id, project_id, user_id, role, status, invited_by, invited_at, joined_at
+		FROM collaborators
+		WHERE user_id = $1 AND project_id = $2 AND status = 'pending'`
+
+	collaborator := &domain.Collaborator{}
+	err := r.db.QueryRowContext(ctx, query, userID, projectID).Scan(
+		&collaborator.ID,
+		&collaborator.ProjectID,
+		&collaborator.UserID,
+		&collaborator.Role,
+		&collaborator.Status,
+		&collaborator.InvitedBy,
+		&collaborator.InvitedAt,
+		&collaborator.JoinedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, domain.ErrCollaboratorNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return collaborator, nil
+}
+
 func (r *PostgresCollaborationRepository) GetProjectCollaborators(ctx context.Context, projectID uuid.UUID) ([]*domain.Collaborator, error) {
 	query := `
 		SELECT collaborator_id, project_id, user_id, role, status, invited_by, invited_at, joined_at

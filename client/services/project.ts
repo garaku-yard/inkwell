@@ -417,32 +417,107 @@ export const createSceneLegacy = (actId: string, sceneData: { setting: string })
   })
 }
 
-// Collaborator functions (placeholder - will be implemented later)
-export const addCollaborator = (
+// Collaborator functions
+export const addCollaborator = async (
   projectId: string,
-  usernameWithTag: string,
+  email: string,
   role: CollaboratorRole
 ): Promise<ProjectCollaborator> => {
-  throw new Error("Collaborators not yet implemented in microservices backend")
+  const response = await apiClient<{
+    id: string
+    project_id: string
+    user_id: string
+    email: string
+    role: string
+    status: string
+    invited_at: string
+    joined_at?: string
+    message: string
+  }>('collaborators', {
+    method: 'POST',
+    body: {
+      project_id: projectId,
+      email: email,
+      role: role
+    }
+  })
+
+  return {
+    id: response.id,
+    name: email.split('@')[0], // Use email prefix as name for now
+    email: email,
+    usernameWithTag: email,
+    role: response.role as CollaboratorRole,
+    status: response.status === 'active' ? 'active' : 'pending',
+    joinedAt: response.joined_at || response.invited_at,
+    userId: response.user_id
+  }
 }
 
-export const getProjectCollaborators = (projectId: string): Promise<ProjectCollaborator[]> => {
-  throw new Error("Collaborators not yet implemented in microservices backend")
+export const getProjectCollaborators = async (projectId: string): Promise<ProjectCollaborator[]> => {
+  const collaborators = await apiClient<Array<{
+    id: string
+    project_id: string
+    user_id: string
+    role: string
+    status: string
+    invited_at: string
+    joined_at?: string
+  }>>(`collaborators?project_id=${projectId}`, {
+    method: 'GET'
+  })
+
+  return collaborators.map(collab => ({
+    id: collab.id,
+    name: `User ${collab.user_id.slice(0, 8)}`, // Placeholder name
+    email: `user-${collab.user_id.slice(0, 8)}@example.com`, // Placeholder email
+    usernameWithTag: `user-${collab.user_id.slice(0, 8)}`,
+    role: collab.role as CollaboratorRole,
+    status: collab.status === 'active' ? 'active' : 'pending',
+    joinedAt: collab.joined_at || collab.invited_at,
+    userId: collab.user_id
+  }))
 }
 
-export const updateCollaboratorRole = (
+export const updateCollaboratorRole = async (
   projectId: string,
   collaboratorId: string,
   role: CollaboratorRole
 ): Promise<ProjectCollaborator> => {
-  throw new Error("Collaborators not yet implemented in microservices backend")
+  const response = await apiClient<{
+    id: string
+    project_id: string
+    user_id: string
+    role: string
+    status: string
+    invited_at: string
+    joined_at?: string
+  }>(`collaborators/${collaboratorId}`, {
+    method: 'PATCH',
+    body: {
+      role: role
+    }
+  })
+
+  return {
+    id: response.id,
+    name: `User ${response.user_id.slice(0, 8)}`,
+    email: `user-${response.user_id.slice(0, 8)}@example.com`,
+    usernameWithTag: `user-${response.user_id.slice(0, 8)}`,
+    role: response.role as CollaboratorRole,
+    status: response.status === 'active' ? 'active' : 'pending',
+    joinedAt: response.joined_at || response.invited_at,
+    userId: response.user_id
+  }
 }
 
-export const removeCollaborator = (
+export const removeCollaborator = async (
   projectId: string,
   collaboratorId: string
 ): Promise<void> => {
-  throw new Error("Collaborators not yet implemented in microservices backend")
+  await apiClient(`collaborators/${collaboratorId}`, {
+    method: 'DELETE'
+  })
 }
 
 export const collaboratorRoleOptions = Object.entries(CollaboratorRoles).map(

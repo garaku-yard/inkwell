@@ -236,6 +236,17 @@ message DeclineInvitationResponse {
   bool success = 1;
 }
 
+message RespondToInvitationRequest {
+  string project_id = 1;
+  string user_id = 2; // User responding to the invitation
+  bool accepted = 3; // True to accept, false to decline
+}
+
+message RespondToInvitationResponse {
+  bool success = 1;
+  Collaborator collaborator = 2; // Only set when accepted=true
+}
+
 // Collaboration service definition
 service CollaborationService {
   // Collaborator management
@@ -264,4 +275,5 @@ service CollaborationService {
   rpc GetUserInvitations(GetUserInvitationsRequest) returns (GetUserInvitationsResponse);
   rpc AcceptInvitation(AcceptInvitationRequest) returns (AcceptInvitationResponse);
   rpc DeclineInvitation(DeclineInvitationRequest) returns (DeclineInvitationResponse);
+  rpc RespondToInvitation(RespondToInvitationRequest) returns (RespondToInvitationResponse);
 }

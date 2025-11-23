@@ -36,6 +36,7 @@ const (
 	CollaborationService_GetUserInvitations_FullMethodName      = "/collab.CollaborationService/GetUserInvitations"
 	CollaborationService_AcceptInvitation_FullMethodName        = "/collab.CollaborationService/AcceptInvitation"
 	CollaborationService_DeclineInvitation_FullMethodName       = "/collab.CollaborationService/DeclineInvitation"
+	CollaborationService_RespondToInvitation_FullMethodName     = "/collab.CollaborationService/RespondToInvitation"
 )
 
 // CollaborationServiceClient is the client API for CollaborationService service.
@@ -66,6 +67,7 @@ type CollaborationServiceClient interface {
 	GetUserInvitations(ctx context.Context, in *GetUserInvitationsRequest, opts ...grpc.CallOption) (*GetUserInvitationsResponse, error)
 	AcceptInvitation(ctx context.Context, in *AcceptInvitationRequest, opts ...grpc.CallOption) (*AcceptInvitationResponse, error)
 	DeclineInvitation(ctx context.Context, in *DeclineInvitationRequest, opts ...grpc.CallOption) (*DeclineInvitationResponse, error)
+	RespondToInvitation(ctx context.Context, in *RespondToInvitationRequest, opts ...grpc.CallOption) (*RespondToInvitationResponse, error)
 }
 
 type collaborationServiceClient struct {
@@ -246,6 +248,16 @@ func (c *collaborationServiceClient) DeclineInvitation(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *collaborationServiceClient) RespondToInvitation(ctx context.Context, in *RespondToInvitationRequest, opts ...grpc.CallOption) (*RespondToInvitationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RespondToInvitationResponse)
+	err := c.cc.Invoke(ctx, CollaborationService_RespondToInvitation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CollaborationServiceServer is the server API for CollaborationService service.
 // All implementations must embed UnimplementedCollaborationServiceServer
 // for forward compatibility.
@@ -274,6 +286,7 @@ type CollaborationServiceServer interface {
 	GetUserInvitations(context.Context, *GetUserInvitationsRequest) (*GetUserInvitationsResponse, error)
 	AcceptInvitation(context.Context, *AcceptInvitationRequest) (*AcceptInvitationResponse, error)
 	DeclineInvitation(context.Context, *DeclineInvitationRequest) (*DeclineInvitationResponse, error)
+	RespondToInvitation(context.Context, *RespondToInvitationRequest) (*RespondToInvitationResponse, error)
 	mustEmbedUnimplementedCollaborationServiceServer()
 }
 
@@ -334,6 +347,9 @@ func (UnimplementedCollaborationServiceServer) AcceptInvitation(context.Context,
 }
 func (UnimplementedCollaborationServiceServer) DeclineInvitation(context.Context, *DeclineInvitationRequest) (*DeclineInvitationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeclineInvitation not implemented")
+}
+func (UnimplementedCollaborationServiceServer) RespondToInvitation(context.Context, *RespondToInvitationRequest) (*RespondToInvitationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RespondToInvitation not implemented")
 }
 func (UnimplementedCollaborationServiceServer) mustEmbedUnimplementedCollaborationServiceServer() {}
 func (UnimplementedCollaborationServiceServer) testEmbeddedByValue()                              {}
@@ -662,6 +678,24 @@ func _CollaborationService_DeclineInvitation_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CollaborationService_RespondToInvitation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RespondToInvitationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CollaborationServiceServer).RespondToInvitation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CollaborationService_RespondToInvitation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CollaborationServiceServer).RespondToInvitation(ctx, req.(*RespondToInvitationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CollaborationService_ServiceDesc is the grpc.ServiceDesc for CollaborationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -736,6 +770,10 @@ var CollaborationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeclineInvitation",
 			Handler:    _CollaborationService_DeclineInvitation_Handler,
+		},
+		{
+			MethodName: "RespondToInvitation",
+			Handler:    _CollaborationService_RespondToInvitation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

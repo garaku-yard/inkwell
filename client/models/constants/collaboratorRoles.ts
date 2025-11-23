@@ -1,7 +1,7 @@
 export const CollaboratorRoles = {
-    REVIEWER: "Reviewer",
-    EDITOR: "Editor",
-    WRITER: "Writer",
+    viewer: "Viewer",
+    editor: "Editor", 
+    owner: "Owner",
   } as const
   
   export type CollaboratorRole = keyof typeof CollaboratorRoles

@@ -483,21 +483,31 @@ func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// For now, this is a placeholder implementation
-	// In a real implementation, this would:
-	// 1. Validate the collaborator_id belongs to the user
-	// 2. Update the collaborator status to "active"
-	// 3. Set the joined_at timestamp
-	// 4. Return the updated collaborator information
+	// Call the collaboration service to accept the invitation
+	resp, err := h.client.AcceptInvitation(r.Context(), &collab.AcceptInvitationRequest{
+		UserId:         userID,
+		CollaboratorId: req.CollaboratorID,
+	})
+	if err != nil {
+		http.Error(w, "Failed to accept invitation: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	response := map[string]interface{}{
 		"success": true,
 		"message": "Invitation accepted successfully",
-		"collaborator": map[string]interface{}{
-			"id":        req.CollaboratorID,
-			"status":    "active",
-			"joined_at": "2025-11-22T21:30:00Z",
-		},
+	}
+
+	if resp.Collaborator != nil {
+		response["collaborator"] = map[string]interface{}{
+			"id":         resp.Collaborator.Id,
+			"project_id": resp.Collaborator.ProjectId,
+			"user_id":    resp.Collaborator.UserId,
+			"role":       resp.Collaborator.Role,
+			"status":     resp.Collaborator.Status,
+			"invited_at": timestampToString(resp.Collaborator.InvitedAt),
+			"joined_at":  timestampToString(resp.Collaborator.JoinedAt),
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -533,11 +543,15 @@ func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// For now, this is a placeholder implementation
-	// In a real implementation, this would:
-	// 1. Validate the collaborator_id belongs to the user
-	// 2. Delete the collaborator record (declined invitations are removed)
-	// 3. Optionally send a notification to the inviter
+	// Call the collaboration service to decline the invitation
+	_, err := h.client.DeclineInvitation(r.Context(), &collab.DeclineInvitationRequest{
+		UserId:         userID,
+		CollaboratorId: req.CollaboratorID,
+	})
+	if err != nil {
+		http.Error(w, "Failed to decline invitation: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	response := map[string]interface{}{
 		"success": true,

@@ -31,7 +31,8 @@ type Collaborator struct {
 	Role          string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"` // "owner", "editor", "viewer"
 	InvitedAt     *common.Timestamp      `protobuf:"bytes,5,opt,name=invited_at,json=invitedAt,proto3" json:"invited_at,omitempty"`
 	JoinedAt      *common.Timestamp      `protobuf:"bytes,6,opt,name=joined_at,json=joinedAt,proto3" json:"joined_at,omitempty"`
-	Status        string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"` // "pending", "active", "inactive"
+	Status        string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`                        // "pending", "active", "inactive"
+	InvitedBy     string                 `protobuf:"bytes,8,opt,name=invited_by,json=invitedBy,proto3" json:"invited_by,omitempty"` // User ID who sent the invitation
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -111,6 +112,13 @@ func (x *Collaborator) GetJoinedAt() *common.Timestamp {
 func (x *Collaborator) GetStatus() string {
 	if x != nil {
 		return x.Status
+	}
+	return ""
+}
+
+func (x *Collaborator) GetInvitedBy() string {
+	if x != nil {
+		return x.InvitedBy
 	}
 	return ""
 }
@@ -2252,11 +2260,123 @@ func (x *DeclineInvitationResponse) GetSuccess() bool {
 	return false
 }
 
+type RespondToInvitationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // User responding to the invitation
+	Accepted      bool                   `protobuf:"varint,3,opt,name=accepted,proto3" json:"accepted,omitempty"`          // True to accept, false to decline
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RespondToInvitationRequest) Reset() {
+	*x = RespondToInvitationRequest{}
+	mi := &file_collab_collab_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RespondToInvitationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RespondToInvitationRequest) ProtoMessage() {}
+
+func (x *RespondToInvitationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_collab_collab_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RespondToInvitationRequest.ProtoReflect.Descriptor instead.
+func (*RespondToInvitationRequest) Descriptor() ([]byte, []int) {
+	return file_collab_collab_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *RespondToInvitationRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *RespondToInvitationRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *RespondToInvitationRequest) GetAccepted() bool {
+	if x != nil {
+		return x.Accepted
+	}
+	return false
+}
+
+type RespondToInvitationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Collaborator  *Collaborator          `protobuf:"bytes,2,opt,name=collaborator,proto3" json:"collaborator,omitempty"` // Only set when accepted=true
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RespondToInvitationResponse) Reset() {
+	*x = RespondToInvitationResponse{}
+	mi := &file_collab_collab_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RespondToInvitationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RespondToInvitationResponse) ProtoMessage() {}
+
+func (x *RespondToInvitationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_collab_collab_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RespondToInvitationResponse.ProtoReflect.Descriptor instead.
+func (*RespondToInvitationResponse) Descriptor() ([]byte, []int) {
+	return file_collab_collab_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *RespondToInvitationResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *RespondToInvitationResponse) GetCollaborator() *Collaborator {
+	if x != nil {
+		return x.Collaborator
+	}
+	return nil
+}
+
 var File_collab_collab_proto protoreflect.FileDescriptor
 
 const file_collab_collab_proto_rawDesc = "" +
 	"\n" +
-	"\x13collab/collab.proto\x12\x06collab\x1a\x12common/types.proto\"\xe4\x01\n" +
+	"\x13collab/collab.proto\x12\x06collab\x1a\x12common/types.proto\"\x83\x02\n" +
 	"\fCollaborator\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -2266,7 +2386,9 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\n" +
 	"invited_at\x18\x05 \x01(\v2\x11.common.TimestampR\tinvitedAt\x12.\n" +
 	"\tjoined_at\x18\x06 \x01(\v2\x11.common.TimestampR\bjoinedAt\x12\x16\n" +
-	"\x06status\x18\a \x01(\tR\x06status\"\xa4\x03\n" +
+	"\x06status\x18\a \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"invited_by\x18\b \x01(\tR\tinvitedBy\"\xa4\x03\n" +
 	"\aComment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -2428,7 +2550,15 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\x0fcollaborator_id\x18\x01 \x01(\tR\x0ecollaboratorId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"5\n" +
 	"\x19DeclineInvitationResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2\xc8\v\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"p\n" +
+	"\x1aRespondToInvitationRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1a\n" +
+	"\baccepted\x18\x03 \x01(\bR\baccepted\"q\n" +
+	"\x1bRespondToInvitationResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x128\n" +
+	"\fcollaborator\x18\x02 \x01(\v2\x14.collab.CollaboratorR\fcollaborator2\xa8\f\n" +
 	"\x14CollaborationService\x12R\n" +
 	"\x0fAddCollaborator\x12\x1e.collab.AddCollaboratorRequest\x1a\x1f.collab.AddCollaboratorResponse\x12j\n" +
 	"\x17GetProjectCollaborators\x12&.collab.GetProjectCollaboratorsRequest\x1a'.collab.GetProjectCollaboratorsResponse\x12g\n" +
@@ -2447,7 +2577,8 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\vGetPresence\x12\x1a.collab.GetPresenceRequest\x1a\x1b.collab.GetPresenceResponse\x12[\n" +
 	"\x12GetUserInvitations\x12!.collab.GetUserInvitationsRequest\x1a\".collab.GetUserInvitationsResponse\x12U\n" +
 	"\x10AcceptInvitation\x12\x1f.collab.AcceptInvitationRequest\x1a .collab.AcceptInvitationResponse\x12X\n" +
-	"\x11DeclineInvitation\x12 .collab.DeclineInvitationRequest\x1a!.collab.DeclineInvitationResponseB1Z/scriptlith/server_microservices/pkg/grpc/collabb\x06proto3"
+	"\x11DeclineInvitation\x12 .collab.DeclineInvitationRequest\x1a!.collab.DeclineInvitationResponse\x12^\n" +
+	"\x13RespondToInvitation\x12\".collab.RespondToInvitationRequest\x1a#.collab.RespondToInvitationResponseB1Z/scriptlith/server_microservices/pkg/grpc/collabb\x06proto3"
 
 var (
 	file_collab_collab_proto_rawDescOnce sync.Once
@@ -2461,7 +2592,7 @@ func file_collab_collab_proto_rawDescGZIP() []byte {
 	return file_collab_collab_proto_rawDescData
 }
 
-var file_collab_collab_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
+var file_collab_collab_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_collab_collab_proto_goTypes = []any{
 	(*Collaborator)(nil),                    // 0: collab.Collaborator
 	(*Comment)(nil),                         // 1: collab.Comment
@@ -2502,17 +2633,19 @@ var file_collab_collab_proto_goTypes = []any{
 	(*AcceptInvitationResponse)(nil),        // 36: collab.AcceptInvitationResponse
 	(*DeclineInvitationRequest)(nil),        // 37: collab.DeclineInvitationRequest
 	(*DeclineInvitationResponse)(nil),       // 38: collab.DeclineInvitationResponse
-	(*common.Timestamp)(nil),                // 39: common.Timestamp
+	(*RespondToInvitationRequest)(nil),      // 39: collab.RespondToInvitationRequest
+	(*RespondToInvitationResponse)(nil),     // 40: collab.RespondToInvitationResponse
+	(*common.Timestamp)(nil),                // 41: common.Timestamp
 }
 var file_collab_collab_proto_depIdxs = []int32{
-	39, // 0: collab.Collaborator.invited_at:type_name -> common.Timestamp
-	39, // 1: collab.Collaborator.joined_at:type_name -> common.Timestamp
-	39, // 2: collab.Comment.created_at:type_name -> common.Timestamp
-	39, // 3: collab.Comment.updated_at:type_name -> common.Timestamp
-	39, // 4: collab.EditSession.started_at:type_name -> common.Timestamp
-	39, // 5: collab.EditSession.last_activity:type_name -> common.Timestamp
-	39, // 6: collab.EditOperation.timestamp:type_name -> common.Timestamp
-	39, // 7: collab.UserPresence.last_seen:type_name -> common.Timestamp
+	41, // 0: collab.Collaborator.invited_at:type_name -> common.Timestamp
+	41, // 1: collab.Collaborator.joined_at:type_name -> common.Timestamp
+	41, // 2: collab.Comment.created_at:type_name -> common.Timestamp
+	41, // 3: collab.Comment.updated_at:type_name -> common.Timestamp
+	41, // 4: collab.EditSession.started_at:type_name -> common.Timestamp
+	41, // 5: collab.EditSession.last_activity:type_name -> common.Timestamp
+	41, // 6: collab.EditOperation.timestamp:type_name -> common.Timestamp
+	41, // 7: collab.UserPresence.last_seen:type_name -> common.Timestamp
 	0,  // 8: collab.AddCollaboratorResponse.collaborator:type_name -> collab.Collaborator
 	0,  // 9: collab.GetProjectCollaboratorsResponse.collaborators:type_name -> collab.Collaborator
 	0,  // 10: collab.UpdateCollaboratorRoleResponse.collaborator:type_name -> collab.Collaborator
@@ -2526,45 +2659,48 @@ var file_collab_collab_proto_depIdxs = []int32{
 	4,  // 18: collab.GetPresenceResponse.presences:type_name -> collab.UserPresence
 	0,  // 19: collab.GetUserInvitationsResponse.invitations:type_name -> collab.Collaborator
 	0,  // 20: collab.AcceptInvitationResponse.collaborator:type_name -> collab.Collaborator
-	5,  // 21: collab.CollaborationService.AddCollaborator:input_type -> collab.AddCollaboratorRequest
-	7,  // 22: collab.CollaborationService.GetProjectCollaborators:input_type -> collab.GetProjectCollaboratorsRequest
-	9,  // 23: collab.CollaborationService.UpdateCollaboratorRole:input_type -> collab.UpdateCollaboratorRoleRequest
-	11, // 24: collab.CollaborationService.RemoveCollaborator:input_type -> collab.RemoveCollaboratorRequest
-	13, // 25: collab.CollaborationService.AddComment:input_type -> collab.AddCommentRequest
-	15, // 26: collab.CollaborationService.GetComments:input_type -> collab.GetCommentsRequest
-	17, // 27: collab.CollaborationService.UpdateComment:input_type -> collab.UpdateCommentRequest
-	19, // 28: collab.CollaborationService.DeleteComment:input_type -> collab.DeleteCommentRequest
-	21, // 29: collab.CollaborationService.StartEditSession:input_type -> collab.StartEditSessionRequest
-	23, // 30: collab.CollaborationService.EndEditSession:input_type -> collab.EndEditSessionRequest
-	25, // 31: collab.CollaborationService.SendEditOperation:input_type -> collab.SendEditOperationRequest
-	27, // 32: collab.CollaborationService.GetActiveSessions:input_type -> collab.GetActiveSessionsRequest
-	29, // 33: collab.CollaborationService.UpdatePresence:input_type -> collab.UpdatePresenceRequest
-	31, // 34: collab.CollaborationService.GetPresence:input_type -> collab.GetPresenceRequest
-	33, // 35: collab.CollaborationService.GetUserInvitations:input_type -> collab.GetUserInvitationsRequest
-	35, // 36: collab.CollaborationService.AcceptInvitation:input_type -> collab.AcceptInvitationRequest
-	37, // 37: collab.CollaborationService.DeclineInvitation:input_type -> collab.DeclineInvitationRequest
-	6,  // 38: collab.CollaborationService.AddCollaborator:output_type -> collab.AddCollaboratorResponse
-	8,  // 39: collab.CollaborationService.GetProjectCollaborators:output_type -> collab.GetProjectCollaboratorsResponse
-	10, // 40: collab.CollaborationService.UpdateCollaboratorRole:output_type -> collab.UpdateCollaboratorRoleResponse
-	12, // 41: collab.CollaborationService.RemoveCollaborator:output_type -> collab.RemoveCollaboratorResponse
-	14, // 42: collab.CollaborationService.AddComment:output_type -> collab.AddCommentResponse
-	16, // 43: collab.CollaborationService.GetComments:output_type -> collab.GetCommentsResponse
-	18, // 44: collab.CollaborationService.UpdateComment:output_type -> collab.UpdateCommentResponse
-	20, // 45: collab.CollaborationService.DeleteComment:output_type -> collab.DeleteCommentResponse
-	22, // 46: collab.CollaborationService.StartEditSession:output_type -> collab.StartEditSessionResponse
-	24, // 47: collab.CollaborationService.EndEditSession:output_type -> collab.EndEditSessionResponse
-	26, // 48: collab.CollaborationService.SendEditOperation:output_type -> collab.SendEditOperationResponse
-	28, // 49: collab.CollaborationService.GetActiveSessions:output_type -> collab.GetActiveSessionsResponse
-	30, // 50: collab.CollaborationService.UpdatePresence:output_type -> collab.UpdatePresenceResponse
-	32, // 51: collab.CollaborationService.GetPresence:output_type -> collab.GetPresenceResponse
-	34, // 52: collab.CollaborationService.GetUserInvitations:output_type -> collab.GetUserInvitationsResponse
-	36, // 53: collab.CollaborationService.AcceptInvitation:output_type -> collab.AcceptInvitationResponse
-	38, // 54: collab.CollaborationService.DeclineInvitation:output_type -> collab.DeclineInvitationResponse
-	38, // [38:55] is the sub-list for method output_type
-	21, // [21:38] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	0,  // 21: collab.RespondToInvitationResponse.collaborator:type_name -> collab.Collaborator
+	5,  // 22: collab.CollaborationService.AddCollaborator:input_type -> collab.AddCollaboratorRequest
+	7,  // 23: collab.CollaborationService.GetProjectCollaborators:input_type -> collab.GetProjectCollaboratorsRequest
+	9,  // 24: collab.CollaborationService.UpdateCollaboratorRole:input_type -> collab.UpdateCollaboratorRoleRequest
+	11, // 25: collab.CollaborationService.RemoveCollaborator:input_type -> collab.RemoveCollaboratorRequest
+	13, // 26: collab.CollaborationService.AddComment:input_type -> collab.AddCommentRequest
+	15, // 27: collab.CollaborationService.GetComments:input_type -> collab.GetCommentsRequest
+	17, // 28: collab.CollaborationService.UpdateComment:input_type -> collab.UpdateCommentRequest
+	19, // 29: collab.CollaborationService.DeleteComment:input_type -> collab.DeleteCommentRequest
+	21, // 30: collab.CollaborationService.StartEditSession:input_type -> collab.StartEditSessionRequest
+	23, // 31: collab.CollaborationService.EndEditSession:input_type -> collab.EndEditSessionRequest
+	25, // 32: collab.CollaborationService.SendEditOperation:input_type -> collab.SendEditOperationRequest
+	27, // 33: collab.CollaborationService.GetActiveSessions:input_type -> collab.GetActiveSessionsRequest
+	29, // 34: collab.CollaborationService.UpdatePresence:input_type -> collab.UpdatePresenceRequest
+	31, // 35: collab.CollaborationService.GetPresence:input_type -> collab.GetPresenceRequest
+	33, // 36: collab.CollaborationService.GetUserInvitations:input_type -> collab.GetUserInvitationsRequest
+	35, // 37: collab.CollaborationService.AcceptInvitation:input_type -> collab.AcceptInvitationRequest
+	37, // 38: collab.CollaborationService.DeclineInvitation:input_type -> collab.DeclineInvitationRequest
+	39, // 39: collab.CollaborationService.RespondToInvitation:input_type -> collab.RespondToInvitationRequest
+	6,  // 40: collab.CollaborationService.AddCollaborator:output_type -> collab.AddCollaboratorResponse
+	8,  // 41: collab.CollaborationService.GetProjectCollaborators:output_type -> collab.GetProjectCollaboratorsResponse
+	10, // 42: collab.CollaborationService.UpdateCollaboratorRole:output_type -> collab.UpdateCollaboratorRoleResponse
+	12, // 43: collab.CollaborationService.RemoveCollaborator:output_type -> collab.RemoveCollaboratorResponse
+	14, // 44: collab.CollaborationService.AddComment:output_type -> collab.AddCommentResponse
+	16, // 45: collab.CollaborationService.GetComments:output_type -> collab.GetCommentsResponse
+	18, // 46: collab.CollaborationService.UpdateComment:output_type -> collab.UpdateCommentResponse
+	20, // 47: collab.CollaborationService.DeleteComment:output_type -> collab.DeleteCommentResponse
+	22, // 48: collab.CollaborationService.StartEditSession:output_type -> collab.StartEditSessionResponse
+	24, // 49: collab.CollaborationService.EndEditSession:output_type -> collab.EndEditSessionResponse
+	26, // 50: collab.CollaborationService.SendEditOperation:output_type -> collab.SendEditOperationResponse
+	28, // 51: collab.CollaborationService.GetActiveSessions:output_type -> collab.GetActiveSessionsResponse
+	30, // 52: collab.CollaborationService.UpdatePresence:output_type -> collab.UpdatePresenceResponse
+	32, // 53: collab.CollaborationService.GetPresence:output_type -> collab.GetPresenceResponse
+	34, // 54: collab.CollaborationService.GetUserInvitations:output_type -> collab.GetUserInvitationsResponse
+	36, // 55: collab.CollaborationService.AcceptInvitation:output_type -> collab.AcceptInvitationResponse
+	38, // 56: collab.CollaborationService.DeclineInvitation:output_type -> collab.DeclineInvitationResponse
+	40, // 57: collab.CollaborationService.RespondToInvitation:output_type -> collab.RespondToInvitationResponse
+	40, // [40:58] is the sub-list for method output_type
+	22, // [22:40] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_collab_collab_proto_init() }
@@ -2581,7 +2717,7 @@ func file_collab_collab_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_collab_collab_proto_rawDesc), len(file_collab_collab_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   39,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

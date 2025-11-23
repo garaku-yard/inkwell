@@ -39,20 +39,20 @@ interface CollaboratorsDialogProps {
 }
 
 const roleConfig = {
-  REVIEWER: {
-    label: "Reviewer",
+  viewer: {
+    label: "Viewer",
     icon: Eye,
     color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100",
     description: "Can view and comment on the screenplay",
   },
-  EDITOR: {
+  editor: {
     label: "Editor",
     icon: Edit3,
     color: "bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100",
     description: "Can edit and comment on the screenplay",
   },
-  WRITER: {
-    label: "Writer",
+  owner: {
+    label: "Owner",
     icon: Crown,
     color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100",
     description: "Full access to project and settings",
@@ -64,7 +64,7 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
   const [isLoading, setIsLoading] = useState(false)
   const [isInviting, setIsInviting] = useState(false)
   const [inviteUsernameWithTag, setInviteUsernameWithTag] = useState("")
-  const [inviteRole, setInviteRole] = useState<CollaboratorRole>("EDITOR")
+  const [inviteRole, setInviteRole] = useState<CollaboratorRole>("editor")
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
@@ -113,7 +113,7 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
       await addCollaborator(projectId, inviteUsernameWithTag.trim(), inviteRole)
       setSuccessMessage(`Invitation sent to ${inviteUsernameWithTag}`)
       setInviteUsernameWithTag("")
-      setInviteRole("EDITOR")
+      setInviteRole("editor")
       await fetchCollaborators()
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (err: any) {
@@ -256,7 +256,7 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
                         icon: Users,
                         color: "bg-gray-100 text-gray-800",
                       }
-                      const isWriter = collab.role === "WRITER"
+                      const isOwner = collab.role === "owner"
                       return (
                         <div
                           key={collab.id}
@@ -294,7 +294,7 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
                               {roleStyle.label}
                             </Badge>
 
-                            {!isWriter && (
+                            {!isOwner && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8">

@@ -59,7 +59,7 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
       trimmed.includes("#") &&
       !collaborators.find(c => c.username === trimmed)
     ) {
-      setCollaborators([...collaborators, { username: trimmed, role: "REVIEWER" }])
+      setCollaborators([...collaborators, { username: trimmed, role: "viewer" }])
       setCollaboratorInput("")
     } else {
       console.log("Invalid format. Please use username#tag")

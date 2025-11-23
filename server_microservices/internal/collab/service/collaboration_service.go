@@ -452,3 +452,21 @@ func (s *CollaborationService) DeclineInvitation(ctx context.Context, userID, co
 	// Delete the collaborator record (declined invitations are removed)
 	return s.repo.DeleteCollaborator(ctx, collaboratorID)
 }
+
+// RespondToInvitation handles accepting or declining an invitation by project ID
+func (s *CollaborationService) RespondToInvitation(ctx context.Context, userID, projectID uuid.UUID, accepted bool) (*domain.Collaborator, error) {
+	// Find the pending collaborator record
+	collaborator, err := s.repo.GetPendingCollaboratorByUserAndProject(ctx, userID, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	if accepted {
+		// Accept the invitation
+		return s.AcceptInvitation(ctx, userID, collaborator.ID)
+	} else {
+		// Decline the invitation
+		err := s.DeclineInvitation(ctx, userID, collaborator.ID)
+		return nil, err
+	}
+}
