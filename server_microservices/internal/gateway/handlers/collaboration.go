@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -12,25 +13,45 @@ import (
 	"scriptlith/server_microservices/internal/gateway/config"
 	"scriptlith/server_microservices/pkg/grpc/collab"
 	"scriptlith/server_microservices/pkg/grpc/common"
+	"scriptlith/server_microservices/pkg/grpc/identity"
+	"scriptlith/server_microservices/pkg/grpc/scripts"
 )
 
 // CollaborationHandler handles HTTP requests for collaboration service
 type CollaborationHandler struct {
-	client collab.CollaborationServiceClient
+	client         collab.CollaborationServiceClient
+	identityClient identity.IdentityServiceClient
+	scriptsClient  scripts.ScriptsServiceClient
 }
 
 // NewCollaborationHandler creates a new collaboration handler
 func NewCollaborationHandler(cfg *config.Config) (*CollaborationHandler, error) {
 	// Connect to collaboration service
-	conn, err := grpc.NewClient(cfg.CollaborationServiceURL(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	collabConn, err := grpc.NewClient(cfg.CollaborationServiceURL(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
 
-	client := collab.NewCollaborationServiceClient(conn)
+	// Connect to identity service
+	identityConn, err := grpc.NewClient(cfg.IdentityServiceURL(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+
+	// Connect to scripts service
+	scriptsConn, err := grpc.NewClient(cfg.ScriptsServiceURL(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+
+	client := collab.NewCollaborationServiceClient(collabConn)
+	identityClient := identity.NewIdentityServiceClient(identityConn)
+	scriptsClient := scripts.NewScriptsServiceClient(scriptsConn)
 
 	return &CollaborationHandler{
-		client: client,
+		client:         client,
+		identityClient: identityClient,
+		scriptsClient:  scriptsClient,
 	}, nil
 }
 
@@ -376,26 +397,62 @@ func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http
 		return
 	}
 
-	// For now, this returns a placeholder response
-	// In a real implementation, this would call the collaboration service
-	// to get actual pending invitations for the user
+	fmt.Printf("DEBUG: Getting invitations for user ID: %s\n", userID)
 
-	// Example response structure for pending invitations
-	response := []map[string]interface{}{
-		{
-			"id":           "example-invitation-id",
-			"project_id":   "example-project-id",
-			"project_name": "Example Project",
-			"inviter_name": "John Doe",
-			"role":         "editor",
-			"status":       "pending",
-			"invited_at":   "2025-11-22T21:30:00Z",
-			"message":      "You've been invited to collaborate on this project",
-		},
+	// Call collaboration service to get actual pending invitations
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := h.client.GetUserInvitations(ctx, &collab.GetUserInvitationsRequest{
+		UserId: userID,
+	})
+	if err != nil {
+		fmt.Printf("DEBUG: Failed to get invitations from collab service: %v\n", err)
+		http.Error(w, "Failed to get user invitations: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 
+	fmt.Printf("DEBUG: Retrieved %d invitations from collab service\n", len(resp.Invitations))
+
+	// Convert response to the expected format
+	// Initialize with empty slice to ensure JSON encodes as [] not null
+	invitations := make([]map[string]interface{}, 0)
+	for _, invitation := range resp.Invitations {
+		// For now, we'll use placeholder values since we don't have invited_by in the current protobuf
+		// TODO: Add invited_by field to protobuf and update this
+		inviterName := "Unknown User"
+
+		// Get project name from scripts service
+		projectName := "Unknown Project"
+		if invitation.ProjectId != "" {
+			projectCtx, projectCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer projectCancel()
+
+			projectResp, err := h.scriptsClient.GetProject(projectCtx, &scripts.GetProjectRequest{
+				ProjectId: invitation.ProjectId,
+			})
+			if err != nil {
+				fmt.Printf("DEBUG: Failed to get project name for project %s: %v\n", invitation.ProjectId, err)
+			} else if projectResp.Project != nil {
+				projectName = projectResp.Project.Title // Use Title field
+			}
+		}
+
+		invitationData := map[string]interface{}{
+			"projectId":   invitation.ProjectId,
+			"projectName": projectName,
+			"invitedBy":   inviterName,
+			"createdAt":   timestampToString(invitation.InvitedAt),
+		}
+		fmt.Printf("DEBUG: Adding invitation to response: %+v\n", invitationData)
+		invitations = append(invitations, invitationData)
+	}
+
+	fmt.Printf("DEBUG: Sending %d invitations to frontend\n", len(invitations))
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(invitations); err != nil {
+		fmt.Printf("DEBUG: Failed to encode response: %v\n", err)
+	}
 }
 
 // AcceptInvitation handles accepting a collaboration invitation

@@ -15,6 +15,7 @@ message Collaborator {
   common.Timestamp invited_at = 5;
   common.Timestamp joined_at = 6;
   string status = 7; // "pending", "active", "inactive"
+  string invited_by = 8; // User ID who sent the invitation
 }
 
 // Comment entity

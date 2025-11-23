@@ -568,6 +568,40 @@ func (h *CollaborationHandler) GetPresence(ctx context.Context, req *collab_pb.G
 	}, nil
 }
 
+// GetUserInvitations retrieves pending invitations for a user
+func (h *CollaborationHandler) GetUserInvitations(ctx context.Context, req *collab_pb.GetUserInvitationsRequest) (*collab_pb.GetUserInvitationsResponse, error) {
+	userID, err := parseUUID(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	}
+
+	invitations, err := h.service.GetUserInvitations(ctx, userID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get user invitations: %v", err)
+	}
+
+	pbInvitations := make([]*collab_pb.Collaborator, len(invitations))
+	for i, invitation := range invitations {
+		pbInvitations[i] = &collab_pb.Collaborator{
+			Id:        invitation.ID.String(),
+			ProjectId: invitation.ProjectID.String(),
+			UserId:    invitation.UserID.String(),
+			Role:      invitation.Role,
+			Status:    invitation.Status,
+			// TODO: Add InvitedBy field when protobuf is updated
+			InvitedAt: &common.Timestamp{
+				Seconds: invitation.InvitedAt.Unix(),
+				Nanos:   int32(invitation.InvitedAt.Nanosecond()),
+			},
+			JoinedAt: timestampPtrToCommon(invitation.JoinedAt),
+		}
+	}
+
+	return &collab_pb.GetUserInvitationsResponse{
+		Invitations: pbInvitations,
+	}, nil
+}
+
 // Helper functions for conversion
 func timestampPtrToCommon(t *time.Time) *common.Timestamp {
 	if t == nil {
