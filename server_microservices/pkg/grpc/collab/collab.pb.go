@@ -1982,7 +1982,7 @@ func (x *GetPresenceResponse) GetPresences() []*UserPresence {
 // Invitation management requests/responses
 type GetUserInvitationsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // User to get invitations for
+	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"` // Email address to get invitations for
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2017,9 +2017,9 @@ func (*GetUserInvitationsRequest) Descriptor() ([]byte, []int) {
 	return file_collab_collab_proto_rawDescGZIP(), []int{33}
 }
 
-func (x *GetUserInvitationsRequest) GetUserId() string {
+func (x *GetUserInvitationsRequest) GetEmail() string {
 	if x != nil {
-		return x.UserId
+		return x.Email
 	}
 	return ""
 }
@@ -2536,9 +2536,9 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\rscreenplay_id\x18\x01 \x01(\tR\fscreenplayId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"I\n" +
 	"\x13GetPresenceResponse\x122\n" +
-	"\tpresences\x18\x01 \x03(\v2\x14.collab.UserPresenceR\tpresences\"4\n" +
-	"\x19GetUserInvitationsRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"T\n" +
+	"\tpresences\x18\x01 \x03(\v2\x14.collab.UserPresenceR\tpresences\"1\n" +
+	"\x19GetUserInvitationsRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\"T\n" +
 	"\x1aGetUserInvitationsResponse\x126\n" +
 	"\vinvitations\x18\x01 \x03(\v2\x14.collab.CollaboratorR\vinvitations\"[\n" +
 	"\x17AcceptInvitationRequest\x12'\n" +

@@ -132,8 +132,18 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		w.Write([]byte(`{"status":"ok","service":"api-gateway"}`))
 	})
 
-	// Apply middleware
+	// Apply middleware in the correct order
 	var handler http.Handler = mux
+
+	// Apply authentication middleware first (innermost)
+	identityServiceURL := cfg.IdentityService.Host + ":" + cfg.IdentityService.Port
+	authMiddleware, err := middleware.NewAuthMiddleware(identityServiceURL)
+	if err != nil {
+		return nil, err
+	}
+	handler = authMiddleware.Middleware(handler)
+
+	// Then apply other middleware (outermost)
 	handler = middleware.Recovery(handler)
 	handler = middleware.Logging(handler)
 	handler = middleware.CORS(cfg.AllowedOrigins)(handler)

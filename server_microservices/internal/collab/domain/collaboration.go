@@ -18,6 +18,20 @@ type Collaborator struct {
 	JoinedAt  *time.Time `json:"joined_at,omitempty" db:"joined_at"`
 }
 
+// Invitation represents a pending collaboration invitation
+type Invitation struct {
+	ID         uuid.UUID  `json:"id" db:"invitation_id"`
+	ProjectID  uuid.UUID  `json:"project_id" db:"project_id"`
+	InviterID  uuid.UUID  `json:"inviter_id" db:"inviter_id"`
+	Email      string     `json:"email" db:"email"`
+	Role       string     `json:"role" db:"role"`
+	Token      string     `json:"token" db:"token"`
+	ExpiresAt  time.Time  `json:"expires_at" db:"expires_at"`
+	Accepted   bool       `json:"accepted" db:"accepted"`
+	AcceptedAt *time.Time `json:"accepted_at,omitempty" db:"accepted_at"`
+	CreatedAt  time.Time  `json:"created_at" db:"created_at"`
+}
+
 // Comment represents a project comment
 type Comment struct {
 	ID              uuid.UUID  `json:"id" db:"comment_id"`

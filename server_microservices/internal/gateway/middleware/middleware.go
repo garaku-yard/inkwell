@@ -3,6 +3,7 @@ package middleware
 import (
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -12,7 +13,7 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 
-			// Check if origin is in allowed list
+			// Check if origin is in allowed list or allow localhost in development
 			allowed := false
 			for _, allowedOrigin := range allowedOrigins {
 				if origin == allowedOrigin {
@@ -21,12 +22,22 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 				}
 			}
 
-			if allowed {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
+			// For development, also allow localhost on any port
+			if !allowed && strings.Contains(origin, "localhost") {
+				allowed = true
+			}
+
+			if allowed || origin == "" {
+				if origin != "" {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+				} else {
+					// Allow any origin if no Origin header (useful for tools like curl)
+					w.Header().Set("Access-Control-Allow-Origin", "*")
+				}
 			}
 
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-User-ID")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 			// Handle preflight requests

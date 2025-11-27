@@ -105,10 +105,10 @@ func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID from context/auth (for now, get from query param)
-	userID := r.URL.Query().Get("user_id")
+	// Get user ID from context (set by auth middleware)
+	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "User ID is required", http.StatusBadRequest)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -138,10 +138,10 @@ func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Get user ID from query params
-	userID := r.URL.Query().Get("user_id")
+	// Get user ID from context (set by auth middleware)
+	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "User ID is required", http.StatusBadRequest)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -243,10 +243,15 @@ func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
 // GetProjectScenes handles getting all scenes for a project
 func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("project_id")
-	userID := r.URL.Query().Get("user_id")
+	// Get user ID from context (set by auth middleware)
+	userID := getUserIDFromContext(r)
 
-	if projectID == "" || userID == "" {
-		http.Error(w, `{"error":"project_id and user_id are required"}`, http.StatusBadRequest)
+	if projectID == "" {
+		http.Error(w, `{"error":"project_id is required"}`, http.StatusBadRequest)
+		return
+	}
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -442,10 +447,15 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 // GetSceneElements handles getting all elements for a scene
 func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request) {
 	sceneID := r.URL.Query().Get("scene_id")
-	userID := r.URL.Query().Get("user_id")
+	// Get user ID from context (set by auth middleware)
+	userID := getUserIDFromContext(r)
 
-	if sceneID == "" || userID == "" {
-		http.Error(w, `{"error":"scene_id and user_id are required"}`, http.StatusBadRequest)
+	if sceneID == "" {
+		http.Error(w, `{"error":"scene_id is required"}`, http.StatusBadRequest)
+		return
+	}
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 

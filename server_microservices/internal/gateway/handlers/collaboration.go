@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -91,6 +92,16 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Resolve email or user tag to actual email address
+	actualEmail, err := h.resolveEmailOrUserTag(req.Email)
+	if err != nil {
+		fmt.Printf("DEBUG: Failed to resolve email/user tag '%s': %v\n", req.Email, err)
+		http.Error(w, "Failed to resolve user: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	fmt.Printf("DEBUG: Resolved '%s' to email '%s'\n", req.Email, actualEmail)
+
 	// Call collaboration service
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -98,7 +109,7 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 	resp, err := h.client.AddCollaborator(ctx, &collab.AddCollaboratorRequest{
 		ProjectId: req.ProjectID,
 		InviterId: userID,
-		Email:     req.Email,
+		Email:     actualEmail, // Use resolved email
 		Role:      req.Role,
 	})
 	if err != nil {
@@ -167,10 +178,11 @@ func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r 
 		return
 	}
 
-	// Convert response to JSON
-	var collaborators []map[string]interface{}
+	// Convert response to JSON and lookup user details
+	// Initialize as empty slice to ensure JSON encodes as [] not null
+	collaborators := make([]map[string]interface{}, 0)
 	for _, collab := range resp.Collaborators {
-		collaborators = append(collaborators, map[string]interface{}{
+		collaboratorData := map[string]interface{}{
 			"id":         collab.Id,
 			"project_id": collab.ProjectId,
 			"user_id":    collab.UserId,
@@ -178,7 +190,66 @@ func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r 
 			"status":     collab.Status,
 			"invited_at": timestampToString(collab.InvitedAt),
 			"joined_at":  timestampToString(collab.JoinedAt),
-		})
+		}
+
+		// For pending invitations (status = "pending"), lookup inviter details
+		// For active collaborators, lookup user details from identity service
+		if collab.Status == "pending" {
+			// This is a pending invitation - lookup the inviter's details
+			// The invited_by field contains the inviter's user ID
+			if collab.InvitedBy != "" && collab.InvitedBy != "00000000-0000-0000-0000-000000000000" {
+				// Call identity service to get inviter details
+				identityCtx, identityCancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer identityCancel()
+
+				inviterResp, err := h.identityClient.GetUser(identityCtx, &identity.GetUserRequest{
+					UserId: collab.InvitedBy,
+				})
+				if err != nil {
+					fmt.Printf("DEBUG: Failed to get inviter details for user %s: %v\n", collab.InvitedBy, err)
+					// Fallback display for pending invitation
+					collaboratorData["name"] = fmt.Sprintf("Invited by User %s", collab.InvitedBy[:8])
+					collaboratorData["email"] = "pending@invitation.com"
+				} else if inviterResp.User != nil {
+					// Show who invited them
+					collaboratorData["name"] = fmt.Sprintf("Invited by %s %s", inviterResp.User.FirstName, inviterResp.User.LastName)
+					collaboratorData["email"] = "pending@invitation.com" // Placeholder for pending
+					collaboratorData["invited_by_name"] = inviterResp.User.FirstName + " " + inviterResp.User.LastName
+				}
+			} else {
+				collaboratorData["name"] = "Pending invitation"
+				collaboratorData["email"] = "pending@invitation.com"
+			}
+		} else {
+			// This is an active collaborator - lookup user details
+			if collab.UserId != "" && collab.UserId != "00000000-0000-0000-0000-000000000000" {
+				// Call identity service to get user details
+				identityCtx, identityCancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer identityCancel()
+
+				userResp, err := h.identityClient.GetUser(identityCtx, &identity.GetUserRequest{
+					UserId: collab.UserId,
+				})
+				if err != nil {
+					fmt.Printf("DEBUG: Failed to get user details for user %s: %v\n", collab.UserId, err)
+					// Fallback to user ID
+					collaboratorData["name"] = fmt.Sprintf("User %s", collab.UserId[:8])
+					collaboratorData["email"] = fmt.Sprintf("user-%s@example.com", collab.UserId[:8])
+				} else if userResp.User != nil {
+					collaboratorData["name"] = userResp.User.FirstName + " " + userResp.User.LastName
+					collaboratorData["email"] = userResp.User.Email
+					if userResp.User.UserTag != "" {
+						collaboratorData["username_with_tag"] = userResp.User.UserTag
+					}
+				}
+			} else {
+				// Empty user ID - fallback
+				collaboratorData["name"] = "Unknown User"
+				collaboratorData["email"] = "unknown@example.com"
+			}
+		}
+
+		collaborators = append(collaborators, collaboratorData)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -366,14 +437,103 @@ func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Req
 
 // Helper functions
 func getUserIDFromContext(r *http.Request) string {
-	// This would normally be set by auth middleware
-	// For now, we'll check for a header or return a placeholder
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		// In a real implementation, this would be extracted from JWT
-		return "00000000-0000-0000-0000-000000000000"
+	// First, try to get user ID from context (set by auth middleware)
+	if userID := r.Context().Value("userID"); userID != nil {
+		if userIDStr, ok := userID.(string); ok {
+			return userIDStr
+		}
 	}
-	return userID
+
+	// Fallback: try to get from header (also set by auth middleware)
+	userID := r.Header.Get("X-User-ID")
+	if userID != "" {
+		return userID
+	}
+
+	// If no proper auth, return empty (which will trigger 401)
+	return ""
+}
+
+// resolveEmailOrUserTag resolves either an email address or user tag (@username) to an email address
+func (h *CollaborationHandler) resolveEmailOrUserTag(input string) (string, error) {
+	fmt.Printf("DEBUG: Resolving input: '%s'\n", input)
+
+	// If it's already an email (contains @), return as-is
+	if strings.Contains(input, "@") && !strings.HasPrefix(input, "@") {
+		fmt.Printf("DEBUG: Input is already an email: %s\n", input)
+		return input, nil
+	}
+
+	// If it starts with @, it's a user tag - look up the user by username
+	if strings.HasPrefix(input, "@") {
+		username := strings.TrimPrefix(input, "@")
+		fmt.Printf("DEBUG: Input is user tag, username: %s\n", username)
+		return h.getUserEmailByUsername(username)
+	}
+
+	// If it contains # it's likely a username#tag format
+	if strings.Contains(input, "#") {
+		fmt.Printf("DEBUG: Input contains #, treating as username#tag: %s\n", input)
+		parts := strings.SplitN(input, "#", 2)
+		username := parts[0]
+		userTag := parts[1]
+		return h.getUserEmailByUsernameAndTag(username, userTag)
+	}
+
+	// If it doesn't contain @ and doesn't start with @, assume it's a username
+	fmt.Printf("DEBUG: Input treated as plain username: %s\n", input)
+	return h.getUserEmailByUsername(input)
+}
+
+// getUserEmailByUsername looks up a user's email by their username via identity service
+func (h *CollaborationHandler) getUserEmailByUsername(username string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	fmt.Printf("DEBUG: Looking up user by username: '%s'\n", username)
+
+	// Call identity service to find user by username/user_tag
+	// The identity service expects both username and user_tag, so we'll try username in both fields
+	resp, err := h.identityClient.GetUserByUsernameTag(ctx, &identity.GetUserByUsernameTagRequest{
+		Username: username,
+		UserTag:  username, // Try as user_tag as well
+	})
+	if err != nil {
+		fmt.Printf("DEBUG: Failed to find user %s: %v\n", username, err)
+		return "", fmt.Errorf("user '%s' not found: %v", username, err)
+	}
+
+	if resp.User == nil {
+		return "", fmt.Errorf("user '%s' not found", username)
+	}
+
+	fmt.Printf("DEBUG: Found user %s with email: %s\n", username, resp.User.Email)
+	return resp.User.Email, nil
+}
+
+// getUserEmailByUsernameAndTag looks up a user's email by their username and tag via identity service
+func (h *CollaborationHandler) getUserEmailByUsernameAndTag(username, userTag string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	fmt.Printf("DEBUG: Looking up user by username: '%s' and tag: '%s'\n", username, userTag)
+
+	// Call identity service to find user by username and user_tag
+	resp, err := h.identityClient.GetUserByUsernameTag(ctx, &identity.GetUserByUsernameTagRequest{
+		Username: username,
+		UserTag:  userTag,
+	})
+	if err != nil {
+		fmt.Printf("DEBUG: Failed to find user %s#%s: %v\n", username, userTag, err)
+		return "", fmt.Errorf("user '%s#%s' not found: %v", username, userTag, err)
+	}
+
+	if resp.User == nil {
+		return "", fmt.Errorf("user '%s#%s' not found", username, userTag)
+	}
+
+	fmt.Printf("DEBUG: Found user %s#%s with email: %s\n", username, userTag, resp.User.Email)
+	return resp.User.Email, nil
 }
 
 func timestampToString(ts *common.Timestamp) string {
@@ -399,12 +559,30 @@ func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http
 
 	fmt.Printf("DEBUG: Getting invitations for user ID: %s\n", userID)
 
-	// Call collaboration service to get actual pending invitations
+	// First, get the user's email from identity service since invitations are stored by email
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	resp, err := h.client.GetUserInvitations(ctx, &collab.GetUserInvitationsRequest{
+	userResp, err := h.identityClient.GetUser(ctx, &identity.GetUserRequest{
 		UserId: userID,
+	})
+	if err != nil {
+		fmt.Printf("DEBUG: Failed to get user details for user ID %s: %v\n", userID, err)
+		http.Error(w, "Failed to get user details: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if userResp.User == nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	userEmail := userResp.User.Email
+	fmt.Printf("DEBUG: User email: %s\n", userEmail)
+
+	// Call collaboration service to get actual pending invitations by email
+	resp, err := h.client.GetUserInvitations(ctx, &collab.GetUserInvitationsRequest{
+		Email: userEmail,
 	})
 	if err != nil {
 		fmt.Printf("DEBUG: Failed to get invitations from collab service: %v\n", err)
@@ -414,13 +592,45 @@ func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http
 
 	fmt.Printf("DEBUG: Retrieved %d invitations from collab service\n", len(resp.Invitations))
 
+	// Debug: Print invitation details
+	for i, inv := range resp.Invitations {
+		fmt.Printf("DEBUG: Invitation %d - ID: %s, ProjectID: %s, InvitedBy: %s, Status: %s\n",
+			i, inv.Id, inv.ProjectId, inv.InvitedBy, inv.Status)
+	}
+
 	// Convert response to the expected format
 	// Initialize with empty slice to ensure JSON encodes as [] not null
 	invitations := make([]map[string]interface{}, 0)
 	for _, invitation := range resp.Invitations {
-		// For now, we'll use placeholder values since we don't have invited_by in the current protobuf
-		// TODO: Add invited_by field to protobuf and update this
+		// Get inviter name using invited_by field
 		inviterName := "Unknown User"
+		if invitation.InvitedBy != "" && invitation.InvitedBy != "00000000-0000-0000-0000-000000000000" {
+			fmt.Printf("DEBUG: Looking up inviter user ID: %s\n", invitation.InvitedBy)
+
+			// Call identity service to get inviter details
+			inviterCtx, inviterCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer inviterCancel()
+
+			inviterResp, err := h.identityClient.GetUser(inviterCtx, &identity.GetUserRequest{
+				UserId: invitation.InvitedBy,
+			})
+			if err != nil {
+				fmt.Printf("DEBUG: Failed to get inviter details for user %s: %v\n", invitation.InvitedBy, err)
+				// Use a more friendly fallback
+				inviterName = "Former User"
+			} else if inviterResp.User != nil {
+				inviterName = inviterResp.User.FirstName + " " + inviterResp.User.LastName
+				if inviterName == " " || inviterName == "" {
+					inviterName = inviterResp.User.Email
+				}
+				fmt.Printf("DEBUG: Successfully resolved inviter: %s\n", inviterName)
+			} else {
+				fmt.Printf("DEBUG: Identity service returned nil user for ID: %s\n", invitation.InvitedBy)
+				inviterName = "Former User"
+			}
+		} else {
+			fmt.Printf("DEBUG: Invalid or empty invited_by field: '%s'\n", invitation.InvitedBy)
+		}
 
 		// Get project name from scripts service
 		projectName := "Unknown Project"
@@ -439,9 +649,13 @@ func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http
 		}
 
 		invitationData := map[string]interface{}{
+			"id":          invitation.Id, // Invitation ID for accept/decline operations
 			"projectId":   invitation.ProjectId,
 			"projectName": projectName,
+			"role":        invitation.Role,
 			"invitedBy":   inviterName,
+			"invitedById": invitation.InvitedBy,
+			"status":      invitation.Status,
 			"createdAt":   timestampToString(invitation.InvitedAt),
 		}
 		fmt.Printf("DEBUG: Adding invitation to response: %+v\n", invitationData)
@@ -464,6 +678,7 @@ func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.R
 
 	var req struct {
 		CollaboratorID string `json:"collaborator_id"`
+		ID             string `json:"id"` // Alternative field name
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -471,10 +686,18 @@ func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if req.CollaboratorID == "" {
-		http.Error(w, "collaborator_id is required", http.StatusBadRequest)
+	// Accept either collaborator_id or id field
+	collaboratorID := req.CollaboratorID
+	if collaboratorID == "" {
+		collaboratorID = req.ID
+	}
+
+	if collaboratorID == "" {
+		http.Error(w, "collaborator_id or id is required", http.StatusBadRequest)
 		return
 	}
+
+	fmt.Printf("DEBUG: Accepting invitation with ID: %s\n", collaboratorID)
 
 	// Get user ID from context (set by auth middleware)
 	userID := getUserIDFromContext(r)
@@ -486,7 +709,7 @@ func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.R
 	// Call the collaboration service to accept the invitation
 	resp, err := h.client.AcceptInvitation(r.Context(), &collab.AcceptInvitationRequest{
 		UserId:         userID,
-		CollaboratorId: req.CollaboratorID,
+		CollaboratorId: collaboratorID,
 	})
 	if err != nil {
 		http.Error(w, "Failed to accept invitation: "+err.Error(), http.StatusInternalServerError)
@@ -524,6 +747,7 @@ func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.
 
 	var req struct {
 		CollaboratorID string `json:"collaborator_id"`
+		ID             string `json:"id"` // Alternative field name
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -531,10 +755,18 @@ func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.
 		return
 	}
 
-	if req.CollaboratorID == "" {
-		http.Error(w, "collaborator_id is required", http.StatusBadRequest)
+	// Accept either collaborator_id or id field
+	collaboratorID := req.CollaboratorID
+	if collaboratorID == "" {
+		collaboratorID = req.ID
+	}
+
+	if collaboratorID == "" {
+		http.Error(w, "collaborator_id or id is required", http.StatusBadRequest)
 		return
 	}
+
+	fmt.Printf("DEBUG: Declining invitation with ID: %s\n", collaboratorID)
 
 	// Get user ID from context (set by auth middleware)
 	userID := getUserIDFromContext(r)
@@ -546,7 +778,7 @@ func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.
 	// Call the collaboration service to decline the invitation
 	_, err := h.client.DeclineInvitation(r.Context(), &collab.DeclineInvitationRequest{
 		UserId:         userID,
-		CollaboratorId: req.CollaboratorID,
+		CollaboratorId: collaboratorID,
 	})
 	if err != nil {
 		http.Error(w, "Failed to decline invitation: "+err.Error(), http.StatusInternalServerError)

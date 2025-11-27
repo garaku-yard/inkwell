@@ -211,7 +211,7 @@ message GetPresenceResponse {
 
 // Invitation management requests/responses
 message GetUserInvitationsRequest {
-  string user_id = 1; // User to get invitations for
+  string email = 1; // Email address to get invitations for
 }
 
 message GetUserInvitationsResponse {

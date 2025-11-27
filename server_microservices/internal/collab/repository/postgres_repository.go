@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"scriptlith/server_microservices/internal/collab/domain"
@@ -129,13 +130,16 @@ func (r *PostgresCollaborationRepository) GetProjectCollaborators(ctx context.Co
 }
 
 func (r *PostgresCollaborationRepository) GetUserInvitations(ctx context.Context, userID uuid.UUID) ([]*domain.Collaborator, error) {
+	// Query collaboration_invitations table for pending invites by email
+	// Note: Since we don't have user's email from user ID, we'll need to enhance this
+	// For now, return all pending invitations as the user might match by email
 	query := `
-		SELECT collaborator_id, project_id, user_id, role, status, invited_by, invited_at, joined_at
-		FROM collaborators
-		WHERE user_id = $1 AND status = 'pending'
-		ORDER BY invited_at DESC`
+		SELECT invitation_id, project_id, inviter_id, email, role, created_at
+		FROM collaboration_invitations
+		WHERE accepted = false AND expires_at > NOW()
+		ORDER BY created_at DESC`
 
-	rows, err := r.db.QueryContext(ctx, query, userID)
+	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -143,24 +147,114 @@ func (r *PostgresCollaborationRepository) GetUserInvitations(ctx context.Context
 
 	var collaborators []*domain.Collaborator
 	for rows.Next() {
-		collaborator := &domain.Collaborator{}
+		var invitationID uuid.UUID
+		var inviterID uuid.UUID
+		var email string
+		var role string
+		var createdAt time.Time
+		var projectID uuid.UUID
+
 		err := rows.Scan(
-			&collaborator.ID,
-			&collaborator.ProjectID,
-			&collaborator.UserID,
-			&collaborator.Role,
-			&collaborator.Status,
-			&collaborator.InvitedBy,
-			&collaborator.InvitedAt,
-			&collaborator.JoinedAt,
+			&invitationID,
+			&projectID,
+			&inviterID,
+			&email,
+			&role,
+			&createdAt,
 		)
 		if err != nil {
 			return nil, err
+		}
+
+		// Convert invitation to collaborator format for compatibility
+		// Note: userID is empty for invitations since user hasn't accepted yet
+		collaborator := &domain.Collaborator{
+			ID:        invitationID, // Use invitation ID temporarily
+			ProjectID: projectID,
+			UserID:    uuid.Nil, // No user ID yet - this is a pending invitation
+			Role:      role,
+			Status:    "pending",
+			InvitedBy: inviterID,
+			InvitedAt: createdAt,
+			JoinedAt:  nil,
 		}
 		collaborators = append(collaborators, collaborator)
 	}
 
 	return collaborators, nil
+}
+
+func (r *PostgresCollaborationRepository) GetUserInvitationsByEmail(ctx context.Context, email string) ([]*domain.Collaborator, error) {
+	// Query collaboration_invitations table for pending invites by specific email
+	// Also search for user tags that might resolve to this email (for backward compatibility)
+	query := `
+		SELECT invitation_id, project_id, inviter_id, email, role, created_at
+		FROM collaboration_invitations
+		WHERE email = $1 AND accepted = false AND expires_at > NOW()
+		ORDER BY created_at DESC`
+
+	rows, err := r.db.QueryContext(ctx, query, email)
+	if err != nil {
+		fmt.Printf("DEBUG: Error querying invitations: %v\n", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var collaborators []*domain.Collaborator
+	for rows.Next() {
+		var invitationID uuid.UUID
+		var inviterID uuid.UUID
+		var inviteEmail string
+		var role string
+		var createdAt time.Time
+		var projectID uuid.UUID
+
+		err := rows.Scan(
+			&invitationID,
+			&projectID,
+			&inviterID,
+			&inviteEmail,
+			&role,
+			&createdAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert invitation to collaborator format for compatibility
+		collaborator := &domain.Collaborator{
+			ID:        invitationID, // Use invitation ID
+			ProjectID: projectID,
+			UserID:    uuid.Nil, // Empty for pending invitation
+			Role:      role,
+			Status:    "pending",
+			InvitedBy: inviterID,
+			InvitedAt: createdAt,
+			JoinedAt:  nil,
+		}
+		collaborators = append(collaborators, collaborator)
+	}
+
+	return collaborators, nil
+}
+
+// CreateInvitation creates a new invitation in the collaboration_invitations table
+func (r *PostgresCollaborationRepository) CreateInvitation(ctx context.Context, invitation *domain.Invitation) error {
+	query := `
+		INSERT INTO collaboration_invitations (invitation_id, project_id, inviter_id, email, role, token, expires_at, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+
+	_, err := r.db.ExecContext(ctx, query,
+		invitation.ID,
+		invitation.ProjectID,
+		invitation.InviterID,
+		invitation.Email,
+		invitation.Role,
+		invitation.Token,
+		invitation.ExpiresAt,
+		invitation.CreatedAt,
+	)
+	return err
 }
 
 func (r *PostgresCollaborationRepository) UpdateCollaboratorStatus(ctx context.Context, id uuid.UUID, status string) error {

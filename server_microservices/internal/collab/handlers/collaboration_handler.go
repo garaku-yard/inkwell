@@ -570,12 +570,11 @@ func (h *CollaborationHandler) GetPresence(ctx context.Context, req *collab_pb.G
 
 // GetUserInvitations retrieves pending invitations for a user
 func (h *CollaborationHandler) GetUserInvitations(ctx context.Context, req *collab_pb.GetUserInvitationsRequest) (*collab_pb.GetUserInvitationsResponse, error) {
-	userID, err := parseUUID(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	if req.Email == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "email is required")
 	}
 
-	invitations, err := h.service.GetUserInvitations(ctx, userID)
+	invitations, err := h.service.GetUserInvitations(ctx, req.Email)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get user invitations: %v", err)
 	}
@@ -588,7 +587,7 @@ func (h *CollaborationHandler) GetUserInvitations(ctx context.Context, req *coll
 			UserId:    invitation.UserID.String(),
 			Role:      invitation.Role,
 			Status:    invitation.Status,
-			// TODO: Add InvitedBy field when protobuf is updated
+			InvitedBy: invitation.InvitedBy.String(),
 			InvitedAt: &common.Timestamp{
 				Seconds: invitation.InvitedAt.Unix(),
 				Nanos:   int32(invitation.InvitedAt.Nanosecond()),
