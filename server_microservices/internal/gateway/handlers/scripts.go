@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,13 +12,17 @@ import (
 	"google.golang.org/grpc"
 
 	"scriptlith/server_microservices/internal/gateway/config"
+	"scriptlith/server_microservices/pkg/grpc/collab"
 	"scriptlith/server_microservices/pkg/grpc/common"
+	"scriptlith/server_microservices/pkg/grpc/identity"
 	scriptspb "scriptlith/server_microservices/pkg/grpc/scripts"
 )
 
 // ScriptsHandler handles HTTP requests related to scripts and forwards them to Scripts service
 type ScriptsHandler struct {
-	scriptsClient scriptspb.ScriptsServiceClient
+	scriptsClient  scriptspb.ScriptsServiceClient
+	collabClient   collab.CollaborationServiceClient
+	identityClient identity.IdentityServiceClient
 }
 
 // NewScriptsHandler creates a new ScriptsHandler
@@ -32,15 +37,42 @@ func NewScriptsHandler(cfg *config.Config) (*ScriptsHandler, error) {
 		return nil, err
 	}
 
-	client := scriptspb.NewScriptsServiceClient(conn)
+	scriptsClient := scriptspb.NewScriptsServiceClient(conn)
+
+	// Connect to Collaboration service
+	collabConn, err := grpc.Dial(
+		cfg.CollabService.Host+":"+cfg.CollabService.Port,
+		grpc.WithInsecure(),
+		grpc.WithTimeout(time.Second*30),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	collabClient := collab.NewCollaborationServiceClient(collabConn)
+
+	// Connect to Identity service
+	identityConn, err := grpc.Dial(
+		cfg.IdentityService.Host+":"+cfg.IdentityService.Port,
+		grpc.WithInsecure(),
+		grpc.WithTimeout(time.Second*30),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	identityClient := identity.NewIdentityServiceClient(identityConn)
 
 	return &ScriptsHandler{
-		scriptsClient: client,
+		scriptsClient:  scriptsClient,
+		collabClient:   collabClient,
+		identityClient: identityClient,
 	}, nil
 }
 
 // CreateProject creates a new screenplay project
 func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("DEBUG: CreateProject called\n")
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -57,6 +89,8 @@ func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
+
+	fmt.Printf("DEBUG: CreateProject for user: %s, title: %s\n", req.OwnerID, req.Title)
 
 	// Validate required fields
 	if req.Title == "" {
@@ -77,6 +111,34 @@ func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Failed to create project: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Add the owner as a collaborator with "owner" role in the collaboration service
+	// First, get the user's email from identity service
+	fmt.Printf("DEBUG: Adding owner %s as collaborator for project %s\n", req.OwnerID, resp.Project.Id)
+	userResp, err := h.identityClient.GetUser(context.Background(), &identity.GetUserRequest{
+		UserId: req.OwnerID,
+	})
+	if err != nil {
+		// Log error but don't fail the project creation
+		fmt.Printf("ERROR: Failed to get user email from identity service: %v\n", err)
+		// The project is created but collaboration features might not work until manually added
+	} else {
+		fmt.Printf("DEBUG: Got user email: %s for user %s\n", userResp.User.Email, req.OwnerID)
+		// Add user as owner collaborator using direct method (bypasses invitation system)
+		_, err = h.collabClient.AddCollaboratorDirect(context.Background(), &collab.AddCollaboratorDirectRequest{
+			ProjectId: resp.Project.Id,
+			UserId:    req.OwnerID,
+			InviterId: req.OwnerID,
+			Role:      "owner",
+		})
+		if err != nil {
+			// Log error but don't fail the project creation
+			fmt.Printf("ERROR: Failed to add owner as collaborator: %v\n", err)
+			// The project is created but collaboration features might not work until manually added
+		} else {
+			fmt.Printf("DEBUG: Successfully added owner as collaborator\n")
+		}
 	}
 
 	// Convert response

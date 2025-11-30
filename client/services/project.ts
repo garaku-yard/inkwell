@@ -35,6 +35,7 @@ export interface ScriptElement {
   formatting: Record<string, string>
   created_at: string
   updated_at: string
+  comments?: Comment[]  // Comments for this element
 }
 
 export interface Scene {
@@ -47,6 +48,7 @@ export interface Scene {
   elements?: ScriptElement[]  // Elements within the scene
   created_at: string
   updated_at: string
+  comments?: Comment[]  // Comments for this scene
 }
 
 export interface Character {
@@ -121,6 +123,8 @@ export interface Comment {
   content: string
   timestamp: string
   isResolved: boolean
+  elementId?: string // script element ID or scene ID that the comment belongs to
+  isScene?: boolean // whether this comment belongs to a scene or script element
 }
 
 // --- Service Functions ---
@@ -190,15 +194,32 @@ export const getFullProject = async (projectId: string, userId: string): Promise
   // Get the scenes for this project
   const scenes = await getProjectScenes(projectId, userId)
   
-  // For each scene, get its elements
+  // Get all comments for the project
+  const allComments = await getComments(projectId)
+  
+  // For each scene, get its elements and attach comments
   const scenesWithElements = await Promise.all(
     scenes.map(async (scene) => {
       try {
         const elements = await getSceneElements(scene.id, userId)
-        return { ...scene, elements }
+        
+        // Attach comments to elements
+        const elementsWithComments = elements.map(element => ({
+          ...element,
+          comments: allComments.filter(comment => comment.elementId === element.id && !comment.isScene)
+        }))
+        
+        // Attach comments to scene
+        const sceneComments = allComments.filter(comment => comment.elementId === scene.id && comment.isScene)
+        
+        return { 
+          ...scene, 
+          elements: elementsWithComments,
+          comments: sceneComments
+        }
       } catch (err) {
         console.warn(`Failed to load elements for scene ${scene.id}:`, err)
-        return { ...scene, elements: [] }
+        return { ...scene, elements: [], comments: [] }
       }
     })
   )
@@ -526,3 +547,130 @@ export const collaboratorRoleOptions = Object.entries(CollaboratorRoles).map(
     label,
   })
 )
+
+// Comment CRUD functions
+export const addComment = async (
+  projectId: string,
+  screenplayId: string,
+  content: string,
+  lineNumber: number,
+  scriptElementId?: string,
+  sceneId?: string,
+  parentId?: string
+): Promise<Comment> => {
+  const response = await apiClient<{
+    id: string
+    project_id: string
+    screenplay_id: string
+    script_element_id?: string
+    scene_id?: string
+    user_id: string
+    username: string
+    content: string
+    line_number: number
+    char_position: number
+    parent_id?: string
+    is_resolved: boolean
+    created_at: string
+    updated_at: string
+  }>('comments', {
+    method: 'POST',
+    body: {
+      project_id: projectId,
+      screenplay_id: screenplayId,
+      content,
+      line_number: lineNumber,
+      char_position: 0, // Default to 0 for now
+      script_element_id: scriptElementId,
+      scene_id: sceneId,
+      parent_id: parentId
+    }
+  })
+
+  return {
+    id: response.id,
+    userName: response.username,
+    content: response.content,
+    timestamp: response.created_at,
+    isResolved: response.is_resolved
+  }
+}
+
+export const getComments = async (
+  screenplayId: string
+): Promise<Comment[]> => {
+  const response = await apiClient<Array<{
+    id: string
+    project_id: string
+    screenplay_id: string
+    script_element_id?: string
+    scene_id?: string
+    user_id: string
+    username: string
+    content: string
+    line_number: number
+    char_position: number
+    parent_id?: string
+    is_resolved: boolean
+    created_at: string
+    updated_at: string
+  }>>(`comments?screenplay_id=${screenplayId}`, {
+    method: 'GET'
+  })
+
+  return response.map(comment => ({
+    id: comment.id,
+    userName: comment.username || `User ${comment.user_id.slice(0, 8)}`,
+    content: comment.content,
+    timestamp: comment.created_at,
+    isResolved: comment.is_resolved,
+    elementId: comment.script_element_id || comment.scene_id,
+    isScene: !!comment.scene_id // if scene_id exists, it's a scene comment
+  }))
+}
+
+export const updateComment = async (
+  commentId: string,
+  content?: string,
+  isResolved?: boolean
+): Promise<Comment> => {
+  const body: any = {}
+  if (content !== undefined) body.content = content
+  if (isResolved !== undefined) body.is_resolved = isResolved
+
+  const response = await apiClient<{
+    id: string
+    project_id: string
+    screenplay_id: string
+    script_element_id?: string
+    user_id: string
+    content: string
+    line_number: number
+    char_position: number
+    parent_id?: string
+    is_resolved: boolean
+    created_at: string
+    updated_at: string
+  }>(`comments/${commentId}`, {
+    method: 'PATCH',
+    body
+  })
+
+  return {
+    id: response.id,
+    userName: `User ${response.user_id.slice(0, 8)}`,
+    content: response.content,
+    timestamp: response.created_at,
+    isResolved: response.is_resolved
+  }
+}
+
+export const deleteComment = async (commentId: string): Promise<void> => {
+  await apiClient(`comments/${commentId}`, {
+    method: 'DELETE'
+  })
+}
+
+export const toggleCommentResolved = async (commentId: string, newResolvedState: boolean): Promise<Comment> => {
+  return updateComment(commentId, undefined, newResolvedState)
+}

@@ -95,6 +95,45 @@ func (h *CollaborationHandler) AddCollaborator(ctx context.Context, req *collab_
 	}, nil
 }
 
+// AddCollaboratorDirect adds a collaborator directly by user ID (bypasses invitation system)
+func (h *CollaborationHandler) AddCollaboratorDirect(ctx context.Context, req *collab_pb.AddCollaboratorDirectRequest) (*collab_pb.AddCollaboratorDirectResponse, error) {
+	projectID, err := parseUUID(req.ProjectId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project ID: %v", err)
+	}
+
+	userID, err := parseUUID(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	}
+
+	inviterID, err := parseUUID(req.InviterId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid inviter ID: %v", err)
+	}
+
+	// Use the direct collaborator addition (bypasses invitation system)
+	collaborator, err := h.service.AddCollaborator(ctx, projectID, userID, inviterID, req.Role)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to add collaborator: %v", err)
+	}
+
+	return &collab_pb.AddCollaboratorDirectResponse{
+		Collaborator: &collab_pb.Collaborator{
+			Id:        collaborator.ID.String(),
+			ProjectId: collaborator.ProjectID.String(),
+			UserId:    collaborator.UserID.String(),
+			Role:      collaborator.Role,
+			Status:    collaborator.Status,
+			InvitedAt: &common.Timestamp{
+				Seconds: collaborator.InvitedAt.Unix(),
+				Nanos:   int32(collaborator.InvitedAt.Nanosecond()),
+			},
+			JoinedAt: timestampPtrToCommon(collaborator.JoinedAt),
+		},
+	}, nil
+}
+
 // GetProjectCollaborators retrieves all collaborators for a project
 func (h *CollaborationHandler) GetProjectCollaborators(ctx context.Context, req *collab_pb.GetProjectCollaboratorsRequest) (*collab_pb.GetProjectCollaboratorsResponse, error) {
 	projectID, err := parseUUID(req.ProjectId)
@@ -216,6 +255,11 @@ func (h *CollaborationHandler) AddComment(ctx context.Context, req *collab_pb.Ad
 		return nil, status.Errorf(codes.InvalidArgument, "invalid element ID: %v", err)
 	}
 
+	sceneID, err := parseOptionalStringPtr(req.SceneId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid scene ID: %v", err)
+	}
+
 	var parentID *uuid.UUID
 	if req.ParentId != nil {
 		parentID, err = parseOptionalUUID(*req.ParentId)
@@ -227,7 +271,7 @@ func (h *CollaborationHandler) AddComment(ctx context.Context, req *collab_pb.Ad
 	lineNumber := parseOptionalInt32(req.LineNumber)
 	charPosition := parseOptionalInt32(req.CharPosition)
 
-	comment, err := h.service.AddComment(ctx, userID, projectID, req.Content, elementID, nil, parentID, lineNumber, charPosition)
+	comment, err := h.service.AddComment(ctx, userID, projectID, req.Content, elementID, sceneID, parentID, lineNumber, charPosition)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to add comment: %v", err)
 	}
@@ -238,7 +282,9 @@ func (h *CollaborationHandler) AddComment(ctx context.Context, req *collab_pb.Ad
 			ProjectId:       comment.ProjectID.String(),
 			ScreenplayId:    uuidPtrToString(comment.ScreenplayID),
 			ScriptElementId: uuidPtrToString(comment.ScriptElementID),
+			SceneId:         uuidPtrToString(comment.SceneID),
 			UserId:          comment.UserID.String(),
+			Username:        "", // Will be set by gateway
 			Content:         comment.Content,
 			LineNumber:      int32PtrToInt32(comment.LineNumber),
 			CharPosition:    int32PtrToInt32(comment.CharPosition),
@@ -268,9 +314,9 @@ func (h *CollaborationHandler) GetComments(ctx context.Context, req *collab_pb.G
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	// For this simplified version, we'll get all comments for the screenplay
-	// In a real implementation, you'd filter by line_number if provided
-	comments, err := h.service.GetComments(ctx, userID, uuid.UUID{}, nil, &screenplayID, 0, 100)
+	// For this simplified version, we'll get all comments for the project
+	// Since we're using project ID as screenplay ID, treat screenplay ID as project ID
+	comments, err := h.service.GetComments(ctx, userID, screenplayID, nil, nil, 0, 100)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get comments: %v", err)
 	}
@@ -282,7 +328,9 @@ func (h *CollaborationHandler) GetComments(ctx context.Context, req *collab_pb.G
 			ProjectId:       comment.ProjectID.String(),
 			ScreenplayId:    uuidPtrToString(comment.ScreenplayID),
 			ScriptElementId: uuidPtrToString(comment.ScriptElementID),
+			SceneId:         uuidPtrToString(comment.SceneID),
 			UserId:          comment.UserID.String(),
+			Username:        "", // Will be set by gateway
 			Content:         comment.Content,
 			LineNumber:      int32PtrToInt32(comment.LineNumber),
 			CharPosition:    int32PtrToInt32(comment.CharPosition),

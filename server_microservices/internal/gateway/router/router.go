@@ -1,6 +1,7 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
 
 	"scriptlith/server_microservices/internal/gateway/config"
@@ -34,8 +35,10 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 
 	// Scripts routes
 	mux.HandleFunc("/projects", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("DEBUG: /projects route called with method: %s\n", r.Method)
 		switch r.Method {
 		case http.MethodPost:
+			fmt.Printf("DEBUG: Calling scriptsHandler.CreateProject\n")
 			scriptsHandler.CreateProject(w, r)
 		case http.MethodGet:
 			scriptsHandler.GetUserProjects(w, r)
@@ -86,12 +89,36 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		}
 	})
 
+	// Individual collaborator routes
+	mux.HandleFunc("/collaborators/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPatch:
+			collaborationHandler.UpdateCollaboratorRole(w, r)
+		case http.MethodDelete:
+			collaborationHandler.RemoveCollaborator(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	mux.HandleFunc("/comments", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
 			collaborationHandler.AddComment(w, r)
 		case http.MethodGet:
 			collaborationHandler.GetComments(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// Individual comment routes
+	mux.HandleFunc("/comments/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPatch:
+			collaborationHandler.UpdateComment(w, r)
+		case http.MethodDelete:
+			collaborationHandler.DeleteComment(w, r)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}

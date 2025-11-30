@@ -330,7 +330,7 @@ export default function BeatBoardPage() {
               </Button>
             </Link>
             <div className="h-6 w-px bg-gray-200" />
-            <h1 className="text-xl font-semibold text-gray-900">{project?.projectName || 'Beat Board'}</h1>
+            <h1 className="text-xl font-semibold text-gray-900">{project?.title || 'Beat Board'}</h1>
           </div>
           <Button onClick={() => setIsAddingBeat(true)}><Plus className="h-4 w-4 mr-2" />New Beat</Button>
         </div>

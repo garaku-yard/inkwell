@@ -268,6 +268,7 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 		ScreenplayID    string  `json:"screenplay_id"`
 		Content         string  `json:"content"`
 		ScriptElementID *string `json:"script_element_id,omitempty"`
+		SceneID         *string `json:"scene_id,omitempty"`
 		LineNumber      int32   `json:"line_number,omitempty"`
 		CharPosition    int32   `json:"char_position,omitempty"`
 		ParentID        *string `json:"parent_id,omitempty"`
@@ -295,6 +296,7 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 		UserId:          userID,
 		Content:         req.Content,
 		ScriptElementId: req.ScriptElementID,
+		SceneId:         req.SceneID,
 		LineNumber:      req.LineNumber,
 		CharPosition:    req.CharPosition,
 		ParentId:        req.ParentID,
@@ -304,6 +306,20 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Get username from identity service
+	userResp, err := h.identityClient.GetUser(ctx, &identity.GetUserRequest{
+		UserId: userID,
+	})
+	if err != nil {
+		// If we can't get the username, use a fallback
+		fmt.Printf("Warning: Could not get username for user %s: %v\n", userID, err)
+	}
+
+	username := fmt.Sprintf("User %s", userID[:8]) // Default fallback
+	if userResp != nil && userResp.User != nil && userResp.User.Username != "" {
+		username = userResp.User.Username
+	}
+
 	// Convert response to JSON
 	response := map[string]interface{}{
 		"id":                resp.Comment.Id,
@@ -311,6 +327,7 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 		"screenplay_id":     resp.Comment.ScreenplayId,
 		"script_element_id": resp.Comment.ScriptElementId,
 		"user_id":           resp.Comment.UserId,
+		"username":          username,
 		"content":           resp.Comment.Content,
 		"line_number":       resp.Comment.LineNumber,
 		"char_position":     resp.Comment.CharPosition,
@@ -358,15 +375,26 @@ func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Convert response to JSON
+	// Convert response to JSON and fetch usernames
 	var comments []map[string]interface{}
 	for _, comment := range resp.Comments {
+		// Get username from identity service
+		username := comment.UserId // fallback to user ID
+		userResp, err := h.identityClient.GetUser(ctx, &identity.GetUserRequest{
+			UserId: comment.UserId,
+		})
+		if err == nil && userResp.User != nil {
+			username = userResp.User.Username
+		}
+
 		comments = append(comments, map[string]interface{}{
 			"id":                comment.Id,
 			"project_id":        comment.ProjectId,
 			"screenplay_id":     comment.ScreenplayId,
 			"script_element_id": comment.ScriptElementId,
+			"scene_id":          comment.SceneId,
 			"user_id":           comment.UserId,
+			"username":          username,
 			"content":           comment.Content,
 			"line_number":       comment.LineNumber,
 			"char_position":     comment.CharPosition,
@@ -792,5 +820,243 @@ func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+// UpdateCollaboratorRole handles updating a collaborator's role
+func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract collaborator ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/collaborators/")
+	collaboratorID := strings.TrimSuffix(path, "/")
+	if collaboratorID == "" {
+		http.Error(w, "Collaborator ID is required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Role string `json:"role"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate role
+	validRoles := map[string]bool{
+		"OWNER":    true,
+		"WRITER":   true,
+		"EDITOR":   true,
+		"REVIEWER": true,
+	}
+	if !validRoles[req.Role] {
+		http.Error(w, "Invalid role. Must be 'OWNER', 'WRITER', 'EDITOR', or 'REVIEWER'", http.StatusBadRequest)
+		return
+	}
+
+	// Get user ID from context
+	userID := getUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Call collaboration service
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := h.client.UpdateCollaboratorRole(ctx, &collab.UpdateCollaboratorRoleRequest{
+		UserId:         userID,
+		CollaboratorId: collaboratorID,
+		NewRole:        req.Role,
+	})
+	if err != nil {
+		http.Error(w, "Failed to update collaborator role: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return updated collaborator info
+	response := map[string]interface{}{
+		"id":         resp.Collaborator.Id,
+		"project_id": resp.Collaborator.ProjectId,
+		"user_id":    resp.Collaborator.UserId,
+		"role":       resp.Collaborator.Role,
+		"status":     resp.Collaborator.Status,
+		"invited_at": timestampToString(resp.Collaborator.InvitedAt),
+		"joined_at":  timestampToString(resp.Collaborator.JoinedAt),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+// RemoveCollaborator handles removing a collaborator from a project
+func (h *CollaborationHandler) RemoveCollaborator(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract collaborator ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/collaborators/")
+	collaboratorID := strings.TrimSuffix(path, "/")
+	if collaboratorID == "" {
+		http.Error(w, "Collaborator ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get user ID from context
+	userID := getUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Call collaboration service
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := h.client.RemoveCollaborator(ctx, &collab.RemoveCollaboratorRequest{
+		UserId:         userID,
+		CollaboratorId: collaboratorID,
+	})
+	if err != nil {
+		http.Error(w, "Failed to remove collaborator: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return success response
+	response := map[string]string{
+		"message": "Collaborator removed successfully",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+// UpdateComment handles updating an existing comment
+func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get comment ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/comments/")
+	commentID := strings.Split(path, "/")[0]
+	if commentID == "" {
+		http.Error(w, "Comment ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get user ID from context (set by auth middleware)
+	userID := getUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse request body
+	var updateData struct {
+		Content    *string `json:"content,omitempty"`
+		IsResolved *bool   `json:"is_resolved,omitempty"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&updateData); err != nil {
+		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	// Call collaboration service
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &collab.UpdateCommentRequest{
+		CommentId: commentID,
+		UserId:    userID,
+	}
+
+	if updateData.Content != nil {
+		req.Content = updateData.Content
+	}
+	if updateData.IsResolved != nil {
+		req.IsResolved = updateData.IsResolved
+	}
+
+	resp, err := h.client.UpdateComment(ctx, req)
+	if err != nil {
+		http.Error(w, "Failed to update comment: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Convert response to JSON
+	comment := map[string]interface{}{
+		"id":                resp.Comment.Id,
+		"project_id":        resp.Comment.ProjectId,
+		"screenplay_id":     resp.Comment.ScreenplayId,
+		"script_element_id": resp.Comment.ScriptElementId,
+		"user_id":           resp.Comment.UserId,
+		"content":           resp.Comment.Content,
+		"line_number":       resp.Comment.LineNumber,
+		"char_position":     resp.Comment.CharPosition,
+		"parent_id":         resp.Comment.ParentId,
+		"is_resolved":       resp.Comment.IsResolved,
+		"created_at":        timestampToString(resp.Comment.CreatedAt),
+		"updated_at":        timestampToString(resp.Comment.UpdatedAt),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(comment)
+}
+
+// DeleteComment handles deleting an existing comment
+func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get comment ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/comments/")
+	commentID := strings.Split(path, "/")[0]
+	if commentID == "" {
+		http.Error(w, "Comment ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get user ID from context (set by auth middleware)
+	userID := getUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Call collaboration service
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := h.client.DeleteComment(ctx, &collab.DeleteCommentRequest{
+		CommentId: commentID,
+		UserId:    userID,
+	})
+	if err != nil {
+		http.Error(w, "Failed to delete comment: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return success response
+	response := map[string]interface{}{
+		"success": resp.Success,
+		"message": "Comment deleted successfully",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }

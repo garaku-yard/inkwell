@@ -1,18 +1,19 @@
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect, useImperativeHandle } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Clipboard, Film, Hash } from "lucide-react"
-import type { FullProject, Scene, ScriptElement } from "@/services/project"
+import { Clipboard, Film, Hash, MessageCircle } from "lucide-react"
+import type { FullProject, Scene, ScriptElement, Comment } from "@/services/project"
+import { getComments } from "@/services/project"
 import { SCRIPT_ELEMENT_CONFIG } from "@/lib/helpers/screenplay-config"
 import { Separator } from "@/components/ui/separator"
 import { CommentPanel } from "./CommentPanel"
 
-type ActiveScriptItem = (Scene & { isScene: true }) | (ScriptElement & { isScene: false })
+type ActiveScriptItem = (Scene & { isScene: true; comments?: Comment[] }) | (ScriptElement & { isScene: false; comments?: Comment[] })
 
 type GroupedItem = { type: "group"; elements: ScriptElement[] } | { type: "single"; element: ScriptElement }
 
@@ -47,7 +48,28 @@ export const SidePanel = React.memo(
       ref,
     ) => {
       const [activeTab, setActiveTab] = useState("scenes")
+      const [allComments, setAllComments] = useState<Comment[]>([])
+      const [commentsLoading, setCommentsLoading] = useState(false)
       const router = useRouter()
+
+      // Load all comments for the project when component mounts
+      useEffect(() => {
+        loadAllComments()
+      }, [project.id])
+
+      const loadAllComments = async () => {
+        setCommentsLoading(true)
+        try {
+          // Use project ID as screenplay ID for now - load ALL comments for the project
+          const projectComments = await getComments(project.id)
+          setAllComments(projectComments)
+        } catch (error) {
+          console.error('Failed to load comments:', error)
+          setAllComments([])
+        } finally {
+          setCommentsLoading(false)
+        }
+      })
 
       const getElementIcon = (elementType: ScriptElement["element_type"]) => {
         const config = SCRIPT_ELEMENT_CONFIG[elementType]
@@ -62,26 +84,35 @@ export const SidePanel = React.memo(
         return SCRIPT_ELEMENT_CONFIG[elementType]?.badgeColor || "bg-gray-100 text-gray-700 border-gray-200"
       }
 
+      // Get comment count for a specific element
+      const getCommentCount = (elementId: string) => {
+        return allComments.filter(comment => comment.elementId === elementId).length
+      }
+
       const handleBeatBoardClick = (projectId: string) => {
         router.push(`/projects/${projectId}/beat-board`)
       }
 
       const activeElement = useMemo((): ActiveScriptItem | null => {
         if (!activeElementId) return null
+        
+        // Filter comments for the active element
+        const elementComments = allComments.filter(comment => comment.elementId === activeElementId)
+        
         // Check scenes directly (no acts structure in microservices)
         if (project.scenes) {
           for (const scene of project.scenes) {
             if (scene.id === activeElementId) {
-              return { ...scene, isScene: true }
+              return { ...scene, isScene: true, comments: elementComments }
             }
             const foundElement = scene.elements?.find((el) => el.id === activeElementId)
             if (foundElement) {
-              return { ...foundElement, isScene: false }
+              return { ...foundElement, isScene: false, comments: elementComments }
             }
           }
         }
         return null
-      }, [activeElementId, project.scenes])
+      }, [activeElementId, project.scenes, allComments])
 
       const unresolvedCommentsCount = useMemo(() => {
         if (!activeElement) return 0
@@ -140,19 +171,25 @@ export const SidePanel = React.memo(
                 >
                   <CardContent className="p-3">
                     <div className="space-y-2">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-sm leading-tight group-hover:text-primary transition-colors">
-                            {scene.scene_heading.toUpperCase()}
-                          </h4>
-                          <p className="text-xs text-muted-foreground mt-1">Scene {scene.scene_number || index + 1}</p>
-                        </div>
-                        <Badge variant="outline" className="text-xs shrink-0">
-                          {scene.elements?.length || 0}
-                        </Badge>
-                      </div>
-
-                      {scene.elements && scene.elements.length > 0 && (
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-sm leading-tight group-hover:text-primary transition-colors">
+                              {scene.scene_heading.toUpperCase()}
+                            </h4>
+                            <p className="text-xs text-muted-foreground mt-1">Scene {scene.scene_number || index + 1}</p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Badge variant="outline" className="text-xs">
+                              {scene.elements?.length || 0}
+                            </Badge>
+                            {getCommentCount(scene.id) > 0 && (
+                              <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                                <MessageCircle className="h-3 w-3" />
+                                {getCommentCount(scene.id)}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>                      {scene.elements && scene.elements.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {Array.from(new Set(scene.elements.map((el) => el.element_type).filter(Boolean)))
                             .slice(0, 4)
@@ -211,9 +248,17 @@ export const SidePanel = React.memo(
                                 {scene.setting.toUpperCase()}
                               </span>
                             </div>
-                            <Badge variant="outline" className="text-xs shrink-0">
-                              {scene.elements?.length || 0}
-                            </Badge>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Badge variant="outline" className="text-xs">
+                                {scene.elements?.length || 0}
+                              </Badge>
+                              {getCommentCount(scene.id) > 0 && (
+                                <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                                  <MessageCircle className="h-3 w-3" />
+                                  {getCommentCount(scene.id)}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
 
                           {scene.elements && scene.elements.length > 0 && (
@@ -269,6 +314,12 @@ export const SidePanel = React.memo(
                                             <span className="text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1">
                                               {el.content}
                                             </span>
+                                            {getCommentCount(el.id) > 0 && (
+                                              <Badge variant="secondary" className="text-xs flex items-center gap-1 ml-1">
+                                                <MessageCircle className="h-3 w-3" />
+                                                {getCommentCount(el.id)}
+                                              </Badge>
+                                            )}
                                           </div>
                                         ))}
                                       </div>
@@ -293,6 +344,12 @@ export const SidePanel = React.memo(
                                         <span className="text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1">
                                           {item.element.content}
                                         </span>
+                                        {getCommentCount(item.element.id) > 0 && (
+                                          <Badge variant="secondary" className="text-xs flex items-center gap-1 ml-1">
+                                            <MessageCircle className="h-3 w-3" />
+                                            {getCommentCount(item.element.id)}
+                                          </Badge>
+                                        )}
                                       </div>
                                     )
                                   }

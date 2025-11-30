@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	CollaborationService_AddCollaborator_FullMethodName         = "/collab.CollaborationService/AddCollaborator"
+	CollaborationService_AddCollaboratorDirect_FullMethodName   = "/collab.CollaborationService/AddCollaboratorDirect"
 	CollaborationService_GetProjectCollaborators_FullMethodName = "/collab.CollaborationService/GetProjectCollaborators"
 	CollaborationService_UpdateCollaboratorRole_FullMethodName  = "/collab.CollaborationService/UpdateCollaboratorRole"
 	CollaborationService_RemoveCollaborator_FullMethodName      = "/collab.CollaborationService/RemoveCollaborator"
@@ -47,6 +48,7 @@ const (
 type CollaborationServiceClient interface {
 	// Collaborator management
 	AddCollaborator(ctx context.Context, in *AddCollaboratorRequest, opts ...grpc.CallOption) (*AddCollaboratorResponse, error)
+	AddCollaboratorDirect(ctx context.Context, in *AddCollaboratorDirectRequest, opts ...grpc.CallOption) (*AddCollaboratorDirectResponse, error)
 	GetProjectCollaborators(ctx context.Context, in *GetProjectCollaboratorsRequest, opts ...grpc.CallOption) (*GetProjectCollaboratorsResponse, error)
 	UpdateCollaboratorRole(ctx context.Context, in *UpdateCollaboratorRoleRequest, opts ...grpc.CallOption) (*UpdateCollaboratorRoleResponse, error)
 	RemoveCollaborator(ctx context.Context, in *RemoveCollaboratorRequest, opts ...grpc.CallOption) (*RemoveCollaboratorResponse, error)
@@ -82,6 +84,16 @@ func (c *collaborationServiceClient) AddCollaborator(ctx context.Context, in *Ad
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AddCollaboratorResponse)
 	err := c.cc.Invoke(ctx, CollaborationService_AddCollaborator_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *collaborationServiceClient) AddCollaboratorDirect(ctx context.Context, in *AddCollaboratorDirectRequest, opts ...grpc.CallOption) (*AddCollaboratorDirectResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AddCollaboratorDirectResponse)
+	err := c.cc.Invoke(ctx, CollaborationService_AddCollaboratorDirect_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -266,6 +278,7 @@ func (c *collaborationServiceClient) RespondToInvitation(ctx context.Context, in
 type CollaborationServiceServer interface {
 	// Collaborator management
 	AddCollaborator(context.Context, *AddCollaboratorRequest) (*AddCollaboratorResponse, error)
+	AddCollaboratorDirect(context.Context, *AddCollaboratorDirectRequest) (*AddCollaboratorDirectResponse, error)
 	GetProjectCollaborators(context.Context, *GetProjectCollaboratorsRequest) (*GetProjectCollaboratorsResponse, error)
 	UpdateCollaboratorRole(context.Context, *UpdateCollaboratorRoleRequest) (*UpdateCollaboratorRoleResponse, error)
 	RemoveCollaborator(context.Context, *RemoveCollaboratorRequest) (*RemoveCollaboratorResponse, error)
@@ -299,6 +312,9 @@ type UnimplementedCollaborationServiceServer struct{}
 
 func (UnimplementedCollaborationServiceServer) AddCollaborator(context.Context, *AddCollaboratorRequest) (*AddCollaboratorResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddCollaborator not implemented")
+}
+func (UnimplementedCollaborationServiceServer) AddCollaboratorDirect(context.Context, *AddCollaboratorDirectRequest) (*AddCollaboratorDirectResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddCollaboratorDirect not implemented")
 }
 func (UnimplementedCollaborationServiceServer) GetProjectCollaborators(context.Context, *GetProjectCollaboratorsRequest) (*GetProjectCollaboratorsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProjectCollaborators not implemented")
@@ -386,6 +402,24 @@ func _CollaborationService_AddCollaborator_Handler(srv interface{}, ctx context.
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CollaborationServiceServer).AddCollaborator(ctx, req.(*AddCollaboratorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CollaborationService_AddCollaboratorDirect_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddCollaboratorDirectRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CollaborationServiceServer).AddCollaboratorDirect(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CollaborationService_AddCollaboratorDirect_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CollaborationServiceServer).AddCollaboratorDirect(ctx, req.(*AddCollaboratorDirectRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -706,6 +740,10 @@ var CollaborationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AddCollaborator",
 			Handler:    _CollaborationService_AddCollaborator_Handler,
+		},
+		{
+			MethodName: "AddCollaboratorDirect",
+			Handler:    _CollaborationService_AddCollaboratorDirect_Handler,
 		},
 		{
 			MethodName: "GetProjectCollaborators",

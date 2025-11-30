@@ -17,6 +17,10 @@ import {
   updateSceneHeading,
   getProjectScenes,
   getProjectScriptElements,
+  addComment,
+  updateComment,
+  deleteComment,
+  toggleCommentResolved,
   type FullProject,
   type Scene,
   type ScriptElement,
@@ -55,25 +59,7 @@ const deleteScene = async (sceneId: string) => {
   // TODO: Implement scene delete endpoint
 }
 
-const addComment = async (elementId: string, isScene: boolean, content: string) => {
-  console.warn('addComment not yet implemented in microservices')
-  // TODO: Implement comments service
-}
-
-const updateComment = async (commentId: string, content: string) => {
-  console.warn('updateComment not yet implemented in microservices')
-  // TODO: Implement comments service
-}
-
-const deleteComment = async (commentId: string) => {
-  console.warn('deleteComment not yet implemented in microservices')
-  // TODO: Implement comments service
-}
-
-const toggleCommentResolved = async (commentId: string) => {
-  console.warn('toggleCommentResolved not yet implemented in microservices')
-  // TODO: Implement comments service
-}
+// Comment functions are now imported from services/project
 
 export function ScreenplayEditor({ projectData: initialProjectData }: ScreenplayEditorProps) {
   const { user } = useAuth()
@@ -86,6 +72,12 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const elementRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
   const editorPaneRef = useRef<EditorPaneRef>(null)
   const sidePanelRef = useRef<HTMLDivElement>(null)
+
+  // Function to refresh comments after adding one
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const refreshComments = useCallback(() => {
+    setRefreshTrigger(prev => prev + 1)
+  }, [])
 
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -128,117 +120,122 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     [flattenedScriptItems],
   )
 
-  const handleAddComment = useCallback((elementId: string, isScene: boolean, content: string) => {
-    addComment(elementId, isScene, content)
-      .then((newComment) => {
-        setProject((prevProject) => {
-          const newActs = prevProject.acts.map((act) => ({
-            ...act,
-            scenes: act.scenes.map((scene) => {
-              if (isScene && scene.id === elementId) {
-                return { ...scene, comments: [...(scene.comments || []), newComment] }
-              }
-              return {
-                ...scene,
-                elements: scene.elements.map((el) => {
-                  if (!isScene && el.id === elementId) {
-                    return { ...el, comments: [...(el.comments || []), newComment] }
-                  }
-                  return el
-                }),
-              }
-            }),
-          }))
-          return { ...prevProject, acts: newActs }
-        })
+  const handleAddComment = useCallback(async (elementId: string, isScene: boolean, content: string) => {
+    try {
+      // Call the actual API to save the comment
+      await addComment(
+        project.id, // project ID
+        project.id, // Use project ID as screenplay ID for now
+        content,
+        0, // line number - would need to be calculated based on element position
+        isScene ? undefined : elementId, // script element ID only if it's not a scene
+        isScene ? elementId : undefined, // scene ID only if it's a scene
+        undefined // parent ID for replies
+      )
+      
+      // Trigger refresh of comments in SidePanel
+      refreshComments()
+    } catch (err) {
+      console.error("Failed to add comment:", err)
+    }
+  }, [project.id, refreshComments])
+
+  const handleUpdateComment = useCallback(async (commentId: string, content: string) => {
+    try {
+      // Call the actual API to update the comment
+      const updatedComment = await updateComment(commentId, content)
+      
+      // Update local state with the updated comment
+      setProject((prevProject) => {
+        if (!prevProject.scenes) return prevProject
+        
+        const newScenes = prevProject.scenes.map((scene: Scene) => ({
+          ...scene,
+          comments: (scene as any).comments?.map((c: Comment) => (c.id === commentId ? updatedComment : c)),
+          elements: scene.elements?.map((el: ScriptElement) => ({
+            ...el,
+            comments: (el as any).comments?.map((c: Comment) => (c.id === commentId ? updatedComment : c)),
+          })),
+        }))
+        
+        return { ...prevProject, scenes: newScenes }
       })
-      .catch((err) => console.error("Failed to add comment:", err))
-  }, [])
-
-  const handleUpdateComment = useCallback((commentId: string, content: string) => {
-    setProject((prevProject) => {
-      const newActs = prevProject.acts.map((act) => ({
-        ...act,
-        scenes: act.scenes.map((scene) => ({
-          ...scene,
-          comments: scene.comments?.map((c) => (c.id === commentId ? { ...c, content } : c)),
-          elements: scene.elements.map((el) => ({
-            ...el,
-            comments: el.comments?.map((c) => (c.id === commentId ? { ...c, content } : c)),
-          })),
-        })),
-      }))
-      return { ...prevProject, acts: newActs }
-    })
-
-    updateComment(commentId, content).catch((err) => {
+    } catch (err) {
       console.error("Failed to update comment:", err)
-    })
+    }
   }, [])
 
-  const handleDeleteComment = useCallback((commentId: string) => {
-    setProject((prevProject) => {
-      const newActs = prevProject.acts.map((act) => ({
-        ...act,
-        scenes: act.scenes.map((scene) => ({
+  const handleDeleteComment = useCallback(async (commentId: string) => {
+    try {
+      // Call the actual API to delete the comment
+      await deleteComment(commentId)
+      
+      // Update local state to remove the comment
+      setProject((prevProject) => {
+        if (!prevProject.scenes) return prevProject
+        
+        const newScenes = prevProject.scenes.map((scene: Scene) => ({
           ...scene,
-          comments: scene.comments?.filter((c) => c.id !== commentId),
-          elements: scene.elements.map((el) => ({
+          comments: (scene as any).comments?.filter((c: Comment) => c.id !== commentId),
+          elements: scene.elements?.map((el: ScriptElement) => ({
             ...el,
-            comments: el.comments?.filter((c) => c.id !== commentId),
+            comments: (el as any).comments?.filter((c: Comment) => c.id !== commentId),
           })),
-        })),
-      }))
-      return { ...prevProject, acts: newActs }
-    })
-
-    deleteComment(commentId).catch((err) => {
+        }))
+        
+        return { ...prevProject, scenes: newScenes }
+      })
+    } catch (err) {
       console.error("Failed to delete comment:", err)
-    })
+    }
   }, [])
 
 
   const handleToggleCommentResolved = useCallback(
-    (elementId: string, commentId: string, isScene: boolean, newResolvedState: boolean) => {
-      const originalProject = JSON.parse(JSON.stringify(project));
+    async (elementId: string, commentId: string, isScene: boolean, newResolvedState: boolean) => {
+      const originalProject = JSON.parse(JSON.stringify(project))
 
-      setProject((prevProject) => {
-        const newActs = prevProject.acts.map((act) => ({
-          ...act,
-          scenes: act.scenes.map((scene) => {
+      try {
+        // Call the actual API to toggle the comment resolved state
+        const updatedComment = await toggleCommentResolved(commentId, newResolvedState)
+        
+        // Update local state with the updated comment
+        setProject((prevProject) => {
+          if (!prevProject.scenes) return prevProject
+          
+          const newScenes = prevProject.scenes.map((scene: Scene) => {
             if (isScene && scene.id === elementId) {
               return {
                 ...scene,
-                comments: scene.comments?.map((c) =>
-                  c.id === commentId ? { ...c, isResolved: newResolvedState } : c,
+                comments: (scene as any).comments?.map((c: Comment) =>
+                  c.id === commentId ? updatedComment : c,
                 ),
-              };
+              }
             }
             return {
               ...scene,
-              elements: scene.elements.map((el) =>
+              elements: scene.elements?.map((el: ScriptElement) =>
                 el.id === elementId
                   ? {
                     ...el,
-                    comments: el.comments?.map((c) =>
-                      c.id === commentId ? { ...c, isResolved: newResolvedState } : c,
+                    comments: (el as any).comments?.map((c: Comment) =>
+                      c.id === commentId ? updatedComment : c,
                     ),
                   }
                   : el,
               ),
-            };
-          }),
-        }));
-        return { ...prevProject, acts: newActs };
-      });
-
-      toggleCommentResolved(commentId, newResolvedState).catch((err) => {
-        console.error("Failed to toggle comment resolved status:", err);
-        setProject(originalProject);
-      });
+            }
+          })
+          
+          return { ...prevProject, scenes: newScenes }
+        })
+      } catch (err) {
+        console.error("Failed to toggle comment resolved status:", err)
+        setProject(originalProject)
+      }
     },
     [project],
-  );
+  )
 
   useEffect(() => {
     if (elementToFocus) {
@@ -410,14 +407,14 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       }
 
       setProject((prevProject) => {
-        const newActs = prevProject.acts.map((act) => ({
-          ...act,
-          scenes: act.scenes.map((scene) => ({
-            ...scene,
-            elements: scene.elements.filter((el) => el.id !== elementIdToDelete),
-          })),
+        if (!prevProject.scenes) return prevProject
+        
+        const newScenes = prevProject.scenes.map((scene: Scene) => ({
+          ...scene,
+          elements: scene.elements?.filter((el: ScriptElement) => el.id !== elementIdToDelete),
         }))
-        return { ...prevProject, acts: newActs }
+        
+        return { ...prevProject, scenes: newScenes }
       })
 
       deleteScriptElement(elementIdToDelete).catch((err) => {
@@ -439,11 +436,11 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       }
 
       setProject((prevProject) => {
-        const newActs = prevProject.acts.map((act) => ({
-          ...act,
-          scenes: act.scenes.filter((scene) => scene.id !== sceneIdToDelete),
-        }))
-        return { ...prevProject, acts: newActs }
+        if (!prevProject.scenes) return prevProject
+        
+        const newScenes = prevProject.scenes.filter((scene: Scene) => scene.id !== sceneIdToDelete)
+        
+        return { ...prevProject, scenes: newScenes }
       })
 
       deleteScene(sceneIdToDelete).catch((err) => {
@@ -533,7 +530,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   // Handler for successful project import (though the dialog handles navigation)
   const handleProjectImported = (importedProject: Project) => {
-    console.log(`Successfully imported project: ${importedProject.projectName}`);
+    console.log(`Successfully imported project: ${importedProject.title}`);
     // The dialog should handle routing, but this ensures the state is closed
     setIsImportProjectDialogOpen(false);
   }
@@ -549,7 +546,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
               </Button>
             </Link>
             <FileText className="h-5 w-5" />
-            <h1 className="text-lg font-medium">{project.projectName}</h1>
+            <h1 className="text-lg font-medium">{project.title}</h1>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" className="gap-2 bg-transparent" onClick={toggleAIChat}>
@@ -571,6 +568,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
       <div className="flex flex-1 overflow-hidden">
         <SidePanel
+          key={refreshTrigger}
           ref={sidePanelRef}
           project={project}
           allScenes={allScenes}
@@ -608,8 +606,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           currentScene={
             activeElementId
               ? allScenes.find(
-                (scene) => scene.id === activeElementId || scene.elements.some((el) => el.id === activeElementId),
-              )?.setting
+                (scene) => scene.id === activeElementId || scene.elements?.some((el) => el.id === activeElementId),
+              )?.scene_heading
               : undefined
           }
           currentElement={activeElementId || undefined}

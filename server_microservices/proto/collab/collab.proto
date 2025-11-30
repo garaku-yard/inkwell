@@ -24,14 +24,16 @@ message Comment {
   string project_id = 2;
   string screenplay_id = 3;
   string script_element_id = 4; // Link to specific script element
-  string user_id = 5;
-  string content = 6;
-  int32 line_number = 7; // Line in screenplay where comment is attached
-  int32 char_position = 8; // Character position in line
-  string parent_id = 9; // For reply threads
-  common.Timestamp created_at = 10;
-  common.Timestamp updated_at = 11;
-  bool is_resolved = 12;
+  string scene_id = 5; // Link to specific scene
+  string user_id = 6;
+  string username = 7; // User's display name
+  string content = 8;
+  int32 line_number = 9; // Line in screenplay where comment is attached
+  int32 char_position = 10; // Character position in line
+  string parent_id = 11; // For reply threads
+  common.Timestamp created_at = 12;
+  common.Timestamp updated_at = 13;
+  bool is_resolved = 14;
 }
 
 // Real-time editing session
@@ -77,6 +79,18 @@ message AddCollaboratorResponse {
   Collaborator collaborator = 1;
 }
 
+// Direct collaborator addition by user ID (for owners, bypasses invitation system)
+message AddCollaboratorDirectRequest {
+  string project_id = 1;
+  string user_id = 2; // User ID to add directly
+  string inviter_id = 3; // User making the addition
+  string role = 4;
+}
+
+message AddCollaboratorDirectResponse {
+  Collaborator collaborator = 1;
+}
+
 message GetProjectCollaboratorsRequest {
   string project_id = 1;
   string user_id = 2; // For authorization check
@@ -112,9 +126,10 @@ message AddCommentRequest {
   string user_id = 3;
   string content = 4;
   optional string script_element_id = 5; // Link to specific script element
-  int32 line_number = 6;
-  int32 char_position = 7;
-  optional string parent_id = 8; // For replies
+  optional string scene_id = 6; // Link to specific scene
+  int32 line_number = 7;
+  int32 char_position = 8;
+  optional string parent_id = 9; // For replies
 }
 
 message AddCommentResponse {
@@ -251,6 +266,7 @@ message RespondToInvitationResponse {
 service CollaborationService {
   // Collaborator management
   rpc AddCollaborator(AddCollaboratorRequest) returns (AddCollaboratorResponse);
+  rpc AddCollaboratorDirect(AddCollaboratorDirectRequest) returns (AddCollaboratorDirectResponse);
   rpc GetProjectCollaborators(GetProjectCollaboratorsRequest) returns (GetProjectCollaboratorsResponse);
   rpc UpdateCollaboratorRole(UpdateCollaboratorRoleRequest) returns (UpdateCollaboratorRoleResponse);
   rpc RemoveCollaborator(RemoveCollaboratorRequest) returns (RemoveCollaboratorResponse);

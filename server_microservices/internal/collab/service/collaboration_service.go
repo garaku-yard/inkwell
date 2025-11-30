@@ -93,14 +93,25 @@ func (s *CollaborationService) AddCollaborator(ctx context.Context, projectID, u
 		}
 	}
 
+	// Set initial status - owners are active immediately, others are pending
+	initialStatus := "pending"
+	if role == "owner" {
+		initialStatus = "active"
+	}
+
 	collaborator := &domain.Collaborator{
 		ID:        uuid.New(),
 		ProjectID: projectID,
 		UserID:    userID,
 		Role:      role,
-		Status:    "pending",
+		Status:    initialStatus,
 		InvitedBy: invitedBy,
 		InvitedAt: time.Now(),
+	}
+
+	// If the collaborator is the owner, set joined time immediately
+	if role == "owner" {
+		collaborator.JoinedAt = &collaborator.InvitedAt
 	}
 
 	if err := s.repo.CreateCollaborator(ctx, collaborator); err != nil {
