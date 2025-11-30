@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useRef, useCallback, useMemo, useEffect } from "react"
 import Link from "next/link"
-import { Download, FileText, ArrowLeft, Bot, FilePlus2Icon } from "lucide-react"
+import { Download, FileText, ArrowLeft, Bot, FilePlus2Icon, BarChart3 } from "lucide-react"
 import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { Toolbar } from "./Toolbar"
@@ -553,6 +553,12 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
               <Bot className="h-4 w-4" />
               Writing Buddy
             </Button>
+            <Link href={`/dashboard/projects/${project.id}/analytics`}>
+              <Button variant="outline" className="gap-2 bg-transparent">
+                <BarChart3 className="h-4 w-4" />
+                Analytics
+              </Button>
+            </Link>
             <Button variant="outline" className="gap-2 bg-transparent">
               <Download className="h-4 w-4" />
               Export

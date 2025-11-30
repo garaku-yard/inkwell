@@ -120,3 +120,31 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom styles for smooth editable element expansion */
+@layer components {
+  .editable-element {
+    /* Smooth transitions for height changes */
+    transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* Ensure text cursor is always visible */
+    caret-color: theme(colors.blue.600);
+  }
+  
+  .editable-element:focus {
+    /* Enhanced focus state */
+    caret-color: theme(colors.blue.700);
+  }
+  
+  /* Hide scrollbars during expansion */
+  .editable-element::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Smooth text rendering for better typing experience */
+  .screenplay-text {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.5;
+  }
+}

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef } from "react"
+import React, { useEffect, useRef, useCallback } from "react"
 import { cn } from "@/lib/utils"
 import { SCRIPT_ELEMENT_CONFIG, type ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { MessageSquare } from "lucide-react" // NEW: Import MessageSquare
@@ -42,10 +42,14 @@ export const EditableElement = React.memo(
       }
     }, [content])
 
+    const handleInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
+      onContentChange(element.id, e.currentTarget.innerHTML, isScene)
+    }, [element.id, isScene, onContentChange])
+
     return (
       <div
         className={cn(
-          "outline-none w-full py-2 font-['Courier_New',Courier,monospace] text-[12pt] relative", // Added relative
+          "outline-none w-full py-1 font-['Courier_New',Courier,monospace] text-[12pt] relative block",
           config.editorClasses,
           {
             "bg-blue-50 dark:bg-blue-900/20": isActive,
@@ -57,7 +61,7 @@ export const EditableElement = React.memo(
           data-id={element.id}
           contentEditable
           suppressContentEditableWarning
-          onInput={(e) => onContentChange(element.id, e.currentTarget.innerHTML, isScene)}
+          onInput={handleInput}
           onFocus={() => onFocus(element.id, type)}
           onBlur={(e) => {
             onFinalizeUpdate(element.id, e.currentTarget.innerHTML, isScene)
@@ -65,7 +69,14 @@ export const EditableElement = React.memo(
           }}
           onKeyDown={(e) => onKeyDown(e, element.id, isScene, type)}
           dangerouslySetInnerHTML={{ __html: content }}
-          className="w-full h-full"
+          className={cn(
+            "leading-[1.5] outline-none resize-none block",
+            "screenplay-text",
+            "whitespace-pre-wrap",
+            "empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400",
+            "min-h-[1.5em]",
+          )}
+          data-placeholder={isScene ? "Scene heading..." : getPlaceholderText(type)}
         />
         {unresolvedCommentsCount > 0 && (
           <div className="absolute top-1 right-1 p-1 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs z-10">
@@ -77,5 +88,25 @@ export const EditableElement = React.memo(
     )
   }),
 )
+
+// Helper function for placeholder text
+function getPlaceholderText(type: ToolbarScriptElementType | "SCENE_HEADING") {
+  switch (type) {
+    case "ACTION":
+      return "Describe the action..."
+    case "CHARACTER":
+      return "CHARACTER NAME"
+    case "DIALOG":
+      return "Character dialogue..."
+    case "PARENTHETICAL":
+      return "(stage direction)"
+    case "TRANSITION":
+      return "FADE IN:"
+    case "SHOT":
+      return "CLOSE UP:"
+    default:
+      return "Type here..."
+  }
+}
 
 EditableElement.displayName = "EditableElement"

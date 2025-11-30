@@ -29,6 +29,11 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		return nil, err
 	}
 
+	aiHandler, err := handlers.NewAIHandler(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	// Auth routes
 	mux.HandleFunc("/login", authHandler.Login)
 	mux.HandleFunc("/register", authHandler.Register)
@@ -151,6 +156,11 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
+
+	// AI routes
+	mux.HandleFunc("/api/ai/chat", aiHandler.Chat)
+	mux.HandleFunc("/api/ai/providers", aiHandler.GetProviders)
+	mux.HandleFunc("/api/ai/health", aiHandler.Health)
 
 	// Health check
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

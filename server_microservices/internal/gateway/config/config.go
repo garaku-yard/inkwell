@@ -22,6 +22,7 @@ type Config struct {
 	CollabService   ServiceConfig
 	BillingService  ServiceConfig
 	AIService       ServiceConfig
+	AIChatService   ServiceConfig
 
 	// JWT configuration (for token validation)
 	JWTSecret string `env:"JWT_SECRET" default:"dev-gateway-secret"`
@@ -79,6 +80,10 @@ func Load() (*Config, error) {
 		AIService: ServiceConfig{
 			Host: getEnvOrDefault("AI_SERVICE_HOST", "localhost"),
 			Port: getEnvOrDefault("AI_SERVICE_PORT", "50055"),
+		},
+		AIChatService: ServiceConfig{
+			Host: getEnvOrDefault("AI_CHAT_SERVICE_HOST", "localhost"),
+			Port: getEnvOrDefault("AI_CHAT_SERVICE_PORT", "50054"),
 		},
 	}
 
