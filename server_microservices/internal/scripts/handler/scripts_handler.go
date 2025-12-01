@@ -341,7 +341,26 @@ func (h *ScriptsHandler) UpdateScriptElement(ctx context.Context, req *scriptspb
 }
 
 func (h *ScriptsHandler) DeleteScriptElement(ctx context.Context, req *scriptspb.DeleteScriptElementRequest) (*scriptspb.DeleteScriptElementResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteScriptElement not implemented")
+	// Parse UUIDs
+	elementID, err := uuid.Parse(req.ScriptElementId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid script element ID: %v", err)
+	}
+
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	}
+
+	// Call service to delete script element
+	err = h.service.DeleteScriptElement(ctx, elementID, userID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to delete script element: %v", err)
+	}
+
+	return &scriptspb.DeleteScriptElementResponse{
+		Success: true,
+	}, nil
 }
 
 func (h *ScriptsHandler) BulkUpdateScriptElements(ctx context.Context, req *scriptspb.BulkUpdateScriptElementsRequest) (*scriptspb.BulkUpdateScriptElementsResponse, error) {

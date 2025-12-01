@@ -457,7 +457,49 @@ func (r *scriptElementRepository) UpdateScriptElement(ctx context.Context, eleme
 	return err
 }
 func (r *scriptElementRepository) DeleteScriptElement(ctx context.Context, elementID uuid.UUID) error {
-	return nil
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Get scene_id and line_number before deletion
+	var sceneID uuid.UUID
+	var lineNumber int32
+	err = tx.QueryRowContext(ctx,
+		"SELECT scene_id, line_number FROM script_elements WHERE element_id = $1",
+		elementID,
+	).Scan(&sceneID, &lineNumber)
+	if err != nil {
+		return fmt.Errorf("failed to get element info: %w", err)
+	}
+
+	// Delete the element
+	_, err = tx.ExecContext(ctx, "DELETE FROM script_elements WHERE element_id = $1", elementID)
+	if err != nil {
+		return fmt.Errorf("failed to delete element: %w", err)
+	}
+
+	// Reorder remaining elements in the scene
+	// Step 1: Set all elements with higher line_number to negative values
+	_, err = tx.ExecContext(ctx,
+		"UPDATE script_elements SET line_number = -line_number WHERE scene_id = $1 AND line_number > $2",
+		sceneID, lineNumber,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to reorder elements (step 1): %w", err)
+	}
+
+	// Step 2: Convert negative values to correct positive values (shift down by 1)
+	_, err = tx.ExecContext(ctx,
+		"UPDATE script_elements SET line_number = -line_number - 1 WHERE scene_id = $1 AND line_number < 0",
+		sceneID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to reorder elements (step 2): %w", err)
+	}
+
+	return tx.Commit()
 }
 func (r *scriptElementRepository) BulkUpdateScriptElements(ctx context.Context, elements []*domain.ScriptElement) error {
 	return nil

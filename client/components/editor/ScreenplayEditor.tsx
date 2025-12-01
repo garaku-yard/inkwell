@@ -27,6 +27,7 @@ import {
   type Project,
   type Comment // Added Comment type for the handler
 } from "@/services/project"
+import { deleteScriptElement } from "@/services/editor"
 import { getKeyString, createKeymap } from "@/lib/editor/keymap";
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { AIChatPanel } from "./AIChatPanel"
@@ -47,11 +48,6 @@ const updateSceneSetting = async (sceneId: string, content: string) => {
 const updateScriptElementContent = async (elementId: string, content: string) => {
   console.warn('updateScriptElementContent not yet implemented in microservices')
   // TODO: Implement script element update endpoint
-}
-
-const deleteScriptElement = async (elementId: string) => {
-  console.warn('deleteScriptElement not yet implemented in microservices')
-  // TODO: Implement script element delete endpoint
 }
 
 const deleteScene = async (sceneId: string) => {

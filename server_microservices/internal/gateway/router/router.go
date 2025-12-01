@@ -80,7 +80,16 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		}
 	})
 
-	mux.HandleFunc("/elements/", scriptsHandler.UpdateElement)
+	mux.HandleFunc("/elements/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPut:
+			scriptsHandler.UpdateElement(w, r)
+		case http.MethodDelete:
+			scriptsHandler.DeleteElement(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
 	// Collaboration routes
 	mux.HandleFunc("/collaborators", func(w http.ResponseWriter, r *http.Request) {

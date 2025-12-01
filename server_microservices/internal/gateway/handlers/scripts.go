@@ -506,6 +506,44 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// DeleteElement handles script element deletion requests
+func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
+	// Extract element ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/elements/")
+	elementID := path
+
+	if elementID == "" {
+		http.Error(w, `{"error":"Element ID is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Get user ID from context (set by auth middleware)
+	userID := getUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	// Call Scripts service
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, err := h.scriptsClient.DeleteScriptElement(ctx, &scriptspb.DeleteScriptElementRequest{
+		ScriptElementId: elementID,
+		UserId:          userID,
+	})
+
+	if err != nil {
+		http.Error(w, `{"error":"Failed to delete element"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Element deleted successfully"})
+}
+
 // GetSceneElements handles getting all elements for a scene
 func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request) {
 	sceneID := r.URL.Query().Get("scene_id")
