@@ -69,7 +69,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		// Parse URL to check for beat-board routes
 		if r.URL.Path[len("/projects/"):] != "" && len(r.URL.Path) > len("/projects/") {
 			parts := splitPath(r.URL.Path[len("/projects/"):])
-			
+
 			// Check for beat-board routes with /projects/{id}/beat-board pattern
 			if len(parts) >= 2 && parts[1] == "beat-board" {
 				if len(parts) == 2 {
@@ -118,7 +118,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 					}
 				}
 			}
-			
+
 			// Check for simplified beat-board routes with /projects/{id}/{resource} pattern
 			if len(parts) == 2 {
 				switch parts[1] {
@@ -158,7 +158,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 				}
 			}
 		}
-		
+
 		// Default: GET /projects/{id} - get single project
 		scriptsHandler.GetProject(w, r)
 	})

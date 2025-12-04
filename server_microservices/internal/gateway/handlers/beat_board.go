@@ -20,20 +20,20 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/beats")
 
 	var req struct {
-		Title        string  `json:"title"`
-		Description  string  `json:"description"`
-		SceneNumbers string  `json:"sceneNumbers"`
-		Color        string  `json:"color"`
+		Title        string `json:"title"`
+		Description  string `json:"description"`
+		SceneNumbers string `json:"sceneNumbers"`
+		Color        string `json:"color"`
 		Position     *struct {
 			X float64 `json:"x"`
 			Y float64 `json:"y"`
 		} `json:"position,omitempty"`
-		PositionX    *float64 `json:"positionX,omitempty"`
-		PositionY    *float64 `json:"positionY,omitempty"`
-		Width        float64 `json:"width"`
-		Height       float64 `json:"height"`
-		ActNumber    int32   `json:"actNumber"`
-		Order        int32   `json:"order"`
+		PositionX *float64 `json:"positionX,omitempty"`
+		PositionY *float64 `json:"positionY,omitempty"`
+		Width     float64  `json:"width"`
+		Height    float64  `json:"height"`
+		ActNumber int32    `json:"actNumber"`
+		Order     int32    `json:"order"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -115,20 +115,20 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 	beatID := getIDFromPath(r.URL.Path, "/beats/")
 
 	var req struct {
-		Title        *string  `json:"title,omitempty"`
-		Description  *string  `json:"description,omitempty"`
-		SceneNumbers *string  `json:"sceneNumbers,omitempty"`
-		Color        *string  `json:"color,omitempty"`
+		Title        *string `json:"title,omitempty"`
+		Description  *string `json:"description,omitempty"`
+		SceneNumbers *string `json:"sceneNumbers,omitempty"`
+		Color        *string `json:"color,omitempty"`
 		Position     *struct {
 			X float64 `json:"x"`
 			Y float64 `json:"y"`
 		} `json:"position,omitempty"`
-		PositionX    *float64 `json:"positionX,omitempty"`
-		PositionY    *float64 `json:"positionY,omitempty"`
-		Width        *float64 `json:"width,omitempty"`
-		Height       *float64 `json:"height,omitempty"`
-		ActNumber    *int32   `json:"actNumber,omitempty"`
-		Order        *int32   `json:"order,omitempty"`
+		PositionX *float64 `json:"positionX,omitempty"`
+		PositionY *float64 `json:"positionY,omitempty"`
+		Width     *float64 `json:"width,omitempty"`
+		Height    *float64 `json:"height,omitempty"`
+		ActNumber *int32   `json:"actNumber,omitempty"`
+		Order     *int32   `json:"order,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
