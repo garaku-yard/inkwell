@@ -36,6 +36,8 @@ export const EditorPane = React.memo(
     const { items, elementRefs, onContentChange, onFinalizeUpdate, onKeyDown, activeElementId, onFocus, onBlur } = props
     const parentRef = useRef<HTMLDivElement>(null)
     const scriptContainerRef = useRef<HTMLDivElement>(null)
+    const pagesContainerRef = useRef<HTMLDivElement>(null)
+    const contentOnlyRef = useRef<HTMLDivElement>(null)
 
     const rowVirtualizer = useVirtualizer({
       count: items.length,
@@ -107,13 +109,13 @@ export const EditorPane = React.memo(
           itemIndex += pages[pageIndex].items.length
         }
       },
-      getScriptContainer: () => scriptContainerRef.current,
+      getScriptContainer: () => contentOnlyRef.current,
     }))
 
     return (
       <div ref={parentRef} className="flex-1 overflow-auto p-8 bg-gray-100 dark:bg-gray-900">
         {/* Multiple A4 pages */}
-        <div className="mx-auto space-y-8">
+        <div ref={pagesContainerRef} className="mx-auto space-y-8">
           {pages.map((page, pageIndex) => (
             <div
               key={pageIndex}
@@ -133,7 +135,11 @@ export const EditorPane = React.memo(
               </div>
               
               {/* Page content */}
-              <div className="h-full relative">
+              <div 
+                className="h-full relative screenplay-content"
+                ref={pageIndex === 0 ? contentOnlyRef : undefined}
+                data-screenplay-content
+              >
                 {page.items.map((item, itemIndex) => {
                   const element = item.data
                   const globalIndex = items.findIndex(i => i.data.id === element.id)

@@ -43,6 +43,7 @@ export function BeatCard({
   return (
     <div
       key={beat.id}
+      data-beat-card="true"
       // FIXED: The main container is NO LONGER draggable. It only handles mousedown for moving.
       onMouseDown={(e) => onMouseDownOnBeat(e, beat.id)}
       className={`absolute border rounded-lg p-4 shadow-md transition-all duration-100 hover:shadow-xl group flex flex-col ${movingBeatId === beat.id ? "cursor-grabbing" : "cursor-grab"} ${draggedBeat === beat.id ? "opacity-50" : ""}`}

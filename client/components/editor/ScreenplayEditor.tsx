@@ -32,6 +32,7 @@ import { getKeyString, createKeymap } from "@/lib/editor/keymap";
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { AIChatPanel } from "./AIChatPanel"
 import { useAuth } from "@/lib/AuthContext"
+import { useToast } from "@/hooks/use-toast"
 
 type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ScriptElement }
 
@@ -59,6 +60,7 @@ const deleteScene = async (sceneId: string) => {
 
 export function ScreenplayEditor({ projectData: initialProjectData }: ScreenplayEditorProps) {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [project, setProject] = useState<FullProject>(initialProjectData)
   const [activeElementId, setActiveElementId] = useState<string | null>(null)
   const [activeElementType, setActiveElementType] = useState<ToolbarScriptElementType | null>(null)
@@ -447,19 +449,75 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     [project, flattenedScriptItems],
   )
 
-  const handleSelectAll = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleSelectAll = useCallback(async (e: React.KeyboardEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const scriptContainer = editorPaneRef.current?.getScriptContainer();
-
-    if (scriptContainer && window.getSelection) {
+    e.stopPropagation();
+    
+    // Get only the actual screenplay text elements
+    const textElements = Array.from(
+      document.querySelectorAll('[data-screenplay-text]')
+    ) as HTMLElement[];
+    
+    if (textElements.length === 0) return;
+    
+    // Extract plain text from all elements
+    const screenplay = textElements
+      .map(el => el.textContent || '')
+      .join('\n');
+    
+    // Copy to clipboard using modern Clipboard API with fallback
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(screenplay);
+      } else {
+        // Fallback for non-HTTPS or older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = screenplay;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+          document.execCommand('copy');
+        } finally {
+          textArea.remove();
+        }
+      }
+      
+      // Show success toast
+      toast({
+        title: "Copied to clipboard",
+        description: `${textElements.length} screenplay elements copied successfully.`,
+      });
+      
+      // Provide visual feedback by temporarily highlighting all text elements
       const selection = window.getSelection();
-      const range = document.createRange();
-      // Select all the content within the script container div
-      range.selectNodeContents(scriptContainer);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
+      if (selection) {
+        selection.removeAllRanges();
+        
+        textElements.forEach(element => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          selection.addRange(range);
+        });
+        
+        // Clear selection after brief visual feedback
+        setTimeout(() => {
+          selection.removeAllRanges();
+        }, 150);
+      }
+    } catch (err) {
+      console.error('Failed to copy screenplay:', err);
+      toast({
+        title: "Copy failed",
+        description: "Could not copy screenplay to clipboard.",
+        variant: "destructive",
+      });
     }
-  }, []);
+  }, [toast]);
 
 
   const keyMap = useMemo(() => createKeymap({

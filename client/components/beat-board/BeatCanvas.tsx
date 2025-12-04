@@ -31,6 +31,7 @@ interface BeatCanvasProps {
   tempConnection: { x: number; y: number } | null;
   isConnecting: boolean;
   connectionStart: { beatId: string; side: ConnectionSide } | null;
+  onBoardDoubleClick: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 const GRID_SIZE = 20;
@@ -76,19 +77,20 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
   return (
     <div
       ref={boardRef}
-      className="flex-1 relative overflow-auto cursor-default select-none"
+      className="flex-1 relative overflow-auto cursor-default select-none beat-board-background"
       style={{
         backgroundImage: `radial-gradient(circle, #e5e7eb 1px, transparent 1px)`,
         backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
         backgroundColor: "#f9fafb",
       }}
+      onDoubleClick={props.onBoardDoubleClick}
     >
       {!isLoading && beats.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center text-gray-500 p-8 rounded-lg bg-white/50 backdrop-blur-sm">
             <ClipboardList className="h-12 w-12 mx-auto text-gray-400" />
             <h2 className="mt-4 text-lg font-medium text-gray-800">Your Beat Board is Empty</h2>
-            <p className="mt-1 text-sm text-gray-600">Click the "New Beat" button to get started.</p>
+            <p className="mt-1 text-sm text-gray-600">Click "New Beat" or double-click anywhere to create a beat.</p>
           </div>
         </div>
       )}

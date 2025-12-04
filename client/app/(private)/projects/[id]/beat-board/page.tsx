@@ -48,6 +48,7 @@ export default function BeatBoardPage() {
   const boardRef = useRef<HTMLDivElement | null>(null)
   const [hoveredLane, setHoveredLane] = useState<string | null>(null)
   const [newBeat, setNewBeat] = useState({ title: "", description: "", color: "#fef3c7" })
+  const [newBeatPosition, setNewBeatPosition] = useState<{ x: number; y: number } | null>(null)
   const [draggedLaneItem, setDraggedLaneItem] = useState<string | null>(null)
   const [draggedLaneId, setDraggedLaneId] = useState<string | null>(null);
 
@@ -92,6 +93,21 @@ export default function BeatBoardPage() {
   const debouncedUpdateOutlineItem = useDebouncedCallback((itemId: string, data: Partial<OutlineItem>) => { updateOutlineItem(itemId, data) }, 500);
 
   const snapToGrid = (value: number) => Math.round(value / 20) * 20;
+
+  const handleAddBeat = () => {
+    if (!newBeat.title.trim()) return;
+    // Use the double-click position if available, otherwise offset based on beat count
+    const position = newBeatPosition || { x: 100 + beats.length * 20, y: 100 + beats.length * 20 };
+    const beatData: Partial<Beat> = { ...newBeat, position, width: 250, height: 150, act: 1, order: beats.length };
+    createBeat(projectId, beatData)
+      .then(createdBeat => { 
+        setBeats([...beats, createdBeat]); 
+        setNewBeat({ title: "", description: "", color: "#fef3c7" }); 
+        setNewBeatPosition(null);
+        setIsAddingBeat(false); 
+      })
+      .catch(err => console.error('Failed to create beat:', err));
+  };
 
   const layoutLane = (laneId: string, items: OutlineItem[]): OutlineItem[] => {
     const laneItems = items.filter(item => item.laneId === laneId).sort((a, b) => a.order - b.order);
@@ -177,10 +193,10 @@ export default function BeatBoardPage() {
     if (beatId) {
       const currentLaneItems = outlineItems.filter(item => item.laneId === targetLaneId);
       const newItemData: Partial<OutlineItem> = {
-        projectId, beatId, laneId: targetLaneId, order: currentLaneItems.length, width: 5,
+        beatId, laneId: targetLaneId, order: currentLaneItems.length, width: 5,
       };
       try {
-        const createdItem = await createOutlineItem(newItemData);
+        const createdItem = await createOutlineItem(projectId, newItemData);
         setOutlineItems(prevItems => {
           const updatedItems = [...prevItems, createdItem];
           return layoutLane(targetLaneId, updatedItems);
@@ -212,14 +228,6 @@ export default function BeatBoardPage() {
           .catch(err => console.error("Failed to update moved item", err));
       }
     }
-  };
-
-  const handleAddBeat = () => {
-    const beatData: Partial<Beat> = {
-      title: newBeat.title || "Beat Title", description: newBeat.description || "Describe what happens...",
-      color: newBeat.color, position: { x: snapToGrid(200), y: snapToGrid(200) }, width: 288, height: 192,
-    };
-    createBeat(projectId, beatData).then((createdBeat) => { setBeats((prev) => [...prev, createdBeat]); setNewBeat({ title: "", description: "", color: "#fef3c7" }); setIsAddingBeat(false); });
   };
 
   const handleDeleteBeat = (id: string) => {
@@ -314,6 +322,23 @@ export default function BeatBoardPage() {
     setTempConnection(null);
   };
 
+  const handleBoardDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Don't create if double-clicking on a beat card itself (but allow on background, SVG, etc.)
+    const target = e.target as HTMLElement;
+    const isBeatCard = target.closest('[data-beat-card]');
+    
+    if (!isBeatCard) {
+      const rect = boardRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const x = snapToGrid(e.clientX - rect.left + (boardRef.current?.scrollLeft || 0));
+      const y = snapToGrid(e.clientY - rect.top + (boardRef.current?.scrollTop || 0));
+      
+      setNewBeatPosition({ x, y });
+      setIsAddingBeat(true);
+    }
+  };
+
   if (isLoading) return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
   if (error) return <div>{error}</div>;
 
@@ -370,15 +395,16 @@ export default function BeatBoardPage() {
         tempConnection={tempConnection}
         isConnecting={isConnecting}
         connectionStart={connectionStart}
+        onBoardDoubleClick={handleBoardDoubleClick}
       />
-      <Dialog open={isAddingBeat} onOpenChange={setIsAddingBeat}>
+      <Dialog open={isAddingBeat} onOpenChange={(open) => { setIsAddingBeat(open); if (!open) setNewBeatPosition(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Add New Beat</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="title" className="text-right">Title</Label><Input id="title" value={newBeat.title} onChange={(e) => setNewBeat({ ...newBeat, title: e.target.value })} className="col-span-3" placeholder="A brief, active title" /></div>
             <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="description" className="text-right">Description</Label><Textarea id="description" value={newBeat.description} onChange={(e) => setNewBeat({ ...newBeat, description: e.target.value })} className="col-span-3" placeholder="What happens in this beat?" /></div>
           </div>
-          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setIsAddingBeat(false)}>Cancel</Button><Button onClick={handleAddBeat}>Add Beat</Button></div>
+          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => { setIsAddingBeat(false); setNewBeatPosition(null); }}>Cancel</Button><Button onClick={handleAddBeat}>Add Beat</Button></div>
         </DialogContent>
       </Dialog>
     </div>

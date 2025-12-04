@@ -45,10 +45,11 @@ export const updateLaneOrder = (projectId: string, orderedIds: string[]): Promis
 
 /**
  * Creates a new outline item and links it to a beat and a lane.
+ * @param projectId The ID of the project.
  * @param itemData The data for the new outline item.
  */
-export const createOutlineItem = (itemData: Partial<OutlineItem>): Promise<OutlineItem> => {
-  return apiClient<OutlineItem>(`outline-items`, {
+export const createOutlineItem = (projectId: string, itemData: Partial<OutlineItem>): Promise<OutlineItem> => {
+  return apiClient<OutlineItem>(`projects/${projectId}/beat-board/outline-items`, {
     method: "POST",
     body: itemData,
   });

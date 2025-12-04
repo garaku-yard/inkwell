@@ -59,6 +59,7 @@ export const EditableElement = React.memo(
         <div
           ref={elementRef}
           data-id={element.id}
+          data-screenplay-text
           contentEditable
           suppressContentEditableWarning
           onInput={handleInput}
