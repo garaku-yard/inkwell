@@ -16,13 +16,15 @@ import (
 // ScriptsHandler implements the ScriptsService gRPC service
 type ScriptsHandler struct {
 	scriptspb.UnimplementedScriptsServiceServer
-	service service.ScriptsService
+	service          service.ScriptsService
+	beatBoardHandler *BeatBoardHandler
 }
 
 // NewScriptsHandler creates a new ScriptsHandler instance
-func NewScriptsHandler(svc service.ScriptsService) *ScriptsHandler {
+func NewScriptsHandler(svc service.ScriptsService, beatBoardSvc service.BeatBoardService) *ScriptsHandler {
 	return &ScriptsHandler{
-		service: svc,
+		service:          svc,
+		beatBoardHandler: NewBeatBoardHandler(beatBoardSvc),
 	}
 }
 
@@ -570,4 +572,65 @@ func convertSceneToProto(scene *domain.Scene) *scriptspb.Scene {
 	}
 
 	return pbScene
+}
+
+// Beat Board delegation methods
+func (h *ScriptsHandler) CreateBeat(ctx context.Context, req *scriptspb.CreateBeatRequest) (*scriptspb.CreateBeatResponse, error) {
+	return h.beatBoardHandler.CreateBeat(ctx, req)
+}
+
+func (h *ScriptsHandler) GetBeat(ctx context.Context, req *scriptspb.GetBeatRequest) (*scriptspb.GetBeatResponse, error) {
+	return h.beatBoardHandler.GetBeat(ctx, req)
+}
+
+func (h *ScriptsHandler) GetProjectBeatBoard(ctx context.Context, req *scriptspb.GetProjectBeatBoardRequest) (*scriptspb.GetProjectBeatBoardResponse, error) {
+	return h.beatBoardHandler.GetProjectBeatBoard(ctx, req)
+}
+
+func (h *ScriptsHandler) UpdateBeat(ctx context.Context, req *scriptspb.UpdateBeatRequest) (*scriptspb.UpdateBeatResponse, error) {
+	return h.beatBoardHandler.UpdateBeat(ctx, req)
+}
+
+func (h *ScriptsHandler) DeleteBeat(ctx context.Context, req *scriptspb.DeleteBeatRequest) (*scriptspb.DeleteBeatResponse, error) {
+	return h.beatBoardHandler.DeleteBeat(ctx, req)
+}
+
+func (h *ScriptsHandler) CreateConnection(ctx context.Context, req *scriptspb.CreateConnectionRequest) (*scriptspb.CreateConnectionResponse, error) {
+	return h.beatBoardHandler.CreateConnection(ctx, req)
+}
+
+func (h *ScriptsHandler) DeleteConnection(ctx context.Context, req *scriptspb.DeleteConnectionRequest) (*scriptspb.DeleteConnectionResponse, error) {
+	return h.beatBoardHandler.DeleteConnection(ctx, req)
+}
+
+func (h *ScriptsHandler) CreateLane(ctx context.Context, req *scriptspb.CreateLaneRequest) (*scriptspb.CreateLaneResponse, error) {
+	return h.beatBoardHandler.CreateLane(ctx, req)
+}
+
+func (h *ScriptsHandler) GetProjectLanes(ctx context.Context, req *scriptspb.GetProjectLanesRequest) (*scriptspb.GetProjectLanesResponse, error) {
+	return h.beatBoardHandler.GetProjectLanes(ctx, req)
+}
+
+func (h *ScriptsHandler) UpdateLane(ctx context.Context, req *scriptspb.UpdateLaneRequest) (*scriptspb.UpdateLaneResponse, error) {
+	return h.beatBoardHandler.UpdateLane(ctx, req)
+}
+
+func (h *ScriptsHandler) UpdateLaneOrder(ctx context.Context, req *scriptspb.UpdateLaneOrderRequest) (*scriptspb.UpdateLaneOrderResponse, error) {
+	return h.beatBoardHandler.UpdateLaneOrder(ctx, req)
+}
+
+func (h *ScriptsHandler) DeleteLane(ctx context.Context, req *scriptspb.DeleteLaneRequest) (*scriptspb.DeleteLaneResponse, error) {
+	return h.beatBoardHandler.DeleteLane(ctx, req)
+}
+
+func (h *ScriptsHandler) CreateOutlineItem(ctx context.Context, req *scriptspb.CreateOutlineItemRequest) (*scriptspb.CreateOutlineItemResponse, error) {
+	return h.beatBoardHandler.CreateOutlineItem(ctx, req)
+}
+
+func (h *ScriptsHandler) UpdateOutlineItem(ctx context.Context, req *scriptspb.UpdateOutlineItemRequest) (*scriptspb.UpdateOutlineItemResponse, error) {
+	return h.beatBoardHandler.UpdateOutlineItem(ctx, req)
+}
+
+func (h *ScriptsHandler) DeleteOutlineItem(ctx context.Context, req *scriptspb.DeleteOutlineItemRequest) (*scriptspb.DeleteOutlineItemResponse, error) {
+	return h.beatBoardHandler.DeleteOutlineItem(ctx, req)
 }

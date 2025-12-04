@@ -44,6 +44,21 @@ const (
 	ScriptsService_CreateElement_FullMethodName            = "/scripts.ScriptsService/CreateElement"
 	ScriptsService_UpdateElement_FullMethodName            = "/scripts.ScriptsService/UpdateElement"
 	ScriptsService_GetSceneElements_FullMethodName         = "/scripts.ScriptsService/GetSceneElements"
+	ScriptsService_CreateBeat_FullMethodName               = "/scripts.ScriptsService/CreateBeat"
+	ScriptsService_GetBeat_FullMethodName                  = "/scripts.ScriptsService/GetBeat"
+	ScriptsService_GetProjectBeatBoard_FullMethodName      = "/scripts.ScriptsService/GetProjectBeatBoard"
+	ScriptsService_UpdateBeat_FullMethodName               = "/scripts.ScriptsService/UpdateBeat"
+	ScriptsService_DeleteBeat_FullMethodName               = "/scripts.ScriptsService/DeleteBeat"
+	ScriptsService_CreateConnection_FullMethodName         = "/scripts.ScriptsService/CreateConnection"
+	ScriptsService_DeleteConnection_FullMethodName         = "/scripts.ScriptsService/DeleteConnection"
+	ScriptsService_CreateLane_FullMethodName               = "/scripts.ScriptsService/CreateLane"
+	ScriptsService_GetProjectLanes_FullMethodName          = "/scripts.ScriptsService/GetProjectLanes"
+	ScriptsService_UpdateLane_FullMethodName               = "/scripts.ScriptsService/UpdateLane"
+	ScriptsService_UpdateLaneOrder_FullMethodName          = "/scripts.ScriptsService/UpdateLaneOrder"
+	ScriptsService_DeleteLane_FullMethodName               = "/scripts.ScriptsService/DeleteLane"
+	ScriptsService_CreateOutlineItem_FullMethodName        = "/scripts.ScriptsService/CreateOutlineItem"
+	ScriptsService_UpdateOutlineItem_FullMethodName        = "/scripts.ScriptsService/UpdateOutlineItem"
+	ScriptsService_DeleteOutlineItem_FullMethodName        = "/scripts.ScriptsService/DeleteOutlineItem"
 )
 
 // ScriptsServiceClient is the client API for ScriptsService service.
@@ -84,6 +99,22 @@ type ScriptsServiceClient interface {
 	CreateElement(ctx context.Context, in *CreateElementRequest, opts ...grpc.CallOption) (*CreateElementResponse, error)
 	UpdateElement(ctx context.Context, in *UpdateElementRequest, opts ...grpc.CallOption) (*UpdateElementResponse, error)
 	GetSceneElements(ctx context.Context, in *GetSceneElementsRequest, opts ...grpc.CallOption) (*GetSceneElementsResponse, error)
+	// Beat Board management
+	CreateBeat(ctx context.Context, in *CreateBeatRequest, opts ...grpc.CallOption) (*CreateBeatResponse, error)
+	GetBeat(ctx context.Context, in *GetBeatRequest, opts ...grpc.CallOption) (*GetBeatResponse, error)
+	GetProjectBeatBoard(ctx context.Context, in *GetProjectBeatBoardRequest, opts ...grpc.CallOption) (*GetProjectBeatBoardResponse, error)
+	UpdateBeat(ctx context.Context, in *UpdateBeatRequest, opts ...grpc.CallOption) (*UpdateBeatResponse, error)
+	DeleteBeat(ctx context.Context, in *DeleteBeatRequest, opts ...grpc.CallOption) (*DeleteBeatResponse, error)
+	CreateConnection(ctx context.Context, in *CreateConnectionRequest, opts ...grpc.CallOption) (*CreateConnectionResponse, error)
+	DeleteConnection(ctx context.Context, in *DeleteConnectionRequest, opts ...grpc.CallOption) (*DeleteConnectionResponse, error)
+	CreateLane(ctx context.Context, in *CreateLaneRequest, opts ...grpc.CallOption) (*CreateLaneResponse, error)
+	GetProjectLanes(ctx context.Context, in *GetProjectLanesRequest, opts ...grpc.CallOption) (*GetProjectLanesResponse, error)
+	UpdateLane(ctx context.Context, in *UpdateLaneRequest, opts ...grpc.CallOption) (*UpdateLaneResponse, error)
+	UpdateLaneOrder(ctx context.Context, in *UpdateLaneOrderRequest, opts ...grpc.CallOption) (*UpdateLaneOrderResponse, error)
+	DeleteLane(ctx context.Context, in *DeleteLaneRequest, opts ...grpc.CallOption) (*DeleteLaneResponse, error)
+	CreateOutlineItem(ctx context.Context, in *CreateOutlineItemRequest, opts ...grpc.CallOption) (*CreateOutlineItemResponse, error)
+	UpdateOutlineItem(ctx context.Context, in *UpdateOutlineItemRequest, opts ...grpc.CallOption) (*UpdateOutlineItemResponse, error)
+	DeleteOutlineItem(ctx context.Context, in *DeleteOutlineItemRequest, opts ...grpc.CallOption) (*DeleteOutlineItemResponse, error)
 }
 
 type scriptsServiceClient struct {
@@ -344,6 +375,156 @@ func (c *scriptsServiceClient) GetSceneElements(ctx context.Context, in *GetScen
 	return out, nil
 }
 
+func (c *scriptsServiceClient) CreateBeat(ctx context.Context, in *CreateBeatRequest, opts ...grpc.CallOption) (*CreateBeatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateBeatResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_CreateBeat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) GetBeat(ctx context.Context, in *GetBeatRequest, opts ...grpc.CallOption) (*GetBeatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBeatResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_GetBeat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) GetProjectBeatBoard(ctx context.Context, in *GetProjectBeatBoardRequest, opts ...grpc.CallOption) (*GetProjectBeatBoardResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetProjectBeatBoardResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_GetProjectBeatBoard_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) UpdateBeat(ctx context.Context, in *UpdateBeatRequest, opts ...grpc.CallOption) (*UpdateBeatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateBeatResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_UpdateBeat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) DeleteBeat(ctx context.Context, in *DeleteBeatRequest, opts ...grpc.CallOption) (*DeleteBeatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteBeatResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_DeleteBeat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) CreateConnection(ctx context.Context, in *CreateConnectionRequest, opts ...grpc.CallOption) (*CreateConnectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateConnectionResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_CreateConnection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) DeleteConnection(ctx context.Context, in *DeleteConnectionRequest, opts ...grpc.CallOption) (*DeleteConnectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteConnectionResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_DeleteConnection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) CreateLane(ctx context.Context, in *CreateLaneRequest, opts ...grpc.CallOption) (*CreateLaneResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateLaneResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_CreateLane_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) GetProjectLanes(ctx context.Context, in *GetProjectLanesRequest, opts ...grpc.CallOption) (*GetProjectLanesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetProjectLanesResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_GetProjectLanes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) UpdateLane(ctx context.Context, in *UpdateLaneRequest, opts ...grpc.CallOption) (*UpdateLaneResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateLaneResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_UpdateLane_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) UpdateLaneOrder(ctx context.Context, in *UpdateLaneOrderRequest, opts ...grpc.CallOption) (*UpdateLaneOrderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateLaneOrderResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_UpdateLaneOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) DeleteLane(ctx context.Context, in *DeleteLaneRequest, opts ...grpc.CallOption) (*DeleteLaneResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteLaneResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_DeleteLane_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) CreateOutlineItem(ctx context.Context, in *CreateOutlineItemRequest, opts ...grpc.CallOption) (*CreateOutlineItemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateOutlineItemResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_CreateOutlineItem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) UpdateOutlineItem(ctx context.Context, in *UpdateOutlineItemRequest, opts ...grpc.CallOption) (*UpdateOutlineItemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateOutlineItemResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_UpdateOutlineItem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) DeleteOutlineItem(ctx context.Context, in *DeleteOutlineItemRequest, opts ...grpc.CallOption) (*DeleteOutlineItemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteOutlineItemResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_DeleteOutlineItem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ScriptsServiceServer is the server API for ScriptsService service.
 // All implementations must embed UnimplementedScriptsServiceServer
 // for forward compatibility.
@@ -382,6 +563,22 @@ type ScriptsServiceServer interface {
 	CreateElement(context.Context, *CreateElementRequest) (*CreateElementResponse, error)
 	UpdateElement(context.Context, *UpdateElementRequest) (*UpdateElementResponse, error)
 	GetSceneElements(context.Context, *GetSceneElementsRequest) (*GetSceneElementsResponse, error)
+	// Beat Board management
+	CreateBeat(context.Context, *CreateBeatRequest) (*CreateBeatResponse, error)
+	GetBeat(context.Context, *GetBeatRequest) (*GetBeatResponse, error)
+	GetProjectBeatBoard(context.Context, *GetProjectBeatBoardRequest) (*GetProjectBeatBoardResponse, error)
+	UpdateBeat(context.Context, *UpdateBeatRequest) (*UpdateBeatResponse, error)
+	DeleteBeat(context.Context, *DeleteBeatRequest) (*DeleteBeatResponse, error)
+	CreateConnection(context.Context, *CreateConnectionRequest) (*CreateConnectionResponse, error)
+	DeleteConnection(context.Context, *DeleteConnectionRequest) (*DeleteConnectionResponse, error)
+	CreateLane(context.Context, *CreateLaneRequest) (*CreateLaneResponse, error)
+	GetProjectLanes(context.Context, *GetProjectLanesRequest) (*GetProjectLanesResponse, error)
+	UpdateLane(context.Context, *UpdateLaneRequest) (*UpdateLaneResponse, error)
+	UpdateLaneOrder(context.Context, *UpdateLaneOrderRequest) (*UpdateLaneOrderResponse, error)
+	DeleteLane(context.Context, *DeleteLaneRequest) (*DeleteLaneResponse, error)
+	CreateOutlineItem(context.Context, *CreateOutlineItemRequest) (*CreateOutlineItemResponse, error)
+	UpdateOutlineItem(context.Context, *UpdateOutlineItemRequest) (*UpdateOutlineItemResponse, error)
+	DeleteOutlineItem(context.Context, *DeleteOutlineItemRequest) (*DeleteOutlineItemResponse, error)
 	mustEmbedUnimplementedScriptsServiceServer()
 }
 
@@ -466,6 +663,51 @@ func (UnimplementedScriptsServiceServer) UpdateElement(context.Context, *UpdateE
 }
 func (UnimplementedScriptsServiceServer) GetSceneElements(context.Context, *GetSceneElementsRequest) (*GetSceneElementsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSceneElements not implemented")
+}
+func (UnimplementedScriptsServiceServer) CreateBeat(context.Context, *CreateBeatRequest) (*CreateBeatResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateBeat not implemented")
+}
+func (UnimplementedScriptsServiceServer) GetBeat(context.Context, *GetBeatRequest) (*GetBeatResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBeat not implemented")
+}
+func (UnimplementedScriptsServiceServer) GetProjectBeatBoard(context.Context, *GetProjectBeatBoardRequest) (*GetProjectBeatBoardResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetProjectBeatBoard not implemented")
+}
+func (UnimplementedScriptsServiceServer) UpdateBeat(context.Context, *UpdateBeatRequest) (*UpdateBeatResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateBeat not implemented")
+}
+func (UnimplementedScriptsServiceServer) DeleteBeat(context.Context, *DeleteBeatRequest) (*DeleteBeatResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteBeat not implemented")
+}
+func (UnimplementedScriptsServiceServer) CreateConnection(context.Context, *CreateConnectionRequest) (*CreateConnectionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateConnection not implemented")
+}
+func (UnimplementedScriptsServiceServer) DeleteConnection(context.Context, *DeleteConnectionRequest) (*DeleteConnectionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteConnection not implemented")
+}
+func (UnimplementedScriptsServiceServer) CreateLane(context.Context, *CreateLaneRequest) (*CreateLaneResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateLane not implemented")
+}
+func (UnimplementedScriptsServiceServer) GetProjectLanes(context.Context, *GetProjectLanesRequest) (*GetProjectLanesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetProjectLanes not implemented")
+}
+func (UnimplementedScriptsServiceServer) UpdateLane(context.Context, *UpdateLaneRequest) (*UpdateLaneResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateLane not implemented")
+}
+func (UnimplementedScriptsServiceServer) UpdateLaneOrder(context.Context, *UpdateLaneOrderRequest) (*UpdateLaneOrderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateLaneOrder not implemented")
+}
+func (UnimplementedScriptsServiceServer) DeleteLane(context.Context, *DeleteLaneRequest) (*DeleteLaneResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteLane not implemented")
+}
+func (UnimplementedScriptsServiceServer) CreateOutlineItem(context.Context, *CreateOutlineItemRequest) (*CreateOutlineItemResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateOutlineItem not implemented")
+}
+func (UnimplementedScriptsServiceServer) UpdateOutlineItem(context.Context, *UpdateOutlineItemRequest) (*UpdateOutlineItemResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateOutlineItem not implemented")
+}
+func (UnimplementedScriptsServiceServer) DeleteOutlineItem(context.Context, *DeleteOutlineItemRequest) (*DeleteOutlineItemResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteOutlineItem not implemented")
 }
 func (UnimplementedScriptsServiceServer) mustEmbedUnimplementedScriptsServiceServer() {}
 func (UnimplementedScriptsServiceServer) testEmbeddedByValue()                        {}
@@ -938,6 +1180,276 @@ func _ScriptsService_GetSceneElements_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ScriptsService_CreateBeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateBeatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).CreateBeat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_CreateBeat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).CreateBeat(ctx, req.(*CreateBeatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_GetBeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBeatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).GetBeat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_GetBeat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).GetBeat(ctx, req.(*GetBeatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_GetProjectBeatBoard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProjectBeatBoardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).GetProjectBeatBoard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_GetProjectBeatBoard_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).GetProjectBeatBoard(ctx, req.(*GetProjectBeatBoardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_UpdateBeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateBeatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).UpdateBeat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_UpdateBeat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).UpdateBeat(ctx, req.(*UpdateBeatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_DeleteBeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteBeatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).DeleteBeat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_DeleteBeat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).DeleteBeat(ctx, req.(*DeleteBeatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_CreateConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateConnectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).CreateConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_CreateConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).CreateConnection(ctx, req.(*CreateConnectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_DeleteConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteConnectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).DeleteConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_DeleteConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).DeleteConnection(ctx, req.(*DeleteConnectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_CreateLane_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateLaneRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).CreateLane(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_CreateLane_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).CreateLane(ctx, req.(*CreateLaneRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_GetProjectLanes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProjectLanesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).GetProjectLanes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_GetProjectLanes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).GetProjectLanes(ctx, req.(*GetProjectLanesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_UpdateLane_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateLaneRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).UpdateLane(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_UpdateLane_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).UpdateLane(ctx, req.(*UpdateLaneRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_UpdateLaneOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateLaneOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).UpdateLaneOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_UpdateLaneOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).UpdateLaneOrder(ctx, req.(*UpdateLaneOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_DeleteLane_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteLaneRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).DeleteLane(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_DeleteLane_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).DeleteLane(ctx, req.(*DeleteLaneRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_CreateOutlineItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateOutlineItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).CreateOutlineItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_CreateOutlineItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).CreateOutlineItem(ctx, req.(*CreateOutlineItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_UpdateOutlineItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateOutlineItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).UpdateOutlineItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_UpdateOutlineItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).UpdateOutlineItem(ctx, req.(*UpdateOutlineItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_DeleteOutlineItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteOutlineItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).DeleteOutlineItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_DeleteOutlineItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).DeleteOutlineItem(ctx, req.(*DeleteOutlineItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ScriptsService_ServiceDesc is the grpc.ServiceDesc for ScriptsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1044,6 +1556,66 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSceneElements",
 			Handler:    _ScriptsService_GetSceneElements_Handler,
+		},
+		{
+			MethodName: "CreateBeat",
+			Handler:    _ScriptsService_CreateBeat_Handler,
+		},
+		{
+			MethodName: "GetBeat",
+			Handler:    _ScriptsService_GetBeat_Handler,
+		},
+		{
+			MethodName: "GetProjectBeatBoard",
+			Handler:    _ScriptsService_GetProjectBeatBoard_Handler,
+		},
+		{
+			MethodName: "UpdateBeat",
+			Handler:    _ScriptsService_UpdateBeat_Handler,
+		},
+		{
+			MethodName: "DeleteBeat",
+			Handler:    _ScriptsService_DeleteBeat_Handler,
+		},
+		{
+			MethodName: "CreateConnection",
+			Handler:    _ScriptsService_CreateConnection_Handler,
+		},
+		{
+			MethodName: "DeleteConnection",
+			Handler:    _ScriptsService_DeleteConnection_Handler,
+		},
+		{
+			MethodName: "CreateLane",
+			Handler:    _ScriptsService_CreateLane_Handler,
+		},
+		{
+			MethodName: "GetProjectLanes",
+			Handler:    _ScriptsService_GetProjectLanes_Handler,
+		},
+		{
+			MethodName: "UpdateLane",
+			Handler:    _ScriptsService_UpdateLane_Handler,
+		},
+		{
+			MethodName: "UpdateLaneOrder",
+			Handler:    _ScriptsService_UpdateLaneOrder_Handler,
+		},
+		{
+			MethodName: "DeleteLane",
+			Handler:    _ScriptsService_DeleteLane_Handler,
+		},
+		{
+			MethodName: "CreateOutlineItem",
+			Handler:    _ScriptsService_CreateOutlineItem_Handler,
+		},
+		{
+			MethodName: "UpdateOutlineItem",
+			Handler:    _ScriptsService_UpdateOutlineItem_Handler,
+		},
+		{
+			MethodName: "DeleteOutlineItem",
+			Handler:    _ScriptsService_DeleteOutlineItem_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -73,6 +73,42 @@ type OutlineRepository interface {
 	DeleteOutlineUnit(ctx context.Context, unitID uuid.UUID) error
 }
 
+// BeatRepository defines the interface for beat data access
+type BeatRepository interface {
+	CreateBeat(ctx context.Context, beat *domain.Beat) error
+	GetBeat(ctx context.Context, beatID uuid.UUID) (*domain.Beat, error)
+	GetProjectBeats(ctx context.Context, projectID uuid.UUID) ([]*domain.Beat, error)
+	UpdateBeat(ctx context.Context, beat *domain.Beat) error
+	DeleteBeat(ctx context.Context, beatID uuid.UUID) error
+}
+
+// ConnectionRepository defines the interface for beat connection data access
+type ConnectionRepository interface {
+	CreateConnection(ctx context.Context, conn *domain.Connection) error
+	GetConnection(ctx context.Context, connID uuid.UUID) (*domain.Connection, error)
+	GetProjectConnections(ctx context.Context, projectID uuid.UUID) ([]*domain.Connection, error)
+	DeleteConnection(ctx context.Context, connID uuid.UUID) error
+}
+
+// LaneRepository defines the interface for lane data access
+type LaneRepository interface {
+	CreateLane(ctx context.Context, lane *domain.Lane) error
+	GetLane(ctx context.Context, laneID uuid.UUID) (*domain.Lane, error)
+	GetProjectLanes(ctx context.Context, projectID uuid.UUID) ([]*domain.Lane, error)
+	UpdateLane(ctx context.Context, lane *domain.Lane) error
+	UpdateLaneOrder(ctx context.Context, projectID uuid.UUID, laneIDs []uuid.UUID) error
+	DeleteLane(ctx context.Context, laneID uuid.UUID) error
+}
+
+// OutlineItemRepository defines the interface for outline item data access
+type OutlineItemRepository interface {
+	CreateOutlineItem(ctx context.Context, item *domain.OutlineItem) error
+	GetOutlineItem(ctx context.Context, itemID uuid.UUID) (*domain.OutlineItem, error)
+	GetProjectOutlineItems(ctx context.Context, projectID uuid.UUID) ([]*domain.OutlineItem, error)
+	UpdateOutlineItem(ctx context.Context, item *domain.OutlineItem) error
+	DeleteOutlineItem(ctx context.Context, itemID uuid.UUID) error
+}
+
 // Repository aggregates all repository interfaces
 type Repository struct {
 	Project       ProjectRepository
@@ -81,6 +117,10 @@ type Repository struct {
 	Character     CharacterRepository
 	Location      LocationRepository
 	Outline       OutlineRepository
+	Beat          BeatRepository
+	Connection    ConnectionRepository
+	Lane          LaneRepository
+	OutlineItem   OutlineItemRepository
 }
 
 // NewRepository creates a new repository instance
@@ -92,6 +132,10 @@ func NewRepository(db *sql.DB) *Repository {
 		Character:     NewCharacterRepository(db),
 		Location:      NewLocationRepository(db),
 		Outline:       NewOutlineRepository(db),
+		Beat:          NewBeatRepository(db),
+		Connection:    NewConnectionRepository(db),
+		Lane:          NewLaneRepository(db),
+		OutlineItem:   NewOutlineItemRepository(db),
 	}
 }
 

@@ -50,11 +50,12 @@ func main() {
 	// Initialize repository
 	repo := repository.NewRepository(db)
 
-	// Initialize service
+	// Initialize services
 	scriptsService := service.NewScriptsService(repo, cfg)
+	beatBoardService := service.NewBeatBoardService(repo)
 
 	// Initialize handler
-	scriptsHandler := handler.NewScriptsHandler(scriptsService)
+	scriptsHandler := handler.NewScriptsHandler(scriptsService, beatBoardService)
 
 	// Create gRPC server
 	grpcServer := grpc.NewServer(
@@ -233,6 +234,92 @@ func runMigrations(db *sql.DB) error {
 
 	if _, err := db.Exec(createIndexes); err != nil {
 		return fmt.Errorf("failed to create indexes: %w", err)
+	}
+
+	// Beat Board tables
+	createBeatsTable := `
+	CREATE TABLE IF NOT EXISTS beats (
+		beat_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		project_id UUID NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+		title VARCHAR(255) NOT NULL,
+		description TEXT,
+		scene_numbers VARCHAR(255),
+		color VARCHAR(50),
+		position_x INTEGER NOT NULL DEFAULT 0,
+		position_y INTEGER NOT NULL DEFAULT 0,
+		width INTEGER NOT NULL DEFAULT 200,
+		height INTEGER NOT NULL DEFAULT 100,
+		act_number INTEGER,
+		beat_order INTEGER NOT NULL DEFAULT 0,
+		created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+	);`
+
+	createConnectionsTable := `
+	CREATE TABLE IF NOT EXISTS beat_connections (
+		connection_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		project_id UUID NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+		from_beat_id UUID NOT NULL REFERENCES beats(beat_id) ON DELETE CASCADE,
+		to_beat_id UUID NOT NULL REFERENCES beats(beat_id) ON DELETE CASCADE,
+		from_side VARCHAR(20) NOT NULL,
+		to_side VARCHAR(20) NOT NULL,
+		created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+	);`
+
+	createLanesTable := `
+	CREATE TABLE IF NOT EXISTS lanes (
+		lane_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		project_id UUID NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+		name VARCHAR(255) NOT NULL,
+		color VARCHAR(50),
+		lane_order INTEGER NOT NULL DEFAULT 0,
+		created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+	);`
+
+	createOutlineItemsTable := `
+	CREATE TABLE IF NOT EXISTS outline_items (
+		outline_item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		project_id UUID NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+		beat_id UUID NOT NULL REFERENCES beats(beat_id) ON DELETE CASCADE,
+		lane_id UUID NOT NULL REFERENCES lanes(lane_id) ON DELETE CASCADE,
+		item_order INTEGER NOT NULL DEFAULT 0,
+		timeline_position DOUBLE PRECISION NOT NULL DEFAULT 0,
+		width DOUBLE PRECISION NOT NULL DEFAULT 100,
+		created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+	);`
+
+	createBeatBoardIndexes := `
+	CREATE INDEX IF NOT EXISTS idx_beats_project_id ON beats(project_id);
+	CREATE INDEX IF NOT EXISTS idx_beats_order ON beats(project_id, beat_order);
+	CREATE INDEX IF NOT EXISTS idx_beat_connections_project_id ON beat_connections(project_id);
+	CREATE INDEX IF NOT EXISTS idx_beat_connections_from_beat ON beat_connections(from_beat_id);
+	CREATE INDEX IF NOT EXISTS idx_beat_connections_to_beat ON beat_connections(to_beat_id);
+	CREATE INDEX IF NOT EXISTS idx_lanes_project_id ON lanes(project_id);
+	CREATE INDEX IF NOT EXISTS idx_lanes_order ON lanes(project_id, lane_order);
+	CREATE INDEX IF NOT EXISTS idx_outline_items_project_id ON outline_items(project_id);
+	CREATE INDEX IF NOT EXISTS idx_outline_items_beat_id ON outline_items(beat_id);
+	CREATE INDEX IF NOT EXISTS idx_outline_items_lane_id ON outline_items(lane_id);`
+
+	if _, err := db.Exec(createBeatsTable); err != nil {
+		return fmt.Errorf("failed to create beats table: %w", err)
+	}
+
+	if _, err := db.Exec(createConnectionsTable); err != nil {
+		return fmt.Errorf("failed to create beat_connections table: %w", err)
+	}
+
+	if _, err := db.Exec(createLanesTable); err != nil {
+		return fmt.Errorf("failed to create lanes table: %w", err)
+	}
+
+	if _, err := db.Exec(createOutlineItemsTable); err != nil {
+		return fmt.Errorf("failed to create outline_items table: %w", err)
+	}
+
+	if _, err := db.Exec(createBeatBoardIndexes); err != nil {
+		return fmt.Errorf("failed to create beat board indexes: %w", err)
 	}
 
 	log.Println("Database migrations completed successfully")

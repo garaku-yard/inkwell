@@ -28,19 +28,17 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 			}
 
 			if allowed || origin == "" {
-				if origin != "" {
-					w.Header().Set("Access-Control-Allow-Origin", origin)
-				} else {
-					// Allow any origin if no Origin header (useful for tools like curl)
-					w.Header().Set("Access-Control-Allow-Origin", "*")
-				}
-			}
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		} else {
+			// Allow any origin if no Origin header (useful for tools like curl)
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+	}
 
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-User-ID")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-			// Handle preflight requests
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-User-ID")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")			// Handle preflight requests
 			if r.Method == "OPTIONS" {
 				w.WriteHeader(http.StatusOK)
 				return

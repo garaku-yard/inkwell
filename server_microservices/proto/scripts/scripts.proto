@@ -86,6 +86,63 @@ message Location {
   common.Timestamp updated_at = 7;
 }
 
+// Beat Board entities
+message Beat {
+  string id = 1;
+  string project_id = 2;
+  string title = 3;
+  string description = 4;
+  string scene_numbers = 5; // Comma-separated scene numbers
+  string color = 6;
+  double position_x = 7;
+  double position_y = 8;
+  double width = 9;
+  double height = 10;
+  int32 act_number = 11;
+  int32 order = 12;
+  common.Timestamp created_at = 13;
+  common.Timestamp updated_at = 14;
+}
+
+message Connection {
+  string id = 1;
+  string project_id = 2;
+  string from_beat_id = 3;
+  string to_beat_id = 4;
+  string from_side = 5; // "top", "right", "bottom", "left"
+  string to_side = 6;
+  common.Timestamp created_at = 7;
+}
+
+message Lane {
+  string id = 1;
+  string project_id = 2;
+  string name = 3;
+  string color = 4;
+  int32 order = 5;
+  common.Timestamp created_at = 6;
+  common.Timestamp updated_at = 7;
+}
+
+message OutlineItem {
+  string id = 1;
+  string project_id = 2;
+  string beat_id = 3;
+  string lane_id = 4;
+  int32 order = 5;
+  double timeline_position = 6;
+  double width = 7;
+  common.Timestamp created_at = 8;
+  common.Timestamp updated_at = 9;
+}
+
+message BeatBoardData {
+  repeated Beat beats = 1;
+  repeated Connection connections = 2;
+  repeated Lane lanes = 3;
+  repeated OutlineItem outline_items = 4;
+}
+
 // Project requests/responses
 message CreateProjectRequest {
   string title = 1;
@@ -380,6 +437,183 @@ message BulkUpdateScriptElementsResponse {
   repeated ScriptElement updated_elements = 1;
 }
 
+// Beat Board requests/responses
+message CreateBeatRequest {
+  string project_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  string scene_numbers = 5;
+  string color = 6;
+  double position_x = 7;
+  double position_y = 8;
+  double width = 9;
+  double height = 10;
+  int32 act_number = 11;
+  int32 order = 12;
+}
+
+message CreateBeatResponse {
+  Beat beat = 1;
+}
+
+message GetBeatRequest {
+  string beat_id = 1;
+  string user_id = 2;
+}
+
+message GetBeatResponse {
+  Beat beat = 1;
+}
+
+message GetProjectBeatBoardRequest {
+  string project_id = 1;
+  string user_id = 2;
+}
+
+message GetProjectBeatBoardResponse {
+  BeatBoardData beat_board = 1;
+}
+
+message UpdateBeatRequest {
+  string beat_id = 1;
+  string user_id = 2;
+  optional string title = 3;
+  optional string description = 4;
+  optional string scene_numbers = 5;
+  optional string color = 6;
+  optional double position_x = 7;
+  optional double position_y = 8;
+  optional double width = 9;
+  optional double height = 10;
+  optional int32 act_number = 11;
+  optional int32 order = 12;
+}
+
+message UpdateBeatResponse {
+  Beat beat = 1;
+}
+
+message DeleteBeatRequest {
+  string beat_id = 1;
+  string user_id = 2;
+}
+
+message DeleteBeatResponse {
+  bool success = 1;
+}
+
+message CreateConnectionRequest {
+  string project_id = 1;
+  string user_id = 2;
+  string from_beat_id = 3;
+  string to_beat_id = 4;
+  string from_side = 5;
+  string to_side = 6;
+}
+
+message CreateConnectionResponse {
+  Connection connection = 1;
+}
+
+message DeleteConnectionRequest {
+  string connection_id = 1;
+  string user_id = 2;
+}
+
+message DeleteConnectionResponse {
+  bool success = 1;
+}
+
+message CreateLaneRequest {
+  string project_id = 1;
+  string user_id = 2;
+  string name = 3;
+  string color = 4;
+  int32 order = 5;
+}
+
+message CreateLaneResponse {
+  Lane lane = 1;
+}
+
+message GetProjectLanesRequest {
+  string project_id = 1;
+  string user_id = 2;
+}
+
+message GetProjectLanesResponse {
+  repeated Lane lanes = 1;
+}
+
+message UpdateLaneRequest {
+  string lane_id = 1;
+  string user_id = 2;
+  optional string name = 3;
+  optional string color = 4;
+  optional int32 order = 5;
+}
+
+message UpdateLaneResponse {
+  Lane lane = 1;
+}
+
+message UpdateLaneOrderRequest {
+  string project_id = 1;
+  string user_id = 2;
+  repeated string lane_ids = 3;
+}
+
+message UpdateLaneOrderResponse {
+  bool success = 1;
+}
+
+message DeleteLaneRequest {
+  string lane_id = 1;
+  string user_id = 2;
+}
+
+message DeleteLaneResponse {
+  bool success = 1;
+}
+
+message CreateOutlineItemRequest {
+  string project_id = 1;
+  string user_id = 2;
+  string beat_id = 3;
+  string lane_id = 4;
+  int32 order = 5;
+  double timeline_position = 6;
+  double width = 7;
+}
+
+message CreateOutlineItemResponse {
+  OutlineItem outline_item = 1;
+}
+
+message UpdateOutlineItemRequest {
+  string outline_item_id = 1;
+  string user_id = 2;
+  optional string beat_id = 3;
+  optional string lane_id = 4;
+  optional int32 order = 5;
+  optional double timeline_position = 6;
+  optional double width = 7;
+}
+
+message UpdateOutlineItemResponse {
+  OutlineItem outline_item = 1;
+}
+
+message DeleteOutlineItemRequest {
+  string outline_item_id = 1;
+  string user_id = 2;
+}
+
+message DeleteOutlineItemResponse {
+  bool success = 1;
+}
+
 message GetProjectLocationsRequest {
   string project_id = 1;
   string user_id = 2; // For authorization check
@@ -429,4 +663,24 @@ service ScriptsService {
   rpc CreateElement(CreateElementRequest) returns (CreateElementResponse);
   rpc UpdateElement(UpdateElementRequest) returns (UpdateElementResponse);
   rpc GetSceneElements(GetSceneElementsRequest) returns (GetSceneElementsResponse);
+  
+  // Beat Board management
+  rpc CreateBeat(CreateBeatRequest) returns (CreateBeatResponse);
+  rpc GetBeat(GetBeatRequest) returns (GetBeatResponse);
+  rpc GetProjectBeatBoard(GetProjectBeatBoardRequest) returns (GetProjectBeatBoardResponse);
+  rpc UpdateBeat(UpdateBeatRequest) returns (UpdateBeatResponse);
+  rpc DeleteBeat(DeleteBeatRequest) returns (DeleteBeatResponse);
+  
+  rpc CreateConnection(CreateConnectionRequest) returns (CreateConnectionResponse);
+  rpc DeleteConnection(DeleteConnectionRequest) returns (DeleteConnectionResponse);
+  
+  rpc CreateLane(CreateLaneRequest) returns (CreateLaneResponse);
+  rpc GetProjectLanes(GetProjectLanesRequest) returns (GetProjectLanesResponse);
+  rpc UpdateLane(UpdateLaneRequest) returns (UpdateLaneResponse);
+  rpc UpdateLaneOrder(UpdateLaneOrderRequest) returns (UpdateLaneOrderResponse);
+  rpc DeleteLane(DeleteLaneRequest) returns (DeleteLaneResponse);
+  
+  rpc CreateOutlineItem(CreateOutlineItemRequest) returns (CreateOutlineItemResponse);
+  rpc UpdateOutlineItem(UpdateOutlineItemRequest) returns (UpdateOutlineItemResponse);
+  rpc DeleteOutlineItem(DeleteOutlineItemRequest) returns (DeleteOutlineItemResponse);
 }
