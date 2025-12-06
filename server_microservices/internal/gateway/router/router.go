@@ -47,6 +47,9 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		return nil, err
 	}
 
+	// Static file serving for uploaded images
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
+
 	// Auth routes
 	mux.HandleFunc("/login", authHandler.Login)
 	mux.HandleFunc("/register", authHandler.Register)
@@ -274,6 +277,9 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
+
+	// Beat image upload endpoint
+	mux.HandleFunc("/beats/upload-image", scriptsHandler.UploadBeatImage)
 
 	// Beat Board individual resource routes
 	// Individual beat operations

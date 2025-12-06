@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from "react"
-import { ChevronDown, ChevronUp, GripVertical, Plus, Ruler } from "lucide-react"
+import { ChevronDown, ChevronUp, GripVertical, Plus, Ruler, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { type Beat } from "@/services/beat"
@@ -28,6 +28,7 @@ interface StoryLanesProps {
   handleLaneDragStart: (e: React.DragEvent, itemId: string) => void;
   setDraggedLaneItem: (id: string | null) => void;
   onUpdateOutlineItem: (itemId: string, updates: Partial<OutlineItem>) => void;
+  onDeleteOutlineItem?: (itemId: string) => void;
   scriptMarkers: ScriptMarker[];
   totalPages?: number;
   onItemHover?: (beatId: string | null) => void;
@@ -37,7 +38,7 @@ export function StoryLanes({
   lanes, draggedLaneId, onUpdateLane, onLaneDragStart, onLaneDrop, onLaneDragEnd,
   beats, outlineItems, hoveredLane, draggedLaneItem, setHoveredLane,
   handleDropOnTimeline, handleLaneDragStart, setDraggedLaneItem,
-  onUpdateOutlineItem, totalPages = 120, scriptMarkers,
+  onUpdateOutlineItem, onDeleteOutlineItem, totalPages = 120, scriptMarkers,
   onAddLane, onItemHover
 }: StoryLanesProps) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -200,21 +201,34 @@ export function StoryLanes({
                   <div className={`relative flex-1 h-16 timeline-area-content ${hoveredLane === lane.id ? "bg-blue-50" : "bg-white"}`} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.stopPropagation(); handleDropOnTimeline(e, lane.id); }}>
                     {outlineItems.filter((item) => item.laneId === lane.id).map((item) => {
                       const beat = beats.find(b => b.id === item.beatId); if (!beat) return null;
-                      const position = item.timelinePosition || 0; const width = item.width || getPagePosition(5); const startPage = Math.max(1, Math.round(getPageFromPosition(position))); const endPage = Math.round(getPageFromPosition(position + width));
+                      const position = item.timelinePosition || 0; const width = item.width || getPagePosition(5);
                       const isInteracting = resizingItem?.itemId === item.id || slidingItem?.itemId === item.id;
+                      // Use the proper startPage/endPage fields
+                      const displayPages = beat.startPage && beat.endPage
+                        ? (beat.startPage === beat.endPage ? `Pg. ${beat.startPage}` : `Pg. ${beat.startPage}-${beat.endPage}`)
+                        : (beat.sceneNumbers || "No pages");
                       return (
                         <div
                           key={item.id}
-                          className={`absolute top-2 bottom-2 rounded border shadow-sm flex items-center text-xs font-medium transition-all group ${draggedLaneItem === item.id ? "opacity-30" : ""} ${isInteracting ? "ring-2 ring-blue-400 z-10" : ""}`} style={{ left: `${position}%`, width: `${width}%`, backgroundColor: beat.color, minWidth: "20px", cursor: isInteracting ? 'grabbing' : 'grab' }}
+                          className={`absolute top-2 bottom-2 rounded border shadow-sm flex items-center justify-between text-xs font-medium transition-all group ${draggedLaneItem === item.id ? "opacity-30" : ""} ${isInteracting ? "ring-2 ring-blue-400 z-10" : ""}`} style={{ left: `${position}%`, width: `${width}%`, backgroundColor: beat.color, minWidth: "20px", cursor: isInteracting ? 'grabbing' : 'grab' }}
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => { e.stopPropagation(); handleDropOnTimeline(e, item.laneId, item.id); }}
                           onMouseDown={(e) => handleItemMouseDown(e, item.id)}
-                          onMouseEnter={() => onItemHover?.(beat.id)} // FIX: Call new prop with BEAT id
-                          onMouseLeave={() => onItemHover?.(null)}    // FIX: Call new prop
+                          onMouseEnter={() => onItemHover?.(beat.id)}
+                          onMouseLeave={() => onItemHover?.(null)}
                         >
                           <div draggable={true} onDragStart={(e) => { e.dataTransfer.setData("application/x-outline-item-id", item.id); e.dataTransfer.effectAllowed = "move"; handleLaneDragStart(e, item.id) }} onDragEnd={() => setDraggedLaneItem(null)} className="absolute left-1 top-1/2 -translate-y-1/2 p-0.5 cursor-move opacity-0 group-hover:opacity-60 hover:opacity-100 z-20" onMouseDown={(e) => e.stopPropagation()}> <GripVertical className="h-3 w-3" /> </div>
                           <div className="absolute left-0 top-0 bottom-0 w-2 opacity-0 group-hover:opacity-100 cursor-ew-resize z-20 hover:bg-black/10" onMouseDown={(e) => { e.stopPropagation(); handleItemMouseDown(e, item.id, "left"); }} />
-                          <div className="px-2 text-center truncate ml-3"><div className="font-semibold">{beat.title}</div><div className="text-xs opacity-75">Pg. {startPage}-{endPage}</div></div>
+                          <div className="px-2 text-center truncate ml-3 flex-1"><div className="font-semibold">{beat.title}</div><div className="text-xs opacity-75">{displayPages}</div></div>
+                          {onDeleteOutlineItem && (
+                            <button
+                              className="absolute right-1 top-1 p-0.5 rounded bg-red-500 text-white opacity-0 group-hover:opacity-100 hover:bg-red-600 z-20"
+                              onClick={(e) => { e.stopPropagation(); onDeleteOutlineItem(item.id); }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
                           <div className="absolute right-0 top-0 bottom-0 w-2 opacity-0 group-hover:opacity-100 cursor-ew-resize z-20 hover:bg-black/10" onMouseDown={(e) => { e.stopPropagation(); handleItemMouseDown(e, item.id, "right"); }} />
                         </div>
                       );

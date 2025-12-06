@@ -1,5 +1,5 @@
 // src/components/beat-board/BeatCard.tsx
-import type React from "react"
+import React from "react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
@@ -58,12 +58,31 @@ export function BeatCard({
         className="resize-handle absolute -bottom-1 -right-1 w-3 h-3 bg-gray-600 border border-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-nwse-resize hover:bg-gray-800"
         onMouseDown={(e) => onResizeMouseDown(e, beat.id)}
       />
-      <div className="flex items-start justify-between mb-2">
+      {beat.imageUrl && (
+        <div className="absolute inset-0 rounded-lg overflow-hidden">
+          <img 
+            src={`${process.env.NEXT_PUBLIC_API_URL}${beat.imageUrl}`} 
+            alt={beat.title} 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleFieldChange(beat.id, "imageUrl" as keyof Beat, null);
+            }}
+            className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      <div className={`flex items-start justify-between mb-2 ${beat.imageUrl ? 'relative z-10' : ''}`}>
         <div className="flex-1 min-w-0" onDoubleClick={() => handleDoubleClick(beat.id, "title")}>
           {editingField?.beatId === beat.id && editingField?.field === "title" ? (
-            <Input autoFocus onBlur={handleFieldBlur} value={beat.title} onChange={(e) => handleFieldChange(beat.id, "title", e.target.value)} className="h-auto p-0 text-sm font-semibold border-none bg-transparent focus-visible:ring-0" />
+            <Input autoFocus onBlur={handleFieldBlur} value={beat.title} onChange={(e) => handleFieldChange(beat.id, "title", e.target.value)} className={`h-auto p-0 text-sm font-semibold border-none bg-transparent focus-visible:ring-0 ${beat.imageUrl ? 'text-white' : ''}`} />
           ) : (
-            <h3 className="font-semibold text-gray-900 text-sm leading-tight truncate">{beat.title}</h3>
+            <h3 className={`font-semibold text-sm leading-tight truncate ${beat.imageUrl ? 'text-white drop-shadow-lg' : 'text-gray-900'}`}>{beat.title}</h3>
           )}
         </div>
         <div className="flex items-center gap-1">
@@ -94,11 +113,20 @@ export function BeatCard({
           </DropdownMenu>
         </div>
       </div>
-      <div className="flex-1 overflow-auto" onDoubleClick={() => handleDoubleClick(beat.id, "description")}>
-        {editingField?.beatId === beat.id && editingField?.field === "description" ? (
-          <Textarea autoFocus onBlur={handleFieldBlur} value={beat.description} onChange={(e) => handleFieldChange(beat.id, "description", e.target.value)} className="text-sm w-full h-full bg-transparent border-none outline-none resize-none p-0 focus-visible:ring-0" />
+      {!beat.imageUrl && (
+        <div className="flex-1 overflow-auto" onDoubleClick={() => handleDoubleClick(beat.id, "description")}>
+          {editingField?.beatId === beat.id && editingField?.field === "description" ? (
+            <Textarea autoFocus onBlur={handleFieldBlur} value={beat.description} onChange={(e) => handleFieldChange(beat.id, "description", e.target.value)} className="text-sm w-full h-full bg-transparent border-none outline-none resize-none p-0 focus-visible:ring-0" />
+          ) : (
+            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{beat.description}</p>
+          )}
+        </div>
+      )}
+      <div className={`mt-2 pt-2 border-t ${beat.imageUrl ? 'border-white/30 relative z-10' : 'border-gray-200'}`} onDoubleClick={() => handleDoubleClick(beat.id, "sceneNumbers")}>
+        {editingField?.beatId === beat.id && editingField?.field === "sceneNumbers" ? (
+          <Input autoFocus onBlur={handleFieldBlur} value={beat.sceneNumbers} onChange={(e) => handleFieldChange(beat.id, "sceneNumbers", e.target.value)} className={`h-auto p-0 text-xs border-none bg-transparent focus-visible:ring-0 ${beat.imageUrl ? 'text-white' : ''}`} placeholder="Pg. 5-7" />
         ) : (
-          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{beat.description}</p>
+          <p className={`text-xs ${beat.imageUrl ? 'text-white/90 drop-shadow' : 'text-gray-500'}`}>{beat.sceneNumbers || "No pages set (double-click to add)"}</p>
         )}
       </div>
     </div>

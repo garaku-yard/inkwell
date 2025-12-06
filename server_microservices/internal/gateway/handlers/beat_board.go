@@ -3,10 +3,17 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	scriptspb "scriptlith/server_microservices/pkg/grpc/scripts"
+
+	"github.com/google/uuid"
 )
 
 // CreateBeat handles POST /projects/{projectID}/beat-board/beats
@@ -22,7 +29,7 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Title        string `json:"title"`
 		Description  string `json:"description"`
-		SceneNumbers string `json:"sceneNumbers"`
+		SceneNumbers string `json:"sceneNumbers"` // DEPRECATED: Use startPage/endPage
 		Color        string `json:"color"`
 		Position     *struct {
 			X float64 `json:"x"`
@@ -34,12 +41,21 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 		Height    float64  `json:"height"`
 		ActNumber int32    `json:"actNumber"`
 		Order     int32    `json:"order"`
+		StartPage int32    `json:"startPage"`
+		EndPage   int32    `json:"endPage"`
+		ImageUrl  *string  `json:"imageUrl,omitempty"`
 	}
 
+	// Limit request body size to 50MB (base64 images can be large)
+	r.Body = http.MaxBytesReader(w, r.Body, 50*1024*1024)
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		log.Printf("CreateBeat: Error decoding request body: %v", err)
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	log.Printf("CreateBeat: Received request with imageUrl: %v", req.ImageUrl)
 
 	// Handle both nested position object and flat positionX/Y
 	var posX, posY float64
@@ -68,6 +84,9 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 		Height:       req.Height,
 		ActNumber:    req.ActNumber,
 		Order:        req.Order,
+		StartPage:    req.StartPage,
+		EndPage:      req.EndPage,
+		ImageUrl:     req.ImageUrl,
 	})
 
 	if err != nil {
@@ -117,7 +136,7 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Title        *string `json:"title,omitempty"`
 		Description  *string `json:"description,omitempty"`
-		SceneNumbers *string `json:"sceneNumbers,omitempty"`
+		SceneNumbers *string `json:"sceneNumbers,omitempty"` // DEPRECATED: Use startPage/endPage
 		Color        *string `json:"color,omitempty"`
 		Position     *struct {
 			X float64 `json:"x"`
@@ -129,6 +148,9 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 		Height    *float64 `json:"height,omitempty"`
 		ActNumber *int32   `json:"actNumber,omitempty"`
 		Order     *int32   `json:"order,omitempty"`
+		StartPage *int32   `json:"startPage,omitempty"`
+		EndPage   *int32   `json:"endPage,omitempty"`
+		ImageUrl  *string  `json:"imageUrl,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -176,6 +198,15 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Order != nil {
 		grpcReq.Order = req.Order
+	}
+	if req.StartPage != nil {
+		grpcReq.StartPage = req.StartPage
+	}
+	if req.EndPage != nil {
+		grpcReq.EndPage = req.EndPage
+	}
+	if req.ImageUrl != nil {
+		grpcReq.ImageUrl = req.ImageUrl
 	}
 
 	resp, err := h.scriptsClient.UpdateBeat(context.Background(), grpcReq)
@@ -593,4 +624,86 @@ func getIDFromPath(path, prefix string) string {
 // handleGRPCError converts gRPC errors to HTTP responses
 func handleGRPCError(w http.ResponseWriter, err error) {
 	http.Error(w, "Failed to process request: "+err.Error(), http.StatusInternalServerError)
+}
+
+// UploadBeatImage handles POST /beats/upload-image
+func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request) {
+	log.Printf("UploadBeatImage: Request received")
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Limit request body size to 10MB
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+
+	log.Printf("UploadBeatImage: Starting to parse form")
+	// Parse the multipart form with 10MB max memory
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		log.Printf("UploadBeatImage: Error parsing form: %v", err)
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+	log.Printf("UploadBeatImage: Form parsed")
+
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		log.Printf("UploadBeatImage: Error getting file: %v", err)
+		http.Error(w, "No image provided", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	log.Printf("UploadBeatImage: Got file: %s, size: %d", header.Filename, header.Size)
+
+	// Determine file extension from content type
+	ext := ".jpg"
+	contentType := header.Header.Get("Content-Type")
+	if strings.Contains(contentType, "image/png") {
+		ext = ".png"
+	} else if strings.Contains(contentType, "image/gif") {
+		ext = ".gif"
+	} else if strings.Contains(contentType, "image/webp") {
+		ext = ".webp"
+	}
+
+	// Create uploads directory if it doesn't exist
+	uploadsDir := "./uploads/beats"
+	log.Printf("UploadBeatImage: Creating directory: %s", uploadsDir)
+	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+		log.Printf("UploadBeatImage: Error creating uploads directory: %v", err)
+		http.Error(w, "Failed to save image", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate unique filename
+	filename := fmt.Sprintf("%s-%d%s", uuid.New().String(), time.Now().Unix(), ext)
+	filePath := filepath.Join(uploadsDir, filename)
+	log.Printf("UploadBeatImage: Will save to: %s", filePath)
+
+	// Create file on disk
+	dst, err := os.Create(filePath)
+	if err != nil {
+		log.Printf("UploadBeatImage: Error creating file: %v", err)
+		http.Error(w, "Failed to save image", http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+
+	// Copy uploaded file to disk
+	if _, err := dst.ReadFrom(file); err != nil {
+		log.Printf("UploadBeatImage: Error copying file: %v", err)
+		http.Error(w, "Failed to save image", http.StatusInternalServerError)
+		return
+	}
+
+	// Return relative path
+	relativePath := fmt.Sprintf("/uploads/beats/%s", filename)
+	log.Printf("UploadBeatImage: Saved image to %s", filePath)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"imageUrl": relativePath,
+	})
 }

@@ -33,6 +33,7 @@ import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { AIChatPanel } from "./AIChatPanel"
 import { useAuth } from "@/lib/AuthContext"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
 type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ScriptElement }
 
@@ -642,7 +643,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           onToggleCommentResolved={handleToggleCommentResolved}
         />
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className={cn("flex-1 flex flex-col overflow-hidden", isAIChatOpen && "border-r border-border/40")}>
           <Toolbar
             onInsertElement={handleInsertElement}
             onAddNewScene={handleAddNewScene}

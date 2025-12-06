@@ -9,10 +9,12 @@ import { useDebouncedCallback } from 'use-debounce';
 
 import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLanes";
 import { OutlineDocument } from '@/components/outline-editor/OutlineDocument';
+import { OutlineCardView } from '@/components/outline-editor/OutlineCardView';
 
-import { getProjectById, type FullProject } from "@/services/project";
-import { getBeatBoardForProject, type Beat } from '@/services/beat';
-import { type Lane, type OutlineItem, createLane, updateLane, updateLaneOrder, createOutlineItem, updateOutlineItem } from '@/services/beat-board';
+import { getProjectByIdLegacy, type FullProject } from "@/services/project";
+import { getBeatBoardForProject, updateBeat, type Beat } from '@/services/beat';
+import { type Lane, type OutlineItem, createLane, updateLane, updateLaneOrder, createOutlineItem, updateOutlineItem, deleteOutlineItem } from '@/services/beat-board';
+import { useAuth } from '@/lib/AuthContext';
 
 export interface StructureElement {
   id: string;
@@ -40,6 +42,7 @@ const parsePageRange = (sceneNumbers: string): { start: number; end: number } | 
 export default function OutlineEditorPage() {
   const params = useParams();
   const projectId = params.id as string;
+  const { user } = useAuth();
 
   const [project, setProject] = useState<FullProject | null>(null);
   const [beats, setBeats] = useState<Beat[]>([]);
@@ -61,13 +64,45 @@ export default function OutlineEditorPage() {
       setError(null);
       try {
         const [projectData, beatBoardData] = await Promise.all([
-          getProjectById(projectId),
+          getProjectByIdLegacy(projectId),
           getBeatBoardForProject(projectId)
         ]);
         setProject(projectData);
-        setBeats(beatBoardData.beats || []);
+        const beats = beatBoardData.beats || [];
+        setBeats(beats);
         setLanes((beatBoardData.lanes || []).sort((a, b) => a.order - b.order));
-        setOutlineItems(beatBoardData.outlineItems || []);
+        
+        // Sync outline item positions and widths with beat page ranges
+        const beatMap = new Map(beats.map(beat => [beat.id, beat]));
+        const syncedOutlineItems = (beatBoardData.outlineItems || []).map(item => {
+          const beat = beatMap.get(item.beatId);
+          if (beat && beat.startPage && beat.endPage) {
+            // Calculate correct position and width from page numbers
+            // Position: page 1 = 0%, page 120 = 100%
+            const correctPosition = ((beat.startPage - 1) / 119) * 100;
+            const pageSpan = beat.endPage - beat.startPage;
+            const correctWidth = (pageSpan / 119) * 100;
+            
+            // Check if position or width needs updating
+            const needsUpdate = 
+              Math.abs((item.timelinePosition || 0) - correctPosition) > 0.5 ||
+              Math.abs((item.width || 0) - correctWidth) > 0.5;
+            
+            if (needsUpdate) {
+              // Update in backend asynchronously
+              updateOutlineItem(item.id, { 
+                timelinePosition: correctPosition, 
+                width: correctWidth 
+              }).catch(err => 
+                console.error("Failed to sync outline item position/width", err)
+              );
+              return { ...item, timelinePosition: correctPosition, width: correctWidth };
+            }
+          }
+          return item;
+        });
+        
+        setOutlineItems(syncedOutlineItems);
       } catch (err) { console.error("Failed to load data", err); setError("Failed to load project data."); }
       finally { setIsLoading(false); }
     };
@@ -80,18 +115,25 @@ export default function OutlineEditorPage() {
     const laneOrderMap = new Map(lanes.map((lane, index) => [lane.id, index]));
     const allItems: StructureElement[] = outlineItems.map(item => {
       const beat = beatMap.get(item.beatId);
-      const pageRange = beat ? parsePageRange(beat.sceneNumbers) : null;
+      // Use the proper startPage/endPage fields, fallback to parsing sceneNumbers for backwards compatibility
+      let startPage = beat?.startPage || 0;
+      let endPage = beat?.endPage || 0;
+      if (startPage === 0 && beat?.sceneNumbers) {
+        const pageRange = parsePageRange(beat.sceneNumbers);
+        startPage = pageRange?.start || 0;
+        endPage = pageRange?.end || 0;
+      }
       return {
         id: item.beatId,
         title: beat?.title || '',
         content: beat?.description || '',
         color: beat?.color || '#e5e7eb',
-        startPage: pageRange?.start || 0,
-        endPage: pageRange?.end || 0,
+        startPage,
+        endPage,
         laneId: item.laneId,
         laneLevel: laneOrderMap.get(item.laneId) ?? -1,
         children: [],
-        type: 'BEAT', // <--- ADDED: Fixes the 'type is missing' error
+        type: 'BEAT',
         outlineId: item.id,
       };
     }).filter(item => (item.laneLevel ?? -1) !== -1 && item.startPage > 0).sort((a, b) => a.startPage - b.startPage);
@@ -130,11 +172,19 @@ export default function OutlineEditorPage() {
   }, [lanes, beats, outlineItems]);
 
   const scriptMarkers = useMemo((): ScriptMarker[] => {
-    if (!project?.acts) return [];
-    return project.acts.map(act => ({ name: `Act ${act.actNumber}`, page: (act.actNumber - 1) * 30 + 1, color: "#10b981" }));
-  }, [project?.acts]);
+    // Default act markers for 120-page screenplay
+    return [
+      { name: 'Act 1: Setup', page: 1, color: "#10b981" },
+      { name: 'Act 2: Confrontation', page: 30, color: "#8b5cf6" },
+      { name: 'Act 3: Resolution', page: 90, color: "#ef4444" },
+    ];
+  }, []);
 
   const debouncedUpdateOutlineItem = useDebouncedCallback((itemId: string, data: Partial<OutlineItem>) => { updateOutlineItem(itemId, data) }, 500);
+  
+  const debouncedUpdateBeatSceneNumbers = useDebouncedCallback((beatId: string, timelinePosition: number, width: number) => {
+    updateBeatSceneNumbers(beatId, timelinePosition, width);
+  }, 500);
 
   const layoutLane = (laneId: string, items: OutlineItem[]): OutlineItem[] => {
     const laneItems = items.filter(item => item.laneId === laneId).sort((a, b) => a.order - b.order);
@@ -179,8 +229,12 @@ export default function OutlineEditorPage() {
   };
 
   const handleUpdateOutlineItem = (itemId: string, updates: Partial<OutlineItem>) => {
+    let updatedItem: OutlineItem | undefined;
+    
     setOutlineItems(prevItems => {
       const newItems = prevItems.map(item => item.id === itemId ? { ...item, ...updates } : item);
+      updatedItem = newItems.find(item => item.id === itemId);
+      
       if (updates.order !== undefined) {
         const changedItem = newItems.find(item => item.id === itemId);
         if (changedItem) return layoutLane(changedItem.laneId, newItems);
@@ -188,6 +242,26 @@ export default function OutlineEditorPage() {
       return newItems;
     });
     debouncedUpdateOutlineItem(itemId, updates);
+    
+    // If timeline position or width changed, update the beat's scene numbers (debounced)
+    if ((updates.timelinePosition !== undefined || updates.width !== undefined) && updatedItem) {
+      debouncedUpdateBeatSceneNumbers(updatedItem.beatId, updatedItem.timelinePosition ?? 0, updatedItem.width ?? 5);
+    }
+  };
+
+  const handleDeleteOutlineItem = async (itemId: string) => {
+    const item = outlineItems.find(i => i.id === itemId);
+    if (!item) return;
+    
+    try {
+      await deleteOutlineItem(itemId);
+      setOutlineItems(prevItems => {
+        const filtered = prevItems.filter(i => i.id !== itemId);
+        return layoutLane(item.laneId, filtered);
+      });
+    } catch (err) {
+      console.error("Failed to delete outline item", err);
+    }
   };
 
   const handleDropOnTimeline = async (e: React.DragEvent, targetLaneId: string, targetItemId?: string) => {
@@ -197,14 +271,50 @@ export default function OutlineEditorPage() {
     const beatId = e.dataTransfer.getData("text/plain");
     const outlineItemId = e.dataTransfer.getData("application/x-outline-item-id");
     if (beatId) {
+      // Check if this beat already exists in any lane
+      const existingItem = outlineItems.find(item => item.beatId === beatId);
+      if (existingItem) {
+        console.warn("Beat already exists in a lane. Moving to new lane instead.");
+        // Instead of creating a new item, move the existing one
+        const finalItems: OutlineItem[] = [];
+        const originalLaneId = existingItem.laneId;
+        setOutlineItems(prevItems => {
+          let allItems = prevItems.filter(item => item.id !== existingItem.id);
+          let targetLaneItems = allItems.filter(item => item.laneId === targetLaneId).sort((a, b) => a.order - b.order);
+          targetLaneItems.push({ ...existingItem, laneId: targetLaneId, order: targetLaneItems.length });
+          const reorderedTargetLane = targetLaneItems.map((item, index) => ({ ...item, order: index }));
+          const otherItems = allItems.filter(item => item.laneId !== targetLaneId);
+          const updated = [...otherItems, ...reorderedTargetLane];
+          const layouted = layoutLane(targetLaneId, updated);
+          finalItems.push(...(originalLaneId !== targetLaneId ? layoutLane(originalLaneId, layouted) : layouted));
+          return finalItems;
+        });
+        const movedItem = finalItems.find(item => item.id === existingItem.id);
+        if (movedItem) {
+          updateOutlineItem(existingItem.id, { laneId: movedItem.laneId, order: movedItem.order })
+            .catch(err => console.error("Failed to move existing item", err));
+          // Update beat sceneNumbers based on new position
+          updateBeatSceneNumbers(beatId, movedItem.timelinePosition || 0, movedItem.width || 5);
+        }
+        return;
+      }
       const currentLaneItems = outlineItems.filter(item => item.laneId === targetLaneId);
-      const newItemData: Partial<OutlineItem> = { projectId, beatId, laneId: targetLaneId, order: currentLaneItems.length, width: 5 };
+      // Calculate width to represent ~10 pages by default (10/119 * 100 ≈ 8.4%)
+      const defaultWidth = (10 / 119) * 100;
+      const newItemData: Partial<OutlineItem> = { beatId, laneId: targetLaneId, order: currentLaneItems.length, width: defaultWidth };
       try {
-        const createdItem = await createOutlineItem(newItemData);
+        const createdItem = await createOutlineItem(projectId, newItemData);
+        let finalItems: OutlineItem[] = [];
         setOutlineItems(prevItems => {
           const updatedItems = [...prevItems, createdItem];
-          return layoutLane(targetLaneId, updatedItems);
+          finalItems = layoutLane(targetLaneId, updatedItems);
+          return finalItems;
         });
+        // Update beat sceneNumbers based on timeline position AFTER layout
+        const positionedItem = finalItems.find(item => item.id === createdItem.id);
+        if (positionedItem) {
+          updateBeatSceneNumbers(beatId, positionedItem.timelinePosition || 0, positionedItem.width || 5);
+        }
       } catch (err) { console.error("Failed to create outline item", err); }
     } else if (outlineItemId) {
       const draggedItem = outlineItems.find(item => item.id === outlineItemId);
@@ -228,8 +338,56 @@ export default function OutlineEditorPage() {
       if (finalDraggedItemState) {
         updateOutlineItem(outlineItemId, { laneId: finalDraggedItemState.laneId, order: finalDraggedItemState.order })
           .catch(err => console.error("Failed to update moved item", err));
+        // Update beat sceneNumbers based on new timeline position
+        if (draggedItem.beatId) {
+          updateBeatSceneNumbers(draggedItem.beatId, finalDraggedItemState.timelinePosition || 0, finalDraggedItemState.width || 5);
+        }
       }
     }
+  };
+
+  // Helper function to calculate and update beat pages AND width from timeline position
+  const updateBeatSceneNumbers = (beatId: string, timelinePosition: number, width: number) => {
+    const totalPages = 120; // Match the default from StoryLanes
+    
+    // Calculate pages from timeline position
+    // The ruler displays page 1 at 0% and page 120 at 100%
+    // Linear mapping: page = 1 + (position / 100) * (totalPages - 1)
+    const startPageRaw = 1 + (timelinePosition / 100) * (totalPages - 1);
+    const endPageRaw = 1 + ((timelinePosition + width) / 100) * (totalPages - 1);
+    
+    // Round to nearest whole page
+    const startPage = Math.max(1, Math.round(startPageRaw));
+    const endPage = Math.min(totalPages, Math.max(startPage, Math.round(endPageRaw)));
+    
+    // NOW calculate the correct width from the page numbers (pages are source of truth)
+    const pageSpan = endPage - startPage;
+    const correctWidth = (pageSpan / (totalPages - 1)) * 100;
+    
+    // Generate sceneNumbers for backwards compatibility
+    const sceneNumbers = startPage === endPage ? `Pg. ${startPage}` : `Pg. ${startPage}-${endPage}`;
+    
+    // Update local state with both new fields and corrected width
+    setBeats(prevBeats => prevBeats.map(beat => 
+      beat.id === beatId ? { ...beat, startPage, endPage, sceneNumbers } : beat
+    ));
+    
+    // Find and update the outline item with the corrected width
+    const item = outlineItems.find(i => i.beatId === beatId);
+    if (item && Math.abs((item.width || 0) - correctWidth) > 0.1) {
+      setOutlineItems(prevItems => 
+        prevItems.map(i => i.beatId === beatId ? { ...i, width: correctWidth } : i)
+      );
+      // Update outline item width in backend
+      updateOutlineItem(item.id, { width: correctWidth }).catch(err =>
+        console.error("Failed to update outline item width", err)
+      );
+    }
+    
+    // Update beat pages in backend
+    updateBeat(beatId, { startPage, endPage, sceneNumbers }).catch(err => 
+      console.error("Failed to update beat pages", err)
+    );
   };
 
   if (isLoading) return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
@@ -247,7 +405,7 @@ export default function OutlineEditorPage() {
             <div className="h-6 w-px bg-gray-200" />
             <div className="flex items-center gap-2">
               <PanelsTopLeft className="h-5 w-5 text-gray-700" />
-              <h1 className="text-xl font-semibold text-gray-900">{project?.projectName} - Outline Editor</h1>
+              <h1 className="text-xl font-semibold text-gray-900">{project?.title} - Outline Editor</h1>
             </div>
           </div>
         </div>
@@ -272,10 +430,13 @@ export default function OutlineEditorPage() {
           handleDropOnTimeline={handleDropOnTimeline}
           handleLaneDragStart={(_e, itemId) => setDraggedLaneItem(itemId)}
           onUpdateOutlineItem={handleUpdateOutlineItem}
+          onDeleteOutlineItem={handleDeleteOutlineItem}
           onItemHover={setActiveElementId}
         />
-        <OutlineDocument
-          structure={transformedStructure}
+        <OutlineCardView
+          lanes={lanes}
+          beats={beats}
+          outlineItems={outlineItems}
           activeElementId={activeElementId}
           onElementSelect={setActiveElementId}
         />

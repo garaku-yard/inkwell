@@ -156,14 +156,17 @@ export const AIChatPanel = React.memo(({ isOpen, onClose }: AIChatPanelProps) =>
         isOpen ? "w-[420px]" : "w-0",
       )}
     >
+      {/* Add spacer div to match toolbar height (p-3 padding top/bottom + content) */}
+      <div className="h-[57px] flex-shrink-0 border-b border-border/40" />
+      
       <div
         className={cn(
-          "h-full flex flex-col",
+          "flex-1 flex flex-col border-t border-border/40",
           !isOpen && "invisible",
         )}
       >
         {/* The rest of the component's JSX remains the same */}
-        <div className={cn("h-full flex flex-col", !isOpen && "invisible")}>
+        <div className={cn("flex-1 flex flex-col", !isOpen && "invisible")}>
           <div className="relative p-6 border-b border-border/40 flex-shrink-0 space-y-5 overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
             <div className="relative flex items-center justify-between">

@@ -12,13 +12,16 @@ export interface Beat {
   id: string
   title: string
   description: string
-  sceneNumbers: string
+  sceneNumbers: string // DEPRECATED: Use startPage and endPage
   color: string
   position: { x: number; y: number }
   width: number
   height: number
   act: number
   order: number
+  startPage: number
+  endPage: number
+  imageUrl?: string
 }
 
 export interface Connection {

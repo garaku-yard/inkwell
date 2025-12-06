@@ -92,7 +92,7 @@ message Beat {
   string project_id = 2;
   string title = 3;
   string description = 4;
-  string scene_numbers = 5; // Comma-separated scene numbers
+  string scene_numbers = 5; // DEPRECATED: Use start_page and end_page
   string color = 6;
   double position_x = 7;
   double position_y = 8;
@@ -102,6 +102,9 @@ message Beat {
   int32 order = 12;
   common.Timestamp created_at = 13;
   common.Timestamp updated_at = 14;
+  int32 start_page = 15;
+  int32 end_page = 16;
+  optional string image_url = 17;
 }
 
 message Connection {
@@ -443,7 +446,7 @@ message CreateBeatRequest {
   string user_id = 2;
   string title = 3;
   string description = 4;
-  string scene_numbers = 5;
+  string scene_numbers = 5; // DEPRECATED: Use start_page and end_page
   string color = 6;
   double position_x = 7;
   double position_y = 8;
@@ -451,6 +454,9 @@ message CreateBeatRequest {
   double height = 10;
   int32 act_number = 11;
   int32 order = 12;
+  int32 start_page = 13;
+  int32 end_page = 14;
+  optional string image_url = 15;
 }
 
 message CreateBeatResponse {
@@ -480,7 +486,7 @@ message UpdateBeatRequest {
   string user_id = 2;
   optional string title = 3;
   optional string description = 4;
-  optional string scene_numbers = 5;
+  optional string scene_numbers = 5; // DEPRECATED: Use start_page and end_page
   optional string color = 6;
   optional double position_x = 7;
   optional double position_y = 8;
@@ -488,6 +494,9 @@ message UpdateBeatRequest {
   optional double height = 10;
   optional int32 act_number = 11;
   optional int32 order = 12;
+  optional int32 start_page = 13;
+  optional int32 end_page = 14;
+  optional string image_url = 15;
 }
 
 message UpdateBeatResponse {

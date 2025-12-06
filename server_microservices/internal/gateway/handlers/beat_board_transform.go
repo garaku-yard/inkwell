@@ -13,13 +13,15 @@ type BeatResponse struct {
 	ProjectID    string           `json:"projectId"`
 	Title        string           `json:"title"`
 	Description  string           `json:"description"`
-	SceneNumbers string           `json:"sceneNumbers"`
+	SceneNumbers string           `json:"sceneNumbers"` // DEPRECATED: Use startPage/endPage
 	Color        string           `json:"color"`
 	Position     PositionResponse `json:"position"`
 	Width        float64          `json:"width"`
 	Height       float64          `json:"height"`
 	Act          int32            `json:"act"`
 	Order        int32            `json:"order"`
+	StartPage    int32            `json:"startPage"`
+	EndPage      int32            `json:"endPage"`
 	CreatedAt    string           `json:"createdAt,omitempty"`
 	UpdatedAt    string           `json:"updatedAt,omitempty"`
 }
@@ -53,7 +55,7 @@ type OutlineItemResponse struct {
 	ProjectID   string  `json:"projectId"`
 	BeatID      string  `json:"beatId"`
 	LaneID      string  `json:"laneId"`
-	TimelinePos float64 `json:"timelinePos"`
+	TimelinePos float64 `json:"timelinePosition"`
 	Width       float64 `json:"width"`
 	Order       int32   `json:"order"`
 }
@@ -91,10 +93,12 @@ func transformBeat(beat *scriptspb.Beat) *BeatResponse {
 			X: beat.PositionX,
 			Y: beat.PositionY,
 		},
-		Width:  beat.Width,
-		Height: beat.Height,
-		Act:    beat.ActNumber,
-		Order:  beat.Order,
+		Width:     beat.Width,
+		Height:    beat.Height,
+		Act:       beat.ActNumber,
+		Order:     beat.Order,
+		StartPage: beat.StartPage,
+		EndPage:   beat.EndPage,
 	}
 
 	if beat.CreatedAt != nil {

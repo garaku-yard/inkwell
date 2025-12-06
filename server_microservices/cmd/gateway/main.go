@@ -38,8 +38,8 @@ func main() {
 	server := &http.Server{
 		Addr:         fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
 		Handler:      handler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  60 * time.Second, // Increased for large image uploads
+		WriteTimeout: 60 * time.Second, // Increased for large image uploads
 		IdleTimeout:  60 * time.Second,
 	}
 

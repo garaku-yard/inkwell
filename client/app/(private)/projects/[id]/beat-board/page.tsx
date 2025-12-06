@@ -4,12 +4,10 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useDebouncedCallback } from "use-debounce"
-import { ArrowLeft, Plus, Loader2, LayoutGrid } from "lucide-react"
+import { ArrowLeft, Loader2, LayoutGrid } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
 import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLanes";
 import { BeatCanvas } from "@/components/beat-board/BeatCanvas";
 
@@ -33,7 +31,6 @@ export default function BeatBoardPage() {
   const params = useParams()
   const projectId = params.id as string
 
-  const [isAddingBeat, setIsAddingBeat] = useState(false)
   const [editingField, setEditingField] = useState<{ beatId: string; field: keyof Beat } | null>(null)
   const [draggedBeat, setDraggedBeat] = useState<string | null>(null)
   const [movingBeatId, setMovingBeatId] = useState<string | null>(null);
@@ -47,8 +44,6 @@ export default function BeatBoardPage() {
   const [colorPickerOpen, setColorPickerOpen] = useState<string | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
   const [hoveredLane, setHoveredLane] = useState<string | null>(null)
-  const [newBeat, setNewBeat] = useState({ title: "", description: "", color: "#fef3c7" })
-  const [newBeatPosition, setNewBeatPosition] = useState<{ x: number; y: number } | null>(null)
   const [draggedLaneItem, setDraggedLaneItem] = useState<string | null>(null)
   const [draggedLaneId, setDraggedLaneId] = useState<string | null>(null);
 
@@ -94,17 +89,24 @@ export default function BeatBoardPage() {
 
   const snapToGrid = (value: number) => Math.round(value / 20) * 20;
 
-  const handleAddBeat = () => {
-    if (!newBeat.title.trim()) return;
-    // Use the double-click position if available, otherwise offset based on beat count
-    const position = newBeatPosition || { x: 100 + beats.length * 20, y: 100 + beats.length * 20 };
-    const beatData: Partial<Beat> = { ...newBeat, position, width: 250, height: 150, act: 1, order: beats.length };
+  const handleAddBeat = (position: { x: number; y: number }) => {
+    // Create beat with default values - user will fill in details from the card
+    const beatData: Partial<Beat> = { 
+      title: "New Beat",
+      description: "",
+      startPage: 1,
+      endPage: 1,
+      sceneNumbers: "Pg. 1",
+      color: "#fef3c7",
+      position, 
+      width: 250, 
+      height: 150, 
+      act: 1, 
+      order: beats.length 
+    };
     createBeat(projectId, beatData)
       .then(createdBeat => { 
         setBeats([...beats, createdBeat]); 
-        setNewBeat({ title: "", description: "", color: "#fef3c7" }); 
-        setNewBeatPosition(null);
-        setIsAddingBeat(false); 
       })
       .catch(err => console.error('Failed to create beat:', err));
   };
@@ -334,8 +336,68 @@ export default function BeatBoardPage() {
       const x = snapToGrid(e.clientX - rect.left + (boardRef.current?.scrollLeft || 0));
       const y = snapToGrid(e.clientY - rect.top + (boardRef.current?.scrollTop || 0));
       
-      setNewBeatPosition({ x, y });
-      setIsAddingBeat(true);
+      // Create beat directly without dialog
+      handleAddBeat({ x, y });
+    }
+  };
+
+  const handleImageDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    
+    const files = Array.from(e.dataTransfer.files);
+    const imageFile = files.find(file => file.type.startsWith('image/'));
+    
+    if (imageFile) {
+      const rect = boardRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const x = snapToGrid(e.clientX - rect.left + (boardRef.current?.scrollLeft || 0));
+      const y = snapToGrid(e.clientY - rect.top + (boardRef.current?.scrollTop || 0));
+      
+      try {
+        console.log('Starting image upload:', imageFile.name, imageFile.size, 'bytes');
+        
+        // Upload image first
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        
+        const uploadStart = Date.now();
+        const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/beats/upload-image`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          },
+          body: formData,
+        });
+        console.log('Upload completed in', Date.now() - uploadStart, 'ms');
+        
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload image');
+        }
+        
+        const { imageUrl } = await uploadResponse.json();
+        
+        // Create beat with uploaded image path
+        const beatData: Partial<Beat> = { 
+          title: "New Image Beat",
+          description: "",
+          startPage: 1,
+          endPage: 1,
+          sceneNumbers: "Pg. 1",
+          color: "#ffffff",
+          imageUrl: imageUrl,
+          position: { x, y }, 
+          width: 250, 
+          height: 250, 
+          act: 1, 
+          order: beats.length 
+        };
+        
+        const createdBeat = await createBeat(projectId, beatData);
+        setBeats([...beats, createdBeat]);
+      } catch (err) {
+        console.error('Failed to create beat with image:', err);
+      }
     }
   };
 
@@ -357,7 +419,6 @@ export default function BeatBoardPage() {
             <div className="h-6 w-px bg-gray-200" />
             <h1 className="text-xl font-semibold text-gray-900">{project?.title || 'Beat Board'}</h1>
           </div>
-          <Button onClick={() => setIsAddingBeat(true)}><Plus className="h-4 w-4 mr-2" />New Beat</Button>
         </div>
         <StoryLanes
           onAddLane={handleAddLane}
@@ -396,17 +457,8 @@ export default function BeatBoardPage() {
         isConnecting={isConnecting}
         connectionStart={connectionStart}
         onBoardDoubleClick={handleBoardDoubleClick}
+        onImageDrop={handleImageDrop}
       />
-      <Dialog open={isAddingBeat} onOpenChange={(open) => { setIsAddingBeat(open); if (!open) setNewBeatPosition(null); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Add New Beat</DialogTitle></DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="title" className="text-right">Title</Label><Input id="title" value={newBeat.title} onChange={(e) => setNewBeat({ ...newBeat, title: e.target.value })} className="col-span-3" placeholder="A brief, active title" /></div>
-            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="description" className="text-right">Description</Label><Textarea id="description" value={newBeat.description} onChange={(e) => setNewBeat({ ...newBeat, description: e.target.value })} className="col-span-3" placeholder="What happens in this beat?" /></div>
-          </div>
-          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => { setIsAddingBeat(false); setNewBeatPosition(null); }}>Cancel</Button><Button onClick={handleAddBeat}>Add Beat</Button></div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

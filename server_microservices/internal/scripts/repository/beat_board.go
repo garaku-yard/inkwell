@@ -22,14 +22,14 @@ func NewBeatRepository(db *sql.DB) BeatRepository {
 func (r *beatRepository) CreateBeat(ctx context.Context, beat *domain.Beat) error {
 	query := `
 		INSERT INTO beats (beat_id, project_id, title, description, scene_numbers, color, 
-			position_x, position_y, width, height, act_number, beat_order)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			position_x, position_y, width, height, act_number, beat_order, start_page, end_page)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING created_at, updated_at`
 
 	err := r.db.QueryRowContext(ctx, query,
 		beat.ID, beat.ProjectID, beat.Title, beat.Description, beat.SceneNumbers,
 		beat.Color, beat.PositionX, beat.PositionY, beat.Width, beat.Height,
-		beat.ActNumber, beat.Order,
+		beat.ActNumber, beat.Order, beat.StartPage, beat.EndPage,
 	).Scan(&beat.CreatedAt, &beat.UpdatedAt)
 
 	if err != nil {
@@ -42,14 +42,15 @@ func (r *beatRepository) GetBeat(ctx context.Context, beatID uuid.UUID) (*domain
 	query := `
 		SELECT beat_id, project_id, title, description, scene_numbers, color,
 			position_x, position_y, width, height, act_number, beat_order,
-			created_at, updated_at
+			start_page, end_page, image_url, created_at, updated_at
 		FROM beats WHERE beat_id = $1`
 
 	beat := &domain.Beat{}
 	err := r.db.QueryRowContext(ctx, query, beatID).Scan(
 		&beat.ID, &beat.ProjectID, &beat.Title, &beat.Description, &beat.SceneNumbers,
 		&beat.Color, &beat.PositionX, &beat.PositionY, &beat.Width, &beat.Height,
-		&beat.ActNumber, &beat.Order, &beat.CreatedAt, &beat.UpdatedAt,
+		&beat.ActNumber, &beat.Order, &beat.StartPage, &beat.EndPage, &beat.ImageURL,
+		&beat.CreatedAt, &beat.UpdatedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -65,7 +66,7 @@ func (r *beatRepository) GetProjectBeats(ctx context.Context, projectID uuid.UUI
 	query := `
 		SELECT beat_id, project_id, title, description, scene_numbers, color,
 			position_x, position_y, width, height, act_number, beat_order,
-			created_at, updated_at
+			start_page, end_page, image_url, created_at, updated_at
 		FROM beats 
 		WHERE project_id = $1
 		ORDER BY beat_order, created_at`
@@ -82,7 +83,8 @@ func (r *beatRepository) GetProjectBeats(ctx context.Context, projectID uuid.UUI
 		err := rows.Scan(
 			&beat.ID, &beat.ProjectID, &beat.Title, &beat.Description, &beat.SceneNumbers,
 			&beat.Color, &beat.PositionX, &beat.PositionY, &beat.Width, &beat.Height,
-			&beat.ActNumber, &beat.Order, &beat.CreatedAt, &beat.UpdatedAt,
+			&beat.ActNumber, &beat.Order, &beat.StartPage, &beat.EndPage, &beat.ImageURL,
+			&beat.CreatedAt, &beat.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan beat: %w", err)
@@ -97,13 +99,14 @@ func (r *beatRepository) UpdateBeat(ctx context.Context, beat *domain.Beat) erro
 		UPDATE beats SET
 			title = $1, description = $2, scene_numbers = $3, color = $4,
 			position_x = $5, position_y = $6, width = $7, height = $8,
-			act_number = $9, beat_order = $10, updated_at = NOW()
-		WHERE beat_id = $11`
+			act_number = $9, beat_order = $10, start_page = $11, end_page = $12,
+			image_url = $13, updated_at = NOW()
+		WHERE beat_id = $14`
 
 	result, err := r.db.ExecContext(ctx, query,
 		beat.Title, beat.Description, beat.SceneNumbers, beat.Color,
 		beat.PositionX, beat.PositionY, beat.Width, beat.Height,
-		beat.ActNumber, beat.Order, beat.ID,
+		beat.ActNumber, beat.Order, beat.StartPage, beat.EndPage, beat.ImageURL, beat.ID,
 	)
 
 	if err != nil {

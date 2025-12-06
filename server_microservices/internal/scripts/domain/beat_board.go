@@ -12,7 +12,7 @@ type Beat struct {
 	ProjectID    uuid.UUID `json:"projectId" db:"project_id"`
 	Title        string    `json:"title" db:"title"`
 	Description  string    `json:"description" db:"description"`
-	SceneNumbers string    `json:"sceneNumbers" db:"scene_numbers"`
+	SceneNumbers string    `json:"sceneNumbers" db:"scene_numbers"` // DEPRECATED: Use StartPage and EndPage
 	Color        string    `json:"color" db:"color"`
 	PositionX    int32     `json:"position_x" db:"position_x"`
 	PositionY    int32     `json:"position_y" db:"position_y"`
@@ -20,6 +20,9 @@ type Beat struct {
 	Height       int32     `json:"height" db:"height"`
 	ActNumber    int32     `json:"act" db:"act_number"`
 	Order        int32     `json:"order" db:"beat_order"`
+	StartPage    int32     `json:"startPage" db:"start_page"`
+	EndPage      int32     `json:"endPage" db:"end_page"`
+	ImageURL     *string   `json:"imageUrl,omitempty" db:"image_url"`
 	CreatedAt    time.Time `json:"createdAt" db:"created_at"`
 	UpdatedAt    time.Time `json:"updatedAt" db:"updated_at"`
 }

@@ -32,6 +32,7 @@ interface BeatCanvasProps {
   isConnecting: boolean;
   connectionStart: { beatId: string; side: ConnectionSide } | null;
   onBoardDoubleClick: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onImageDrop: (e: React.DragEvent<HTMLDivElement>) => void;
 }
 
 const GRID_SIZE = 20;
@@ -84,13 +85,19 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
         backgroundColor: "#f9fafb",
       }}
       onDoubleClick={props.onBoardDoubleClick}
+      onDrop={props.onImageDrop}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault();
+        }
+      }}
     >
       {!isLoading && beats.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center text-gray-500 p-8 rounded-lg bg-white/50 backdrop-blur-sm">
             <ClipboardList className="h-12 w-12 mx-auto text-gray-400" />
             <h2 className="mt-4 text-lg font-medium text-gray-800">Your Beat Board is Empty</h2>
-            <p className="mt-1 text-sm text-gray-600">Click "New Beat" or double-click anywhere to create a beat.</p>
+            <p className="mt-1 text-sm text-gray-600">Double-click to create a beat or drop an image to create a visual beat.</p>
           </div>
         </div>
       )}
