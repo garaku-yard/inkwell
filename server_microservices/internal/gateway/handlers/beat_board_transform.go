@@ -22,6 +22,7 @@ type BeatResponse struct {
 	Order        int32            `json:"order"`
 	StartPage    int32            `json:"startPage"`
 	EndPage      int32            `json:"endPage"`
+	ImageUrl     *string          `json:"imageUrl,omitempty"`
 	CreatedAt    string           `json:"createdAt,omitempty"`
 	UpdatedAt    string           `json:"updatedAt,omitempty"`
 }
@@ -99,6 +100,7 @@ func transformBeat(beat *scriptspb.Beat) *BeatResponse {
 		Order:     beat.Order,
 		StartPage: beat.StartPage,
 		EndPage:   beat.EndPage,
+		ImageUrl:  beat.ImageUrl,
 	}
 
 	if beat.CreatedAt != nil {

@@ -25,6 +25,7 @@ interface BeatCanvasProps {
   setColorPickerOpen: (id: string | null) => void;
   handleChangeColor: (beatId: string, color: string) => void;
   handleDeleteBeat: (beatId: string) => void;
+  handleUploadImage: (beatId: string) => void;
   handleConnectionStart: (e: React.MouseEvent, beatId: string, side: ConnectionSide) => void;
   handleConnectionEnd: (beatId: string, side: ConnectionSide) => void;
   handleDeleteConnection: (connectionId: string) => void;
@@ -87,9 +88,7 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
       onDoubleClick={props.onBoardDoubleClick}
       onDrop={props.onImageDrop}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes('Files')) {
-          e.preventDefault();
-        }
+        e.preventDefault();
       }}
     >
       {!isLoading && beats.length === 0 && (

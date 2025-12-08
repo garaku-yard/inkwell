@@ -22,14 +22,14 @@ func NewBeatRepository(db *sql.DB) BeatRepository {
 func (r *beatRepository) CreateBeat(ctx context.Context, beat *domain.Beat) error {
 	query := `
 		INSERT INTO beats (beat_id, project_id, title, description, scene_numbers, color, 
-			position_x, position_y, width, height, act_number, beat_order, start_page, end_page)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			position_x, position_y, width, height, act_number, beat_order, start_page, end_page, image_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING created_at, updated_at`
 
 	err := r.db.QueryRowContext(ctx, query,
 		beat.ID, beat.ProjectID, beat.Title, beat.Description, beat.SceneNumbers,
 		beat.Color, beat.PositionX, beat.PositionY, beat.Width, beat.Height,
-		beat.ActNumber, beat.Order, beat.StartPage, beat.EndPage,
+		beat.ActNumber, beat.Order, beat.StartPage, beat.EndPage, beat.ImageURL,
 	).Scan(&beat.CreatedAt, &beat.UpdatedAt)
 
 	if err != nil {

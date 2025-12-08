@@ -341,6 +341,102 @@ export default function BeatBoardPage() {
     }
   };
 
+  // Compress image before upload
+  const compressImage = async (file: File, maxWidth: number = 1024, maxHeight: number = 1024, quality: number = 0.8): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Calculate new dimensions
+          if (width > height) {
+            if (width > maxWidth) {
+              height = height * (maxWidth / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = width * (maxHeight / height);
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('Failed to compress image'));
+          }, 'image/jpeg', quality);
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Upload image to server
+  const uploadImage = async (file: File): Promise<string> => {
+    console.log('Original image size:', file.size, 'bytes');
+    
+    // Compress image first
+    const compressedBlob = await compressImage(file);
+    console.log('Compressed image size:', compressedBlob.size, 'bytes');
+    
+    const formData = new FormData();
+    formData.append('image', compressedBlob, file.name);
+    
+    const uploadStart = Date.now();
+    const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/beats/upload-image`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+      },
+      body: formData,
+    });
+    console.log('Upload completed in', Date.now() - uploadStart, 'ms');
+    
+    if (!uploadResponse.ok) {
+      throw new Error('Failed to upload image');
+    }
+    
+    const { imageUrl } = await uploadResponse.json();
+    console.log('Uploaded image URL:', imageUrl);
+    return imageUrl;
+  };
+
+  // Handle image upload for existing beat
+  const handleUploadImageForBeat = (beatId: string) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        try {
+          const imageUrl = await uploadImage(file);
+          console.log('Updating beat', beatId, 'with imageUrl:', imageUrl);
+          // Update local state
+          setBeats(beats.map(b => b.id === beatId ? { ...b, imageUrl } : b));
+          // Save to database immediately (not debounced)
+          const updatedBeat = await updateBeat(beatId, { imageUrl });
+          console.log('Beat updated, response:', updatedBeat);
+        } catch (err) {
+          console.error('Failed to upload image:', err);
+        }
+      }
+    };
+    input.click();
+  };
+
   const handleImageDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     
@@ -355,27 +451,8 @@ export default function BeatBoardPage() {
       const y = snapToGrid(e.clientY - rect.top + (boardRef.current?.scrollTop || 0));
       
       try {
-        console.log('Starting image upload:', imageFile.name, imageFile.size, 'bytes');
-        
-        // Upload image first
-        const formData = new FormData();
-        formData.append('image', imageFile);
-        
-        const uploadStart = Date.now();
-        const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/beats/upload-image`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          },
-          body: formData,
-        });
-        console.log('Upload completed in', Date.now() - uploadStart, 'ms');
-        
-        if (!uploadResponse.ok) {
-          throw new Error('Failed to upload image');
-        }
-        
-        const { imageUrl } = await uploadResponse.json();
+        const imageUrl = await uploadImage(imageFile);
+        console.log('Creating beat with imageUrl:', imageUrl);
         
         // Create beat with uploaded image path
         const beatData: Partial<Beat> = { 
@@ -394,6 +471,7 @@ export default function BeatBoardPage() {
         };
         
         const createdBeat = await createBeat(projectId, beatData);
+        console.log('Beat created, response:', createdBeat);
         setBeats([...beats, createdBeat]);
       } catch (err) {
         console.error('Failed to create beat with image:', err);
@@ -450,6 +528,7 @@ export default function BeatBoardPage() {
         setColorPickerOpen={setColorPickerOpen}
         handleChangeColor={handleChangeColor}
         handleDeleteBeat={handleDeleteBeat}
+        handleUploadImage={handleUploadImageForBeat}
         handleConnectionStart={handleConnectionStart}
         handleConnectionEnd={handleConnectionEnd}
         handleDeleteConnection={deleteConnection}

@@ -191,6 +191,15 @@ func (s *beatBoardService) UpdateBeat(ctx context.Context, beatID, userID uuid.U
 	if updates.Order != 0 {
 		beat.Order = updates.Order
 	}
+	if updates.StartPage != 0 {
+		beat.StartPage = updates.StartPage
+	}
+	if updates.EndPage != 0 {
+		beat.EndPage = updates.EndPage
+	}
+	if updates.ImageURL != nil {
+		beat.ImageURL = updates.ImageURL
+	}
 
 	if err := s.repo.Beat.UpdateBeat(ctx, beat); err != nil {
 		return nil, fmt.Errorf("failed to update beat: %w", err)

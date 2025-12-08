@@ -5,7 +5,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { MoreHorizontal, Trash2, GripHorizontal } from "lucide-react"
+import { MoreHorizontal, Trash2, GripHorizontal, Upload } from "lucide-react"
 import type { Beat } from "@/services/beat"
 
 const PRESET_COLORS = [
@@ -30,6 +30,7 @@ interface BeatCardProps {
   setColorPickerOpen: (id: string | null) => void;
   handleChangeColor: (beatId: string, color: string) => void;
   handleDeleteBeat: (beatId: string) => void;
+  handleUploadImage: (beatId: string) => void;
   children: React.ReactNode;
 }
 
@@ -37,7 +38,7 @@ export function BeatCard({
   beat, editingField, colorPickerOpen, draggedBeat, movingBeatId, isResizing,
   onMouseDownOnBeat, onDragStartOnBeat, onDragEndOnBeat, onResizeMouseDown,
   handleFieldChange, handleDoubleClick, handleFieldBlur, setColorPickerOpen,
-  handleChangeColor, handleDeleteBeat, children
+  handleChangeColor, handleDeleteBeat, handleUploadImage, children
 }: BeatCardProps) {
 
   return (
@@ -109,7 +110,16 @@ export function BeatCard({
           </Popover>
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-            <DropdownMenuContent align="end"><DropdownMenuItem onClick={() => handleDeleteBeat(beat.id)} className="text-red-600 focus:text-red-600 focus:bg-red-50"><Trash2 className="h-4 w-4 mr-2" />Delete Beat</DropdownMenuItem></DropdownMenuContent>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleUploadImage(beat.id)}>
+                <Upload className="h-4 w-4 mr-2" />
+                {beat.imageUrl ? 'Change Image' : 'Upload Image'}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDeleteBeat(beat.id)} className="text-red-600 focus:text-red-600 focus:bg-red-50">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Beat
+              </DropdownMenuItem>
+            </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>

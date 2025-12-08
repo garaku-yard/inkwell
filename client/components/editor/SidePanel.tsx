@@ -69,7 +69,7 @@ export const SidePanel = React.memo(
         } finally {
           setCommentsLoading(false)
         }
-      })
+      };
 
       const getElementIcon = (elementType: ScriptElement["element_type"]) => {
         const config = SCRIPT_ELEMENT_CONFIG[elementType]

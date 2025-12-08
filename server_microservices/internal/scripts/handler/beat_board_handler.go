@@ -56,6 +56,9 @@ func (h *BeatBoardHandler) CreateBeat(ctx context.Context, req *scriptspb.Create
 		Height:       int32(req.Height),
 		ActNumber:    req.ActNumber,
 		Order:        req.Order,
+		StartPage:    req.StartPage,
+		EndPage:      req.EndPage,
+		ImageURL:     req.ImageUrl,
 	}
 
 	created, err := h.service.CreateBeat(ctx, projectID, userID, beat)
@@ -175,6 +178,15 @@ func (h *BeatBoardHandler) UpdateBeat(ctx context.Context, req *scriptspb.Update
 	}
 	if req.Order != nil {
 		updates.Order = *req.Order
+	}
+	if req.StartPage != nil {
+		updates.StartPage = *req.StartPage
+	}
+	if req.EndPage != nil {
+		updates.EndPage = *req.EndPage
+	}
+	if req.ImageUrl != nil {
+		updates.ImageURL = req.ImageUrl
 	}
 
 	updated, err := h.service.UpdateBeat(ctx, beatID, userID, updates)
@@ -597,6 +609,9 @@ func convertBeatToProto(beat *domain.Beat) *scriptspb.Beat {
 		Height:       float64(beat.Height),
 		ActNumber:    beat.ActNumber,
 		Order:        beat.Order,
+		StartPage:    beat.StartPage,
+		EndPage:      beat.EndPage,
+		ImageUrl:     beat.ImageURL,
 		CreatedAt:    convertTimestampToProto(beat.CreatedAt),
 		UpdatedAt:    convertTimestampToProto(beat.UpdatedAt),
 	}

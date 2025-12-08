@@ -101,6 +101,11 @@ func isPublicEndpoint(path string) bool {
 		}
 	}
 
+	// Allow access to uploaded files without authentication
+	if strings.HasPrefix(path, "/uploads/") {
+		return true
+	}
+
 	return false
 }
 
