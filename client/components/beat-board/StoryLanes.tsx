@@ -136,7 +136,7 @@ export function StoryLanes({
   }, [resizingItem, slidingItem, handleMouseMove, handleMouseUp]);
 
   return (
-    <div className="border-b border-gray-200 bg-gray-50">
+    <div className="bg-gray-50">
       <div className="px-6 py-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Ruler className="h-4 w-4 text-gray-600" />

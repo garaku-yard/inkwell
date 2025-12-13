@@ -269,7 +269,20 @@ export default function BeatBoardPage() {
 
   const handleFieldChange = (beatId: string, field: keyof Beat, value: any) => {
     setBeats(prevBeats => {
-      const updatedBeats = prevBeats.map(beat => beat.id === beatId ? { ...beat, [field]: value } : beat);
+      const updatedBeats = prevBeats.map(beat => {
+        if (beat.id !== beatId) return beat;
+        
+        let updatedBeat = { ...beat, [field]: value };
+        
+        // Ensure endPage is never less than startPage
+        if (field === 'startPage' && updatedBeat.endPage && value > updatedBeat.endPage) {
+          updatedBeat.endPage = value;
+        } else if (field === 'endPage' && updatedBeat.startPage && value < updatedBeat.startPage) {
+          updatedBeat.startPage = value;
+        }
+        
+        return updatedBeat;
+      });
       
       // Sync timeline position when pages change
       if (field === 'startPage' || field === 'endPage') {
@@ -294,7 +307,21 @@ export default function BeatBoardPage() {
       
       return updatedBeats;
     });
-    debouncedUpdateBeat(beatId, { [field]: value });
+    
+    // Update the beat with validated values
+    const validatedBeat = beats.find(b => b.id === beatId);
+    if (validatedBeat) {
+      let updateData: Partial<Beat> = { [field]: value };
+      
+      // Include corrected endPage/startPage if needed
+      if (field === 'startPage' && validatedBeat.endPage && value > validatedBeat.endPage) {
+        updateData.endPage = value;
+      } else if (field === 'endPage' && validatedBeat.startPage && value < validatedBeat.startPage) {
+        updateData.startPage = value;
+      }
+      
+      debouncedUpdateBeat(beatId, updateData);
+    }
   };
 
   const handleChangeColor = (beatId: string, color: string) => {

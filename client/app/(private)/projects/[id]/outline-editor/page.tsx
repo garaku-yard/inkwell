@@ -9,7 +9,6 @@ import { useDebouncedCallback } from 'use-debounce';
 
 import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLanes";
 import { OutlineDocument } from '@/components/outline-editor/OutlineDocument';
-import { OutlineCardView } from '@/components/outline-editor/OutlineCardView';
 
 import { getProjectByIdLegacy, type FullProject } from "@/services/project";
 import { getBeatBoardForProject, updateBeat, type Beat } from '@/services/beat';
@@ -112,7 +111,8 @@ export default function OutlineEditorPage() {
   const transformedStructure = useMemo((): StructureElement[] => {
     if (lanes.length === 0 || beats.length === 0 || outlineItems.length === 0) return [];
     const beatMap = new Map(beats.map(beat => [beat.id, beat]));
-    const laneOrderMap = new Map(lanes.map((lane, index) => [lane.id, index]));
+    // Map lane ID to its order property (which represents the level)
+    const laneOrderMap = new Map(lanes.map(lane => [lane.id, lane.order]));
     const allItems: StructureElement[] = outlineItems.map(item => {
       const beat = beatMap.get(item.beatId);
       // Use the proper startPage/endPage fields, fallback to parsing sceneNumbers for backwards compatibility
@@ -139,27 +139,31 @@ export default function OutlineEditorPage() {
     }).filter(item => (item.laneLevel ?? -1) !== -1 && item.startPage > 0).sort((a, b) => a.startPage - b.startPage);
 
     const buildHierarchy = (parents: StructureElement[], potentialChildren: StructureElement[]): StructureElement[] => {
-      let availableChildren = [...potentialChildren];
+      // Collect all assigned children across all parents
+      const assignedChildIds = new Set<string>();
 
-      // First pass: Assign direct children to each parent from the available pool.
+      // Assign children to each parent
       for (const parent of parents) {
-        const directChildren = availableChildren.filter(child =>
-          (child.laneLevel ?? -1) === (parent.laneLevel ?? -1) + 1 &&
-          child.startPage >= parent.startPage &&
+        const directChildren = potentialChildren.filter(child =>
+          !assignedChildIds.has(child.id) && // Not already assigned
+          (child.laneLevel ?? -1) === (parent.laneLevel ?? -1) + 1 && // Immediate child level
+          child.startPage >= parent.startPage && // Within parent's page range
           child.endPage <= parent.endPage
         );
 
         parent.children = directChildren;
 
-        // Remove assigned children from the pool so they can't be parented by a sibling.
-        availableChildren = availableChildren.filter(child => !directChildren.some(dc => dc.id === child.id));
+        // Mark these children as assigned
+        directChildren.forEach(child => assignedChildIds.add(child.id));
       }
 
-      // Second pass: Recurse for each parent's newly assigned children.
+      // Get remaining children for grandchildren recursion
+      const remainingChildren = potentialChildren.filter(child => !assignedChildIds.has(child.id));
+
+      // Recurse for each parent's children
       for (const parent of parents) {
         if (parent.children.length > 0) {
-          // The pool for the grandchildren is what remains after all parents at this level have claimed their children.
-          buildHierarchy(parent.children, availableChildren);
+          buildHierarchy(parent.children, remainingChildren);
         }
       }
 
@@ -412,6 +416,7 @@ export default function OutlineEditorPage() {
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Timeline */}
         <StoryLanes
           lanes={lanes}
           beats={beats}
@@ -432,11 +437,12 @@ export default function OutlineEditorPage() {
           onUpdateOutlineItem={handleUpdateOutlineItem}
           onDeleteOutlineItem={handleDeleteOutlineItem}
           onItemHover={setActiveElementId}
+          totalPages={120}
         />
-        <OutlineCardView
-          lanes={lanes}
-          beats={beats}
-          outlineItems={outlineItems}
+
+        {/* Outline Document */}
+        <OutlineDocument
+          structure={transformedStructure}
           activeElementId={activeElementId}
           onElementSelect={setActiveElementId}
         />
