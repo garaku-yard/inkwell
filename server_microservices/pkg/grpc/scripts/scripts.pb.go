@@ -4069,6 +4069,111 @@ func (x *BulkUpdateScriptElementsResponse) GetUpdatedElements() []*ScriptElement
 	return nil
 }
 
+// Batch create elements for imports
+type BatchCreateElementsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Elements      []*ScriptElement       `protobuf:"bytes,3,rep,name=elements,proto3" json:"elements,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchCreateElementsRequest) Reset() {
+	*x = BatchCreateElementsRequest{}
+	mi := &file_scripts_scripts_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchCreateElementsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchCreateElementsRequest) ProtoMessage() {}
+
+func (x *BatchCreateElementsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_scripts_scripts_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchCreateElementsRequest.ProtoReflect.Descriptor instead.
+func (*BatchCreateElementsRequest) Descriptor() ([]byte, []int) {
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *BatchCreateElementsRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *BatchCreateElementsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *BatchCreateElementsRequest) GetElements() []*ScriptElement {
+	if x != nil {
+		return x.Elements
+	}
+	return nil
+}
+
+type BatchCreateElementsResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	CreatedElements []*ScriptElement       `protobuf:"bytes,1,rep,name=created_elements,json=createdElements,proto3" json:"created_elements,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *BatchCreateElementsResponse) Reset() {
+	*x = BatchCreateElementsResponse{}
+	mi := &file_scripts_scripts_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchCreateElementsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchCreateElementsResponse) ProtoMessage() {}
+
+func (x *BatchCreateElementsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_scripts_scripts_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchCreateElementsResponse.ProtoReflect.Descriptor instead.
+func (*BatchCreateElementsResponse) Descriptor() ([]byte, []int) {
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *BatchCreateElementsResponse) GetCreatedElements() []*ScriptElement {
+	if x != nil {
+		return x.CreatedElements
+	}
+	return nil
+}
+
 // Beat Board requests/responses
 type CreateBeatRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -4093,7 +4198,7 @@ type CreateBeatRequest struct {
 
 func (x *CreateBeatRequest) Reset() {
 	*x = CreateBeatRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[60]
+	mi := &file_scripts_scripts_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4105,7 +4210,7 @@ func (x *CreateBeatRequest) String() string {
 func (*CreateBeatRequest) ProtoMessage() {}
 
 func (x *CreateBeatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[60]
+	mi := &file_scripts_scripts_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4118,7 +4223,7 @@ func (x *CreateBeatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateBeatRequest.ProtoReflect.Descriptor instead.
 func (*CreateBeatRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{60}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *CreateBeatRequest) GetProjectId() string {
@@ -4235,7 +4340,7 @@ type CreateBeatResponse struct {
 
 func (x *CreateBeatResponse) Reset() {
 	*x = CreateBeatResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[61]
+	mi := &file_scripts_scripts_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4247,7 +4352,7 @@ func (x *CreateBeatResponse) String() string {
 func (*CreateBeatResponse) ProtoMessage() {}
 
 func (x *CreateBeatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[61]
+	mi := &file_scripts_scripts_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4260,7 +4365,7 @@ func (x *CreateBeatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateBeatResponse.ProtoReflect.Descriptor instead.
 func (*CreateBeatResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{61}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *CreateBeatResponse) GetBeat() *Beat {
@@ -4280,7 +4385,7 @@ type GetBeatRequest struct {
 
 func (x *GetBeatRequest) Reset() {
 	*x = GetBeatRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[62]
+	mi := &file_scripts_scripts_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4292,7 +4397,7 @@ func (x *GetBeatRequest) String() string {
 func (*GetBeatRequest) ProtoMessage() {}
 
 func (x *GetBeatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[62]
+	mi := &file_scripts_scripts_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4305,7 +4410,7 @@ func (x *GetBeatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBeatRequest.ProtoReflect.Descriptor instead.
 func (*GetBeatRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{62}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *GetBeatRequest) GetBeatId() string {
@@ -4331,7 +4436,7 @@ type GetBeatResponse struct {
 
 func (x *GetBeatResponse) Reset() {
 	*x = GetBeatResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[63]
+	mi := &file_scripts_scripts_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4343,7 +4448,7 @@ func (x *GetBeatResponse) String() string {
 func (*GetBeatResponse) ProtoMessage() {}
 
 func (x *GetBeatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[63]
+	mi := &file_scripts_scripts_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4356,7 +4461,7 @@ func (x *GetBeatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBeatResponse.ProtoReflect.Descriptor instead.
 func (*GetBeatResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{63}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *GetBeatResponse) GetBeat() *Beat {
@@ -4376,7 +4481,7 @@ type GetProjectBeatBoardRequest struct {
 
 func (x *GetProjectBeatBoardRequest) Reset() {
 	*x = GetProjectBeatBoardRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[64]
+	mi := &file_scripts_scripts_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4388,7 +4493,7 @@ func (x *GetProjectBeatBoardRequest) String() string {
 func (*GetProjectBeatBoardRequest) ProtoMessage() {}
 
 func (x *GetProjectBeatBoardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[64]
+	mi := &file_scripts_scripts_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4401,7 +4506,7 @@ func (x *GetProjectBeatBoardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectBeatBoardRequest.ProtoReflect.Descriptor instead.
 func (*GetProjectBeatBoardRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{64}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *GetProjectBeatBoardRequest) GetProjectId() string {
@@ -4427,7 +4532,7 @@ type GetProjectBeatBoardResponse struct {
 
 func (x *GetProjectBeatBoardResponse) Reset() {
 	*x = GetProjectBeatBoardResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[65]
+	mi := &file_scripts_scripts_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4439,7 +4544,7 @@ func (x *GetProjectBeatBoardResponse) String() string {
 func (*GetProjectBeatBoardResponse) ProtoMessage() {}
 
 func (x *GetProjectBeatBoardResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[65]
+	mi := &file_scripts_scripts_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4452,7 +4557,7 @@ func (x *GetProjectBeatBoardResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectBeatBoardResponse.ProtoReflect.Descriptor instead.
 func (*GetProjectBeatBoardResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{65}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *GetProjectBeatBoardResponse) GetBeatBoard() *BeatBoardData {
@@ -4485,7 +4590,7 @@ type UpdateBeatRequest struct {
 
 func (x *UpdateBeatRequest) Reset() {
 	*x = UpdateBeatRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[66]
+	mi := &file_scripts_scripts_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4497,7 +4602,7 @@ func (x *UpdateBeatRequest) String() string {
 func (*UpdateBeatRequest) ProtoMessage() {}
 
 func (x *UpdateBeatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[66]
+	mi := &file_scripts_scripts_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4510,7 +4615,7 @@ func (x *UpdateBeatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateBeatRequest.ProtoReflect.Descriptor instead.
 func (*UpdateBeatRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{66}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *UpdateBeatRequest) GetBeatId() string {
@@ -4627,7 +4732,7 @@ type UpdateBeatResponse struct {
 
 func (x *UpdateBeatResponse) Reset() {
 	*x = UpdateBeatResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[67]
+	mi := &file_scripts_scripts_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4639,7 +4744,7 @@ func (x *UpdateBeatResponse) String() string {
 func (*UpdateBeatResponse) ProtoMessage() {}
 
 func (x *UpdateBeatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[67]
+	mi := &file_scripts_scripts_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4652,7 +4757,7 @@ func (x *UpdateBeatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateBeatResponse.ProtoReflect.Descriptor instead.
 func (*UpdateBeatResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{67}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *UpdateBeatResponse) GetBeat() *Beat {
@@ -4672,7 +4777,7 @@ type DeleteBeatRequest struct {
 
 func (x *DeleteBeatRequest) Reset() {
 	*x = DeleteBeatRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[68]
+	mi := &file_scripts_scripts_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4684,7 +4789,7 @@ func (x *DeleteBeatRequest) String() string {
 func (*DeleteBeatRequest) ProtoMessage() {}
 
 func (x *DeleteBeatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[68]
+	mi := &file_scripts_scripts_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4697,7 +4802,7 @@ func (x *DeleteBeatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteBeatRequest.ProtoReflect.Descriptor instead.
 func (*DeleteBeatRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{68}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *DeleteBeatRequest) GetBeatId() string {
@@ -4723,7 +4828,7 @@ type DeleteBeatResponse struct {
 
 func (x *DeleteBeatResponse) Reset() {
 	*x = DeleteBeatResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[69]
+	mi := &file_scripts_scripts_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4735,7 +4840,7 @@ func (x *DeleteBeatResponse) String() string {
 func (*DeleteBeatResponse) ProtoMessage() {}
 
 func (x *DeleteBeatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[69]
+	mi := &file_scripts_scripts_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4748,7 +4853,7 @@ func (x *DeleteBeatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteBeatResponse.ProtoReflect.Descriptor instead.
 func (*DeleteBeatResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{69}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *DeleteBeatResponse) GetSuccess() bool {
@@ -4772,7 +4877,7 @@ type CreateConnectionRequest struct {
 
 func (x *CreateConnectionRequest) Reset() {
 	*x = CreateConnectionRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[70]
+	mi := &file_scripts_scripts_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4784,7 +4889,7 @@ func (x *CreateConnectionRequest) String() string {
 func (*CreateConnectionRequest) ProtoMessage() {}
 
 func (x *CreateConnectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[70]
+	mi := &file_scripts_scripts_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4797,7 +4902,7 @@ func (x *CreateConnectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateConnectionRequest.ProtoReflect.Descriptor instead.
 func (*CreateConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{70}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *CreateConnectionRequest) GetProjectId() string {
@@ -4851,7 +4956,7 @@ type CreateConnectionResponse struct {
 
 func (x *CreateConnectionResponse) Reset() {
 	*x = CreateConnectionResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[71]
+	mi := &file_scripts_scripts_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4863,7 +4968,7 @@ func (x *CreateConnectionResponse) String() string {
 func (*CreateConnectionResponse) ProtoMessage() {}
 
 func (x *CreateConnectionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[71]
+	mi := &file_scripts_scripts_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4876,7 +4981,7 @@ func (x *CreateConnectionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateConnectionResponse.ProtoReflect.Descriptor instead.
 func (*CreateConnectionResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{71}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *CreateConnectionResponse) GetConnection() *Connection {
@@ -4896,7 +5001,7 @@ type DeleteConnectionRequest struct {
 
 func (x *DeleteConnectionRequest) Reset() {
 	*x = DeleteConnectionRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[72]
+	mi := &file_scripts_scripts_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4908,7 +5013,7 @@ func (x *DeleteConnectionRequest) String() string {
 func (*DeleteConnectionRequest) ProtoMessage() {}
 
 func (x *DeleteConnectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[72]
+	mi := &file_scripts_scripts_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4921,7 +5026,7 @@ func (x *DeleteConnectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteConnectionRequest.ProtoReflect.Descriptor instead.
 func (*DeleteConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{72}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *DeleteConnectionRequest) GetConnectionId() string {
@@ -4947,7 +5052,7 @@ type DeleteConnectionResponse struct {
 
 func (x *DeleteConnectionResponse) Reset() {
 	*x = DeleteConnectionResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[73]
+	mi := &file_scripts_scripts_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4959,7 +5064,7 @@ func (x *DeleteConnectionResponse) String() string {
 func (*DeleteConnectionResponse) ProtoMessage() {}
 
 func (x *DeleteConnectionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[73]
+	mi := &file_scripts_scripts_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4972,7 +5077,7 @@ func (x *DeleteConnectionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteConnectionResponse.ProtoReflect.Descriptor instead.
 func (*DeleteConnectionResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{73}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *DeleteConnectionResponse) GetSuccess() bool {
@@ -4995,7 +5100,7 @@ type CreateLaneRequest struct {
 
 func (x *CreateLaneRequest) Reset() {
 	*x = CreateLaneRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[74]
+	mi := &file_scripts_scripts_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5007,7 +5112,7 @@ func (x *CreateLaneRequest) String() string {
 func (*CreateLaneRequest) ProtoMessage() {}
 
 func (x *CreateLaneRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[74]
+	mi := &file_scripts_scripts_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5020,7 +5125,7 @@ func (x *CreateLaneRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateLaneRequest.ProtoReflect.Descriptor instead.
 func (*CreateLaneRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{74}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *CreateLaneRequest) GetProjectId() string {
@@ -5067,7 +5172,7 @@ type CreateLaneResponse struct {
 
 func (x *CreateLaneResponse) Reset() {
 	*x = CreateLaneResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[75]
+	mi := &file_scripts_scripts_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5079,7 +5184,7 @@ func (x *CreateLaneResponse) String() string {
 func (*CreateLaneResponse) ProtoMessage() {}
 
 func (x *CreateLaneResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[75]
+	mi := &file_scripts_scripts_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5092,7 +5197,7 @@ func (x *CreateLaneResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateLaneResponse.ProtoReflect.Descriptor instead.
 func (*CreateLaneResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{75}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *CreateLaneResponse) GetLane() *Lane {
@@ -5112,7 +5217,7 @@ type GetProjectLanesRequest struct {
 
 func (x *GetProjectLanesRequest) Reset() {
 	*x = GetProjectLanesRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[76]
+	mi := &file_scripts_scripts_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5124,7 +5229,7 @@ func (x *GetProjectLanesRequest) String() string {
 func (*GetProjectLanesRequest) ProtoMessage() {}
 
 func (x *GetProjectLanesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[76]
+	mi := &file_scripts_scripts_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5137,7 +5242,7 @@ func (x *GetProjectLanesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectLanesRequest.ProtoReflect.Descriptor instead.
 func (*GetProjectLanesRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{76}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *GetProjectLanesRequest) GetProjectId() string {
@@ -5163,7 +5268,7 @@ type GetProjectLanesResponse struct {
 
 func (x *GetProjectLanesResponse) Reset() {
 	*x = GetProjectLanesResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[77]
+	mi := &file_scripts_scripts_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5175,7 +5280,7 @@ func (x *GetProjectLanesResponse) String() string {
 func (*GetProjectLanesResponse) ProtoMessage() {}
 
 func (x *GetProjectLanesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[77]
+	mi := &file_scripts_scripts_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5188,7 +5293,7 @@ func (x *GetProjectLanesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectLanesResponse.ProtoReflect.Descriptor instead.
 func (*GetProjectLanesResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{77}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *GetProjectLanesResponse) GetLanes() []*Lane {
@@ -5211,7 +5316,7 @@ type UpdateLaneRequest struct {
 
 func (x *UpdateLaneRequest) Reset() {
 	*x = UpdateLaneRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[78]
+	mi := &file_scripts_scripts_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5223,7 +5328,7 @@ func (x *UpdateLaneRequest) String() string {
 func (*UpdateLaneRequest) ProtoMessage() {}
 
 func (x *UpdateLaneRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[78]
+	mi := &file_scripts_scripts_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5236,7 +5341,7 @@ func (x *UpdateLaneRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateLaneRequest.ProtoReflect.Descriptor instead.
 func (*UpdateLaneRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{78}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *UpdateLaneRequest) GetLaneId() string {
@@ -5283,7 +5388,7 @@ type UpdateLaneResponse struct {
 
 func (x *UpdateLaneResponse) Reset() {
 	*x = UpdateLaneResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[79]
+	mi := &file_scripts_scripts_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5295,7 +5400,7 @@ func (x *UpdateLaneResponse) String() string {
 func (*UpdateLaneResponse) ProtoMessage() {}
 
 func (x *UpdateLaneResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[79]
+	mi := &file_scripts_scripts_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5308,7 +5413,7 @@ func (x *UpdateLaneResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateLaneResponse.ProtoReflect.Descriptor instead.
 func (*UpdateLaneResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{79}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *UpdateLaneResponse) GetLane() *Lane {
@@ -5329,7 +5434,7 @@ type UpdateLaneOrderRequest struct {
 
 func (x *UpdateLaneOrderRequest) Reset() {
 	*x = UpdateLaneOrderRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[80]
+	mi := &file_scripts_scripts_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5341,7 +5446,7 @@ func (x *UpdateLaneOrderRequest) String() string {
 func (*UpdateLaneOrderRequest) ProtoMessage() {}
 
 func (x *UpdateLaneOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[80]
+	mi := &file_scripts_scripts_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5354,7 +5459,7 @@ func (x *UpdateLaneOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateLaneOrderRequest.ProtoReflect.Descriptor instead.
 func (*UpdateLaneOrderRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{80}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *UpdateLaneOrderRequest) GetProjectId() string {
@@ -5387,7 +5492,7 @@ type UpdateLaneOrderResponse struct {
 
 func (x *UpdateLaneOrderResponse) Reset() {
 	*x = UpdateLaneOrderResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[81]
+	mi := &file_scripts_scripts_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5399,7 +5504,7 @@ func (x *UpdateLaneOrderResponse) String() string {
 func (*UpdateLaneOrderResponse) ProtoMessage() {}
 
 func (x *UpdateLaneOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[81]
+	mi := &file_scripts_scripts_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5412,7 +5517,7 @@ func (x *UpdateLaneOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateLaneOrderResponse.ProtoReflect.Descriptor instead.
 func (*UpdateLaneOrderResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{81}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *UpdateLaneOrderResponse) GetSuccess() bool {
@@ -5432,7 +5537,7 @@ type DeleteLaneRequest struct {
 
 func (x *DeleteLaneRequest) Reset() {
 	*x = DeleteLaneRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[82]
+	mi := &file_scripts_scripts_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5444,7 +5549,7 @@ func (x *DeleteLaneRequest) String() string {
 func (*DeleteLaneRequest) ProtoMessage() {}
 
 func (x *DeleteLaneRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[82]
+	mi := &file_scripts_scripts_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5457,7 +5562,7 @@ func (x *DeleteLaneRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteLaneRequest.ProtoReflect.Descriptor instead.
 func (*DeleteLaneRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{82}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *DeleteLaneRequest) GetLaneId() string {
@@ -5483,7 +5588,7 @@ type DeleteLaneResponse struct {
 
 func (x *DeleteLaneResponse) Reset() {
 	*x = DeleteLaneResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[83]
+	mi := &file_scripts_scripts_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5495,7 +5600,7 @@ func (x *DeleteLaneResponse) String() string {
 func (*DeleteLaneResponse) ProtoMessage() {}
 
 func (x *DeleteLaneResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[83]
+	mi := &file_scripts_scripts_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5508,7 +5613,7 @@ func (x *DeleteLaneResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteLaneResponse.ProtoReflect.Descriptor instead.
 func (*DeleteLaneResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{83}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *DeleteLaneResponse) GetSuccess() bool {
@@ -5533,7 +5638,7 @@ type CreateOutlineItemRequest struct {
 
 func (x *CreateOutlineItemRequest) Reset() {
 	*x = CreateOutlineItemRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[84]
+	mi := &file_scripts_scripts_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5545,7 +5650,7 @@ func (x *CreateOutlineItemRequest) String() string {
 func (*CreateOutlineItemRequest) ProtoMessage() {}
 
 func (x *CreateOutlineItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[84]
+	mi := &file_scripts_scripts_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5558,7 +5663,7 @@ func (x *CreateOutlineItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOutlineItemRequest.ProtoReflect.Descriptor instead.
 func (*CreateOutlineItemRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{84}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *CreateOutlineItemRequest) GetProjectId() string {
@@ -5619,7 +5724,7 @@ type CreateOutlineItemResponse struct {
 
 func (x *CreateOutlineItemResponse) Reset() {
 	*x = CreateOutlineItemResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[85]
+	mi := &file_scripts_scripts_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5631,7 +5736,7 @@ func (x *CreateOutlineItemResponse) String() string {
 func (*CreateOutlineItemResponse) ProtoMessage() {}
 
 func (x *CreateOutlineItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[85]
+	mi := &file_scripts_scripts_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5644,7 +5749,7 @@ func (x *CreateOutlineItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOutlineItemResponse.ProtoReflect.Descriptor instead.
 func (*CreateOutlineItemResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{85}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *CreateOutlineItemResponse) GetOutlineItem() *OutlineItem {
@@ -5669,7 +5774,7 @@ type UpdateOutlineItemRequest struct {
 
 func (x *UpdateOutlineItemRequest) Reset() {
 	*x = UpdateOutlineItemRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[86]
+	mi := &file_scripts_scripts_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5681,7 +5786,7 @@ func (x *UpdateOutlineItemRequest) String() string {
 func (*UpdateOutlineItemRequest) ProtoMessage() {}
 
 func (x *UpdateOutlineItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[86]
+	mi := &file_scripts_scripts_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5694,7 +5799,7 @@ func (x *UpdateOutlineItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateOutlineItemRequest.ProtoReflect.Descriptor instead.
 func (*UpdateOutlineItemRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{86}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *UpdateOutlineItemRequest) GetOutlineItemId() string {
@@ -5755,7 +5860,7 @@ type UpdateOutlineItemResponse struct {
 
 func (x *UpdateOutlineItemResponse) Reset() {
 	*x = UpdateOutlineItemResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[87]
+	mi := &file_scripts_scripts_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5767,7 +5872,7 @@ func (x *UpdateOutlineItemResponse) String() string {
 func (*UpdateOutlineItemResponse) ProtoMessage() {}
 
 func (x *UpdateOutlineItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[87]
+	mi := &file_scripts_scripts_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5780,7 +5885,7 @@ func (x *UpdateOutlineItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateOutlineItemResponse.ProtoReflect.Descriptor instead.
 func (*UpdateOutlineItemResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{87}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *UpdateOutlineItemResponse) GetOutlineItem() *OutlineItem {
@@ -5800,7 +5905,7 @@ type DeleteOutlineItemRequest struct {
 
 func (x *DeleteOutlineItemRequest) Reset() {
 	*x = DeleteOutlineItemRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[88]
+	mi := &file_scripts_scripts_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5812,7 +5917,7 @@ func (x *DeleteOutlineItemRequest) String() string {
 func (*DeleteOutlineItemRequest) ProtoMessage() {}
 
 func (x *DeleteOutlineItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[88]
+	mi := &file_scripts_scripts_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5825,7 +5930,7 @@ func (x *DeleteOutlineItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteOutlineItemRequest.ProtoReflect.Descriptor instead.
 func (*DeleteOutlineItemRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{88}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *DeleteOutlineItemRequest) GetOutlineItemId() string {
@@ -5851,7 +5956,7 @@ type DeleteOutlineItemResponse struct {
 
 func (x *DeleteOutlineItemResponse) Reset() {
 	*x = DeleteOutlineItemResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[89]
+	mi := &file_scripts_scripts_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5863,7 +5968,7 @@ func (x *DeleteOutlineItemResponse) String() string {
 func (*DeleteOutlineItemResponse) ProtoMessage() {}
 
 func (x *DeleteOutlineItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[89]
+	mi := &file_scripts_scripts_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5876,7 +5981,7 @@ func (x *DeleteOutlineItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteOutlineItemResponse.ProtoReflect.Descriptor instead.
 func (*DeleteOutlineItemResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{89}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *DeleteOutlineItemResponse) GetSuccess() bool {
@@ -5896,7 +6001,7 @@ type GetProjectLocationsRequest struct {
 
 func (x *GetProjectLocationsRequest) Reset() {
 	*x = GetProjectLocationsRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[90]
+	mi := &file_scripts_scripts_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5908,7 +6013,7 @@ func (x *GetProjectLocationsRequest) String() string {
 func (*GetProjectLocationsRequest) ProtoMessage() {}
 
 func (x *GetProjectLocationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[90]
+	mi := &file_scripts_scripts_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5921,7 +6026,7 @@ func (x *GetProjectLocationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectLocationsRequest.ProtoReflect.Descriptor instead.
 func (*GetProjectLocationsRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{90}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *GetProjectLocationsRequest) GetProjectId() string {
@@ -5947,7 +6052,7 @@ type GetProjectLocationsResponse struct {
 
 func (x *GetProjectLocationsResponse) Reset() {
 	*x = GetProjectLocationsResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[91]
+	mi := &file_scripts_scripts_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5959,7 +6064,7 @@ func (x *GetProjectLocationsResponse) String() string {
 func (*GetProjectLocationsResponse) ProtoMessage() {}
 
 func (x *GetProjectLocationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[91]
+	mi := &file_scripts_scripts_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5972,7 +6077,7 @@ func (x *GetProjectLocationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectLocationsResponse.ProtoReflect.Descriptor instead.
 func (*GetProjectLocationsResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{91}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *GetProjectLocationsResponse) GetLocations() []*Location {
@@ -6427,7 +6532,14 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x122\n" +
 	"\belements\x18\x03 \x03(\v2\x16.scripts.ScriptElementR\belements\"e\n" +
 	" BulkUpdateScriptElementsResponse\x12A\n" +
-	"\x10updated_elements\x18\x01 \x03(\v2\x16.scripts.ScriptElementR\x0fupdatedElements\"\xc9\x03\n" +
+	"\x10updated_elements\x18\x01 \x03(\v2\x16.scripts.ScriptElementR\x0fupdatedElements\"\x88\x01\n" +
+	"\x1aBatchCreateElementsRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x122\n" +
+	"\belements\x18\x03 \x03(\v2\x16.scripts.ScriptElementR\belements\"`\n" +
+	"\x1bBatchCreateElementsResponse\x12A\n" +
+	"\x10created_elements\x18\x01 \x03(\v2\x16.scripts.ScriptElementR\x0fcreatedElements\"\xc9\x03\n" +
 	"\x11CreateBeatRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
@@ -6604,7 +6716,7 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"N\n" +
 	"\x1bGetProjectLocationsResponse\x12/\n" +
-	"\tlocations\x18\x01 \x03(\v2\x11.scripts.LocationR\tlocations2\xfd\x1a\n" +
+	"\tlocations\x18\x01 \x03(\v2\x11.scripts.LocationR\tlocations2\xdf\x1b\n" +
 	"\x0eScriptsService\x12N\n" +
 	"\rCreateProject\x12\x1d.scripts.CreateProjectRequest\x1a\x1e.scripts.CreateProjectResponse\x12E\n" +
 	"\n" +
@@ -6628,7 +6740,8 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\x18GetProjectScriptElements\x12(.scripts.GetProjectScriptElementsRequest\x1a).scripts.GetProjectScriptElementsResponse\x12`\n" +
 	"\x13UpdateScriptElement\x12#.scripts.UpdateScriptElementRequest\x1a$.scripts.UpdateScriptElementResponse\x12`\n" +
 	"\x13DeleteScriptElement\x12#.scripts.DeleteScriptElementRequest\x1a$.scripts.DeleteScriptElementResponse\x12o\n" +
-	"\x18BulkUpdateScriptElements\x12(.scripts.BulkUpdateScriptElementsRequest\x1a).scripts.BulkUpdateScriptElementsResponse\x12N\n" +
+	"\x18BulkUpdateScriptElements\x12(.scripts.BulkUpdateScriptElementsRequest\x1a).scripts.BulkUpdateScriptElementsResponse\x12`\n" +
+	"\x13BatchCreateElements\x12#.scripts.BatchCreateElementsRequest\x1a$.scripts.BatchCreateElementsResponse\x12N\n" +
 	"\rCreateElement\x12\x1d.scripts.CreateElementRequest\x1a\x1e.scripts.CreateElementResponse\x12N\n" +
 	"\rUpdateElement\x12\x1d.scripts.UpdateElementRequest\x1a\x1e.scripts.UpdateElementResponse\x12W\n" +
 	"\x10GetSceneElements\x12 .scripts.GetSceneElementsRequest\x1a!.scripts.GetSceneElementsResponse\x12E\n" +
@@ -6666,7 +6779,7 @@ func file_scripts_scripts_proto_rawDescGZIP() []byte {
 	return file_scripts_scripts_proto_rawDescData
 }
 
-var file_scripts_scripts_proto_msgTypes = make([]protoimpl.MessageInfo, 99)
+var file_scripts_scripts_proto_msgTypes = make([]protoimpl.MessageInfo, 101)
 var file_scripts_scripts_proto_goTypes = []any{
 	(*Project)(nil),                          // 0: scripts.Project
 	(*Scene)(nil),                            // 1: scripts.Scene
@@ -6728,71 +6841,73 @@ var file_scripts_scripts_proto_goTypes = []any{
 	(*GetSceneElementsResponse)(nil),         // 57: scripts.GetSceneElementsResponse
 	(*BulkUpdateScriptElementsRequest)(nil),  // 58: scripts.BulkUpdateScriptElementsRequest
 	(*BulkUpdateScriptElementsResponse)(nil), // 59: scripts.BulkUpdateScriptElementsResponse
-	(*CreateBeatRequest)(nil),                // 60: scripts.CreateBeatRequest
-	(*CreateBeatResponse)(nil),               // 61: scripts.CreateBeatResponse
-	(*GetBeatRequest)(nil),                   // 62: scripts.GetBeatRequest
-	(*GetBeatResponse)(nil),                  // 63: scripts.GetBeatResponse
-	(*GetProjectBeatBoardRequest)(nil),       // 64: scripts.GetProjectBeatBoardRequest
-	(*GetProjectBeatBoardResponse)(nil),      // 65: scripts.GetProjectBeatBoardResponse
-	(*UpdateBeatRequest)(nil),                // 66: scripts.UpdateBeatRequest
-	(*UpdateBeatResponse)(nil),               // 67: scripts.UpdateBeatResponse
-	(*DeleteBeatRequest)(nil),                // 68: scripts.DeleteBeatRequest
-	(*DeleteBeatResponse)(nil),               // 69: scripts.DeleteBeatResponse
-	(*CreateConnectionRequest)(nil),          // 70: scripts.CreateConnectionRequest
-	(*CreateConnectionResponse)(nil),         // 71: scripts.CreateConnectionResponse
-	(*DeleteConnectionRequest)(nil),          // 72: scripts.DeleteConnectionRequest
-	(*DeleteConnectionResponse)(nil),         // 73: scripts.DeleteConnectionResponse
-	(*CreateLaneRequest)(nil),                // 74: scripts.CreateLaneRequest
-	(*CreateLaneResponse)(nil),               // 75: scripts.CreateLaneResponse
-	(*GetProjectLanesRequest)(nil),           // 76: scripts.GetProjectLanesRequest
-	(*GetProjectLanesResponse)(nil),          // 77: scripts.GetProjectLanesResponse
-	(*UpdateLaneRequest)(nil),                // 78: scripts.UpdateLaneRequest
-	(*UpdateLaneResponse)(nil),               // 79: scripts.UpdateLaneResponse
-	(*UpdateLaneOrderRequest)(nil),           // 80: scripts.UpdateLaneOrderRequest
-	(*UpdateLaneOrderResponse)(nil),          // 81: scripts.UpdateLaneOrderResponse
-	(*DeleteLaneRequest)(nil),                // 82: scripts.DeleteLaneRequest
-	(*DeleteLaneResponse)(nil),               // 83: scripts.DeleteLaneResponse
-	(*CreateOutlineItemRequest)(nil),         // 84: scripts.CreateOutlineItemRequest
-	(*CreateOutlineItemResponse)(nil),        // 85: scripts.CreateOutlineItemResponse
-	(*UpdateOutlineItemRequest)(nil),         // 86: scripts.UpdateOutlineItemRequest
-	(*UpdateOutlineItemResponse)(nil),        // 87: scripts.UpdateOutlineItemResponse
-	(*DeleteOutlineItemRequest)(nil),         // 88: scripts.DeleteOutlineItemRequest
-	(*DeleteOutlineItemResponse)(nil),        // 89: scripts.DeleteOutlineItemResponse
-	(*GetProjectLocationsRequest)(nil),       // 90: scripts.GetProjectLocationsRequest
-	(*GetProjectLocationsResponse)(nil),      // 91: scripts.GetProjectLocationsResponse
-	nil,                                      // 92: scripts.ScriptElement.FormattingEntry
-	nil,                                      // 93: scripts.Character.AttributesEntry
-	nil,                                      // 94: scripts.CreateCharacterRequest.AttributesEntry
-	nil,                                      // 95: scripts.UpdateCharacterRequest.AttributesEntry
-	nil,                                      // 96: scripts.CreateScriptElementRequest.FormattingEntry
-	nil,                                      // 97: scripts.UpdateScriptElementRequest.FormattingEntry
-	nil,                                      // 98: scripts.CreateElementRequest.FormattingEntry
-	(*common.Timestamp)(nil),                 // 99: common.Timestamp
-	(*common.PaginationRequest)(nil),         // 100: common.PaginationRequest
-	(*common.PaginationResponse)(nil),        // 101: common.PaginationResponse
+	(*BatchCreateElementsRequest)(nil),       // 60: scripts.BatchCreateElementsRequest
+	(*BatchCreateElementsResponse)(nil),      // 61: scripts.BatchCreateElementsResponse
+	(*CreateBeatRequest)(nil),                // 62: scripts.CreateBeatRequest
+	(*CreateBeatResponse)(nil),               // 63: scripts.CreateBeatResponse
+	(*GetBeatRequest)(nil),                   // 64: scripts.GetBeatRequest
+	(*GetBeatResponse)(nil),                  // 65: scripts.GetBeatResponse
+	(*GetProjectBeatBoardRequest)(nil),       // 66: scripts.GetProjectBeatBoardRequest
+	(*GetProjectBeatBoardResponse)(nil),      // 67: scripts.GetProjectBeatBoardResponse
+	(*UpdateBeatRequest)(nil),                // 68: scripts.UpdateBeatRequest
+	(*UpdateBeatResponse)(nil),               // 69: scripts.UpdateBeatResponse
+	(*DeleteBeatRequest)(nil),                // 70: scripts.DeleteBeatRequest
+	(*DeleteBeatResponse)(nil),               // 71: scripts.DeleteBeatResponse
+	(*CreateConnectionRequest)(nil),          // 72: scripts.CreateConnectionRequest
+	(*CreateConnectionResponse)(nil),         // 73: scripts.CreateConnectionResponse
+	(*DeleteConnectionRequest)(nil),          // 74: scripts.DeleteConnectionRequest
+	(*DeleteConnectionResponse)(nil),         // 75: scripts.DeleteConnectionResponse
+	(*CreateLaneRequest)(nil),                // 76: scripts.CreateLaneRequest
+	(*CreateLaneResponse)(nil),               // 77: scripts.CreateLaneResponse
+	(*GetProjectLanesRequest)(nil),           // 78: scripts.GetProjectLanesRequest
+	(*GetProjectLanesResponse)(nil),          // 79: scripts.GetProjectLanesResponse
+	(*UpdateLaneRequest)(nil),                // 80: scripts.UpdateLaneRequest
+	(*UpdateLaneResponse)(nil),               // 81: scripts.UpdateLaneResponse
+	(*UpdateLaneOrderRequest)(nil),           // 82: scripts.UpdateLaneOrderRequest
+	(*UpdateLaneOrderResponse)(nil),          // 83: scripts.UpdateLaneOrderResponse
+	(*DeleteLaneRequest)(nil),                // 84: scripts.DeleteLaneRequest
+	(*DeleteLaneResponse)(nil),               // 85: scripts.DeleteLaneResponse
+	(*CreateOutlineItemRequest)(nil),         // 86: scripts.CreateOutlineItemRequest
+	(*CreateOutlineItemResponse)(nil),        // 87: scripts.CreateOutlineItemResponse
+	(*UpdateOutlineItemRequest)(nil),         // 88: scripts.UpdateOutlineItemRequest
+	(*UpdateOutlineItemResponse)(nil),        // 89: scripts.UpdateOutlineItemResponse
+	(*DeleteOutlineItemRequest)(nil),         // 90: scripts.DeleteOutlineItemRequest
+	(*DeleteOutlineItemResponse)(nil),        // 91: scripts.DeleteOutlineItemResponse
+	(*GetProjectLocationsRequest)(nil),       // 92: scripts.GetProjectLocationsRequest
+	(*GetProjectLocationsResponse)(nil),      // 93: scripts.GetProjectLocationsResponse
+	nil,                                      // 94: scripts.ScriptElement.FormattingEntry
+	nil,                                      // 95: scripts.Character.AttributesEntry
+	nil,                                      // 96: scripts.CreateCharacterRequest.AttributesEntry
+	nil,                                      // 97: scripts.UpdateCharacterRequest.AttributesEntry
+	nil,                                      // 98: scripts.CreateScriptElementRequest.FormattingEntry
+	nil,                                      // 99: scripts.UpdateScriptElementRequest.FormattingEntry
+	nil,                                      // 100: scripts.CreateElementRequest.FormattingEntry
+	(*common.Timestamp)(nil),                 // 101: common.Timestamp
+	(*common.PaginationRequest)(nil),         // 102: common.PaginationRequest
+	(*common.PaginationResponse)(nil),        // 103: common.PaginationResponse
 }
 var file_scripts_scripts_proto_depIdxs = []int32{
-	99,  // 0: scripts.Project.created_at:type_name -> common.Timestamp
-	99,  // 1: scripts.Project.updated_at:type_name -> common.Timestamp
-	99,  // 2: scripts.Scene.created_at:type_name -> common.Timestamp
-	99,  // 3: scripts.Scene.updated_at:type_name -> common.Timestamp
-	92,  // 4: scripts.ScriptElement.formatting:type_name -> scripts.ScriptElement.FormattingEntry
-	99,  // 5: scripts.ScriptElement.created_at:type_name -> common.Timestamp
-	99,  // 6: scripts.ScriptElement.updated_at:type_name -> common.Timestamp
-	99,  // 7: scripts.OutlineUnit.created_at:type_name -> common.Timestamp
-	99,  // 8: scripts.OutlineUnit.updated_at:type_name -> common.Timestamp
-	93,  // 9: scripts.Character.attributes:type_name -> scripts.Character.AttributesEntry
-	99,  // 10: scripts.Character.created_at:type_name -> common.Timestamp
-	99,  // 11: scripts.Character.updated_at:type_name -> common.Timestamp
-	99,  // 12: scripts.Location.created_at:type_name -> common.Timestamp
-	99,  // 13: scripts.Location.updated_at:type_name -> common.Timestamp
-	99,  // 14: scripts.Beat.created_at:type_name -> common.Timestamp
-	99,  // 15: scripts.Beat.updated_at:type_name -> common.Timestamp
-	99,  // 16: scripts.Connection.created_at:type_name -> common.Timestamp
-	99,  // 17: scripts.Lane.created_at:type_name -> common.Timestamp
-	99,  // 18: scripts.Lane.updated_at:type_name -> common.Timestamp
-	99,  // 19: scripts.OutlineItem.created_at:type_name -> common.Timestamp
-	99,  // 20: scripts.OutlineItem.updated_at:type_name -> common.Timestamp
+	101, // 0: scripts.Project.created_at:type_name -> common.Timestamp
+	101, // 1: scripts.Project.updated_at:type_name -> common.Timestamp
+	101, // 2: scripts.Scene.created_at:type_name -> common.Timestamp
+	101, // 3: scripts.Scene.updated_at:type_name -> common.Timestamp
+	94,  // 4: scripts.ScriptElement.formatting:type_name -> scripts.ScriptElement.FormattingEntry
+	101, // 5: scripts.ScriptElement.created_at:type_name -> common.Timestamp
+	101, // 6: scripts.ScriptElement.updated_at:type_name -> common.Timestamp
+	101, // 7: scripts.OutlineUnit.created_at:type_name -> common.Timestamp
+	101, // 8: scripts.OutlineUnit.updated_at:type_name -> common.Timestamp
+	95,  // 9: scripts.Character.attributes:type_name -> scripts.Character.AttributesEntry
+	101, // 10: scripts.Character.created_at:type_name -> common.Timestamp
+	101, // 11: scripts.Character.updated_at:type_name -> common.Timestamp
+	101, // 12: scripts.Location.created_at:type_name -> common.Timestamp
+	101, // 13: scripts.Location.updated_at:type_name -> common.Timestamp
+	101, // 14: scripts.Beat.created_at:type_name -> common.Timestamp
+	101, // 15: scripts.Beat.updated_at:type_name -> common.Timestamp
+	101, // 16: scripts.Connection.created_at:type_name -> common.Timestamp
+	101, // 17: scripts.Lane.created_at:type_name -> common.Timestamp
+	101, // 18: scripts.Lane.updated_at:type_name -> common.Timestamp
+	101, // 19: scripts.OutlineItem.created_at:type_name -> common.Timestamp
+	101, // 20: scripts.OutlineItem.updated_at:type_name -> common.Timestamp
 	6,   // 21: scripts.BeatBoardData.beats:type_name -> scripts.Beat
 	7,   // 22: scripts.BeatBoardData.connections:type_name -> scripts.Connection
 	8,   // 23: scripts.BeatBoardData.lanes:type_name -> scripts.Lane
@@ -6800,129 +6915,133 @@ var file_scripts_scripts_proto_depIdxs = []int32{
 	0,   // 25: scripts.CreateProjectResponse.project:type_name -> scripts.Project
 	0,   // 26: scripts.GetProjectResponse.project:type_name -> scripts.Project
 	0,   // 27: scripts.UpdateProjectResponse.project:type_name -> scripts.Project
-	100, // 28: scripts.GetUserProjectsRequest.pagination:type_name -> common.PaginationRequest
+	102, // 28: scripts.GetUserProjectsRequest.pagination:type_name -> common.PaginationRequest
 	0,   // 29: scripts.GetUserProjectsResponse.projects:type_name -> scripts.Project
-	101, // 30: scripts.GetUserProjectsResponse.pagination:type_name -> common.PaginationResponse
+	103, // 30: scripts.GetUserProjectsResponse.pagination:type_name -> common.PaginationResponse
 	3,   // 31: scripts.CreateOutlineUnitResponse.outline_unit:type_name -> scripts.OutlineUnit
 	3,   // 32: scripts.GetProjectOutlineResponse.outline_units:type_name -> scripts.OutlineUnit
 	3,   // 33: scripts.UpdateOutlineUnitResponse.outline_unit:type_name -> scripts.OutlineUnit
 	1,   // 34: scripts.CreateSceneResponse.scene:type_name -> scripts.Scene
 	1,   // 35: scripts.GetProjectScenesResponse.scenes:type_name -> scripts.Scene
 	1,   // 36: scripts.UpdateSceneResponse.scene:type_name -> scripts.Scene
-	94,  // 37: scripts.CreateCharacterRequest.attributes:type_name -> scripts.CreateCharacterRequest.AttributesEntry
+	96,  // 37: scripts.CreateCharacterRequest.attributes:type_name -> scripts.CreateCharacterRequest.AttributesEntry
 	4,   // 38: scripts.CreateCharacterResponse.character:type_name -> scripts.Character
 	4,   // 39: scripts.GetProjectCharactersResponse.characters:type_name -> scripts.Character
-	95,  // 40: scripts.UpdateCharacterRequest.attributes:type_name -> scripts.UpdateCharacterRequest.AttributesEntry
+	97,  // 40: scripts.UpdateCharacterRequest.attributes:type_name -> scripts.UpdateCharacterRequest.AttributesEntry
 	4,   // 41: scripts.UpdateCharacterResponse.character:type_name -> scripts.Character
 	5,   // 42: scripts.CreateLocationResponse.location:type_name -> scripts.Location
 	5,   // 43: scripts.UpdateLocationResponse.location:type_name -> scripts.Location
-	96,  // 44: scripts.CreateScriptElementRequest.formatting:type_name -> scripts.CreateScriptElementRequest.FormattingEntry
+	98,  // 44: scripts.CreateScriptElementRequest.formatting:type_name -> scripts.CreateScriptElementRequest.FormattingEntry
 	2,   // 45: scripts.CreateScriptElementResponse.script_element:type_name -> scripts.ScriptElement
 	2,   // 46: scripts.GetProjectScriptElementsResponse.script_elements:type_name -> scripts.ScriptElement
-	97,  // 47: scripts.UpdateScriptElementRequest.formatting:type_name -> scripts.UpdateScriptElementRequest.FormattingEntry
+	99,  // 47: scripts.UpdateScriptElementRequest.formatting:type_name -> scripts.UpdateScriptElementRequest.FormattingEntry
 	2,   // 48: scripts.UpdateScriptElementResponse.script_element:type_name -> scripts.ScriptElement
-	98,  // 49: scripts.CreateElementRequest.formatting:type_name -> scripts.CreateElementRequest.FormattingEntry
+	100, // 49: scripts.CreateElementRequest.formatting:type_name -> scripts.CreateElementRequest.FormattingEntry
 	2,   // 50: scripts.CreateElementResponse.element:type_name -> scripts.ScriptElement
 	2,   // 51: scripts.UpdateElementResponse.element:type_name -> scripts.ScriptElement
 	2,   // 52: scripts.GetSceneElementsResponse.elements:type_name -> scripts.ScriptElement
 	2,   // 53: scripts.BulkUpdateScriptElementsRequest.elements:type_name -> scripts.ScriptElement
 	2,   // 54: scripts.BulkUpdateScriptElementsResponse.updated_elements:type_name -> scripts.ScriptElement
-	6,   // 55: scripts.CreateBeatResponse.beat:type_name -> scripts.Beat
-	6,   // 56: scripts.GetBeatResponse.beat:type_name -> scripts.Beat
-	10,  // 57: scripts.GetProjectBeatBoardResponse.beat_board:type_name -> scripts.BeatBoardData
-	6,   // 58: scripts.UpdateBeatResponse.beat:type_name -> scripts.Beat
-	7,   // 59: scripts.CreateConnectionResponse.connection:type_name -> scripts.Connection
-	8,   // 60: scripts.CreateLaneResponse.lane:type_name -> scripts.Lane
-	8,   // 61: scripts.GetProjectLanesResponse.lanes:type_name -> scripts.Lane
-	8,   // 62: scripts.UpdateLaneResponse.lane:type_name -> scripts.Lane
-	9,   // 63: scripts.CreateOutlineItemResponse.outline_item:type_name -> scripts.OutlineItem
-	9,   // 64: scripts.UpdateOutlineItemResponse.outline_item:type_name -> scripts.OutlineItem
-	5,   // 65: scripts.GetProjectLocationsResponse.locations:type_name -> scripts.Location
-	11,  // 66: scripts.ScriptsService.CreateProject:input_type -> scripts.CreateProjectRequest
-	13,  // 67: scripts.ScriptsService.GetProject:input_type -> scripts.GetProjectRequest
-	15,  // 68: scripts.ScriptsService.UpdateProject:input_type -> scripts.UpdateProjectRequest
-	17,  // 69: scripts.ScriptsService.DeleteProject:input_type -> scripts.DeleteProjectRequest
-	19,  // 70: scripts.ScriptsService.GetUserProjects:input_type -> scripts.GetUserProjectsRequest
-	21,  // 71: scripts.ScriptsService.CreateOutlineUnit:input_type -> scripts.CreateOutlineUnitRequest
-	23,  // 72: scripts.ScriptsService.GetProjectOutline:input_type -> scripts.GetProjectOutlineRequest
-	25,  // 73: scripts.ScriptsService.UpdateOutlineUnit:input_type -> scripts.UpdateOutlineUnitRequest
-	27,  // 74: scripts.ScriptsService.DeleteOutlineUnit:input_type -> scripts.DeleteOutlineUnitRequest
-	29,  // 75: scripts.ScriptsService.CreateScene:input_type -> scripts.CreateSceneRequest
-	31,  // 76: scripts.ScriptsService.GetProjectScenes:input_type -> scripts.GetProjectScenesRequest
-	33,  // 77: scripts.ScriptsService.UpdateScene:input_type -> scripts.UpdateSceneRequest
-	35,  // 78: scripts.ScriptsService.CreateCharacter:input_type -> scripts.CreateCharacterRequest
-	37,  // 79: scripts.ScriptsService.GetProjectCharacters:input_type -> scripts.GetProjectCharactersRequest
-	39,  // 80: scripts.ScriptsService.UpdateCharacter:input_type -> scripts.UpdateCharacterRequest
-	41,  // 81: scripts.ScriptsService.CreateLocation:input_type -> scripts.CreateLocationRequest
-	90,  // 82: scripts.ScriptsService.GetProjectLocations:input_type -> scripts.GetProjectLocationsRequest
-	44,  // 83: scripts.ScriptsService.CreateScriptElement:input_type -> scripts.CreateScriptElementRequest
-	46,  // 84: scripts.ScriptsService.GetProjectScriptElements:input_type -> scripts.GetProjectScriptElementsRequest
-	48,  // 85: scripts.ScriptsService.UpdateScriptElement:input_type -> scripts.UpdateScriptElementRequest
-	50,  // 86: scripts.ScriptsService.DeleteScriptElement:input_type -> scripts.DeleteScriptElementRequest
-	58,  // 87: scripts.ScriptsService.BulkUpdateScriptElements:input_type -> scripts.BulkUpdateScriptElementsRequest
-	52,  // 88: scripts.ScriptsService.CreateElement:input_type -> scripts.CreateElementRequest
-	54,  // 89: scripts.ScriptsService.UpdateElement:input_type -> scripts.UpdateElementRequest
-	56,  // 90: scripts.ScriptsService.GetSceneElements:input_type -> scripts.GetSceneElementsRequest
-	60,  // 91: scripts.ScriptsService.CreateBeat:input_type -> scripts.CreateBeatRequest
-	62,  // 92: scripts.ScriptsService.GetBeat:input_type -> scripts.GetBeatRequest
-	64,  // 93: scripts.ScriptsService.GetProjectBeatBoard:input_type -> scripts.GetProjectBeatBoardRequest
-	66,  // 94: scripts.ScriptsService.UpdateBeat:input_type -> scripts.UpdateBeatRequest
-	68,  // 95: scripts.ScriptsService.DeleteBeat:input_type -> scripts.DeleteBeatRequest
-	70,  // 96: scripts.ScriptsService.CreateConnection:input_type -> scripts.CreateConnectionRequest
-	72,  // 97: scripts.ScriptsService.DeleteConnection:input_type -> scripts.DeleteConnectionRequest
-	74,  // 98: scripts.ScriptsService.CreateLane:input_type -> scripts.CreateLaneRequest
-	76,  // 99: scripts.ScriptsService.GetProjectLanes:input_type -> scripts.GetProjectLanesRequest
-	78,  // 100: scripts.ScriptsService.UpdateLane:input_type -> scripts.UpdateLaneRequest
-	80,  // 101: scripts.ScriptsService.UpdateLaneOrder:input_type -> scripts.UpdateLaneOrderRequest
-	82,  // 102: scripts.ScriptsService.DeleteLane:input_type -> scripts.DeleteLaneRequest
-	84,  // 103: scripts.ScriptsService.CreateOutlineItem:input_type -> scripts.CreateOutlineItemRequest
-	86,  // 104: scripts.ScriptsService.UpdateOutlineItem:input_type -> scripts.UpdateOutlineItemRequest
-	88,  // 105: scripts.ScriptsService.DeleteOutlineItem:input_type -> scripts.DeleteOutlineItemRequest
-	12,  // 106: scripts.ScriptsService.CreateProject:output_type -> scripts.CreateProjectResponse
-	14,  // 107: scripts.ScriptsService.GetProject:output_type -> scripts.GetProjectResponse
-	16,  // 108: scripts.ScriptsService.UpdateProject:output_type -> scripts.UpdateProjectResponse
-	18,  // 109: scripts.ScriptsService.DeleteProject:output_type -> scripts.DeleteProjectResponse
-	20,  // 110: scripts.ScriptsService.GetUserProjects:output_type -> scripts.GetUserProjectsResponse
-	22,  // 111: scripts.ScriptsService.CreateOutlineUnit:output_type -> scripts.CreateOutlineUnitResponse
-	24,  // 112: scripts.ScriptsService.GetProjectOutline:output_type -> scripts.GetProjectOutlineResponse
-	26,  // 113: scripts.ScriptsService.UpdateOutlineUnit:output_type -> scripts.UpdateOutlineUnitResponse
-	28,  // 114: scripts.ScriptsService.DeleteOutlineUnit:output_type -> scripts.DeleteOutlineUnitResponse
-	30,  // 115: scripts.ScriptsService.CreateScene:output_type -> scripts.CreateSceneResponse
-	32,  // 116: scripts.ScriptsService.GetProjectScenes:output_type -> scripts.GetProjectScenesResponse
-	34,  // 117: scripts.ScriptsService.UpdateScene:output_type -> scripts.UpdateSceneResponse
-	36,  // 118: scripts.ScriptsService.CreateCharacter:output_type -> scripts.CreateCharacterResponse
-	38,  // 119: scripts.ScriptsService.GetProjectCharacters:output_type -> scripts.GetProjectCharactersResponse
-	40,  // 120: scripts.ScriptsService.UpdateCharacter:output_type -> scripts.UpdateCharacterResponse
-	42,  // 121: scripts.ScriptsService.CreateLocation:output_type -> scripts.CreateLocationResponse
-	91,  // 122: scripts.ScriptsService.GetProjectLocations:output_type -> scripts.GetProjectLocationsResponse
-	45,  // 123: scripts.ScriptsService.CreateScriptElement:output_type -> scripts.CreateScriptElementResponse
-	47,  // 124: scripts.ScriptsService.GetProjectScriptElements:output_type -> scripts.GetProjectScriptElementsResponse
-	49,  // 125: scripts.ScriptsService.UpdateScriptElement:output_type -> scripts.UpdateScriptElementResponse
-	51,  // 126: scripts.ScriptsService.DeleteScriptElement:output_type -> scripts.DeleteScriptElementResponse
-	59,  // 127: scripts.ScriptsService.BulkUpdateScriptElements:output_type -> scripts.BulkUpdateScriptElementsResponse
-	53,  // 128: scripts.ScriptsService.CreateElement:output_type -> scripts.CreateElementResponse
-	55,  // 129: scripts.ScriptsService.UpdateElement:output_type -> scripts.UpdateElementResponse
-	57,  // 130: scripts.ScriptsService.GetSceneElements:output_type -> scripts.GetSceneElementsResponse
-	61,  // 131: scripts.ScriptsService.CreateBeat:output_type -> scripts.CreateBeatResponse
-	63,  // 132: scripts.ScriptsService.GetBeat:output_type -> scripts.GetBeatResponse
-	65,  // 133: scripts.ScriptsService.GetProjectBeatBoard:output_type -> scripts.GetProjectBeatBoardResponse
-	67,  // 134: scripts.ScriptsService.UpdateBeat:output_type -> scripts.UpdateBeatResponse
-	69,  // 135: scripts.ScriptsService.DeleteBeat:output_type -> scripts.DeleteBeatResponse
-	71,  // 136: scripts.ScriptsService.CreateConnection:output_type -> scripts.CreateConnectionResponse
-	73,  // 137: scripts.ScriptsService.DeleteConnection:output_type -> scripts.DeleteConnectionResponse
-	75,  // 138: scripts.ScriptsService.CreateLane:output_type -> scripts.CreateLaneResponse
-	77,  // 139: scripts.ScriptsService.GetProjectLanes:output_type -> scripts.GetProjectLanesResponse
-	79,  // 140: scripts.ScriptsService.UpdateLane:output_type -> scripts.UpdateLaneResponse
-	81,  // 141: scripts.ScriptsService.UpdateLaneOrder:output_type -> scripts.UpdateLaneOrderResponse
-	83,  // 142: scripts.ScriptsService.DeleteLane:output_type -> scripts.DeleteLaneResponse
-	85,  // 143: scripts.ScriptsService.CreateOutlineItem:output_type -> scripts.CreateOutlineItemResponse
-	87,  // 144: scripts.ScriptsService.UpdateOutlineItem:output_type -> scripts.UpdateOutlineItemResponse
-	89,  // 145: scripts.ScriptsService.DeleteOutlineItem:output_type -> scripts.DeleteOutlineItemResponse
-	106, // [106:146] is the sub-list for method output_type
-	66,  // [66:106] is the sub-list for method input_type
-	66,  // [66:66] is the sub-list for extension type_name
-	66,  // [66:66] is the sub-list for extension extendee
-	0,   // [0:66] is the sub-list for field type_name
+	2,   // 55: scripts.BatchCreateElementsRequest.elements:type_name -> scripts.ScriptElement
+	2,   // 56: scripts.BatchCreateElementsResponse.created_elements:type_name -> scripts.ScriptElement
+	6,   // 57: scripts.CreateBeatResponse.beat:type_name -> scripts.Beat
+	6,   // 58: scripts.GetBeatResponse.beat:type_name -> scripts.Beat
+	10,  // 59: scripts.GetProjectBeatBoardResponse.beat_board:type_name -> scripts.BeatBoardData
+	6,   // 60: scripts.UpdateBeatResponse.beat:type_name -> scripts.Beat
+	7,   // 61: scripts.CreateConnectionResponse.connection:type_name -> scripts.Connection
+	8,   // 62: scripts.CreateLaneResponse.lane:type_name -> scripts.Lane
+	8,   // 63: scripts.GetProjectLanesResponse.lanes:type_name -> scripts.Lane
+	8,   // 64: scripts.UpdateLaneResponse.lane:type_name -> scripts.Lane
+	9,   // 65: scripts.CreateOutlineItemResponse.outline_item:type_name -> scripts.OutlineItem
+	9,   // 66: scripts.UpdateOutlineItemResponse.outline_item:type_name -> scripts.OutlineItem
+	5,   // 67: scripts.GetProjectLocationsResponse.locations:type_name -> scripts.Location
+	11,  // 68: scripts.ScriptsService.CreateProject:input_type -> scripts.CreateProjectRequest
+	13,  // 69: scripts.ScriptsService.GetProject:input_type -> scripts.GetProjectRequest
+	15,  // 70: scripts.ScriptsService.UpdateProject:input_type -> scripts.UpdateProjectRequest
+	17,  // 71: scripts.ScriptsService.DeleteProject:input_type -> scripts.DeleteProjectRequest
+	19,  // 72: scripts.ScriptsService.GetUserProjects:input_type -> scripts.GetUserProjectsRequest
+	21,  // 73: scripts.ScriptsService.CreateOutlineUnit:input_type -> scripts.CreateOutlineUnitRequest
+	23,  // 74: scripts.ScriptsService.GetProjectOutline:input_type -> scripts.GetProjectOutlineRequest
+	25,  // 75: scripts.ScriptsService.UpdateOutlineUnit:input_type -> scripts.UpdateOutlineUnitRequest
+	27,  // 76: scripts.ScriptsService.DeleteOutlineUnit:input_type -> scripts.DeleteOutlineUnitRequest
+	29,  // 77: scripts.ScriptsService.CreateScene:input_type -> scripts.CreateSceneRequest
+	31,  // 78: scripts.ScriptsService.GetProjectScenes:input_type -> scripts.GetProjectScenesRequest
+	33,  // 79: scripts.ScriptsService.UpdateScene:input_type -> scripts.UpdateSceneRequest
+	35,  // 80: scripts.ScriptsService.CreateCharacter:input_type -> scripts.CreateCharacterRequest
+	37,  // 81: scripts.ScriptsService.GetProjectCharacters:input_type -> scripts.GetProjectCharactersRequest
+	39,  // 82: scripts.ScriptsService.UpdateCharacter:input_type -> scripts.UpdateCharacterRequest
+	41,  // 83: scripts.ScriptsService.CreateLocation:input_type -> scripts.CreateLocationRequest
+	92,  // 84: scripts.ScriptsService.GetProjectLocations:input_type -> scripts.GetProjectLocationsRequest
+	44,  // 85: scripts.ScriptsService.CreateScriptElement:input_type -> scripts.CreateScriptElementRequest
+	46,  // 86: scripts.ScriptsService.GetProjectScriptElements:input_type -> scripts.GetProjectScriptElementsRequest
+	48,  // 87: scripts.ScriptsService.UpdateScriptElement:input_type -> scripts.UpdateScriptElementRequest
+	50,  // 88: scripts.ScriptsService.DeleteScriptElement:input_type -> scripts.DeleteScriptElementRequest
+	58,  // 89: scripts.ScriptsService.BulkUpdateScriptElements:input_type -> scripts.BulkUpdateScriptElementsRequest
+	60,  // 90: scripts.ScriptsService.BatchCreateElements:input_type -> scripts.BatchCreateElementsRequest
+	52,  // 91: scripts.ScriptsService.CreateElement:input_type -> scripts.CreateElementRequest
+	54,  // 92: scripts.ScriptsService.UpdateElement:input_type -> scripts.UpdateElementRequest
+	56,  // 93: scripts.ScriptsService.GetSceneElements:input_type -> scripts.GetSceneElementsRequest
+	62,  // 94: scripts.ScriptsService.CreateBeat:input_type -> scripts.CreateBeatRequest
+	64,  // 95: scripts.ScriptsService.GetBeat:input_type -> scripts.GetBeatRequest
+	66,  // 96: scripts.ScriptsService.GetProjectBeatBoard:input_type -> scripts.GetProjectBeatBoardRequest
+	68,  // 97: scripts.ScriptsService.UpdateBeat:input_type -> scripts.UpdateBeatRequest
+	70,  // 98: scripts.ScriptsService.DeleteBeat:input_type -> scripts.DeleteBeatRequest
+	72,  // 99: scripts.ScriptsService.CreateConnection:input_type -> scripts.CreateConnectionRequest
+	74,  // 100: scripts.ScriptsService.DeleteConnection:input_type -> scripts.DeleteConnectionRequest
+	76,  // 101: scripts.ScriptsService.CreateLane:input_type -> scripts.CreateLaneRequest
+	78,  // 102: scripts.ScriptsService.GetProjectLanes:input_type -> scripts.GetProjectLanesRequest
+	80,  // 103: scripts.ScriptsService.UpdateLane:input_type -> scripts.UpdateLaneRequest
+	82,  // 104: scripts.ScriptsService.UpdateLaneOrder:input_type -> scripts.UpdateLaneOrderRequest
+	84,  // 105: scripts.ScriptsService.DeleteLane:input_type -> scripts.DeleteLaneRequest
+	86,  // 106: scripts.ScriptsService.CreateOutlineItem:input_type -> scripts.CreateOutlineItemRequest
+	88,  // 107: scripts.ScriptsService.UpdateOutlineItem:input_type -> scripts.UpdateOutlineItemRequest
+	90,  // 108: scripts.ScriptsService.DeleteOutlineItem:input_type -> scripts.DeleteOutlineItemRequest
+	12,  // 109: scripts.ScriptsService.CreateProject:output_type -> scripts.CreateProjectResponse
+	14,  // 110: scripts.ScriptsService.GetProject:output_type -> scripts.GetProjectResponse
+	16,  // 111: scripts.ScriptsService.UpdateProject:output_type -> scripts.UpdateProjectResponse
+	18,  // 112: scripts.ScriptsService.DeleteProject:output_type -> scripts.DeleteProjectResponse
+	20,  // 113: scripts.ScriptsService.GetUserProjects:output_type -> scripts.GetUserProjectsResponse
+	22,  // 114: scripts.ScriptsService.CreateOutlineUnit:output_type -> scripts.CreateOutlineUnitResponse
+	24,  // 115: scripts.ScriptsService.GetProjectOutline:output_type -> scripts.GetProjectOutlineResponse
+	26,  // 116: scripts.ScriptsService.UpdateOutlineUnit:output_type -> scripts.UpdateOutlineUnitResponse
+	28,  // 117: scripts.ScriptsService.DeleteOutlineUnit:output_type -> scripts.DeleteOutlineUnitResponse
+	30,  // 118: scripts.ScriptsService.CreateScene:output_type -> scripts.CreateSceneResponse
+	32,  // 119: scripts.ScriptsService.GetProjectScenes:output_type -> scripts.GetProjectScenesResponse
+	34,  // 120: scripts.ScriptsService.UpdateScene:output_type -> scripts.UpdateSceneResponse
+	36,  // 121: scripts.ScriptsService.CreateCharacter:output_type -> scripts.CreateCharacterResponse
+	38,  // 122: scripts.ScriptsService.GetProjectCharacters:output_type -> scripts.GetProjectCharactersResponse
+	40,  // 123: scripts.ScriptsService.UpdateCharacter:output_type -> scripts.UpdateCharacterResponse
+	42,  // 124: scripts.ScriptsService.CreateLocation:output_type -> scripts.CreateLocationResponse
+	93,  // 125: scripts.ScriptsService.GetProjectLocations:output_type -> scripts.GetProjectLocationsResponse
+	45,  // 126: scripts.ScriptsService.CreateScriptElement:output_type -> scripts.CreateScriptElementResponse
+	47,  // 127: scripts.ScriptsService.GetProjectScriptElements:output_type -> scripts.GetProjectScriptElementsResponse
+	49,  // 128: scripts.ScriptsService.UpdateScriptElement:output_type -> scripts.UpdateScriptElementResponse
+	51,  // 129: scripts.ScriptsService.DeleteScriptElement:output_type -> scripts.DeleteScriptElementResponse
+	59,  // 130: scripts.ScriptsService.BulkUpdateScriptElements:output_type -> scripts.BulkUpdateScriptElementsResponse
+	61,  // 131: scripts.ScriptsService.BatchCreateElements:output_type -> scripts.BatchCreateElementsResponse
+	53,  // 132: scripts.ScriptsService.CreateElement:output_type -> scripts.CreateElementResponse
+	55,  // 133: scripts.ScriptsService.UpdateElement:output_type -> scripts.UpdateElementResponse
+	57,  // 134: scripts.ScriptsService.GetSceneElements:output_type -> scripts.GetSceneElementsResponse
+	63,  // 135: scripts.ScriptsService.CreateBeat:output_type -> scripts.CreateBeatResponse
+	65,  // 136: scripts.ScriptsService.GetBeat:output_type -> scripts.GetBeatResponse
+	67,  // 137: scripts.ScriptsService.GetProjectBeatBoard:output_type -> scripts.GetProjectBeatBoardResponse
+	69,  // 138: scripts.ScriptsService.UpdateBeat:output_type -> scripts.UpdateBeatResponse
+	71,  // 139: scripts.ScriptsService.DeleteBeat:output_type -> scripts.DeleteBeatResponse
+	73,  // 140: scripts.ScriptsService.CreateConnection:output_type -> scripts.CreateConnectionResponse
+	75,  // 141: scripts.ScriptsService.DeleteConnection:output_type -> scripts.DeleteConnectionResponse
+	77,  // 142: scripts.ScriptsService.CreateLane:output_type -> scripts.CreateLaneResponse
+	79,  // 143: scripts.ScriptsService.GetProjectLanes:output_type -> scripts.GetProjectLanesResponse
+	81,  // 144: scripts.ScriptsService.UpdateLane:output_type -> scripts.UpdateLaneResponse
+	83,  // 145: scripts.ScriptsService.UpdateLaneOrder:output_type -> scripts.UpdateLaneOrderResponse
+	85,  // 146: scripts.ScriptsService.DeleteLane:output_type -> scripts.DeleteLaneResponse
+	87,  // 147: scripts.ScriptsService.CreateOutlineItem:output_type -> scripts.CreateOutlineItemResponse
+	89,  // 148: scripts.ScriptsService.UpdateOutlineItem:output_type -> scripts.UpdateOutlineItemResponse
+	91,  // 149: scripts.ScriptsService.DeleteOutlineItem:output_type -> scripts.DeleteOutlineItemResponse
+	109, // [109:150] is the sub-list for method output_type
+	68,  // [68:109] is the sub-list for method input_type
+	68,  // [68:68] is the sub-list for extension type_name
+	68,  // [68:68] is the sub-list for extension extendee
+	0,   // [0:68] is the sub-list for field type_name
 }
 
 func init() { file_scripts_scripts_proto_init() }
@@ -6942,17 +7061,17 @@ func file_scripts_scripts_proto_init() {
 	file_scripts_scripts_proto_msgTypes[46].OneofWrappers = []any{}
 	file_scripts_scripts_proto_msgTypes[48].OneofWrappers = []any{}
 	file_scripts_scripts_proto_msgTypes[52].OneofWrappers = []any{}
-	file_scripts_scripts_proto_msgTypes[60].OneofWrappers = []any{}
-	file_scripts_scripts_proto_msgTypes[66].OneofWrappers = []any{}
-	file_scripts_scripts_proto_msgTypes[78].OneofWrappers = []any{}
-	file_scripts_scripts_proto_msgTypes[86].OneofWrappers = []any{}
+	file_scripts_scripts_proto_msgTypes[62].OneofWrappers = []any{}
+	file_scripts_scripts_proto_msgTypes[68].OneofWrappers = []any{}
+	file_scripts_scripts_proto_msgTypes[80].OneofWrappers = []any{}
+	file_scripts_scripts_proto_msgTypes[88].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_scripts_scripts_proto_rawDesc), len(file_scripts_scripts_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   99,
+			NumMessages:   101,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

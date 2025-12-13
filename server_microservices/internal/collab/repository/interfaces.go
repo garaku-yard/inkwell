@@ -20,6 +20,7 @@ type CollaborationRepository interface {
 	UpdateCollaboratorRole(ctx context.Context, id uuid.UUID, role string) error
 	DeleteCollaborator(ctx context.Context, id uuid.UUID) error
 	GetUserProjectRole(ctx context.Context, userID, projectID uuid.UUID) (string, error)
+	IsProjectOwner(ctx context.Context, userID, projectID uuid.UUID) (bool, error)
 
 	// Invitation operations
 	CreateInvitation(ctx context.Context, invitation *domain.Invitation) error

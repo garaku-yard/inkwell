@@ -41,6 +41,7 @@ const (
 	ScriptsService_UpdateScriptElement_FullMethodName      = "/scripts.ScriptsService/UpdateScriptElement"
 	ScriptsService_DeleteScriptElement_FullMethodName      = "/scripts.ScriptsService/DeleteScriptElement"
 	ScriptsService_BulkUpdateScriptElements_FullMethodName = "/scripts.ScriptsService/BulkUpdateScriptElements"
+	ScriptsService_BatchCreateElements_FullMethodName      = "/scripts.ScriptsService/BatchCreateElements"
 	ScriptsService_CreateElement_FullMethodName            = "/scripts.ScriptsService/CreateElement"
 	ScriptsService_UpdateElement_FullMethodName            = "/scripts.ScriptsService/UpdateElement"
 	ScriptsService_GetSceneElements_FullMethodName         = "/scripts.ScriptsService/GetSceneElements"
@@ -95,6 +96,7 @@ type ScriptsServiceClient interface {
 	UpdateScriptElement(ctx context.Context, in *UpdateScriptElementRequest, opts ...grpc.CallOption) (*UpdateScriptElementResponse, error)
 	DeleteScriptElement(ctx context.Context, in *DeleteScriptElementRequest, opts ...grpc.CallOption) (*DeleteScriptElementResponse, error)
 	BulkUpdateScriptElements(ctx context.Context, in *BulkUpdateScriptElementsRequest, opts ...grpc.CallOption) (*BulkUpdateScriptElementsResponse, error)
+	BatchCreateElements(ctx context.Context, in *BatchCreateElementsRequest, opts ...grpc.CallOption) (*BatchCreateElementsResponse, error)
 	// Simplified element operations for gateway
 	CreateElement(ctx context.Context, in *CreateElementRequest, opts ...grpc.CallOption) (*CreateElementResponse, error)
 	UpdateElement(ctx context.Context, in *UpdateElementRequest, opts ...grpc.CallOption) (*UpdateElementResponse, error)
@@ -345,6 +347,16 @@ func (c *scriptsServiceClient) BulkUpdateScriptElements(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *scriptsServiceClient) BatchCreateElements(ctx context.Context, in *BatchCreateElementsRequest, opts ...grpc.CallOption) (*BatchCreateElementsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchCreateElementsResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_BatchCreateElements_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *scriptsServiceClient) CreateElement(ctx context.Context, in *CreateElementRequest, opts ...grpc.CallOption) (*CreateElementResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateElementResponse)
@@ -559,6 +571,7 @@ type ScriptsServiceServer interface {
 	UpdateScriptElement(context.Context, *UpdateScriptElementRequest) (*UpdateScriptElementResponse, error)
 	DeleteScriptElement(context.Context, *DeleteScriptElementRequest) (*DeleteScriptElementResponse, error)
 	BulkUpdateScriptElements(context.Context, *BulkUpdateScriptElementsRequest) (*BulkUpdateScriptElementsResponse, error)
+	BatchCreateElements(context.Context, *BatchCreateElementsRequest) (*BatchCreateElementsResponse, error)
 	// Simplified element operations for gateway
 	CreateElement(context.Context, *CreateElementRequest) (*CreateElementResponse, error)
 	UpdateElement(context.Context, *UpdateElementRequest) (*UpdateElementResponse, error)
@@ -654,6 +667,9 @@ func (UnimplementedScriptsServiceServer) DeleteScriptElement(context.Context, *D
 }
 func (UnimplementedScriptsServiceServer) BulkUpdateScriptElements(context.Context, *BulkUpdateScriptElementsRequest) (*BulkUpdateScriptElementsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BulkUpdateScriptElements not implemented")
+}
+func (UnimplementedScriptsServiceServer) BatchCreateElements(context.Context, *BatchCreateElementsRequest) (*BatchCreateElementsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchCreateElements not implemented")
 }
 func (UnimplementedScriptsServiceServer) CreateElement(context.Context, *CreateElementRequest) (*CreateElementResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateElement not implemented")
@@ -1126,6 +1142,24 @@ func _ScriptsService_BulkUpdateScriptElements_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ScriptsService_BatchCreateElements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchCreateElementsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).BatchCreateElements(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_BatchCreateElements_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).BatchCreateElements(ctx, req.(*BatchCreateElementsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ScriptsService_CreateElement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateElementRequest)
 	if err := dec(in); err != nil {
@@ -1544,6 +1578,10 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BulkUpdateScriptElements",
 			Handler:    _ScriptsService_BulkUpdateScriptElements_Handler,
+		},
+		{
+			MethodName: "BatchCreateElements",
+			Handler:    _ScriptsService_BatchCreateElements_Handler,
 		},
 		{
 			MethodName: "CreateElement",

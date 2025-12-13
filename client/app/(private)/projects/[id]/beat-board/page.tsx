@@ -89,6 +89,12 @@ export default function BeatBoardPage() {
 
   const snapToGrid = (value: number) => Math.round(value / 20) * 20;
 
+  // Helper functions to sync timeline position with page numbers
+  const TOTAL_PAGES = 120; // TODO: Get from actual script length
+  const getPageFromPosition = (position: number) => Math.max(1, Math.round((position / 100) * TOTAL_PAGES));
+  const getPositionFromPage = (page: number) => ((page - 1) / TOTAL_PAGES) * 100;
+  const getWidthFromPages = (startPage: number, endPage: number) => ((endPage - startPage + 1) / TOTAL_PAGES) * 100;
+
   const handleAddBeat = (position: { x: number; y: number }) => {
     // Create beat with default values - user will fill in details from the card
     const beatData: Partial<Beat> = { 
@@ -96,7 +102,6 @@ export default function BeatBoardPage() {
       description: "",
       startPage: 1,
       endPage: 1,
-      sceneNumbers: "Pg. 1",
       color: "#fef3c7",
       position, 
       width: 250, 
@@ -184,6 +189,22 @@ export default function BeatBoardPage() {
       return newItems;
     });
     debouncedUpdateOutlineItem(itemId, updates);
+
+    // Sync beat pages when timeline position or width changes
+    if (updates.timelinePosition !== undefined || updates.width !== undefined) {
+      const item = outlineItems.find(i => i.id === itemId);
+      if (item) {
+        const updatedItem = { ...item, ...updates };
+        const position = updatedItem.timelinePosition || 0;
+        const width = updatedItem.width || 0;
+        const startPage = getPageFromPosition(position);
+        const endPage = getPageFromPosition(position + width);
+        debouncedUpdateBeat(item.beatId, { startPage, endPage });
+        setBeats(prev => prev.map(b => 
+          b.id === item.beatId ? { ...b, startPage, endPage } : b
+        ));
+      }
+    }
   };
 
   const handleDropOnTimeline = async (e: React.DragEvent, targetLaneId: string, targetItemId?: string) => {
@@ -194,8 +215,14 @@ export default function BeatBoardPage() {
     const outlineItemId = e.dataTransfer.getData("application/x-outline-item-id");
     if (beatId) {
       const currentLaneItems = outlineItems.filter(item => item.laneId === targetLaneId);
+      const beat = beats.find(b => b.id === beatId);
+      const startPage = beat?.startPage || 1;
+      const endPage = beat?.endPage || startPage;
+      const timelinePosition = getPositionFromPage(startPage);
+      const width = getWidthFromPages(startPage, endPage);
       const newItemData: Partial<OutlineItem> = {
-        beatId, laneId: targetLaneId, order: currentLaneItems.length, width: 5,
+        beatId, laneId: targetLaneId, order: currentLaneItems.length, 
+        timelinePosition, width,
       };
       try {
         const createdItem = await createOutlineItem(projectId, newItemData);
@@ -241,7 +268,32 @@ export default function BeatBoardPage() {
   };
 
   const handleFieldChange = (beatId: string, field: keyof Beat, value: any) => {
-    setBeats(beats.map(b => b.id === beatId ? { ...b, [field]: value } : b));
+    setBeats(prevBeats => {
+      const updatedBeats = prevBeats.map(beat => beat.id === beatId ? { ...beat, [field]: value } : beat);
+      
+      // Sync timeline position when pages change
+      if (field === 'startPage' || field === 'endPage') {
+        const updatedBeat = updatedBeats.find(b => b.id === beatId);
+        if (updatedBeat) {
+          const startPage = updatedBeat.startPage || 1;
+          const endPage = updatedBeat.endPage || startPage;
+          const timelinePosition = getPositionFromPage(startPage);
+          const width = getWidthFromPages(startPage, endPage);
+          
+          const outlineItem = outlineItems.find(item => item.beatId === beatId);
+          if (outlineItem) {
+            setOutlineItems(prev => prev.map(item => 
+              item.id === outlineItem.id 
+                ? { ...item, timelinePosition, width } 
+                : item
+            ));
+            debouncedUpdateOutlineItem(outlineItem.id, { timelinePosition, width });
+          }
+        }
+      }
+      
+      return updatedBeats;
+    });
     debouncedUpdateBeat(beatId, { [field]: value });
   };
 
@@ -512,6 +564,7 @@ export default function BeatBoardPage() {
           handleLaneDragStart={(_e, itemId) => setDraggedLaneItem(itemId)}
           setDraggedLaneItem={setDraggedLaneItem}
           onUpdateOutlineItem={handleUpdateOutlineItem} scriptMarkers={scriptMarkers}
+          totalPages={TOTAL_PAGES}
         />
       </div>
       <BeatCanvas

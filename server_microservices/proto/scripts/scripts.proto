@@ -440,6 +440,17 @@ message BulkUpdateScriptElementsResponse {
   repeated ScriptElement updated_elements = 1;
 }
 
+// Batch create elements for imports
+message BatchCreateElementsRequest {
+  string project_id = 1;
+  string user_id = 2;
+  repeated ScriptElement elements = 3;
+}
+
+message BatchCreateElementsResponse {
+  repeated ScriptElement created_elements = 1;
+}
+
 // Beat Board requests/responses
 message CreateBeatRequest {
   string project_id = 1;
@@ -667,6 +678,7 @@ service ScriptsService {
   rpc UpdateScriptElement(UpdateScriptElementRequest) returns (UpdateScriptElementResponse);
   rpc DeleteScriptElement(DeleteScriptElementRequest) returns (DeleteScriptElementResponse);
   rpc BulkUpdateScriptElements(BulkUpdateScriptElementsRequest) returns (BulkUpdateScriptElementsResponse);
+  rpc BatchCreateElements(BatchCreateElementsRequest) returns (BatchCreateElementsResponse);
   
   // Simplified element operations for gateway
   rpc CreateElement(CreateElementRequest) returns (CreateElementResponse);

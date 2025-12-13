@@ -19,8 +19,8 @@ export interface Beat {
   height: number
   act: number
   order: number
-  startPage: number
-  endPage: number
+  startPage: number | null
+  endPage: number | null
   imageUrl?: string
 }
 

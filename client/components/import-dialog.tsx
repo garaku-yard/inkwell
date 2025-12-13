@@ -87,12 +87,12 @@ export function ImportProjectDialog({ open, onOpenChange, onProjectImported }: I
   }
 
   const validateAndSetFile = (file: File) => {
-    const allowedExtensions = ['.fountain', '.fdx', '.pdf', '.docx', '.txt'];
+    const allowedExtensions = ['.fdx'];
     const fileNameLower = file.name.toLowerCase();
     const isValid = allowedExtensions.some(ext => fileNameLower.endsWith(ext));
 
     if (!isValid) {
-      setError("Unsupported file type. Please upload .fountain, .fdx, .pdf, .docx, or .txt.");
+      setError("Unsupported file type. Please upload .fdx (Final Draft) files only.");
       setSelectedFile(null);
       return;
     }
@@ -121,16 +121,26 @@ export function ImportProjectDialog({ open, onOpenChange, onProjectImported }: I
       setIsLoading(true)
       setError(null)
 
-      const importedProject: Project = {
-        id: "proj_001",
-        userId: "user_123",
-        projectName: projectName,
-        description: "Imported screenplay project",
-        collaboratorCount: collaborators.length,
-        isStarred: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      // Upload FDX file to backend
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+      formData.append('projectName', projectName)
+      formData.append('projectType', projectType)
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/import-fdx`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Import failed' }))
+        throw new Error(errorData.message || 'Failed to import screenplay')
+      }
+
+      const importedProject: Project = await response.json()
 
       onProjectImported(importedProject)
       handleOpenChange(false)
@@ -179,7 +189,7 @@ export function ImportProjectDialog({ open, onOpenChange, onProjectImported }: I
                 id="file-upload"
                 type="file"
                 onChange={handleFileChange}
-                accept=".fountain,.fdx,.pdf,.docx,.txt"
+                accept=".fdx"
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 disabled={isLoading}
               />
@@ -224,7 +234,7 @@ export function ImportProjectDialog({ open, onOpenChange, onProjectImported }: I
                     </p>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Supports .fountain, .fdx, .pdf, .docx, .txt
+                    Supports .fdx (Final Draft) files
                   </p>
                 </div>
               )}

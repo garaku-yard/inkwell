@@ -27,7 +27,7 @@ export const EditableElement = React.memo(
     const isScene = "scene_heading" in element
     const type = isScene ? "SCENE_HEADING" : element.element_type
     const content = isScene ? element.scene_heading : element.content
-    const config = SCRIPT_ELEMENT_CONFIG[type]
+    const config = SCRIPT_ELEMENT_CONFIG[type] || SCRIPT_ELEMENT_CONFIG.ACTION // Fallback to ACTION if type not found
     const isActive = element.id === activeElementId
     const unresolvedCommentsCount = element.comments?.filter((c) => !c.isResolved).length || 0
 

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -52,6 +53,7 @@ type ScriptsService interface {
 	CreateElement(ctx context.Context, userID uuid.UUID, element *domain.ScriptElement) (*domain.ScriptElement, error)
 	UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, content string) (*domain.ScriptElement, error)
 	GetSceneElements(ctx context.Context, userID, sceneID uuid.UUID) ([]*domain.ScriptElement, error)
+	BatchCreateElements(ctx context.Context, userID, projectID uuid.UUID, elements []*domain.ScriptElement) ([]*domain.ScriptElement, error)
 }
 
 // scriptsService implements the ScriptsService interface
@@ -549,4 +551,36 @@ func (s *scriptsService) GetSceneElements(ctx context.Context, userID, sceneID u
 
 	// Get elements for the scene
 	return s.repo.ScriptElement.GetSceneElements(ctx, sceneID)
+}
+
+// BatchCreateElements creates multiple script elements in a single transaction
+func (s *scriptsService) BatchCreateElements(ctx context.Context, userID, projectID uuid.UUID, elements []*domain.ScriptElement) ([]*domain.ScriptElement, error) {
+	// Verify project access
+	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+		return nil, err
+	}
+
+	// Validate and prepare elements
+	createdElements := make([]*domain.ScriptElement, len(elements))
+	for i, element := range elements {
+		if element.SceneID == nil {
+			return nil, errors.New("all elements must have a scene_id")
+		}
+
+		// Set ID and timestamps
+		element.ID = uuid.New()
+		element.ProjectID = projectID
+		element.CreatedAt = time.Now()
+		element.UpdatedAt = time.Now()
+
+		// Create through repository
+		err := s.repo.ScriptElement.CreateScriptElement(ctx, element)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create element at index %d: %w", i, err)
+		}
+
+		createdElements[i] = element
+	}
+
+	return createdElements, nil
 }

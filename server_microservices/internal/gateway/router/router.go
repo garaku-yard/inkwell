@@ -54,6 +54,9 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	mux.HandleFunc("/login", authHandler.Login)
 	mux.HandleFunc("/register", authHandler.Register)
 
+	// Import routes
+	mux.HandleFunc("/projects/import-fdx", scriptsHandler.ImportFDX)
+
 	// Scripts routes
 	mux.HandleFunc("/projects", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("DEBUG: /projects route called with method: %s\n", r.Method)

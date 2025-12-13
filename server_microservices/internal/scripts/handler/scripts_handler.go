@@ -369,6 +369,74 @@ func (h *ScriptsHandler) BulkUpdateScriptElements(ctx context.Context, req *scri
 	return nil, status.Errorf(codes.Unimplemented, "method BulkUpdateScriptElements not implemented")
 }
 
+func (h *ScriptsHandler) BatchCreateElements(ctx context.Context, req *scriptspb.BatchCreateElementsRequest) (*scriptspb.BatchCreateElementsResponse, error) {
+	// Validate input
+	if req.ProjectId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "project_id is required")
+	}
+	if req.UserId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
+	}
+	if len(req.Elements) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "at least one element is required")
+	}
+
+	// Parse IDs
+	projectID, err := uuid.Parse(req.ProjectId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
+	}
+
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+
+	// Convert protobuf elements to domain elements
+	domainElements := make([]*domain.ScriptElement, len(req.Elements))
+	for i, protoElement := range req.Elements {
+		sceneID, err := uuid.Parse(protoElement.SceneId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid scene_id at index %d: %v", i, err)
+		}
+
+		var characterID *uuid.UUID
+		if protoElement.CharacterId != "" {
+			parsedCharacterID, err := uuid.Parse(protoElement.CharacterId)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid character_id at index %d: %v", i, err)
+			}
+			characterID = &parsedCharacterID
+		}
+
+		domainElements[i] = &domain.ScriptElement{
+			ProjectID:   projectID,
+			SceneID:     &sceneID,
+			Type:        protoElement.Type,
+			Content:     protoElement.Content,
+			CharacterID: characterID,
+			LineNumber:  protoElement.LineNumber,
+			Formatting:  protoElement.Formatting,
+		}
+	}
+
+	// Create elements through service
+	createdElements, err := h.service.BatchCreateElements(ctx, userID, projectID, domainElements)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	// Convert to protobuf
+	protoElements := make([]*scriptspb.ScriptElement, len(createdElements))
+	for i, element := range createdElements {
+		protoElements[i] = convertElementToProto(element)
+	}
+
+	return &scriptspb.BatchCreateElementsResponse{
+		CreatedElements: protoElements,
+	}, nil
+}
+
 // Helper functions
 func convertProjectToProto(project *domain.Project) *scriptspb.Project {
 	return &scriptspb.Project{

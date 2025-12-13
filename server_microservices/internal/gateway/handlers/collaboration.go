@@ -362,10 +362,23 @@ func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Call collaboration service
+	// Check if user has access to the project (screenplay_id is actually project_id)
+	// This is a workaround since collab service doesn't have access to projects table
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Verify project access via scripts service
+	_, err := h.scriptsClient.GetProject(ctx, &scripts.GetProjectRequest{
+		ProjectId: screenplayID,
+		UserId:    userID,
+	})
+	if err != nil {
+		// User doesn't have access to this project
+		http.Error(w, "Unauthorized access to project", http.StatusForbidden)
+		return
+	}
+
+	// Call collaboration service
 	resp, err := h.client.GetComments(ctx, &collab.GetCommentsRequest{
 		ScreenplayId: screenplayID,
 		UserId:       userID,
@@ -376,7 +389,8 @@ func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Convert response to JSON and fetch usernames
-	var comments []map[string]interface{}
+	// Initialize as empty slice to ensure JSON encoding returns [] instead of null
+	comments := make([]map[string]interface{}, 0)
 	for _, comment := range resp.Comments {
 		// Get username from identity service
 		username := comment.UserId // fallback to user ID

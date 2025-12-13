@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from "react"
 import { ChevronDown, ChevronUp, GripVertical, Plus, Ruler, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Slider } from "@/components/ui/slider"
 import { type Beat } from "@/services/beat"
 import { type OutlineItem, type Lane } from "@/services/beat-board"
 
@@ -47,6 +48,11 @@ export function StoryLanes({
   const [slidingItem, setSlidingItem] = useState<{ itemId: string; startX: number; originalPosition: number; } | null>(null);
   const [editingLaneId, setEditingLaneId] = useState<string | null>(null);
   const [dropIndicator, setDropIndicator] = useState<string | null>(null);
+  const [pageInterval, setPageInterval] = useState(1); // Show every N pages
+  const [zoomLevel, setZoomLevel] = useState(1); // 1 = normal, 2 = 2x width, etc.
+
+  // Adjust page interval based on zoom level to avoid clutter
+  const adjustedPageInterval = zoomLevel >= 2 ? 1 : zoomLevel >= 1 ? 2 : 5;
 
   const getPagePosition = (page: number) => (page / totalPages) * 100;
   const getPageFromPosition = (position: number) => { const page = (position / 100) * totalPages; return Math.max(1, page); }
@@ -140,22 +146,50 @@ export function StoryLanes({
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="h-6 w-6 p-0">
-          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Zoom</span>
+            <Slider
+              value={[zoomLevel]}
+              onValueChange={(value) => setZoomLevel(value[0])}
+              min={0.5}
+              max={5}
+              step={0.25}
+              className="w-32"
+            />
+            <span className="text-xs text-gray-600 font-mono w-12 text-center">{Math.round(zoomLevel * 100)}%</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="h-6 w-6 p-0">
+            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
       {isExpanded && (
         <div className="px-6 pb-3" ref={timelineContainerRef}>
-          <div className="relative">
-            <div className="flex h-6 mb-1">
+          <div className="relative overflow-x-auto">
+            <div className="flex h-6 mb-1" style={{ minWidth: `${zoomLevel * 100}%` }}>
               <div className="w-28 flex-shrink-0" />
               <div className="relative flex-1 bg-white border border-gray-300 rounded-t timeline-area-content">
-                {Array.from({ length: Math.ceil(totalPages / 10) }, (_, i) => { const page = (i + 1) * 10; if (page > totalPages) return null; return (<div key={page} className="absolute top-0 bottom-0 flex items-center" style={{ left: `${getPagePosition(page)}%` }}> <div className="w-px bg-gray-400 h-full" /> <span className="text-xs text-gray-600 ml-1 font-mono">{page}</span> </div>); })}
-                <div className="absolute left-0 top-0 bottom-0 flex items-center"><div className="w-px bg-gray-600 h-full" /><span className="text-xs text-gray-800 ml-1 font-mono font-semibold">1</span></div>
+                {Array.from({ length: totalPages }, (_, i) => {
+                  const page = i + 1;
+                  const shouldShowLabel = page % adjustedPageInterval === 0 || page === 1;
+                  return (
+                    <div 
+                      key={page} 
+                      className="absolute top-0 bottom-0 flex items-center" 
+                      style={{ left: `${getPagePosition(page)}%` }}
+                    >
+                      <div className={`${shouldShowLabel ? 'w-px bg-gray-400' : 'w-px bg-gray-200'} h-full`} />
+                      {shouldShowLabel && (
+                        <span className="text-xs text-gray-600 ml-1 font-mono">{page}</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            <div className="space-y-1 mb-3">
+            <div className="space-y-1 mb-3" style={{ minWidth: `${zoomLevel * 100}%` }}>
               {lanes.map((lane) => (
                 <div
                   key={lane.id}

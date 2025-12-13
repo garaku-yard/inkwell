@@ -61,9 +61,9 @@ export function BeatCard({
       />
       {beat.imageUrl && (
         <div className="absolute inset-0 rounded-lg overflow-hidden">
-          <img 
-            src={`${process.env.NEXT_PUBLIC_API_URL}${beat.imageUrl}`} 
-            alt={beat.title} 
+          <img
+            src={`${process.env.NEXT_PUBLIC_API_URL}${beat.imageUrl}`}
+            alt={beat.title}
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
@@ -87,18 +87,15 @@ export function BeatCard({
           )}
         </div>
         <div className="flex items-center gap-1">
-          {/* FIXED: A dedicated handle is now the ONLY draggable element */}
           <div
             draggable={true}
             onDragStart={(e) => {
-              // This is the crucial fix: set the data for the drop event
               e.dataTransfer.setData("text/plain", beat.id);
               e.dataTransfer.effectAllowed = "move";
               onDragStartOnBeat(e, beat.id);
             }}
             onDragEnd={onDragEndOnBeat}
             className="p-1 cursor-grab opacity-0 group-hover:opacity-100"
-            // Stop the card's move event from firing when grabbing the handle
             onMouseDown={(e) => e.stopPropagation()}
           >
             <GripHorizontal className="h-5 w-5 text-gray-500" />
@@ -132,12 +129,45 @@ export function BeatCard({
           )}
         </div>
       )}
-      <div className={`mt-2 pt-2 border-t ${beat.imageUrl ? 'border-white/30 relative z-10' : 'border-gray-200'}`} onDoubleClick={() => handleDoubleClick(beat.id, "sceneNumbers")}>
-        {editingField?.beatId === beat.id && editingField?.field === "sceneNumbers" ? (
-          <Input autoFocus onBlur={handleFieldBlur} value={beat.sceneNumbers} onChange={(e) => handleFieldChange(beat.id, "sceneNumbers", e.target.value)} className={`h-auto p-0 text-xs border-none bg-transparent focus-visible:ring-0 ${beat.imageUrl ? 'text-white' : ''}`} placeholder="Pg. 5-7" />
-        ) : (
-          <p className={`text-xs ${beat.imageUrl ? 'text-white/90 drop-shadow' : 'text-gray-500'}`}>{beat.sceneNumbers || "No pages set (double-click to add)"}</p>
-        )}
+      <div className={`mt-2 pt-2 border-t ${beat.imageUrl ? 'border-white/30 relative z-10' : 'border-gray-200'}`}>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs ${beat.imageUrl ? 'text-white/70' : 'text-gray-400'}`}>Pg.</span>
+          <div className="flex-1" onDoubleClick={() => handleDoubleClick(beat.id, "startPage")}>
+            {editingField?.beatId === beat.id && editingField?.field === "startPage" ? (
+              <Input
+                autoFocus
+                onBlur={handleFieldBlur}
+                type="number"
+                value={beat.startPage || ''}
+                onChange={(e) => handleFieldChange(beat.id, "startPage", e.target.value ? parseInt(e.target.value) : null)}
+                className={`h-auto p-0 text-xs border-none bg-transparent focus-visible:ring-0 ${beat.imageUrl ? 'text-white' : ''}`}
+                placeholder="1"
+              />
+            ) : (
+              <p className={`text-xs ${beat.imageUrl ? 'text-white/90 drop-shadow' : 'text-gray-500'}`}>
+                {beat.startPage || "-"}
+              </p>
+            )}
+          </div>
+          <span className={`text-xs ${beat.imageUrl ? 'text-white/70' : 'text-gray-400'}`}>-</span>
+          <div className="flex-1" onDoubleClick={() => handleDoubleClick(beat.id, "endPage")}>
+            {editingField?.beatId === beat.id && editingField?.field === "endPage" ? (
+              <Input
+                autoFocus
+                onBlur={handleFieldBlur}
+                type="number"
+                value={beat.endPage || ''}
+                onChange={(e) => handleFieldChange(beat.id, "endPage", e.target.value ? parseInt(e.target.value) : null)}
+                className={`h-auto p-0 text-xs border-none bg-transparent focus-visible:ring-0 ${beat.imageUrl ? 'text-white' : ''}`}
+                placeholder="1"
+              />
+            ) : (
+              <p className={`text-xs ${beat.imageUrl ? 'text-white/90 drop-shadow' : 'text-gray-500'}`}>
+                {beat.endPage || "-"}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

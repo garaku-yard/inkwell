@@ -324,6 +324,17 @@ func (r *PostgresCollaborationRepository) GetUserProjectRole(ctx context.Context
 	return role, nil
 }
 
+// IsProjectOwner checks if the user is the owner of the project (from projects table)
+func (r *PostgresCollaborationRepository) IsProjectOwner(ctx context.Context, userID, projectID uuid.UUID) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM projects WHERE project_id = $1 AND owner_id = $2)`
+	var isOwner bool
+	err := r.db.QueryRowContext(ctx, query, projectID, userID).Scan(&isOwner)
+	if err != nil {
+		return false, fmt.Errorf("failed to check project ownership: %w", err)
+	}
+	return isOwner, nil
+}
+
 // Comment operations
 func (r *PostgresCollaborationRepository) CreateComment(ctx context.Context, comment *domain.Comment) error {
 	query := `
