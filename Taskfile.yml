@@ -1,0 +1,415 @@
+version: '3'
+
+# Global variables
+vars:
+  DOCKER_COMPOSE: docker compose
+  GO_CMD: go
+  NPM_CMD: npm
+
+# Tasks
+tasks:
+  # ====================
+  # Setup & Installation
+  # ====================
+  install:
+    desc: Install all dependencies (Go modules + Node modules)
+    cmds:
+      - task: install:server
+      - task: install:client
+
+  install:server:
+    desc: Install Go dependencies for all microservices
+    dir: server_microservices
+    cmds:
+      - go mod download
+      - go mod tidy
+
+  install:client:
+    desc: Install Node.js dependencies for client
+    dir: client
+    cmds:
+      - npm install
+
+  # ====================
+  # Development
+  # ====================
+  dev:
+    desc: Start all services in development mode
+    cmds:
+      - task: docker:up
+      - echo "Services started! Frontend: http://localhost:3000, API: http://localhost:8080"
+
+  dev:watch:
+    desc: Start services with live reload (for local development without Docker)
+    deps: [db:up]
+    cmds:
+      - task: dev:client
+
+  dev:client:
+    desc: Run client in development mode with hot reload
+    dir: client
+    cmds:
+      - npm run dev
+
+  # ====================
+  # Docker Operations
+  # ====================
+  docker:up:
+    desc: Start all Docker containers
+    cmds:
+      - "{{.DOCKER_COMPOSE}} up -d"
+      - task: docker:logs
+
+  docker:down:
+    desc: Stop all Docker containers
+    cmds:
+      - "{{.DOCKER_COMPOSE}} down"
+
+  docker:restart:
+    desc: Restart all Docker containers
+    cmds:
+      - "{{.DOCKER_COMPOSE}} restart"
+
+  docker:build:
+    desc: Build all Docker images
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build"
+
+  docker:rebuild:
+    desc: Rebuild and restart all containers
+    cmds:
+      - task: docker:down
+      - task: docker:build
+      - task: docker:up
+
+  docker:rebuild:gateway:
+    desc: Rebuild and restart API Gateway
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build api-gateway"
+      - "{{.DOCKER_COMPOSE}} up -d api-gateway"
+      - "{{.DOCKER_COMPOSE}} logs -f api-gateway"
+
+  docker:rebuild:identity:
+    desc: Rebuild and restart Identity Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build identity-service"
+      - "{{.DOCKER_COMPOSE}} up -d identity-service"
+      - "{{.DOCKER_COMPOSE}} logs -f identity-service"
+
+  docker:rebuild:scripts:
+    desc: Rebuild and restart Scripts Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build scripts-service"
+      - "{{.DOCKER_COMPOSE}} up -d scripts-service"
+      - "{{.DOCKER_COMPOSE}} logs -f scripts-service"
+
+  docker:rebuild:collab:
+    desc: Rebuild and restart Collab Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build collab-service"
+      - "{{.DOCKER_COMPOSE}} up -d collab-service"
+      - "{{.DOCKER_COMPOSE}} logs -f collab-service"
+
+  docker:rebuild:billing:
+    desc: Rebuild and restart Billing Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build billing-service"
+      - "{{.DOCKER_COMPOSE}} up -d billing-service"
+      - "{{.DOCKER_COMPOSE}} logs -f billing-service"
+
+  docker:rebuild:ai:
+    desc: Rebuild and restart AI Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build ai-service"
+      - "{{.DOCKER_COMPOSE}} up -d ai-service"
+      - "{{.DOCKER_COMPOSE}} logs -f ai-service"
+
+  docker:rebuild:client:
+    desc: Rebuild and restart Client
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build client"
+      - "{{.DOCKER_COMPOSE}} up -d client"
+      - "{{.DOCKER_COMPOSE}} logs -f client"
+
+  docker:logs:
+    desc: Show logs from all containers
+    cmds:
+      - "{{.DOCKER_COMPOSE}} logs -f"
+
+  docker:ps:
+    desc: Show status of all containers
+    cmds:
+      - "{{.DOCKER_COMPOSE}} ps"
+
+  docker:clean:
+    desc: Stop containers and remove volumes (WARNING: deletes all data!)
+    prompt: This will delete all database data. Continue?
+    cmds:
+      - "{{.DOCKER_COMPOSE}} down -v --remove-orphans"
+
+  # ====================
+  # Database Operations
+  # ====================
+  db:up:
+    desc: Start only database containers
+    cmds:
+      - "{{.DOCKER_COMPOSE}} up -d postgres-identity postgres-scripts postgres-collab postgres-billing redis"
+
+  db:down:
+    desc: Stop database containers
+    cmds:
+      - "{{.DOCKER_COMPOSE}} stop postgres-identity postgres-scripts postgres-collab postgres-billing redis"
+
+  db:migrate:
+    desc: Run migrations for all services (happens automatically on service startup with GORM)
+    cmds:
+      - echo "Migrations run automatically when services start (GORM AutoMigrate)"
+      - echo "To manually run migrations, restart the services:"
+      - task: docker:restart
+
+  db:shell:scripts:
+    desc: Open PostgreSQL shell for scripts database
+    cmds:
+      - "{{.DOCKER_COMPOSE}} exec postgres-scripts psql -U postgres -d scripts_db"
+
+  db:shell:identity:
+    desc: Open PostgreSQL shell for identity database
+    cmds:
+      - "{{.DOCKER_COMPOSE}} exec postgres-identity psql -U postgres -d identity_db"
+
+  db:shell:collab:
+    desc: Open PostgreSQL shell for collab database
+    cmds:
+      - "{{.DOCKER_COMPOSE}} exec postgres-collab psql -U postgres -d collab_db"
+
+  db:shell:billing:
+    desc: Open PostgreSQL shell for billing database
+    cmds:
+      - "{{.DOCKER_COMPOSE}} exec postgres-billing psql -U postgres -d billing_db"
+
+  db:status:
+    desc: Check database tables (verify migrations)
+    cmds:
+      - echo "=== Scripts Database Tables ==="
+      - "{{.DOCKER_COMPOSE}} exec postgres-scripts psql -U postgres -d scripts_db -c '\\dt'"
+      - echo "\n=== Identity Database Tables ==="
+      - "{{.DOCKER_COMPOSE}} exec postgres-identity psql -U postgres -d identity_db -c '\\dt'"
+      - echo "\n=== Collab Database Tables ==="
+      - "{{.DOCKER_COMPOSE}} exec postgres-collab psql -U postgres -d collab_db -c '\\dt'"
+      - echo "\n=== Billing Database Tables ==="
+      - "{{.DOCKER_COMPOSE}} exec postgres-billing psql -U postgres -d billing_db -c '\\dt'"
+
+  # ====================
+  # Build Operations
+  # ====================
+  build:all:
+    desc: Build all services (Go + Node.js)
+    cmds:
+      - task: build:server
+      - task: build:client
+
+  build:server:
+    desc: Build all Go microservices
+    dir: server_microservices
+    cmds:
+      - task: build:server:gateway
+      - task: build:server:identity
+      - task: build:server:scripts
+      - task: build:server:collab
+      - task: build:server:billing
+
+  build:server:gateway:
+    desc: Build API Gateway
+    dir: server_microservices
+    cmds:
+      - go build -o bin/gateway ./cmd/gateway
+
+  build:server:identity:
+    desc: Build Identity Service
+    dir: server_microservices
+    cmds:
+      - go build -o bin/identity ./cmd/identity
+
+  build:server:scripts:
+    desc: Build Scripts Service
+    dir: server_microservices
+    cmds:
+      - go build -o bin/scripts ./cmd/scripts
+
+  build:server:collab:
+    desc: Build Collab Service
+    dir: server_microservices
+    cmds:
+      - go build -o bin/collab ./cmd/collab
+
+  build:server:billing:
+    desc: Build Billing Service
+    dir: server_microservices
+    cmds:
+      - go build -o bin/billing ./cmd/billing
+
+  build:client:
+    desc: Build Next.js client
+    dir: client
+    cmds:
+      - npm run build
+
+  # ====================
+  # Testing
+  # ====================
+  test:
+    desc: Run all tests
+    cmds:
+      - task: test:server
+      - task: test:client
+
+  test:server:
+    desc: Run Go tests for all microservices
+    dir: server_microservices
+    cmds:
+      - go test ./...
+
+  test:client:
+    desc: Run client tests
+    dir: client
+    cmds:
+      - npm test
+
+  # ====================
+  # Code Quality
+  # ====================
+  lint:
+    desc: Run linters for all code
+    cmds:
+      - task: lint:server
+      - task: lint:client
+
+  lint:server:
+    desc: Run Go linters
+    dir: server_microservices
+    cmds:
+      - go vet ./...
+      - go fmt ./...
+
+  lint:client:
+    desc: Run ESLint for client
+    dir: client
+    cmds:
+      - npm run lint
+
+  format:
+    desc: Format all code
+    cmds:
+      - task: format:server
+      - task: format:client
+
+  format:server:
+    desc: Format Go code
+    dir: server_microservices
+    cmds:
+      - go fmt ./...
+
+  format:client:
+    desc: Format client code
+    dir: client
+    cmds:
+      - npm run lint:fix || npm run format || echo "No format script found"
+
+  # ====================
+  # Protobuf Generation
+  # ====================
+  proto:gen:
+    desc: Generate protobuf code for all services
+    dir: server_microservices
+    cmds:
+      - echo "Generating protobuf files..."
+      - task: proto:gen:scripts
+      - task: proto:gen:identity
+      - task: proto:gen:collab
+      - task: proto:gen:billing
+
+  proto:gen:scripts:
+    desc: Generate protobuf code for Scripts service
+    dir: server_microservices
+    cmds:
+      - protoc --go_out=. --go-grpc_out=. proto/scripts.proto
+
+  proto:gen:identity:
+    desc: Generate protobuf code for Identity service
+    dir: server_microservices
+    cmds:
+      - protoc --go_out=. --go-grpc_out=. proto/identity.proto
+
+  proto:gen:collab:
+    desc: Generate protobuf code for Collab service
+    dir: server_microservices
+    cmds:
+      - protoc --go_out=. --go-grpc_out=. proto/collab.proto
+
+  proto:gen:billing:
+    desc: Generate protobuf code for Billing service
+    dir: server_microservices
+    cmds:
+      - protoc --go_out=. --go-grpc_out=. proto/billing.proto
+
+  # ====================
+  # Service-Specific Operations
+  # ====================
+  service:gateway:
+    desc: Restart only API Gateway
+    cmds:
+      - "{{.DOCKER_COMPOSE}} restart api-gateway"
+      - "{{.DOCKER_COMPOSE}} logs -f api-gateway"
+
+  service:scripts:
+    desc: Restart only Scripts Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} restart scripts-service"
+      - "{{.DOCKER_COMPOSE}} logs -f scripts-service"
+
+  service:identity:
+    desc: Restart only Identity Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} restart identity-service"
+      - "{{.DOCKER_COMPOSE}} logs -f identity-service"
+
+  service:client:
+    desc: Restart only Client
+    cmds:
+      - "{{.DOCKER_COMPOSE}} restart client"
+      - "{{.DOCKER_COMPOSE}} logs -f client"
+
+  # ====================
+  # Utilities
+  # ====================
+  clean:
+    desc: Clean build artifacts and caches
+    cmds:
+      - rm -rf server_microservices/bin
+      - rm -rf client/.next
+      - rm -rf client/node_modules
+      - rm -rf server_microservices/vendor
+
+  setup:
+    desc: Initial setup for new developers
+    cmds:
+      - echo "🚀 Setting up Scriptlith development environment..."
+      - task: install
+      - cp .env.example .env || echo ".env already exists"
+      - echo "✅ Setup complete! Edit .env with your API keys"
+      - echo "Run 'task dev' to start all services"
+
+  fresh:
+    desc: Fresh start (clean everything and rebuild)
+    prompt: This will delete all data and rebuild everything. Continue?
+    cmds:
+      - task: docker:clean
+      - task: clean
+      - task: install
+      - task: docker:build
+      - task: docker:up
+
+  help:
+    desc: Show all available tasks
+    cmds:
+      - task --list
