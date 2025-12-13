@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
-	"scriptlith/server_microservices/internal/identity/config"
-	"scriptlith/server_microservices/internal/identity/domain"
-	"scriptlith/server_microservices/internal/identity/repository"
+	"scriptlith/server/internal/identity/config"
+	"scriptlith/server/internal/identity/domain"
+	"scriptlith/server/internal/identity/repository"
 )
 
 // AuthService defines the interface for authentication business logic

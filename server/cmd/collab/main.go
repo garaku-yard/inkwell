@@ -15,12 +15,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	"scriptlith/server_microservices/internal/collab/config"
-	"scriptlith/server_microservices/internal/collab/handlers"
-	"scriptlith/server_microservices/internal/collab/repository"
-	"scriptlith/server_microservices/internal/collab/service"
-	"scriptlith/server_microservices/pkg/database"
-	"scriptlith/server_microservices/pkg/grpc/collab"
+	"scriptlith/server/internal/collab/config"
+	"scriptlith/server/internal/collab/handlers"
+	"scriptlith/server/internal/collab/repository"
+	"scriptlith/server/internal/collab/service"
+	"scriptlith/server/pkg/database"
+	"scriptlith/server/pkg/grpc/collab"
 )
 
 func main() {

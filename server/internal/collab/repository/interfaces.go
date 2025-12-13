@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"scriptlith/server_microservices/internal/collab/domain"
+	"scriptlith/server/internal/collab/domain"
 
 	"github.com/google/uuid"
 )

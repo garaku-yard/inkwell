@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"scriptlith/server_microservices/internal/scripts/config"
-	"scriptlith/server_microservices/internal/scripts/domain"
-	"scriptlith/server_microservices/internal/scripts/repository"
+	"scriptlith/server/internal/scripts/config"
+	"scriptlith/server/internal/scripts/domain"
+	"scriptlith/server/internal/scripts/repository"
 )
 
 // ScriptsService defines the business logic interface for the Scripts service

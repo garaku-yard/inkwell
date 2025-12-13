@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"scriptlith/server_microservices/internal/gateway/config"
+	"scriptlith/server/internal/gateway/config"
 )
 
 // AIHandler handles AI-related requests

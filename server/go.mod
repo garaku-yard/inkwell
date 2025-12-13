@@ -1,4 +1,4 @@
-module scriptlith/server_microservices
+module scriptlith/server
 
 go 1.24.0
 
@@ -11,6 +11,8 @@ require (
 	golang.org/x/crypto v0.46.0
 	google.golang.org/grpc v1.76.0
 	google.golang.org/protobuf v1.36.6
+	gorm.io/driver/postgres v1.6.0
+	gorm.io/gorm v1.31.1
 )
 
 require (
@@ -27,6 +29,4 @@ require (
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
-	gorm.io/driver/postgres v1.6.0 // indirect
-	gorm.io/gorm v1.31.1 // indirect
 )

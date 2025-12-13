@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"scriptlith/server_microservices/internal/collab/domain"
-	"scriptlith/server_microservices/internal/collab/repository"
+	"scriptlith/server/internal/collab/domain"
+	"scriptlith/server/internal/collab/repository"
 
 	"github.com/google/uuid"
 )

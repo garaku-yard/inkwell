@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"scriptlith/server_microservices/internal/scripts/domain"
-	"scriptlith/server_microservices/internal/scripts/repository"
+	"scriptlith/server/internal/scripts/domain"
+	"scriptlith/server/internal/scripts/repository"
 
 	"github.com/google/uuid"
 )

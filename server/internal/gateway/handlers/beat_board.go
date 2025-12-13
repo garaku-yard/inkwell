@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	scriptspb "scriptlith/server_microservices/pkg/grpc/scripts"
+	scriptspb "scriptlith/server/pkg/grpc/scripts"
 
 	"github.com/google/uuid"
 )

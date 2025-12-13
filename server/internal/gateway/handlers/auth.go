@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"scriptlith/server_microservices/internal/gateway/config"
-	identitypb "scriptlith/server_microservices/pkg/grpc/identity"
+	"scriptlith/server/internal/gateway/config"
+	identitypb "scriptlith/server/pkg/grpc/identity"
 )
 
 // AuthHandler handles authentication-related HTTP endpoints

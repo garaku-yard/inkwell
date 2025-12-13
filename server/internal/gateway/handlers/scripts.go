@@ -11,11 +11,11 @@ import (
 
 	"google.golang.org/grpc"
 
-	"scriptlith/server_microservices/internal/gateway/config"
-	"scriptlith/server_microservices/pkg/grpc/collab"
-	"scriptlith/server_microservices/pkg/grpc/common"
-	"scriptlith/server_microservices/pkg/grpc/identity"
-	scriptspb "scriptlith/server_microservices/pkg/grpc/scripts"
+	"scriptlith/server/internal/gateway/config"
+	"scriptlith/server/pkg/grpc/collab"
+	"scriptlith/server/pkg/grpc/common"
+	"scriptlith/server/pkg/grpc/identity"
+	scriptspb "scriptlith/server/pkg/grpc/scripts"
 )
 
 // ScriptsHandler handles HTTP requests related to scripts and forwards them to Scripts service

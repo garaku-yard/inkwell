@@ -4,7 +4,7 @@
 # Variables
 PROTO_DIR = proto
 PROTO_OUT_DIR = pkg/grpc
-GO_MODULE = scriptlith/server_microservices
+GO_MODULE = scriptlith/server
 
 # Default target
 all: proto build-all

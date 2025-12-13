@@ -8,10 +8,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"scriptlith/server_microservices/internal/scripts/domain"
-	"scriptlith/server_microservices/internal/scripts/service"
-	"scriptlith/server_microservices/pkg/grpc/common"
-	scriptspb "scriptlith/server_microservices/pkg/grpc/scripts"
+	"scriptlith/server/internal/scripts/domain"
+	"scriptlith/server/internal/scripts/service"
+	"scriptlith/server/pkg/grpc/common"
+	scriptspb "scriptlith/server/pkg/grpc/scripts"
 )
 
 // BeatBoardHandler implements beat board gRPC methods on ScriptsHandler

@@ -14,12 +14,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	"scriptlith/server_microservices/internal/identity/config"
-	"scriptlith/server_microservices/internal/identity/handler"
-	"scriptlith/server_microservices/internal/identity/repository"
-	"scriptlith/server_microservices/internal/identity/service"
-	"scriptlith/server_microservices/pkg/database"
-	identitypb "scriptlith/server_microservices/pkg/grpc/identity"
+	"scriptlith/server/internal/identity/config"
+	"scriptlith/server/internal/identity/handler"
+	"scriptlith/server/internal/identity/repository"
+	"scriptlith/server/internal/identity/service"
+	"scriptlith/server/pkg/database"
+	identitypb "scriptlith/server/pkg/grpc/identity"
 )
 
 func main() {

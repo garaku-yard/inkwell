@@ -17,12 +17,12 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"scriptlith/server_microservices/internal/scripts/config"
-	"scriptlith/server_microservices/internal/scripts/handler"
-	"scriptlith/server_microservices/internal/scripts/models"
-	"scriptlith/server_microservices/internal/scripts/repository"
-	"scriptlith/server_microservices/internal/scripts/service"
-	scriptspb "scriptlith/server_microservices/pkg/grpc/scripts"
+	"scriptlith/server/internal/scripts/config"
+	"scriptlith/server/internal/scripts/handler"
+	"scriptlith/server/internal/scripts/models"
+	"scriptlith/server/internal/scripts/repository"
+	"scriptlith/server/internal/scripts/service"
+	scriptspb "scriptlith/server/pkg/grpc/scripts"
 )
 
 func main() {

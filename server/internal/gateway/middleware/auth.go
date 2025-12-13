@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"scriptlith/server_microservices/pkg/grpc/identity"
+	"scriptlith/server/pkg/grpc/identity"
 )
 
 // AuthMiddleware handles JWT authentication

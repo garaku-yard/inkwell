@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"scriptlith/server_microservices/internal/gateway/config"
-	"scriptlith/server_microservices/internal/gateway/handlers"
-	"scriptlith/server_microservices/internal/gateway/middleware"
+	"scriptlith/server/internal/gateway/config"
+	"scriptlith/server/internal/gateway/handlers"
+	"scriptlith/server/internal/gateway/middleware"
 )
 
 // splitPath splits a URL path by "/" and filters out empty strings

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	scriptspb "scriptlith/server_microservices/pkg/grpc/scripts"
+	scriptspb "scriptlith/server/pkg/grpc/scripts"
 )
 
 // FDX XML structure (simplified)

@@ -11,11 +11,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"scriptlith/server_microservices/internal/gateway/config"
-	"scriptlith/server_microservices/pkg/grpc/collab"
-	"scriptlith/server_microservices/pkg/grpc/common"
-	"scriptlith/server_microservices/pkg/grpc/identity"
-	"scriptlith/server_microservices/pkg/grpc/scripts"
+	"scriptlith/server/internal/gateway/config"
+	"scriptlith/server/pkg/grpc/collab"
+	"scriptlith/server/pkg/grpc/common"
+	"scriptlith/server/pkg/grpc/identity"
+	"scriptlith/server/pkg/grpc/scripts"
 )
 
 // CollaborationHandler handles HTTP requests for collaboration service

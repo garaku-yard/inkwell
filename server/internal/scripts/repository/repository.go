@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"scriptlith/server_microservices/internal/scripts/domain"
+	"scriptlith/server/internal/scripts/domain"
 )
 
 // ProjectRepository defines the interface for project data access

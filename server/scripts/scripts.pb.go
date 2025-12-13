@@ -10,7 +10,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	common "scriptlith/server_microservices/pkg/grpc/common"
+	common "scriptlith/server/pkg/grpc/common"
 	sync "sync"
 	unsafe "unsafe"
 )
@@ -6652,7 +6652,7 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"DeleteLane\x12\x1a.scripts.DeleteLaneRequest\x1a\x1b.scripts.DeleteLaneResponse\x12Z\n" +
 	"\x11CreateOutlineItem\x12!.scripts.CreateOutlineItemRequest\x1a\".scripts.CreateOutlineItemResponse\x12Z\n" +
 	"\x11UpdateOutlineItem\x12!.scripts.UpdateOutlineItemRequest\x1a\".scripts.UpdateOutlineItemResponse\x12Z\n" +
-	"\x11DeleteOutlineItem\x12!.scripts.DeleteOutlineItemRequest\x1a\".scripts.DeleteOutlineItemResponseB2Z0scriptlith/server_microservices/pkg/grpc/scriptsb\x06proto3"
+	"\x11DeleteOutlineItem\x12!.scripts.DeleteOutlineItemRequest\x1a\".scripts.DeleteOutlineItemResponseB2Z0scriptlith/server/pkg/grpc/scriptsb\x06proto3"
 
 var (
 	file_scripts_scripts_proto_rawDescOnce sync.Once

@@ -8,9 +8,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"scriptlith/server_microservices/internal/collab/service"
-	collab_pb "scriptlith/server_microservices/pkg/grpc/collab"
-	"scriptlith/server_microservices/pkg/grpc/common"
+	"scriptlith/server/internal/collab/service"
+	collab_pb "scriptlith/server/pkg/grpc/collab"
+	"scriptlith/server/pkg/grpc/common"
 )
 
 type CollaborationHandler struct {
