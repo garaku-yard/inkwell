@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 import { loginUser } from "@/services/auth"
+import { useAuth } from "@/lib/AuthContext"
 
 export interface LoginRequest {
   email: string
@@ -27,6 +28,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const { login } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,8 +39,13 @@ export default function LoginPage() {
       const data = await loginUser({ email, password });
 
       if (data.token) {
-        localStorage.setItem("authToken", data.token)
-        router.push("/dashboard")
+        const success = login(data.token);
+        if (success) {
+          // Use window.location to force a full page reload with the new auth state
+          window.location.href = "/dashboard";
+        } else {
+          setError("Failed to process login token");
+        }
       }
 
     } catch (err: unknown) {

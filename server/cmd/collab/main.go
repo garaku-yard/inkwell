@@ -185,6 +185,19 @@ func runMigrations(db *sql.DB) error {
 		UNIQUE(user_id, project_id)
 	);`
 
+	// Create collaboration_invitations table if not exists
+	createInvitationsTable := `
+	CREATE TABLE IF NOT EXISTS collaboration_invitations (
+		invitation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		project_id UUID NOT NULL,
+		inviter_id UUID NOT NULL,
+		email VARCHAR(255) NOT NULL,
+		role VARCHAR(50) NOT NULL,
+		accepted BOOLEAN DEFAULT FALSE,
+		created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+		expires_at TIMESTAMP WITH TIME ZONE NOT NULL
+	);`
+
 	// Create indexes
 	createIndexes := `
 	CREATE INDEX IF NOT EXISTS idx_collaborators_project_id ON collaborators(project_id);
@@ -195,7 +208,9 @@ func runMigrations(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id);
 	CREATE INDEX IF NOT EXISTS idx_edit_sessions_screenplay_id ON edit_sessions(screenplay_id);
 	CREATE INDEX IF NOT EXISTS idx_edit_operations_session_id ON edit_operations(session_id);
-	CREATE INDEX IF NOT EXISTS idx_user_presence_project_id ON user_presence(project_id);`
+	CREATE INDEX IF NOT EXISTS idx_user_presence_project_id ON user_presence(project_id);
+	CREATE INDEX IF NOT EXISTS idx_collaboration_invitations_email ON collaboration_invitations(email);
+	CREATE INDEX IF NOT EXISTS idx_collaboration_invitations_project_id ON collaboration_invitations(project_id);`
 
 	// Execute migrations
 	if _, err := db.Exec(createCollaboratorsTable); err != nil {
@@ -216,6 +231,10 @@ func runMigrations(db *sql.DB) error {
 
 	if _, err := db.Exec(createUserPresenceTable); err != nil {
 		return fmt.Errorf("failed to create user_presence table: %w", err)
+	}
+
+	if _, err := db.Exec(createInvitationsTable); err != nil {
+		return fmt.Errorf("failed to create collaboration_invitations table: %w", err)
 	}
 
 	if _, err := db.Exec(createIndexes); err != nil {

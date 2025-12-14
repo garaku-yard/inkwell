@@ -81,7 +81,7 @@ export default function DashboardPage() {
   })
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
-  const { isAuthenticated, logout, user } = useAuth()
+  const { isAuthenticated, isLoading: authLoading, logout, user } = useAuth()
   const userId = user?.id
   const [projects, setProjects] = useState<Project[]>([])
   const [renameDialog, setRenameDialog] = useState<{
@@ -124,6 +124,11 @@ export default function DashboardPage() {
   console.log("UserTag extracted:", userTag) // Debug log
 
   useEffect(() => {
+    // Wait for auth to finish loading
+    if (authLoading) {
+      return;
+    }
+    
     if (isAuthenticated && userId) {
       setIsLoading(true)
       const fetchDashboardData = async () => {
@@ -148,7 +153,7 @@ export default function DashboardPage() {
     } else {
       setIsLoading(false)
     }
-  }, [isAuthenticated, userId])
+  }, [isAuthenticated, userId, authLoading])
 
   const handleProjectCreated = (newProject: Project) => {
     setProjects((prevProjects) => [newProject, ...prevProjects])
