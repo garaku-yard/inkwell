@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -113,9 +115,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("Failed to decode register request: %v", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+
+	log.Printf("Register request received - Email: %s, Username: %s", req.Email, req.Username)
 
 	// Call Identity service
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -131,8 +136,10 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	grpcResp, err := h.identityClient.Register(ctx, grpcReq)
 	if err != nil {
+		// Log the actual error for debugging
+		log.Printf("Registration failed - gRPC error: %v", err)
 		// Map gRPC errors to HTTP errors
-		http.Error(w, "Registration failed", http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Registration failed: %v", err), http.StatusBadRequest)
 		return
 	}
 

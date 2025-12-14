@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo, useEffect, useImperativeHandle } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -52,7 +52,6 @@ export const SidePanel = React.memo(
       const [commentsLoading, setCommentsLoading] = useState(false)
       const router = useRouter()
 
-      // Load all comments for the project when component mounts
       useEffect(() => {
         loadAllComments()
       }, [project.id])
@@ -60,7 +59,6 @@ export const SidePanel = React.memo(
       const loadAllComments = async () => {
         setCommentsLoading(true)
         try {
-          // Use project ID as screenplay ID for now - load ALL comments for the project
           const projectComments = await getComments(project.id)
           setAllComments(projectComments)
         } catch (error) {
@@ -84,7 +82,6 @@ export const SidePanel = React.memo(
         return SCRIPT_ELEMENT_CONFIG[elementType]?.badgeColor || "bg-gray-100 text-gray-700 border-gray-200"
       }
 
-      // Get comment count for a specific element
       const getCommentCount = (elementId: string) => {
         return allComments.filter(comment => comment.elementId === elementId).length
       }
@@ -95,11 +92,9 @@ export const SidePanel = React.memo(
 
       const activeElement = useMemo((): ActiveScriptItem | null => {
         if (!activeElementId) return null
-        
-        // Filter comments for the active element
+
         const elementComments = allComments.filter(comment => comment.elementId === activeElementId)
-        
-        // Check scenes directly (no acts structure in microservices)
+
         if (project.scenes) {
           for (const scene of project.scenes) {
             if (scene.id === activeElementId) {
@@ -152,7 +147,6 @@ export const SidePanel = React.memo(
                   Comments
                   {unresolvedCommentsCount > 0 && (
                     <Badge
-                      // NEW: Changed to bg-blue-500 for a blue dot
                       className="absolute -top-1 right-1 h-2.5 w-2.5 p-0 rounded-full flex items-center justify-center bg-blue-500"
                     >
                       <span className="sr-only">{unresolvedCommentsCount} unresolved comments</span>
@@ -171,25 +165,25 @@ export const SidePanel = React.memo(
                 >
                   <CardContent className="p-3">
                     <div className="space-y-2">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-sm leading-tight group-hover:text-primary transition-colors">
-                              {scene.scene_heading.toUpperCase()}
-                            </h4>
-                            <p className="text-xs text-muted-foreground mt-1">Scene {scene.scene_number || index + 1}</p>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Badge variant="outline" className="text-xs">
-                              {scene.elements?.length || 0}
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-sm leading-tight group-hover:text-primary transition-colors">
+                            {scene.scene_heading.toUpperCase()}
+                          </h4>
+                          <p className="text-xs text-muted-foreground mt-1">Scene {index + 1}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Badge variant="outline" className="text-xs">
+                            {scene.elements?.length || 0}
+                          </Badge>
+                          {getCommentCount(scene.id) > 0 && (
+                            <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                              <MessageCircle className="h-3 w-3" />
+                              {getCommentCount(scene.id)}
                             </Badge>
-                            {getCommentCount(scene.id) > 0 && (
-                              <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                                <MessageCircle className="h-3 w-3" />
-                                {getCommentCount(scene.id)}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>                      {scene.elements && scene.elements.length > 0 && (
+                          )}
+                        </div>
+                      </div>                      {scene.elements && scene.elements.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {Array.from(new Set(scene.elements.map((el) => el.element_type).filter(Boolean)))
                             .slice(0, 4)
@@ -218,23 +212,23 @@ export const SidePanel = React.memo(
             </TabsContent>
 
             <TabsContent value="structure" className="flex-1 overflow-y-auto p-3 space-y-4 min-h-0">
-              {project.acts?.map((act) => (
-                <Card key={act.id} className="overflow-hidden flex-shrink-0">
+              {project.scenes && project.scenes.length > 0 ? (
+                <Card className="overflow-hidden flex-shrink-0">
                   <CardContent className="p-0">
                     <div className="bg-muted/50 p-3 border-b">
                       <div className="flex items-center justify-between">
                         <h3 className="font-semibold text-base flex items-center gap-2">
                           <Film className="h-4 w-4" />
-                          Act {act.actNumber} {act.title && `- ${act.title}`}
+                          All Scenes
                         </h3>
                         <Badge variant="secondary" className="text-xs">
-                          {act.scenes.length} scenes
+                          {project.scenes.length} scenes
                         </Badge>
                       </div>
                     </div>
 
                     <div className="p-3 space-y-3">
-                      {act.scenes.map((scene, sceneIndex) => (
+                      {project.scenes.map((scene, sceneIndex) => (
                         <div key={scene.id} className="space-y-2">
                           <div
                             className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors group"
@@ -245,7 +239,7 @@ export const SidePanel = React.memo(
                                 {sceneIndex + 1}
                               </div>
                               <span className="text-sm font-medium group-hover:text-primary transition-colors truncate">
-                                {scene.setting.toUpperCase()}
+                                {scene.scene_heading.toUpperCase()}
                               </span>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
@@ -358,13 +352,17 @@ export const SidePanel = React.memo(
                             </div>
                           )}
 
-                          {sceneIndex < act.scenes.length - 1 && <Separator className="ml-8" />}
+                          {sceneIndex < (project.scenes?.length ?? 0) - 1 && <Separator className="ml-8" />}
                         </div>
                       ))}
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  No scenes yet. Start writing to see the structure.
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="comments" className="flex-1 min-h-0">

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package collab;
 
-option go_package = "scriptlith/server_microservices/pkg/grpc/collab";
+option go_package = "scriptlith/server/pkg/grpc/collab";
 
 import "common/types.proto";
 

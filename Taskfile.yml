@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 # Global variables
 vars:
@@ -19,7 +19,7 @@ tasks:
 
   install:server:
     desc: Install Go dependencies for all microservices
-    dir: server_microservices
+    dir: server
     cmds:
       - go mod download
       - go mod tidy
@@ -35,13 +35,16 @@ tasks:
   # ====================
   dev:
     desc: Start all services in development mode
+    preconditions:
+      - test -f .env || (echo "❌ ERROR - .env file not found! Run 'task setup' first" && exit 1)
     cmds:
       - task: docker:up
-      - echo "Services started! Frontend: http://localhost:3000, API: http://localhost:8080"
+      - 'echo "Services started! Frontend: http://localhost:3000, API: http://localhost:8080"'
 
   dev:watch:
     desc: Start services with live reload (for local development without Docker)
-    deps: [db:up]
+    deps:
+      - task: db:up
     cmds:
       - task: dev:client
 
@@ -142,8 +145,7 @@ tasks:
       - "{{.DOCKER_COMPOSE}} ps"
 
   docker:clean:
-    desc: Stop containers and remove volumes (WARNING: deletes all data!)
-    prompt: This will delete all database data. Continue?
+    desc: Stop containers and remove volumes (WARNING deletes all data!)
     cmds:
       - "{{.DOCKER_COMPOSE}} down -v --remove-orphans"
 
@@ -163,8 +165,8 @@ tasks:
   db:migrate:
     desc: Run migrations for all services (happens automatically on service startup with GORM)
     cmds:
-      - echo "Migrations run automatically when services start (GORM AutoMigrate)"
-      - echo "To manually run migrations, restart the services:"
+      - 'echo "Migrations run automatically when services start (GORM AutoMigrate)"'
+      - 'echo "To manually run migrations, restart the services:"'
       - task: docker:restart
 
   db:shell:scripts:
@@ -190,13 +192,13 @@ tasks:
   db:status:
     desc: Check database tables (verify migrations)
     cmds:
-      - echo "=== Scripts Database Tables ==="
+      - 'echo "=== Scripts Database Tables ==="'
       - "{{.DOCKER_COMPOSE}} exec postgres-scripts psql -U postgres -d scripts_db -c '\\dt'"
-      - echo "\n=== Identity Database Tables ==="
+      - 'echo "\n=== Identity Database Tables ==="'
       - "{{.DOCKER_COMPOSE}} exec postgres-identity psql -U postgres -d identity_db -c '\\dt'"
-      - echo "\n=== Collab Database Tables ==="
+      - 'echo "\n=== Collab Database Tables ==="'
       - "{{.DOCKER_COMPOSE}} exec postgres-collab psql -U postgres -d collab_db -c '\\dt'"
-      - echo "\n=== Billing Database Tables ==="
+      - 'echo "\n=== Billing Database Tables ==="'
       - "{{.DOCKER_COMPOSE}} exec postgres-billing psql -U postgres -d billing_db -c '\\dt'"
 
   # ====================
@@ -210,7 +212,7 @@ tasks:
 
   build:server:
     desc: Build all Go microservices
-    dir: server_microservices
+    dir: server
     cmds:
       - task: build:server:gateway
       - task: build:server:identity
@@ -220,31 +222,31 @@ tasks:
 
   build:server:gateway:
     desc: Build API Gateway
-    dir: server_microservices
+    dir: server
     cmds:
       - go build -o bin/gateway ./cmd/gateway
 
   build:server:identity:
     desc: Build Identity Service
-    dir: server_microservices
+    dir: server
     cmds:
       - go build -o bin/identity ./cmd/identity
 
   build:server:scripts:
     desc: Build Scripts Service
-    dir: server_microservices
+    dir: server
     cmds:
       - go build -o bin/scripts ./cmd/scripts
 
   build:server:collab:
     desc: Build Collab Service
-    dir: server_microservices
+    dir: server
     cmds:
       - go build -o bin/collab ./cmd/collab
 
   build:server:billing:
     desc: Build Billing Service
-    dir: server_microservices
+    dir: server
     cmds:
       - go build -o bin/billing ./cmd/billing
 
@@ -265,7 +267,7 @@ tasks:
 
   test:server:
     desc: Run Go tests for all microservices
-    dir: server_microservices
+    dir: server
     cmds:
       - go test ./...
 
@@ -286,7 +288,7 @@ tasks:
 
   lint:server:
     desc: Run Go linters
-    dir: server_microservices
+    dir: server
     cmds:
       - go vet ./...
       - go fmt ./...
@@ -305,7 +307,7 @@ tasks:
 
   format:server:
     desc: Format Go code
-    dir: server_microservices
+    dir: server
     cmds:
       - go fmt ./...
 
@@ -320,37 +322,51 @@ tasks:
   # ====================
   proto:gen:
     desc: Generate protobuf code for all services
-    dir: server_microservices
+    dir: server
     cmds:
-      - echo "Generating protobuf files..."
-      - task: proto:gen:scripts
+      - 'echo "Generating protobuf files..."'
+      - task: proto:gen:common
       - task: proto:gen:identity
+      - task: proto:gen:scripts
       - task: proto:gen:collab
       - task: proto:gen:billing
+      - task: proto:gen:ai
+
+  proto:gen:common:
+    desc: Generate protobuf code for Common types
+    dir: server
+    cmds:
+      - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative common/types.proto
 
   proto:gen:scripts:
     desc: Generate protobuf code for Scripts service
-    dir: server_microservices
+    dir: server
     cmds:
-      - protoc --go_out=. --go-grpc_out=. proto/scripts.proto
+      - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative scripts/scripts.proto
 
   proto:gen:identity:
     desc: Generate protobuf code for Identity service
-    dir: server_microservices
+    dir: server
     cmds:
-      - protoc --go_out=. --go-grpc_out=. proto/identity.proto
+      - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative identity/identity.proto
 
   proto:gen:collab:
     desc: Generate protobuf code for Collab service
-    dir: server_microservices
+    dir: server
     cmds:
-      - protoc --go_out=. --go-grpc_out=. proto/collab.proto
+      - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative collab/collab.proto
 
   proto:gen:billing:
     desc: Generate protobuf code for Billing service
-    dir: server_microservices
+    dir: server
     cmds:
-      - protoc --go_out=. --go-grpc_out=. proto/billing.proto
+      - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative billing/billing.proto
+
+  proto:gen:ai:
+    desc: Generate protobuf code for AI service
+    dir: server
+    cmds:
+      - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative ai/ai.proto
 
   # ====================
   # Service-Specific Operations
@@ -385,29 +401,38 @@ tasks:
   clean:
     desc: Clean build artifacts and caches
     cmds:
-      - rm -rf server_microservices/bin
+      - rm -rf server/bin
       - rm -rf client/.next
       - rm -rf client/node_modules
-      - rm -rf server_microservices/vendor
+      - rm -rf server/vendor
 
   setup:
     desc: Initial setup for new developers
     cmds:
-      - echo "🚀 Setting up Scriptlith development environment..."
+      - 'echo "🚀 Setting up Scriptlith development environment..."'
       - task: install
-      - cp .env.example .env || echo ".env already exists"
-      - echo "✅ Setup complete! Edit .env with your API keys"
-      - echo "Run 'task dev' to start all services"
+      - 'echo "✅ Dependencies installed!"'
+      - 'echo "⚠️  Next steps:"'
+      - 'echo "1. Create .env file: cp .env.example .env"'
+      - 'echo "2. Edit .env with your credentials (POSTGRES_USER, POSTGRES_PASSWORD, etc)"'
+      - 'echo "3. Run: task fresh (for first time setup)"'
+      - 'echo "4. Run: task dev (to start services after setup)"'
 
   fresh:
-    desc: Fresh start (clean everything and rebuild)
-    prompt: This will delete all data and rebuild everything. Continue?
+    desc: Fresh start (clean everything and rebuild from scratch)
+    preconditions:
+      - test -f .env || (echo "❌ ERROR - .env file not found! Create it first - cp .env.example .env and edit the credentials" && exit 1)
     cmds:
+      - 'echo "🧹 Cleaning everything..."'
       - task: docker:clean
       - task: clean
+      - 'echo "📦 Installing dependencies..."'
       - task: install
+      - 'echo "🔨 Building Docker images..."'
       - task: docker:build
+      - 'echo "🚀 Starting all services..."'
       - task: docker:up
+      - 'echo "✅ All services started! Frontend at http://localhost:3000, API at http://localhost:8080"'
 
   help:
     desc: Show all available tasks

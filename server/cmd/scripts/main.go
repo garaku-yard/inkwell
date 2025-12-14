@@ -99,7 +99,7 @@ func main() {
 // Returns both GORM DB and underlying sql.DB
 func connectDatabase(cfg config.DatabaseConfig) (*gorm.DB, *sql.DB, error) {
 	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode,
 	)
 

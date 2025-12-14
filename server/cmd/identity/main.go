@@ -13,8 +13,11 @@ import (
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
 	"scriptlith/server/internal/identity/config"
+	"scriptlith/server/internal/identity/domain"
 	"scriptlith/server/internal/identity/handler"
 	"scriptlith/server/internal/identity/repository"
 	"scriptlith/server/internal/identity/service"
@@ -33,6 +36,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
+
+	// Debug: log database connection info
+	log.Printf("Database config: Host=%s, Port=%s, User=%s, Database=%s",
+		cfg.DatabaseConfig.Host, cfg.DatabaseConfig.Port,
+		cfg.DatabaseConfig.User, cfg.DatabaseConfig.Name)
 
 	// Connect to database
 	db, err := connectDatabase(cfg.DatabaseConfig)
@@ -107,11 +115,27 @@ func connectDatabase(cfg config.DatabaseConfig) (*sql.DB, error) {
 	return database.Connect(&dbConfig)
 }
 
-// runMigrations runs database migrations
+// runMigrations runs database migrations using GORM
 func runMigrations(db *sql.DB) error {
-	// For now, we'll assume migrations are run separately
-	// In a production setup, you might use a migration tool like golang-migrate
-	log.Println("Database migrations completed (or skipped)")
+	// Create GORM DB from sql.DB
+	gormDB, err := gorm.Open(postgres.New(postgres.Config{
+		Conn: db,
+	}), &gorm.Config{})
+	if err != nil {
+		return err
+	}
+
+	// Auto-migrate the schema
+	if err := gormDB.AutoMigrate(
+		&domain.User{},
+		&domain.UserSession{},
+		&domain.PasswordResetToken{},
+		&domain.EmailVerificationToken{},
+	); err != nil {
+		return err
+	}
+
+	log.Println("Database migrations completed successfully")
 	return nil
 }
 

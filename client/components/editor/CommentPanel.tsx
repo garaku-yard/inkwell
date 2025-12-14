@@ -80,7 +80,7 @@ export const CommentPanel = React.memo(
               <div className="mb-4 text-sm text-muted-foreground truncate">
                 Comments for:{" "}
                 <span className="font-medium text-foreground">
-                  {activeElement.isScene ? activeElement.setting : activeElement.content.substring(0, 50) + "..."}
+                  {activeElement.isScene ? activeElement.scene_heading : activeElement.content.substring(0, 50) + "..."}
                 </span>
               </div>
               <ScrollArea className="flex-1 pr-4 -mr-4">
@@ -150,8 +150,7 @@ export const CommentPanel = React.memo(
                           </div>
                         </div>
 
-                        {/* Conditional rendering for editing state */}
-                        {editingComment?.id === comment.id && !comment.isResolved ? ( // Ensure not resolved
+                        {editingComment?.id === comment.id && !comment.isResolved ? (
                           <div className="space-y-2 pointer-events-auto">
                             <Textarea
                               value={editingComment.content}

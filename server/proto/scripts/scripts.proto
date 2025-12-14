@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package scripts;
 
-option go_package = "scriptlith/server_microservices/pkg/grpc/scripts";
+option go_package = "scriptlith/server/pkg/grpc/scripts";
 
 import "common/types.proto";
 

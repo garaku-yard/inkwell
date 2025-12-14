@@ -4,14 +4,14 @@ import { ScriptElement } from "./project";
 export interface CreateElementRequest {
   sceneId: string; // Required - elements must belong to a scene
   elementOrder: number;
-  elementType: ScriptElement['elementType'];
+  elementType: ScriptElement['element_type'];
   content: string;
   characterId?: string | null;
 }
 
 export interface UpdateElementRequest {
   content?: string;
-  elementType?: ScriptElement['elementType'];
+  elementType?: ScriptElement['element_type'];
 }
 
 /**

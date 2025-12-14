@@ -2729,7 +2729,7 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\x12GetUserInvitations\x12!.collab.GetUserInvitationsRequest\x1a\".collab.GetUserInvitationsResponse\x12U\n" +
 	"\x10AcceptInvitation\x12\x1f.collab.AcceptInvitationRequest\x1a .collab.AcceptInvitationResponse\x12X\n" +
 	"\x11DeclineInvitation\x12 .collab.DeclineInvitationRequest\x1a!.collab.DeclineInvitationResponse\x12^\n" +
-	"\x13RespondToInvitation\x12\".collab.RespondToInvitationRequest\x1a#.collab.RespondToInvitationResponseB1Z/scriptlith/server/pkg/grpc/collabb\x06proto3"
+	"\x13RespondToInvitation\x12\".collab.RespondToInvitationRequest\x1a#.collab.RespondToInvitationResponseB#Z!scriptlith/server/pkg/grpc/collabb\x06proto3"
 
 var (
 	file_collab_collab_proto_rawDescOnce sync.Once

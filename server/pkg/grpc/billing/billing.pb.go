@@ -2220,7 +2220,7 @@ const file_billing_billing_proto_rawDesc = "" +
 	"\n" +
 	"TrackUsage\x12\x1a.billing.TrackUsageRequest\x1a\x1b.billing.TrackUsageResponse\x12K\n" +
 	"\fGetUserUsage\x12\x1c.billing.GetUserUsageRequest\x1a\x1d.billing.GetUserUsageResponse\x12Q\n" +
-	"\x0eProcessWebhook\x12\x1e.billing.ProcessWebhookRequest\x1a\x1f.billing.ProcessWebhookResponseB2Z0scriptlith/server/pkg/grpc/billingb\x06proto3"
+	"\x0eProcessWebhook\x12\x1e.billing.ProcessWebhookRequest\x1a\x1f.billing.ProcessWebhookResponseB$Z\"scriptlith/server/pkg/grpc/billingb\x06proto3"
 
 var (
 	file_billing_billing_proto_rawDescOnce sync.Once
