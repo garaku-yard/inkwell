@@ -52,10 +52,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const token = localStorage.getItem("authToken");
       if (token) {
         const decodedToken: DecodedToken = jwtDecode(token);
-        console.log("Full decoded token:", decodedToken); // Debug log
-        
+
         if (decodedToken.exp * 1000 > Date.now()) {
-          // Validate that the user ID is a proper UUID (36 characters with dashes)
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
           if (uuidRegex.test(decodedToken.sub)) {
             setIsAuthenticated(true);
@@ -66,8 +64,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               role: decodedToken.role || 'user',
             });
           } else {
-            // Clear old token with invalid UUID format
-            console.log('Clearing old token with invalid user ID format');
             localStorage.removeItem("authToken");
           }
         } else {
@@ -86,7 +82,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       localStorage.setItem("authToken", token);
       const decodedToken: DecodedToken = jwtDecode(token);
-      
+
       if (decodedToken.exp * 1000 > Date.now()) {
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (uuidRegex.test(decodedToken.sub)) {

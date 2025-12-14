@@ -85,7 +85,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const debouncedSave = useDebouncedCallback((id: string, content: string, isScene: boolean) => {
     if (id.startsWith("new-")) return
-    console.log("Saving to database...")
     if (isScene) {
       updateSceneSetting(id, content).catch((err) => console.error("Scene save failed:", err))
     } else {
@@ -102,7 +101,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const flattenedScriptItems: ScriptItem[] = useMemo(() => {
     if (!project?.scenes?.length) return []
-    
+
     return project.scenes.flatMap((scene) => [
       { type: "SCENE_HEADING", data: scene },
       ...(scene.elements?.map((el): ScriptItem => ({ type: "ELEMENT", data: el })) || []),
@@ -131,7 +130,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         isScene ? elementId : undefined, // scene ID only if it's a scene
         undefined // parent ID for replies
       )
-      
+
       // Trigger refresh of comments in SidePanel
       refreshComments()
     } catch (err) {
@@ -143,11 +142,11 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     try {
       // Call the actual API to update the comment
       const updatedComment = await updateComment(commentId, content)
-      
+
       // Update local state with the updated comment
       setProject((prevProject) => {
         if (!prevProject.scenes) return prevProject
-        
+
         const newScenes = prevProject.scenes.map((scene: Scene) => ({
           ...scene,
           comments: (scene as any).comments?.map((c: Comment) => (c.id === commentId ? updatedComment : c)),
@@ -156,7 +155,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             comments: (el as any).comments?.map((c: Comment) => (c.id === commentId ? updatedComment : c)),
           })),
         }))
-        
+
         return { ...prevProject, scenes: newScenes }
       })
     } catch (err) {
@@ -168,11 +167,11 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     try {
       // Call the actual API to delete the comment
       await deleteComment(commentId)
-      
+
       // Update local state to remove the comment
       setProject((prevProject) => {
         if (!prevProject.scenes) return prevProject
-        
+
         const newScenes = prevProject.scenes.map((scene: Scene) => ({
           ...scene,
           comments: (scene as any).comments?.filter((c: Comment) => c.id !== commentId),
@@ -181,7 +180,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             comments: (el as any).comments?.filter((c: Comment) => c.id !== commentId),
           })),
         }))
-        
+
         return { ...prevProject, scenes: newScenes }
       })
     } catch (err) {
@@ -197,11 +196,11 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       try {
         // Call the actual API to toggle the comment resolved state
         const updatedComment = await toggleCommentResolved(commentId, newResolvedState)
-        
+
         // Update local state with the updated comment
         setProject((prevProject) => {
           if (!prevProject.scenes) return prevProject
-          
+
           const newScenes = prevProject.scenes.map((scene: Scene) => {
             if (isScene && scene.id === elementId) {
               return {
@@ -225,7 +224,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
               ),
             }
           })
-          
+
           return { ...prevProject, scenes: newScenes }
         })
       } catch (err) {
@@ -270,7 +269,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       setProject((prevProject) => {
         if (isScene) {
           // Update scene in flat scenes array
-          const newScenes = prevProject.scenes?.map((scene) => 
+          const newScenes = prevProject.scenes?.map((scene) =>
             scene.id === id ? { ...scene, scene_heading: content } : scene
           ) || []
           return { ...prevProject, scenes: newScenes }
@@ -407,12 +406,12 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
       setProject((prevProject) => {
         if (!prevProject.scenes) return prevProject
-        
+
         const newScenes = prevProject.scenes.map((scene: Scene) => ({
           ...scene,
           elements: scene.elements?.filter((el: ScriptElement) => el.id !== elementIdToDelete),
         }))
-        
+
         return { ...prevProject, scenes: newScenes }
       })
 
@@ -436,9 +435,9 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
       setProject((prevProject) => {
         if (!prevProject.scenes) return prevProject
-        
+
         const newScenes = prevProject.scenes.filter((scene: Scene) => scene.id !== sceneIdToDelete)
-        
+
         return { ...prevProject, scenes: newScenes }
       })
 
@@ -453,19 +452,19 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const handleSelectAll = useCallback(async (e: React.KeyboardEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Get only the actual screenplay text elements
     const textElements = Array.from(
       document.querySelectorAll('[data-screenplay-text]')
     ) as HTMLElement[];
-    
+
     if (textElements.length === 0) return;
-    
+
     // Extract plain text from all elements
     const screenplay = textElements
       .map(el => el.textContent || '')
       .join('\n');
-    
+
     // Copy to clipboard using modern Clipboard API with fallback
     try {
       if (navigator.clipboard && window.isSecureContext) {
@@ -480,31 +479,31 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
-        
+
         try {
           document.execCommand('copy');
         } finally {
           textArea.remove();
         }
       }
-      
+
       // Show success toast
       toast({
         title: "Copied to clipboard",
         description: `${textElements.length} screenplay elements copied successfully.`,
       });
-      
+
       // Provide visual feedback by temporarily highlighting all text elements
       const selection = window.getSelection();
       if (selection) {
         selection.removeAllRanges();
-        
+
         textElements.forEach(element => {
           const range = document.createRange();
           range.selectNodeContents(element);
           selection.addRange(range);
         });
-        
+
         // Clear selection after brief visual feedback
         setTimeout(() => {
           selection.removeAllRanges();
@@ -583,10 +582,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     setIsAIChatOpen((prev) => !prev)
   }, [])
 
-  // Handler for successful project import (though the dialog handles navigation)
   const handleProjectImported = (importedProject: Project) => {
-    console.log(`Successfully imported project: ${importedProject.title}`);
-    // The dialog should handle routing, but this ensures the state is closed
     setIsImportProjectDialogOpen(false);
   }
 

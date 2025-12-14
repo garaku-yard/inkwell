@@ -42,7 +42,6 @@ func main() {
 	}
 	defer db.Close()
 
-	// Run database migrations
 	if err := runMigrations(db); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
@@ -108,12 +107,7 @@ func connectDatabase(cfg config.DatabaseConfig) (*sql.DB, error) {
 	return database.Connect(&dbConfig)
 }
 
-// runMigrations runs database migrations
 func runMigrations(db *sql.DB) error {
-	// These tables should already exist from the collaboration migrations
-	// This is just a safety check to create them if needed
-
-	// Create collaborators table if not exists
 	createCollaboratorsTable := `
 	CREATE TABLE IF NOT EXISTS collaborators (
 		collaborator_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -127,7 +121,6 @@ func runMigrations(db *sql.DB) error {
 		UNIQUE(project_id, user_id)
 	);`
 
-	// Create comments table if not exists
 	createCommentsTable := `
 	CREATE TABLE IF NOT EXISTS comments (
 		comment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -145,7 +138,6 @@ func runMigrations(db *sql.DB) error {
 		updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 	);`
 
-	// Create edit_sessions table if not exists
 	createEditSessionsTable := `
 	CREATE TABLE IF NOT EXISTS edit_sessions (
 		session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -157,7 +149,6 @@ func runMigrations(db *sql.DB) error {
 		is_active BOOLEAN DEFAULT TRUE
 	);`
 
-	// Create edit_operations table if not exists
 	createEditOperationsTable := `
 	CREATE TABLE IF NOT EXISTS edit_operations (
 		operation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -170,7 +161,6 @@ func runMigrations(db *sql.DB) error {
 		timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 	);`
 
-	// Create user_presence table if not exists
 	createUserPresenceTable := `
 	CREATE TABLE IF NOT EXISTS user_presence (
 		presence_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -185,7 +175,6 @@ func runMigrations(db *sql.DB) error {
 		UNIQUE(user_id, project_id)
 	);`
 
-	// Create collaboration_invitations table if not exists
 	createInvitationsTable := `
 	CREATE TABLE IF NOT EXISTS collaboration_invitations (
 		invitation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -198,7 +187,6 @@ func runMigrations(db *sql.DB) error {
 		expires_at TIMESTAMP WITH TIME ZONE NOT NULL
 	);`
 
-	// Create indexes
 	createIndexes := `
 	CREATE INDEX IF NOT EXISTS idx_collaborators_project_id ON collaborators(project_id);
 	CREATE INDEX IF NOT EXISTS idx_collaborators_user_id ON collaborators(user_id);
@@ -212,7 +200,6 @@ func runMigrations(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_collaboration_invitations_email ON collaboration_invitations(email);
 	CREATE INDEX IF NOT EXISTS idx_collaboration_invitations_project_id ON collaboration_invitations(project_id);`
 
-	// Execute migrations
 	if _, err := db.Exec(createCollaboratorsTable); err != nil {
 		return fmt.Errorf("failed to create collaborators table: %w", err)
 	}
@@ -245,7 +232,6 @@ func runMigrations(db *sql.DB) error {
 	return nil
 }
 
-// loggingInterceptor logs incoming gRPC requests
 func loggingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	log.Printf("gRPC method: %s", info.FullMethod)
 

@@ -2,32 +2,77 @@
 
 A modern, microservices-based screenplay writing and collaboration platform built with Go, Next.js, and PostgreSQL.
 
+---
+
+## 📑 Table of Contents
+
+- [Architecture](#-architecture)
+- [Prerequisites](#-prerequisites)
+- [Quick Start](#-quick-start)
+- [Task Commands](#-task-commands)
+- [Docker Services](#-docker-services)
+- [Database & Migrations](#-database--migrations)
+- [Development Workflows](#-development-workflows)
+- [Project Structure](#-project-structure)
+- [Environment Variables](#-environment-variables)
+- [Testing](#-testing)
+- [Troubleshooting](#-troubleshooting)
+- [Production Deployment](#-production-deployment)
+
+---
+
 ## 🏗️ Architecture
 
-**Backend:**
-- **API Gateway** - Routes requests to microservices
-- **Identity Service** - Authentication and user management
-- **Scripts Service** - Screenplay content and structure
-- **Collab Service** - Real-time collaboration features
-- **Billing Service** - Subscription and payment management
-- **AI Service** - AI-powered writing assistance
+### Backend Microservices
 
-**Frontend:**
+- **API Gateway** (port 8080) - HTTP REST API that routes requests to microservices
+- **Identity Service** (port 50051) - Authentication and user management (gRPC)
+- **Scripts Service** (port 50052) - Screenplay content and structure (gRPC)
+- **Collab Service** (port 50053) - Real-time collaboration features (gRPC)
+- **Billing Service** (port 50054) - Subscription and payment management (gRPC)
+- **AI Service** (port 50055) - AI-powered writing assistance (gRPC)
+
+### Frontend
+
 - **Next.js 14** - React-based client with App Router
 - **TailwindCSS** - Styling
 - **Shadcn/ui** - Component library
 
-**Infrastructure:**
+### Infrastructure
+
 - **PostgreSQL** - 4 separate databases (one per domain service)
-- **Redis** - Caching and session management
-- **Kafka** - Event streaming between services
-- **Docker** - Containerization
+  - postgres-identity (port 5432)
+  - postgres-scripts (port 5433)
+  - postgres-collab (port 5434)
+  - postgres-billing (port 5435)
+- **Redis** (port 6379) - Caching and session management
+- **Kafka** (port 9092) - Event streaming between services
+- **Zookeeper** (port 2181) - Kafka coordination
+- **Docker** - Containerization and orchestration
 
-## 🚀 Quick Start
+### Network Architecture
 
-### Prerequisites
+All services communicate on the `scriptlith-network` bridge network:
 
-1. **Install Task Runner** (modern Make alternative):
+- Frontend → API Gateway (HTTP REST)
+- API Gateway → Microservices (gRPC)
+- Microservices → Databases (PostgreSQL)
+- Microservices → Redis (caching)
+- Microservices → Kafka (event streaming)
+
+---
+
+## 📋 Prerequisites
+
+### Required
+
+1. **Docker Desktop 20.10+** with Docker Compose v2.0+
+   - Download from [docker.com](https://www.docker.com/products/docker-desktop)
+   - Ensure at least 4GB RAM available for Docker
+   - Ensure at least 10GB free disk space
+
+2. **Task Runner** (modern Make alternative)
+
    ```bash
    # macOS
    brew install go-task
@@ -39,21 +84,21 @@ A modern, microservices-based screenplay writing and collaboration platform buil
    choco install go-task
    ```
 
-2. **Install Docker Desktop**:
-   - Download from [docker.com](https://www.docker.com/products/docker-desktop)
-   - Ensure Docker Compose is included (it is by default)
+### Optional (only for local development without Docker)
 
-3. **Install Go 1.21+** (optional, only needed for local development):
+3. **Go 1.24+**
+
    ```bash
    # macOS
    brew install go
    
    # Linux
-   wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
-   sudo tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+   wget https://go.dev/dl/go1.24.0.linux-amd64.tar.gz
+   sudo tar -C /usr/local -xzf go1.24.0.linux-amd64.tar.gz
    ```
 
-4. **Install Node.js 20+** (optional, only needed for local development):
+4. **Node.js 20+**
+
    ```bash
    # macOS
    brew install node@20
@@ -63,6 +108,10 @@ A modern, microservices-based screenplay writing and collaboration platform buil
    nvm install 20
    ```
 
+---
+
+## 🚀 Quick Start
+
 ### Initial Setup
 
 ```bash
@@ -70,26 +119,68 @@ A modern, microservices-based screenplay writing and collaboration platform buil
 git clone https://github.com/l1roii/scriptlith.git
 cd scriptlith
 
-# 2. Run setup (installs dependencies, creates .env)
-task setup
+# 2. Copy environment variables
+cp .env.example .env
 
-# 3. Edit .env file with your API keys
+# 3. Edit .env file with your credentials
 nano .env  # or use your preferred editor
 
 # Required environment variables:
 # - JWT_SECRET (generate with: openssl rand -base64 32)
-# - OPENAI_API_KEY (from openai.com)
-# - ANTHROPIC_API_KEY (from anthropic.com)
+# - POSTGRES_PASSWORD (database password)
+# - REDIS_PASSWORD (Redis password)
+# - OPENAI_API_KEY (optional, from openai.com)
+# - ANTHROPIC_API_KEY (optional, from anthropic.com)
 
-# 4. Start all services
+# 4. Start all services (builds everything automatically)
 task dev
 ```
 
-That's it! The application will be available at:
-- **Frontend**: http://localhost:3000
-- **API Gateway**: http://localhost:8080
+This single command will:
 
-## 📋 Task Commands Reference
+- Build all microservices (Gateway, Identity, Scripts, Collab, Billing, AI)
+- Build the Next.js frontend
+- Start PostgreSQL databases (4 separate DBs)
+- Start Redis for caching
+- Start Kafka + Zookeeper for event streaming
+- Run all database migrations automatically
+- Set up persistent volumes for all data
+
+### Access the Application
+
+Once started, the application is available at:
+
+- **Frontend**: <http://localhost:3000>
+- **API Gateway**: <http://localhost:8080>
+
+### Next Steps
+
+1. Register a new account at <http://localhost:3000/register>
+2. Create your first project
+3. Start writing your screenplay!
+
+---
+
+## 📋 Task Commands
+
+### Essential Commands
+
+```bash
+# Start everything
+task dev
+
+# Stop everything
+task docker:down
+
+# Rebuild and restart everything
+task docker:rebuild
+
+# Clean everything and rebuild from scratch (⚠️ DELETES ALL DATA)
+task fresh
+
+# View all available commands
+task --list
+```
 
 ### Development Workflow
 
@@ -110,27 +201,72 @@ task docker:rebuild
 task fresh
 ```
 
-### Building Services
+### Utilities
 
 ```bash
-# Build all services (Go + Node.js)
-task build:all
+# Show all available tasks
+task --list
 
-# Build only backend services
-task build:server
-
-# Build only frontend
-task build:client
-
-# Build individual Go service
-task build:server:scripts
-task build:server:identity
-task build:server:collab
-task build:server:billing
-task build:server:gateway
+# Clean build artifacts and temporary files
+task clean
 ```
 
-### Docker Operations
+---
+
+## 🐳 Docker Services
+
+```bash
+# Generate all protobuf files
+task proto:gen
+
+# Generate for specific service
+task proto:gen:scripts
+task proto:gen:identity
+task proto:gen:collab
+task proto:gen:billing
+task proto:gen:common
+task proto:gen:ai
+```
+
+---
+
+## 🐳 Docker Services
+
+| Service | Port | Type | Description |
+|---------|------|------|-------------|
+| **client** | 3000 | Frontend | Next.js web application |
+| **api-gateway** | 8080 | Backend | HTTP REST API gateway |
+| **identity-service** | 50051 | Backend | User authentication (gRPC) |
+| **scripts-service** | 50052 | Backend | Screenplay management (gRPC) |
+| **collab-service** | 50053 | Backend | Real-time collaboration (gRPC) |
+| **billing-service** | 50054 | Backend | Billing & subscriptions (gRPC) |
+| **ai-service** | 50055 | Backend | AI writing assistance (gRPC) |
+| **postgres-identity** | 5432 | Database | Identity & users DB |
+| **postgres-scripts** | 5433 | Database | Scripts & projects DB |
+| **postgres-collab** | 5434 | Database | Collaboration & comments DB |
+| **postgres-billing** | 5435 | Database | Billing & subscriptions DB |
+| **redis** | 6379 | Cache | Session cache & temporary data |
+| **kafka** | 9092 | Messaging | Event streaming |
+| **zookeeper** | 2181 | Coordination | Kafka coordination |
+
+### Data Persistence
+
+All data is stored in Docker volumes that persist even when containers are stopped:
+
+- `postgres_identity_data` - Identity service database
+- `postgres_scripts_data` - Scripts service database
+- `postgres_collab_data` - Collaboration service database
+- `postgres_billing_data` - Billing service database
+- `redis_data` - Redis cache
+- `kafka_data` - Kafka messages
+- `zookeeper_data` - Zookeeper state
+- `zookeeper_logs` - Zookeeper logs
+
+**⚠️ Data is only deleted if you run `docker compose down -v` or `task fresh`**
+
+---
+
+## 🗃️ Database & Migrations
 
 ```bash
 # Build all Docker images
@@ -145,6 +281,12 @@ task docker:down
 # View logs (all services)
 task docker:logs
 
+# View logs for specific service
+docker compose logs -f client
+docker compose logs -f api-gateway
+docker compose logs -f scripts-service
+docker compose logs -f identity-service
+
 # View container status
 task docker:ps
 
@@ -157,7 +299,11 @@ task docker:rebuild:gateway
 task docker:rebuild:ai
 task docker:rebuild:client
 
-# Clean everything (DELETES ALL DATA!)
+# Restart specific service
+docker compose restart scripts-service
+docker compose restart client
+
+# Clean everything (⚠️ DELETES ALL DATA!)
 task docker:clean
 ```
 
@@ -179,23 +325,45 @@ task db:shell:identity
 task db:shell:collab
 task db:shell:billing
 
+# Or use docker compose directly
+docker compose exec postgres-identity psql -U postgres -d identity_db
+docker compose exec postgres-scripts psql -U postgres -d scripts_db
+docker compose exec postgres-collab psql -U postgres -d collab_db
+docker compose exec postgres-billing psql -U postgres -d billing_db
+
+# Access Redis CLI
+docker compose exec redis redis-cli
+
+# Database connection info for pgAdmin/DBeaver:
+# Identity DB:  localhost:5432, database: identity_db, user: postgres
+# Scripts DB:   localhost:5433, database: scripts_db, user: postgres
+# Collab DB:    localhost:5434, database: collab_db, user: postgres
+# Billing DB:   localhost:5435, database: billing_db, user: postgres
+
 # Migrations info
 task db:migrate
 # Note: Migrations run automatically with GORM AutoMigrate
 # No manual migration commands needed!
 ```
 
-### Service-Specific Operations
+### Protobuf Generation
 
 ```bash
-# Restart and view logs for specific service
-task service:gateway
-task service:scripts
-task service:identity
-task service:client
+# Generate all protobuf files
+task proto:gen
+
+# Generate for specific service
+task proto:gen:scripts
+task proto:gen:identity
+task proto:gen:collab
+task proto:gen:billing
+task proto:gen:common
+task proto:gen:ai
 ```
 
-### Code Quality
+---
+
+## 🐳 Docker Services
 
 ```bash
 # Run all tests
@@ -242,13 +410,16 @@ task clean
 task setup
 ```
 
-## 🗃️ Database Migrations (EF Core-style with GORM)
+---
+
+## 🗃️ Database & Migrations
 
 This project uses **GORM AutoMigrate**, which works like **Entity Framework Core** in C#:
 
 ### How It Works
 
 1. **Define Models** in `internal/*/models/models.go`:
+
    ```go
    type Project struct {
        ProjectID   uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
@@ -260,6 +431,7 @@ This project uses **GORM AutoMigrate**, which works like **Entity Framework Core
    ```
 
 2. **AutoMigrate Runs Automatically** when you start the service:
+
    ```go
    // In main.go
    models.AutoMigrate(gormDB)
@@ -334,6 +506,8 @@ task db:shell:scripts
 \d projects            # Describe table structure
 SELECT * FROM projects LIMIT 5;
 ```
+
+---
 
 ## 🏃 Development Workflows
 
@@ -461,52 +635,41 @@ scriptlith/
 └── README.md                 # This file
 ```
 
+---
+
 ## 🔧 Environment Variables
 
 Copy `.env.example` to `.env` and configure:
 
 ```bash
-# Database URLs (auto-configured in Docker)
-SCRIPTS_DATABASE_URL=postgresql://postgres:postgres@postgres-scripts:5432/scripts_db
-IDENTITY_DATABASE_URL=postgresql://postgres:postgres@postgres-identity:5432/identity_db
-COLLAB_DATABASE_URL=postgresql://postgres:postgres@postgres-collab:5432/collab_db
-BILLING_DATABASE_URL=postgresql://postgres:postgres@postgres-billing:5432/billing_db
+# Database Credentials
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres  # ⚠️ Change in production!
 
 # JWT Secret (generate with: openssl rand -base64 32)
 JWT_SECRET=your-super-secret-jwt-key-here
 
-# AI Service Keys
+# Redis Password
+REDIS_PASSWORD=redis  # ⚠️ Change in production!
+
+# AI Service Keys (optional)
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Redis
+# Database URLs (auto-configured in Docker)
+SCRIPTS_DB_HOST=postgres-scripts
+IDENTITY_DB_HOST=postgres-identity
+COLLAB_DB_HOST=postgres-collab
+BILLING_DB_HOST=postgres-billing
+
+# Redis & Kafka (auto-configured in Docker)
 REDIS_URL=redis://redis:6379
-
-# Kafka
 KAFKA_BROKERS=kafka:9092
-
-# Migration control
-RUN_MIGRATIONS=true
 ```
 
-## 🐳 Docker Services
+---
 
-| Service | Port | Description |
-|---------|------|-------------|
-| client | 3000 | Next.js frontend |
-| api-gateway | 8080 | HTTP API gateway |
-| identity-service | 50051 | gRPC identity service |
-| scripts-service | 50052 | gRPC scripts service |
-| collab-service | 50053 | gRPC collab service |
-| billing-service | 50054 | gRPC billing service |
-| ai-service | 50055 | gRPC AI service |
-| postgres-identity | 5432 | Identity database |
-| postgres-scripts | 5433 | Scripts database |
-| postgres-collab | 5434 | Collab database |
-| postgres-billing | 5435 | Billing database |
-| redis | 6379 | Cache and sessions |
-| kafka | 9092 | Event streaming |
-| zookeeper | 2181 | Kafka coordination |
+---
 
 ## 🧪 Testing
 
@@ -526,84 +689,184 @@ npm test
 npm run test:e2e
 ```
 
+---
+
 ## 🚨 Troubleshooting
 
-### Containers won't start
+### Containers Won't Start
 
 ```bash
 # Check Docker is running
 docker ps
 
-# View detailed logs
+# View detailed logs for all services
 task docker:logs
 
-# Check for port conflicts
-lsof -i :3000  # or other ports
+# View logs for specific service
+docker compose logs -f scripts-service
 
-# Clean and rebuild
+# Check for port conflicts
+lsof -i :3000  # macOS/Linux
+netstat -ano | findstr :3000  # Windows
+
+# Check service health
+docker compose ps
+
+# Clean and rebuild everything
 task fresh
 ```
 
-### Database connection errors
+### Database Connection Errors
 
 ```bash
-# Check database containers are running
+# Ensure database containers are running
 task docker:ps
 
-# Verify migrations ran
+# Wait for databases to be ready (check health status)
+docker compose ps
+
+# Verify migrations ran successfully
 task db:status
 
 # Restart database services
-task db:down
-task db:up
+docker compose restart postgres-identity postgres-scripts postgres-collab postgres-billing
+
+# View database logs
+docker compose logs postgres-scripts
 ```
 
-### "No such file or directory" errors
+### Port Conflicts
 
-```bash
-# Ensure .env file exists
-cp .env.example .env
+If ports are already in use, edit `docker-compose.yml`:
 
-# Ensure all dependencies are installed
-task install
+```yaml
+ports:
+  - "3001:3000"  # Change 3000 to 3001 for frontend
+  - "8081:8080"  # Change 8080 to 8081 for API gateway
 ```
 
-### GORM migration issues
+### Out of Memory
 
-```bash
-# Check what tables exist
-task db:shell:scripts
-\dt
+Increase Docker's memory limit in Docker Desktop settings or add to services:
 
-# Force migration rerun (restart service)
-task docker:rebuild:scripts
-
-# View migration logs
-docker compose logs scripts-service | grep -i migrat
+```yaml
+services:
+  client:
+    deploy:
+      resources:
+        limits:
+          memory: 1G
 ```
 
-### Build failures
+### Build Failures
 
 ```bash
 # Clean build artifacts
 task clean
 
-# Rebuild from scratch
+# Remove all Docker images and rebuild
+docker compose down --rmi all
 task docker:rebuild
 
-# Check Go version
-go version  # Should be 1.21+
-
-# Check Node version
+# Check versions
+go version      # Should be 1.24+
 node --version  # Should be 20+
+docker --version
 ```
+
+### GORM Migration Issues
+
+```bash
+# Check what tables exist
+docker compose exec postgres-scripts psql -U postgres -d scripts_db -c "\dt"
+
+# View migration logs
+docker compose logs scripts-service | grep -i migrat
+
+# Force migration rerun (rebuild service)
+task docker:rebuild:scripts
+```
+
+### Authentication Issues
+
+```bash
+# Check JWT_SECRET is set in .env
+cat .env | grep JWT_SECRET
+
+# View auth-related logs
+docker compose logs identity-service | grep -i error
+
+# Clear browser localStorage and try again
+# In browser console: localStorage.clear()
+```
+
+### Common Error Messages
+
+| Error | Solution |
+|-------|----------|
+| "relation does not exist" | Run `task docker:rebuild:<service>` to run migrations |
+| "connection refused" | Wait for services to start, check `docker compose ps` |
+| "port is already allocated" | Change port in docker-compose.yml or kill conflicting process |
+| "no space left on device" | Run `docker system prune -a` to free space |
+
+---
+
+## 🚀 Production Deployment
+
+### Production Checklist
+
+Before deploying to production:
+
+1. **Security**
+   - [ ] Change `JWT_SECRET` to a strong random value
+   - [ ] Use strong `POSTGRES_PASSWORD`
+   - [ ] Change `REDIS_PASSWORD`
+   - [ ] Never commit `.env` to git
+   - [ ] Use Docker secrets for sensitive data
+
+2. **Configuration**
+   - [ ] Set `NODE_ENV=production`
+   - [ ] Configure proper CORS origins
+   - [ ] Enable HTTPS/TLS
+   - [ ] Set up SSL certificates
+
+3. **Infrastructure**
+   - [ ] Use managed PostgreSQL (AWS RDS, GCP Cloud SQL, etc.)
+   - [ ] Use managed Redis (AWS ElastiCache, Redis Cloud, etc.)
+   - [ ] Use managed Kafka or event streaming service
+   - [ ] Set up monitoring and logging (Datadog, New Relic, etc.)
+   - [ ] Configure automated backups
+   - [ ] Set up health checks and alerts
+
+4. **Performance**
+   - [ ] Enable caching strategies
+   - [ ] Configure CDN for static assets
+   - [ ] Optimize database indexes
+   - [ ] Set appropriate resource limits
+
+### Development vs Production
+
+| Aspect | Development | Production |
+|--------|-------------|------------|
+| JWT Secret | `dev-secret-key` | Strong random value |
+| Database Password | `postgres` | Strong password |
+| CORS | `localhost:3000` | Specific domains |
+| HTTPS | Not required | Required |
+| Logs | Debug level | Info/Warning level |
+| Hot Reload | Enabled (local) | Disabled |
+| Resource Limits | Minimal | Optimized for load |
+
+---
 
 ## 📚 Additional Resources
 
-- **GORM Documentation**: https://gorm.io/docs/
-- **Next.js Documentation**: https://nextjs.org/docs
-- **Docker Compose Documentation**: https://docs.docker.com/compose/
-- **Task Documentation**: https://taskfile.dev/
+- **GORM Documentation**: <https://gorm.io/docs/>
+- **Next.js Documentation**: <https://nextjs.org/docs>
+- **Docker Compose Documentation**: <https://docs.docker.com/compose/>
+- **Task Documentation**: <https://taskfile.dev/>
+- **gRPC Documentation**: <https://grpc.io/docs/>
+
+---
 
 ## 🤝 Contributing
 
@@ -614,7 +877,3 @@ node --version  # Should be 20+
 5. Commit: `git commit -m 'feat: add amazing feature'`
 6. Push: `git push origin feat/my-feature`
 7. Open a Pull Request
-
-## 📄 License
-
-MIT License - See LICENSE file for details

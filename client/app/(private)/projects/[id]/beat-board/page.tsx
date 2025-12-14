@@ -97,21 +97,21 @@ export default function BeatBoardPage() {
 
   const handleAddBeat = (position: { x: number; y: number }) => {
     // Create beat with default values - user will fill in details from the card
-    const beatData: Partial<Beat> = { 
+    const beatData: Partial<Beat> = {
       title: "New Beat",
       description: "",
       startPage: 1,
       endPage: 1,
       color: "#fef3c7",
-      position, 
-      width: 250, 
-      height: 150, 
-      act: 1, 
-      order: beats.length 
+      position,
+      width: 250,
+      height: 150,
+      act: 1,
+      order: beats.length
     };
     createBeat(projectId, beatData)
-      .then(createdBeat => { 
-        setBeats([...beats, createdBeat]); 
+      .then(createdBeat => {
+        setBeats([...beats, createdBeat]);
       })
       .catch(err => console.error('Failed to create beat:', err));
   };
@@ -200,7 +200,7 @@ export default function BeatBoardPage() {
         const startPage = getPageFromPosition(position);
         const endPage = getPageFromPosition(position + width);
         debouncedUpdateBeat(item.beatId, { startPage, endPage });
-        setBeats(prev => prev.map(b => 
+        setBeats(prev => prev.map(b =>
           b.id === item.beatId ? { ...b, startPage, endPage } : b
         ));
       }
@@ -221,7 +221,7 @@ export default function BeatBoardPage() {
       const timelinePosition = getPositionFromPage(startPage);
       const width = getWidthFromPages(startPage, endPage);
       const newItemData: Partial<OutlineItem> = {
-        beatId, laneId: targetLaneId, order: currentLaneItems.length, 
+        beatId, laneId: targetLaneId, order: currentLaneItems.length,
         timelinePosition, width,
       };
       try {
@@ -271,19 +271,19 @@ export default function BeatBoardPage() {
     setBeats(prevBeats => {
       const updatedBeats = prevBeats.map(beat => {
         if (beat.id !== beatId) return beat;
-        
+
         let updatedBeat = { ...beat, [field]: value };
-        
+
         // Ensure endPage is never less than startPage
         if (field === 'startPage' && updatedBeat.endPage && value > updatedBeat.endPage) {
           updatedBeat.endPage = value;
         } else if (field === 'endPage' && updatedBeat.startPage && value < updatedBeat.startPage) {
           updatedBeat.startPage = value;
         }
-        
+
         return updatedBeat;
       });
-      
+
       // Sync timeline position when pages change
       if (field === 'startPage' || field === 'endPage') {
         const updatedBeat = updatedBeats.find(b => b.id === beatId);
@@ -292,34 +292,34 @@ export default function BeatBoardPage() {
           const endPage = updatedBeat.endPage || startPage;
           const timelinePosition = getPositionFromPage(startPage);
           const width = getWidthFromPages(startPage, endPage);
-          
+
           const outlineItem = outlineItems.find(item => item.beatId === beatId);
           if (outlineItem) {
-            setOutlineItems(prev => prev.map(item => 
-              item.id === outlineItem.id 
-                ? { ...item, timelinePosition, width } 
+            setOutlineItems(prev => prev.map(item =>
+              item.id === outlineItem.id
+                ? { ...item, timelinePosition, width }
                 : item
             ));
             debouncedUpdateOutlineItem(outlineItem.id, { timelinePosition, width });
           }
         }
       }
-      
+
       return updatedBeats;
     });
-    
+
     // Update the beat with validated values
     const validatedBeat = beats.find(b => b.id === beatId);
     if (validatedBeat) {
       let updateData: Partial<Beat> = { [field]: value };
-      
+
       // Include corrected endPage/startPage if needed
       if (field === 'startPage' && validatedBeat.endPage && value > validatedBeat.endPage) {
         updateData.endPage = value;
       } else if (field === 'endPage' && validatedBeat.startPage && value < validatedBeat.startPage) {
         updateData.startPage = value;
       }
-      
+
       debouncedUpdateBeat(beatId, updateData);
     }
   };
@@ -407,14 +407,14 @@ export default function BeatBoardPage() {
     // Don't create if double-clicking on a beat card itself (but allow on background, SVG, etc.)
     const target = e.target as HTMLElement;
     const isBeatCard = target.closest('[data-beat-card]');
-    
+
     if (!isBeatCard) {
       const rect = boardRef.current?.getBoundingClientRect();
       if (!rect) return;
-      
+
       const x = snapToGrid(e.clientX - rect.left + (boardRef.current?.scrollLeft || 0));
       const y = snapToGrid(e.clientY - rect.top + (boardRef.current?.scrollTop || 0));
-      
+
       // Create beat directly without dialog
       handleAddBeat({ x, y });
     }
@@ -464,16 +464,11 @@ export default function BeatBoardPage() {
 
   // Upload image to server
   const uploadImage = async (file: File): Promise<string> => {
-    console.log('Original image size:', file.size, 'bytes');
-    
-    // Compress image first
     const compressedBlob = await compressImage(file);
-    console.log('Compressed image size:', compressedBlob.size, 'bytes');
-    
+
     const formData = new FormData();
     formData.append('image', compressedBlob, file.name);
-    
-    const uploadStart = Date.now();
+
     const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/beats/upload-image`, {
       method: 'POST',
       headers: {
@@ -481,18 +476,15 @@ export default function BeatBoardPage() {
       },
       body: formData,
     });
-    console.log('Upload completed in', Date.now() - uploadStart, 'ms');
-    
+
     if (!uploadResponse.ok) {
       throw new Error('Failed to upload image');
     }
-    
+
     const { imageUrl } = await uploadResponse.json();
-    console.log('Uploaded image URL:', imageUrl);
     return imageUrl;
   };
 
-  // Handle image upload for existing beat
   const handleUploadImageForBeat = (beatId: string) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -502,12 +494,8 @@ export default function BeatBoardPage() {
       if (file) {
         try {
           const imageUrl = await uploadImage(file);
-          console.log('Updating beat', beatId, 'with imageUrl:', imageUrl);
-          // Update local state
           setBeats(beats.map(b => b.id === beatId ? { ...b, imageUrl } : b));
-          // Save to database immediately (not debounced)
-          const updatedBeat = await updateBeat(beatId, { imageUrl });
-          console.log('Beat updated, response:', updatedBeat);
+          await updateBeat(beatId, { imageUrl });
         } catch (err) {
           console.error('Failed to upload image:', err);
         }
@@ -518,23 +506,20 @@ export default function BeatBoardPage() {
 
   const handleImageDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    
+
     const files = Array.from(e.dataTransfer.files);
     const imageFile = files.find(file => file.type.startsWith('image/'));
-    
+
     if (imageFile) {
       const rect = boardRef.current?.getBoundingClientRect();
       if (!rect) return;
-      
+
       const x = snapToGrid(e.clientX - rect.left + (boardRef.current?.scrollLeft || 0));
       const y = snapToGrid(e.clientY - rect.top + (boardRef.current?.scrollTop || 0));
-      
+
       try {
         const imageUrl = await uploadImage(imageFile);
-        console.log('Creating beat with imageUrl:', imageUrl);
-        
-        // Create beat with uploaded image path
-        const beatData: Partial<Beat> = { 
+        const beatData: Partial<Beat> = {
           title: "New Image Beat",
           description: "",
           startPage: 1,
@@ -542,15 +527,14 @@ export default function BeatBoardPage() {
           sceneNumbers: "Pg. 1",
           color: "#ffffff",
           imageUrl: imageUrl,
-          position: { x, y }, 
-          width: 250, 
-          height: 250, 
-          act: 1, 
-          order: beats.length 
+          position: { x, y },
+          width: 250,
+          height: 250,
+          act: 1,
+          order: beats.length
         };
-        
+
         const createdBeat = await createBeat(projectId, beatData);
-        console.log('Beat created, response:', createdBeat);
         setBeats([...beats, createdBeat]);
       } catch (err) {
         console.error('Failed to create beat with image:', err);

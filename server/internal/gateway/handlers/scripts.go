@@ -193,6 +193,87 @@ func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// DeleteProject deletes a project
+func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract project ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/projects/")
+	parts := strings.Split(path, "/")
+	if len(parts) == 0 || parts[0] == "" {
+		http.Error(w, "Project ID is required", http.StatusBadRequest)
+		return
+	}
+	projectID := parts[0]
+
+	// Get user ID from context
+	userID := getUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Call Scripts service
+	resp, err := h.scriptsClient.DeleteProject(context.Background(), &scriptspb.DeleteProjectRequest{
+		ProjectId: projectID,
+		UserId:    userID,
+	})
+	if err != nil {
+		http.Error(w, "Failed to delete project: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": resp.Success,
+	})
+}
+
+// ToggleProjectStar toggles the starred status of a project
+func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract project ID from URL
+	path := strings.TrimPrefix(r.URL.Path, "/projects/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 {
+		http.Error(w, "Project ID is required", http.StatusBadRequest)
+		return
+	}
+	projectID := parts[0]
+
+	// Get user ID from context
+	userID := getUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Call Scripts service
+	resp, err := h.scriptsClient.ToggleProjectStar(context.Background(), &scriptspb.ToggleProjectStarRequest{
+		ProjectId: projectID,
+		UserId:    userID,
+	})
+	if err != nil {
+		http.Error(w, "Failed to toggle star: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Convert response
+	project := convertProjectFromProto(resp.Project)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"project": project,
+	})
+}
+
 // GetUserProjects retrieves all projects for a user
 func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -593,6 +674,7 @@ func convertProjectFromProto(project *scriptspb.Project) map[string]interface{} 
 		"description": project.Description,
 		"owner_id":    project.OwnerId,
 		"status":      project.Status,
+		"is_starred":  project.IsStarred,
 	}
 
 	if project.CreatedAt != nil {

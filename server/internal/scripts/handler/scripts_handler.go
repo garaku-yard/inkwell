@@ -92,8 +92,64 @@ func (h *ScriptsHandler) UpdateProject(ctx context.Context, req *scriptspb.Updat
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateProject not implemented")
 }
 
+func (h *ScriptsHandler) ToggleProjectStar(ctx context.Context, req *scriptspb.ToggleProjectStarRequest) (*scriptspb.ToggleProjectStarResponse, error) {
+	// Validate input
+	if req.ProjectId == "" || req.UserId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "project_id and user_id are required")
+	}
+
+	// Parse UUIDs
+	projectID, err := uuid.Parse(req.ProjectId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
+	}
+
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+
+	// Toggle star via service
+	project, err := h.service.ToggleProjectStar(ctx, projectID, userID)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	// Convert to protobuf response
+	return &scriptspb.ToggleProjectStarResponse{
+		Project: convertProjectToProto(project),
+	}, nil
+}
+
 func (h *ScriptsHandler) DeleteProject(ctx context.Context, req *scriptspb.DeleteProjectRequest) (*scriptspb.DeleteProjectResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteProject not implemented")
+	// Validate input
+	if req.ProjectId == "" {
+		return nil, status.Error(codes.InvalidArgument, "project_id is required")
+	}
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	// Parse UUIDs
+	projectID, err := uuid.Parse(req.ProjectId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
+	}
+
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+
+	// Delete the project
+	err = h.service.DeleteProject(ctx, projectID, userID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to delete project: %v", err)
+	}
+
+	return &scriptspb.DeleteProjectResponse{
+		Success: true,
+	}, nil
 }
 
 func (h *ScriptsHandler) GetUserProjects(ctx context.Context, req *scriptspb.GetUserProjectsRequest) (*scriptspb.GetUserProjectsResponse, error) {
@@ -445,6 +501,7 @@ func convertProjectToProto(project *domain.Project) *scriptspb.Project {
 		Description: project.Description,
 		OwnerId:     project.OwnerID.String(),
 		Status:      project.Status,
+		IsStarred:   project.IsStarred,
 		CreatedAt: &common.Timestamp{
 			Seconds: project.CreatedAt.Unix(),
 			Nanos:   int32(project.CreatedAt.Nanosecond()),

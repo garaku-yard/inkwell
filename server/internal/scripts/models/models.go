@@ -14,6 +14,7 @@ type Project struct {
 	Description string         `gorm:"type:text" json:"description"`
 	OwnerID     uuid.UUID      `gorm:"type:uuid;not null;index" json:"ownerId"`
 	Status      string         `gorm:"type:varchar(50);not null;default:'draft';index" json:"status"`
+	IsStarred   bool           `gorm:"not null;default:false" json:"isStarred"`
 	CreatedAt   time.Time      `gorm:"not null;default:now()" json:"createdAt"`
 	UpdatedAt   time.Time      `gorm:"not null;default:now()" json:"updatedAt"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"deletedAt,omitempty"`

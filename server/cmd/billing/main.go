@@ -31,7 +31,6 @@ func main() {
 		port = "50054"
 	}
 
-	// Create gRPC server
 	grpcServer := grpc.NewServer()
 
 	// Register billing service

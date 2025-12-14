@@ -15,6 +15,7 @@ message Project {
   common.Timestamp created_at = 5;
   common.Timestamp updated_at = 6;
   string status = 7; // "draft", "active", "completed", "archived"
+  bool is_starred = 8;
 }
 
 // Note: Screenplay is now represented by Project entity
@@ -175,6 +176,15 @@ message UpdateProjectRequest {
 }
 
 message UpdateProjectResponse {
+  Project project = 1;
+}
+
+message ToggleProjectStarRequest {
+  string project_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+message ToggleProjectStarResponse {
   Project project = 1;
 }
 
@@ -649,6 +659,7 @@ service ScriptsService {
   rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
   rpc GetProject(GetProjectRequest) returns (GetProjectResponse);
   rpc UpdateProject(UpdateProjectRequest) returns (UpdateProjectResponse);
+  rpc ToggleProjectStar(ToggleProjectStarRequest) returns (ToggleProjectStarResponse);
   rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse);
   rpc GetUserProjects(GetUserProjectsRequest) returns (GetUserProjectsResponse);
   

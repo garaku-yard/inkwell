@@ -45,7 +45,7 @@ import { CollaboratorsDialog } from "./collaborators-dialog"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { RenameProjectDialog } from "@/components/rename-project-dialog"
 import { getPendingInvites } from "@/services/invites"
-import { deleteProject, getMyProjects, updateProject, type Project } from "@/services/project"
+import { deleteProject, getMyProjects, updateProject, toggleProjectStar, type Project } from "@/services/project"
 import { cn } from "@/lib/utils"
 
 const formatRelativeTime = (dateString: string) => {
@@ -83,7 +83,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const { isAuthenticated, isLoading: authLoading, logout, user } = useAuth()
   const userId = user?.id
-  const [projects, setProjects] = useState<Project[]>([])
+  const [projects, setProjects] = useState<(Project & { collaborator_count?: number })[]>([])
   const [renameDialog, setRenameDialog] = useState<{
     open: boolean
     projectId: string
@@ -102,15 +102,11 @@ export default function DashboardPage() {
   const [inviteCount, setInviteCount] = useState(0)
   const [activeFilter, setActiveFilter] = useState("lastUpdated")
 
-  // Get userTag from JWT token
   const getUserTag = () => {
     try {
       const token = localStorage.getItem("authToken")
       if (token) {
         const decoded: any = jwtDecode(token)
-        console.log("Full token for userTag:", decoded) // Debug log
-        console.log("Looking for tag field:", decoded.tag) // Debug log
-        console.log("Looking for user_tag field:", decoded.user_tag) // Debug log
         return decoded.tag || decoded.user_tag || ""
       }
     } catch (error) {
@@ -120,15 +116,12 @@ export default function DashboardPage() {
   }
 
   const userTag = getUserTag()
-  console.log("User:", user) // Debug log
-  console.log("UserTag extracted:", userTag) // Debug log
 
   useEffect(() => {
-    // Wait for auth to finish loading
     if (authLoading) {
       return;
     }
-    
+
     if (isAuthenticated && userId) {
       setIsLoading(true)
       const fetchDashboardData = async () => {
@@ -137,7 +130,7 @@ export default function DashboardPage() {
             getMyProjects(userId),
             getPendingInvites().catch(err => {
               console.warn('Invites service not available:', err.message)
-              return [] // Return empty array if invites service is not available
+              return []
             }),
           ])
           setProjects(projectsResponse.projects)
@@ -159,10 +152,31 @@ export default function DashboardPage() {
     setProjects((prevProjects) => [newProject, ...prevProjects])
   }
 
-  // Star functionality not implemented yet  
-  const handleStarProject = () => {
-    // TODO: Implement star functionality when available
-    console.log('Star functionality not implemented yet')
+  const handleStarProject = async (projectId: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+
+    if (!userId) {
+      console.error('❌ No userId available')
+      return
+    }
+
+    try {
+      const updatedProject = await toggleProjectStar(projectId, userId)
+      setProjects(prev => prev.map(p => p.id === projectId ? { ...p, is_starred: updatedProject.is_starred } : p))
+      toast({
+        title: updatedProject.is_starred ? "Project starred" : "Star removed",
+        description: updatedProject.is_starred ? "Added to starred projects" : "Removed from starred projects",
+      })
+    } catch (error) {
+      console.error("Failed to toggle star", error)
+      toast({
+        title: "Error",
+        description: "Could not update project. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleManageCollaborators = (projectId: string, projectTitle: string) => {
@@ -255,7 +269,6 @@ export default function DashboardPage() {
         processedProjects = projects.filter((p) => p.owner_id !== userId)
         break
       case "starred":
-        // Starred functionality not yet implemented in microservices
         processedProjects = []
         break
       default:
@@ -492,27 +505,25 @@ export default function DashboardPage() {
                           className="h-6 w-6"
                           onClick={(e) => {
                             e.stopPropagation()
-                            // Star functionality not yet implemented
-                            console.warn('Star functionality not yet implemented')
+                            handleStarProject(project.id, e)
                           }}
                         >
                           <Star
                             className={cn(
-                              "h-4 w-4 text-muted-foreground hover:text-yellow-400",
-                              // Star functionality not implemented yet
-                              false && "fill-yellow-400 text-yellow-400",
+                              "h-4 w-4 hover:text-yellow-400 transition-colors",
+                              project.is_starred
+                                ? "fill-yellow-400 text-yellow-400"
+                                : "text-muted-foreground",
                             )}
                           />
                         </Button>
 
-                        {/* Collaborator count not implemented yet
-                        {project.collaboratorCount > 0 && (
-                          <div className="flex items-center">
+                        {project.collaborator_count !== undefined && project.collaborator_count > 1 && (
+                          <div className="flex items-center text-muted-foreground">
                             <Users className="h-3.5 w-3.5 mr-1" />
-                            {project.collaboratorCount + 1}
+                            {project.collaborator_count}
                           </div>
                         )}
-                        */}
                       </div>
                     </CardFooter>
                   </Card>

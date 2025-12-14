@@ -8,6 +8,8 @@ export interface Project {
   description: string
   owner_id: string
   status: string
+  is_starred: boolean
+  collaborator_count?: number
   created_at: string
   updated_at: string
 }
@@ -151,12 +153,33 @@ export const getProjectById = async (projectId: string, userId: string): Promise
 }
 
 /**
- * Fetches all projects for the authenticated user.
+ * Fetches all projects for the authenticated user, including collaborator count.
  */
-export const getMyProjects = async (userId: string): Promise<{ projects: Project[], total: number }> => {
-  return apiClient<{ projects: Project[], total: number }>(`projects?user_id=${userId}`, {
+export const getMyProjects = async (userId: string): Promise<{ projects: (Project & { collaborator_count?: number })[], total: number }> => {
+  const response = await apiClient<{ projects: Project[], total: number }>(`projects?user_id=${userId}`, {
     method: 'GET',
   })
+  
+  // Fetch collaborator count for each project
+  const projectsWithCounts = await Promise.all(
+    response.projects.map(async (project) => {
+      try {
+        const collaborators = await getProjectCollaborators(project.id)
+        return {
+          ...project,
+          collaborator_count: collaborators.length
+        }
+      } catch (error) {
+        // If we can't fetch collaborators, just return the project without count
+        return project
+      }
+    })
+  )
+  
+  return {
+    projects: projectsWithCounts,
+    total: response.total
+  }
 }
 
 /**
@@ -170,6 +193,14 @@ export const updateProject = async (
   const response = await apiClient<{ project: Project }>(`projects/${projectId}`, {
     method: 'PUT',
     body: { ...projectData, user_id: userId },
+  })
+  return response.project
+}
+
+export const toggleProjectStar = async (projectId: string, userId: string): Promise<Project> => {
+  const response = await apiClient<{project: Project}>(`projects/${projectId}/star`, {
+    method: 'PATCH',
+    body: { user_id: userId }
   })
   return response.project
 }

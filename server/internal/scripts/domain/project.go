@@ -13,6 +13,7 @@ type Project struct {
 	Description string     `json:"description" db:"description"`
 	OwnerID     uuid.UUID  `json:"owner_id" db:"owner_id"`
 	Status      string     `json:"status" db:"status"` // "draft", "active", "completed", "archived"
+	IsStarred   bool       `json:"is_starred" db:"is_starred"`
 	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
 	DeletedAt   *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`

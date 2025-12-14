@@ -92,9 +92,12 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
         owner_id: userId,
       })
 
-      // Note: Collaborators will be implemented later in collaboration service
       if (collaborators.length > 0) {
-        console.warn("Collaborators not yet implemented in microservices backend")
+        await Promise.all(
+          collaborators.map(collab =>
+            addCollaborator(newProject.id, collab.username, collab.role)
+          )
+        )
       }
 
       onProjectCreated(newProject)

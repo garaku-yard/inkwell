@@ -19,6 +19,7 @@ type ScriptsService interface {
 	CreateProject(ctx context.Context, title, description string, ownerID uuid.UUID) (*domain.Project, error)
 	GetProject(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error)
 	UpdateProject(ctx context.Context, projectID, userID uuid.UUID, title, description, status *string) (*domain.Project, error)
+	ToggleProjectStar(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error)
 	DeleteProject(ctx context.Context, projectID, userID uuid.UUID) error
 	GetUserProjects(ctx context.Context, userID uuid.UUID, offset, limit int) ([]*domain.Project, int64, error)
 
@@ -130,6 +131,35 @@ func (s *scriptsService) UpdateProject(ctx context.Context, projectID, userID uu
 	if status != nil {
 		project.Status = *status
 	}
+	project.UpdatedAt = time.Now()
+
+	// Save changes
+	if err := s.repo.Project.UpdateProject(ctx, project); err != nil {
+		return nil, err
+	}
+
+	return project, nil
+}
+
+// ToggleProjectStar toggles the starred status of a project
+func (s *scriptsService) ToggleProjectStar(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error) {
+	// Check authorization
+	isOwner, err := s.repo.Project.IsProjectOwner(ctx, projectID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !isOwner {
+		return nil, domain.ErrUnauthorizedAccess
+	}
+
+	// Get existing project
+	project, err := s.repo.Project.GetProjectByID(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Toggle star status
+	project.IsStarred = !project.IsStarred
 	project.UpdatedAt = time.Now()
 
 	// Save changes

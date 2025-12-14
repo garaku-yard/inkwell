@@ -22,6 +22,7 @@ const (
 	ScriptsService_CreateProject_FullMethodName            = "/scripts.ScriptsService/CreateProject"
 	ScriptsService_GetProject_FullMethodName               = "/scripts.ScriptsService/GetProject"
 	ScriptsService_UpdateProject_FullMethodName            = "/scripts.ScriptsService/UpdateProject"
+	ScriptsService_ToggleProjectStar_FullMethodName        = "/scripts.ScriptsService/ToggleProjectStar"
 	ScriptsService_DeleteProject_FullMethodName            = "/scripts.ScriptsService/DeleteProject"
 	ScriptsService_GetUserProjects_FullMethodName          = "/scripts.ScriptsService/GetUserProjects"
 	ScriptsService_CreateOutlineUnit_FullMethodName        = "/scripts.ScriptsService/CreateOutlineUnit"
@@ -72,6 +73,7 @@ type ScriptsServiceClient interface {
 	CreateProject(ctx context.Context, in *CreateProjectRequest, opts ...grpc.CallOption) (*CreateProjectResponse, error)
 	GetProject(ctx context.Context, in *GetProjectRequest, opts ...grpc.CallOption) (*GetProjectResponse, error)
 	UpdateProject(ctx context.Context, in *UpdateProjectRequest, opts ...grpc.CallOption) (*UpdateProjectResponse, error)
+	ToggleProjectStar(ctx context.Context, in *ToggleProjectStarRequest, opts ...grpc.CallOption) (*ToggleProjectStarResponse, error)
 	DeleteProject(ctx context.Context, in *DeleteProjectRequest, opts ...grpc.CallOption) (*DeleteProjectResponse, error)
 	GetUserProjects(ctx context.Context, in *GetUserProjectsRequest, opts ...grpc.CallOption) (*GetUserProjectsResponse, error)
 	// Outline unit management (acts, sequences, beats, sub-beats)
@@ -151,6 +153,16 @@ func (c *scriptsServiceClient) UpdateProject(ctx context.Context, in *UpdateProj
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateProjectResponse)
 	err := c.cc.Invoke(ctx, ScriptsService_UpdateProject_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) ToggleProjectStar(ctx context.Context, in *ToggleProjectStarRequest, opts ...grpc.CallOption) (*ToggleProjectStarResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ToggleProjectStarResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_ToggleProjectStar_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -547,6 +559,7 @@ type ScriptsServiceServer interface {
 	CreateProject(context.Context, *CreateProjectRequest) (*CreateProjectResponse, error)
 	GetProject(context.Context, *GetProjectRequest) (*GetProjectResponse, error)
 	UpdateProject(context.Context, *UpdateProjectRequest) (*UpdateProjectResponse, error)
+	ToggleProjectStar(context.Context, *ToggleProjectStarRequest) (*ToggleProjectStarResponse, error)
 	DeleteProject(context.Context, *DeleteProjectRequest) (*DeleteProjectResponse, error)
 	GetUserProjects(context.Context, *GetUserProjectsRequest) (*GetUserProjectsResponse, error)
 	// Outline unit management (acts, sequences, beats, sub-beats)
@@ -610,6 +623,9 @@ func (UnimplementedScriptsServiceServer) GetProject(context.Context, *GetProject
 }
 func (UnimplementedScriptsServiceServer) UpdateProject(context.Context, *UpdateProjectRequest) (*UpdateProjectResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateProject not implemented")
+}
+func (UnimplementedScriptsServiceServer) ToggleProjectStar(context.Context, *ToggleProjectStarRequest) (*ToggleProjectStarResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ToggleProjectStar not implemented")
 }
 func (UnimplementedScriptsServiceServer) DeleteProject(context.Context, *DeleteProjectRequest) (*DeleteProjectResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteProject not implemented")
@@ -796,6 +812,24 @@ func _ScriptsService_UpdateProject_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ScriptsServiceServer).UpdateProject(ctx, req.(*UpdateProjectRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_ToggleProjectStar_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ToggleProjectStarRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).ToggleProjectStar(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_ToggleProjectStar_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).ToggleProjectStar(ctx, req.(*ToggleProjectStarRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1502,6 +1536,10 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateProject",
 			Handler:    _ScriptsService_UpdateProject_Handler,
+		},
+		{
+			MethodName: "ToggleProjectStar",
+			Handler:    _ScriptsService_ToggleProjectStar_Handler,
 		},
 		{
 			MethodName: "DeleteProject",

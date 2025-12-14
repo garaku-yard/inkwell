@@ -179,7 +179,7 @@ func (r *projectRepository) CreateProject(ctx context.Context, project *domain.P
 // GetProjectByID retrieves a project by ID
 func (r *projectRepository) GetProjectByID(ctx context.Context, projectID uuid.UUID) (*domain.Project, error) {
 	query := `
-		SELECT project_id, title, description, owner_id, status, created_at, updated_at, deleted_at
+		SELECT project_id, title, description, owner_id, status, is_starred, created_at, updated_at, deleted_at
 		FROM projects
 		WHERE project_id = $1 AND deleted_at IS NULL
 	`
@@ -191,6 +191,7 @@ func (r *projectRepository) GetProjectByID(ctx context.Context, projectID uuid.U
 		&project.Description,
 		&project.OwnerID,
 		&project.Status,
+		&project.IsStarred,
 		&project.CreatedAt,
 		&project.UpdatedAt,
 		&project.DeletedAt,
@@ -218,7 +219,7 @@ func (r *projectRepository) GetProjectsByOwner(ctx context.Context, ownerID uuid
 
 	// Get projects
 	query := `
-		SELECT project_id, title, description, owner_id, status, created_at, updated_at, deleted_at
+		SELECT project_id, title, description, owner_id, status, is_starred, created_at, updated_at, deleted_at
 		FROM projects
 		WHERE owner_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -240,6 +241,7 @@ func (r *projectRepository) GetProjectsByOwner(ctx context.Context, ownerID uuid
 			&project.Description,
 			&project.OwnerID,
 			&project.Status,
+			&project.IsStarred,
 			&project.CreatedAt,
 			&project.UpdatedAt,
 			&project.DeletedAt,
@@ -257,7 +259,7 @@ func (r *projectRepository) GetProjectsByOwner(ctx context.Context, ownerID uuid
 func (r *projectRepository) UpdateProject(ctx context.Context, project *domain.Project) error {
 	query := `
 		UPDATE projects 
-		SET title = $2, description = $3, status = $4, updated_at = $5
+		SET title = $2, description = $3, status = $4, is_starred = $5, updated_at = $6
 		WHERE project_id = $1 AND deleted_at IS NULL
 	`
 
@@ -266,6 +268,7 @@ func (r *projectRepository) UpdateProject(ctx context.Context, project *domain.P
 		project.Title,
 		project.Description,
 		project.Status,
+		project.IsStarred,
 		project.UpdatedAt,
 	)
 

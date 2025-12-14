@@ -13,6 +13,7 @@ import (
 
 	scriptspb "scriptlith/server/pkg/grpc/scripts"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -210,6 +211,25 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := h.scriptsClient.UpdateBeat(context.Background(), grpcReq)
+	if err != nil {
+		handleGRPCError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(transformBeat(resp.Beat))
+}
+
+// GetBeat handles GET /beats/{beatID}
+func (h *ScriptsHandler) GetBeat(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	beatID := chi.URLParam(r, "beatId")
+
+	resp, err := h.scriptsClient.GetBeat(context.Background(), &scriptspb.GetBeatRequest{
+		BeatId: beatID,
+		UserId: userID,
+	})
+
 	if err != nil {
 		handleGRPCError(w, err)
 		return
