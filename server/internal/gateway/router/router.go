@@ -107,7 +107,13 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		})
 
 		// Element routes
-		r.Get("/elements", scriptsHandler.GetSceneElements)
+		r.Route("/elements", func(r chi.Router) {
+			r.Get("/", scriptsHandler.GetSceneElements)
+			r.Post("/", scriptsHandler.CreateElement)
+			r.Put("/{elementId}", scriptsHandler.UpdateElement)
+			r.Patch("/{elementId}", scriptsHandler.UpdateElement)
+			r.Delete("/{elementId}", scriptsHandler.DeleteElement)
+		})
 
 		// Beat routes
 		r.Route("/beats", func(r chi.Router) {

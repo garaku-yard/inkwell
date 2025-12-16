@@ -1,10 +1,11 @@
 "use client"
 
-import React, { useEffect, useRef, useCallback } from "react"
+import React, { useEffect, useRef, useCallback, useState } from "react"
 import { cn } from "@/lib/utils"
 import { SCRIPT_ELEMENT_CONFIG, type ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
-import { MessageSquare } from "lucide-react" // NEW: Import MessageSquare
-import type { Scene, ScriptElement } from "@/services/project" // NEW: Import Comment
+import { MessageSquare } from "lucide-react"
+import type { Scene, ScriptElement } from "@/services/project"
+import { SceneHeadingAutocomplete } from "./SceneHeadingAutocomplete"
 
 interface EditableElementProps {
   element: ScriptElement | Scene
@@ -27,23 +28,74 @@ export const EditableElement = React.memo(
     const isScene = "scene_heading" in element
     const type = isScene ? "SCENE_HEADING" : element.element_type
     const content = isScene ? element.scene_heading : element.content
-    const config = SCRIPT_ELEMENT_CONFIG[type] || SCRIPT_ELEMENT_CONFIG.ACTION // Fallback to ACTION if type not found
+    const config = SCRIPT_ELEMENT_CONFIG[type] || SCRIPT_ELEMENT_CONFIG.ACTION
     const isActive = element.id === activeElementId
     const unresolvedCommentsCount = element.comments?.filter((c) => !c.isResolved).length || 0
 
     const elementRef = useRef<HTMLDivElement>(null)
+    const isTypingRef = useRef(false)
+    const lastContentRef = useRef(content)
     React.useImperativeHandle(fwdRef, () => elementRef.current!)
 
-    useEffect(() => {
-      if (elementRef.current && document.activeElement !== elementRef.current) {
-        if (elementRef.current.innerHTML !== content) {
-          elementRef.current.innerHTML = content
+    const handleSuggestionSelect = useCallback((suggestion: string) => {
+      if (!elementRef.current) return
+
+      const text = elementRef.current.textContent || ""
+      const trimmedText = text.trim().toUpperCase()
+
+      let newText = ""
+
+      // Check if selecting a time of day (after dash)
+      const dashMatch = trimmedText.match(/^(INT\.|EXT\.|I\/E\.|INT\.\/EXT\.)\s+(.+)\s+-\s*(.*)$/)
+      if (dashMatch) {
+        // Replace everything after the dash with the suggestion
+        newText = `${dashMatch[1]} ${dashMatch[2]} - ${suggestion}`
+      } else {
+        // Replace the scene prefix
+        newText = suggestion + " "
+      }
+
+      elementRef.current.textContent = newText
+      onContentChange(element.id, newText, isScene)
+
+      // Move cursor to end
+      setTimeout(() => {
+        if (elementRef.current) {
+          const range = document.createRange()
+          const selection = window.getSelection()
+          range.selectNodeContents(elementRef.current)
+          range.collapse(false)
+          selection?.removeAllRanges()
+          selection?.addRange(range)
+          elementRef.current.focus()
         }
+      }, 0)
+    }, [element.id, isScene, onContentChange])
+
+    useEffect(() => {
+      // Only update innerHTML if:
+      // 1. Element is not currently focused
+      // 2. User is not actively typing
+      // 3. Content has actually changed from what we last set
+      if (
+        elementRef.current && 
+        document.activeElement !== elementRef.current &&
+        !isTypingRef.current &&
+        lastContentRef.current !== content
+      ) {
+        elementRef.current.innerHTML = content
+        lastContentRef.current = content
       }
     }, [content])
 
     const handleInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
+      isTypingRef.current = true
       onContentChange(element.id, e.currentTarget.innerHTML, isScene)
+      
+      // Reset typing flag after a short delay
+      setTimeout(() => {
+        isTypingRef.current = false
+      }, 100)
     }, [element.id, isScene, onContentChange])
 
     return (
@@ -79,6 +131,13 @@ export const EditableElement = React.memo(
           )}
           data-placeholder={isScene ? "Scene heading..." : getPlaceholderText(type)}
         />
+        {isScene && (
+          <SceneHeadingAutocomplete
+            elementRef={elementRef}
+            isActive={isActive}
+            onSuggestionSelect={handleSuggestionSelect}
+          />
+        )}
         {unresolvedCommentsCount > 0 && (
           <div className="absolute top-1 right-1 p-1 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs z-10">
             <MessageSquare className="h-3 w-3" />
@@ -90,7 +149,6 @@ export const EditableElement = React.memo(
   }),
 )
 
-// Helper function for placeholder text
 function getPlaceholderText(type: ToolbarScriptElementType | "SCENE_HEADING") {
   switch (type) {
     case "ACTION":

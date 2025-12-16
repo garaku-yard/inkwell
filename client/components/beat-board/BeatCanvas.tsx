@@ -1,4 +1,3 @@
-// src/components/beat-board/BeatCanvas.tsx
 import type React from "react";
 import { ClipboardList } from "lucide-react";
 import type { Beat, Connection } from "@/services/beat";

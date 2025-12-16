@@ -4,15 +4,15 @@ import { Lane, OutlineItem } from "./beat-board";
 export interface BeatBoardData {
   beats: Beat[];
   connections: Connection[];
-  lanes: Lane[]; // Add this
-  outlineItems: OutlineItem[]; // Add this
+  lanes: Lane[];
+  outlineItems: OutlineItem[];
 }
 
 export interface Beat {
   id: string
   title: string
   description: string
-  sceneNumbers: string // DEPRECATED: Use startPage and endPage
+  sceneNumbers: string
   color: string
   position: { x: number; y: number }
   width: number

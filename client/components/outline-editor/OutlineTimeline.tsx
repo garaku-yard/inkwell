@@ -1,4 +1,3 @@
-import React from 'react';
 import { cn } from '@/lib/utils';
 import { type Lane } from '@/services/beat-board';
 import { type StructureElement } from '@/app/(private)/projects/[id]/outline-editor/page';
@@ -47,7 +46,6 @@ export function OutlineTimeline({ outlines, structure, activeElementId, onElemen
                       activeElementId === beat.id && "ring-2 ring-offset-1 ring-blue-500"
                     )}
                     style={{
-                      // Position based on order. Could be replaced with a real timeline position later.
                       left: `${(index / totalDuration) * 100}%`,
                       width: `${(1 / totalDuration) * 100}%`,
                     }}

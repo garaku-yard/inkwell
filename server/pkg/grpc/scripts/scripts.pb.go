@@ -3873,6 +3873,7 @@ type UpdateElementRequest struct {
 	ElementId     string                 `protobuf:"bytes,1,opt,name=element_id,json=elementId,proto3" json:"element_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Content       string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	Type          string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3924,6 +3925,13 @@ func (x *UpdateElementRequest) GetUserId() string {
 func (x *UpdateElementRequest) GetContent() string {
 	if x != nil {
 		return x.Content
+	}
+	return ""
+}
+
+func (x *UpdateElementRequest) GetType() string {
+	if x != nil {
+		return x.Type
 	}
 	return ""
 }
@@ -6625,12 +6633,13 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x0f\n" +
 	"\r_character_id\"I\n" +
 	"\x15CreateElementResponse\x120\n" +
-	"\aelement\x18\x01 \x01(\v2\x16.scripts.ScriptElementR\aelement\"h\n" +
+	"\aelement\x18\x01 \x01(\v2\x16.scripts.ScriptElementR\aelement\"|\n" +
 	"\x14UpdateElementRequest\x12\x1d\n" +
 	"\n" +
 	"element_id\x18\x01 \x01(\tR\telementId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
-	"\acontent\x18\x03 \x01(\tR\acontent\"I\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\x12\x12\n" +
+	"\x04type\x18\x04 \x01(\tR\x04type\"I\n" +
 	"\x15UpdateElementResponse\x120\n" +
 	"\aelement\x18\x01 \x01(\v2\x16.scripts.ScriptElementR\aelement\"M\n" +
 	"\x17GetSceneElementsRequest\x12\x19\n" +

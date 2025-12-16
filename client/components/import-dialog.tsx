@@ -121,7 +121,6 @@ export function ImportProjectDialog({ open, onOpenChange, onProjectImported }: I
       setIsLoading(true)
       setError(null)
 
-      // Upload FDX file to backend
       const formData = new FormData()
       formData.append('file', selectedFile)
       formData.append('projectName', projectName)

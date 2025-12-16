@@ -27,7 +27,6 @@ interface EditorPaneProps {
 
 export interface EditorPaneRef {
   scrollToIndex: (index: number) => void
-  // Add a method to get the script container DOM element
   getScriptContainer: () => HTMLDivElement | null
 }
 
@@ -43,37 +42,30 @@ export const EditorPane = React.memo(
       count: items.length,
       getScrollElement: () => parentRef.current,
       estimateSize: (index) => {
-        // Dynamic height estimation based on content length
         const item = items[index]
         if (!item) return 40
-        
+
         const content = item.type === "SCENE_HEADING" ? item.data.scene_heading : item.data.content
         const contentLength = content.length
-        
-        // Estimate height based on content length and line wrapping
-        // Assume ~80 characters per line for screenplay format
+
         const estimatedLines = Math.max(1, Math.ceil(contentLength / 80))
-        return Math.max(40, estimatedLines * 24) // 24px per line (1.5em)
+        return Math.max(40, estimatedLines * 24)
       },
-      overscan: 10, // Increased overscan for better performance with dynamic heights
-      // Enable dynamic measurements
+      overscan: 10,
       measureElement: (element) => element.getBoundingClientRect().height,
     })
 
-    // Calculate page breaks based on content height
-    const A4_HEIGHT_PX = 11.69 * 96 // 11.69 inches * 96 DPI
-    const PAGE_CONTENT_HEIGHT = A4_HEIGHT_PX - (2 * 96) // Minus top and bottom margins (1in each)
-    
-    // Group items by pages
+    const A4_HEIGHT_PX = 11.69 * 96
+    const PAGE_CONTENT_HEIGHT = A4_HEIGHT_PX - (2 * 96)
+
     const organizeItemsIntoPages = () => {
       const pages: { items: ScriptItem[], height: number }[] = []
       let currentPageHeight = 0
       let currentPageItems: ScriptItem[] = []
-      
+
       items.forEach((item, index) => {
         const estimatedHeight = rowVirtualizer.options.estimateSize(index)
-        
-        // If adding this item would exceed page height, start a new page
+
         if (currentPageHeight + estimatedHeight > PAGE_CONTENT_HEIGHT && currentPageItems.length > 0) {
           pages.push({ items: [...currentPageItems], height: currentPageHeight })
           currentPageItems = [item]
@@ -83,20 +75,18 @@ export const EditorPane = React.memo(
           currentPageHeight += estimatedHeight
         }
       })
-      
-      // Add the last page if it has items
+
       if (currentPageItems.length > 0) {
         pages.push({ items: [...currentPageItems], height: currentPageHeight })
       }
-      
+
       return pages
     }
-    
+
     const pages = organizeItemsIntoPages()
 
     useImperativeHandle(ref, () => ({
       scrollToIndex: (index: number) => {
-        // Find which page contains this index and scroll to it
         let itemIndex = 0
         for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
           if (itemIndex + pages[pageIndex].items.length > index) {
@@ -129,21 +119,18 @@ export const EditorPane = React.memo(
                 paddingRight: '1in'
               }}
             >
-              {/* Page number */}
               <div className="absolute right-4 top-4 text-xs text-gray-400 pointer-events-none">
                 Page {pageIndex + 1}
               </div>
-              
-              {/* Page content */}
-              <div 
+
+              <div
                 className="h-full relative screenplay-content"
                 ref={pageIndex === 0 ? contentOnlyRef : undefined}
                 data-screenplay-content
               >
-                {page.items.map((item, itemIndex) => {
+                {page.items.map((item) => {
                   const element = item.data
-                  const globalIndex = items.findIndex(i => i.data.id === element.id)
-                  
+
                   return (
                     <div key={element.id} className="relative">
                       <EditableElement
@@ -162,8 +149,7 @@ export const EditorPane = React.memo(
                   )
                 })}
               </div>
-              
-              {/* Page break indicator at bottom */}
+
               {pageIndex < pages.length - 1 && (
                 <div className="absolute bottom-0 left-0 w-full h-px bg-gray-300 dark:bg-gray-600" />
               )}

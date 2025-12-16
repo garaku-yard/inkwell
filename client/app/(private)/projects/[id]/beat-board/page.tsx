@@ -1,4 +1,5 @@
 "use client"
+
 import type React from "react"
 import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
@@ -6,8 +7,6 @@ import { useParams } from "next/navigation"
 import { useDebouncedCallback } from "use-debounce"
 import { ArrowLeft, Loader2, LayoutGrid } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLanes";
 import { BeatCanvas } from "@/components/beat-board/BeatCanvas";
 
@@ -75,7 +74,6 @@ export default function BeatBoardPage() {
   }, [projectId]);
 
   const scriptMarkers = useMemo((): ScriptMarker[] => {
-    // Acts are not yet implemented in microservices, return default structure
     const actMarkers: ScriptMarker[] = [
       { name: 'Act 1: Setup', page: 1, color: "#10b981" },
       { name: 'Act 2: Confrontation', page: 30, color: "#8b5cf6" },
@@ -89,14 +87,12 @@ export default function BeatBoardPage() {
 
   const snapToGrid = (value: number) => Math.round(value / 20) * 20;
 
-  // Helper functions to sync timeline position with page numbers
   const TOTAL_PAGES = 120; // TODO: Get from actual script length
   const getPageFromPosition = (position: number) => Math.max(1, Math.round((position / 100) * TOTAL_PAGES));
   const getPositionFromPage = (page: number) => ((page - 1) / TOTAL_PAGES) * 100;
   const getWidthFromPages = (startPage: number, endPage: number) => ((endPage - startPage + 1) / TOTAL_PAGES) * 100;
 
   const handleAddBeat = (position: { x: number; y: number }) => {
-    // Create beat with default values - user will fill in details from the card
     const beatData: Partial<Beat> = {
       title: "New Beat",
       description: "",
@@ -161,17 +157,15 @@ export default function BeatBoardPage() {
   const handleAddLane = async () => {
     const newLaneData: Partial<Lane> = {
       name: "New Lane",
-      color: "#e5e7eb", // A default color
-      order: lanes.length, // Add it to the end
+      color: "#e5e7eb",
+      order: lanes.length,
     };
 
     try {
-      // The backend needs a projectId, which is available in this component
       const createdLane = await createLane(projectId, newLaneData);
       setLanes(currentLanes => [...currentLanes, createdLane]);
     } catch (err) {
       console.error("Failed to create new lane", err);
-      // Optionally show an error message to the user
     }
   };
 
@@ -190,7 +184,6 @@ export default function BeatBoardPage() {
     });
     debouncedUpdateOutlineItem(itemId, updates);
 
-    // Sync beat pages when timeline position or width changes
     if (updates.timelinePosition !== undefined || updates.width !== undefined) {
       const item = outlineItems.find(i => i.id === itemId);
       if (item) {
@@ -284,7 +277,6 @@ export default function BeatBoardPage() {
         return updatedBeat;
       });
 
-      // Sync timeline position when pages change
       if (field === 'startPage' || field === 'endPage') {
         const updatedBeat = updatedBeats.find(b => b.id === beatId);
         if (updatedBeat) {
@@ -308,12 +300,10 @@ export default function BeatBoardPage() {
       return updatedBeats;
     });
 
-    // Update the beat with validated values
     const validatedBeat = beats.find(b => b.id === beatId);
     if (validatedBeat) {
       let updateData: Partial<Beat> = { [field]: value };
 
-      // Include corrected endPage/startPage if needed
       if (field === 'startPage' && validatedBeat.endPage && value > validatedBeat.endPage) {
         updateData.endPage = value;
       } else if (field === 'endPage' && validatedBeat.startPage && value < validatedBeat.startPage) {
@@ -404,7 +394,6 @@ export default function BeatBoardPage() {
   };
 
   const handleBoardDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Don't create if double-clicking on a beat card itself (but allow on background, SVG, etc.)
     const target = e.target as HTMLElement;
     const isBeatCard = target.closest('[data-beat-card]');
 
@@ -415,12 +404,10 @@ export default function BeatBoardPage() {
       const x = snapToGrid(e.clientX - rect.left + (boardRef.current?.scrollLeft || 0));
       const y = snapToGrid(e.clientY - rect.top + (boardRef.current?.scrollTop || 0));
 
-      // Create beat directly without dialog
       handleAddBeat({ x, y });
     }
   };
 
-  // Compress image before upload
   const compressImage = async (file: File, maxWidth: number = 1024, maxHeight: number = 1024, quality: number = 0.8): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -431,7 +418,6 @@ export default function BeatBoardPage() {
           let width = img.width;
           let height = img.height;
 
-          // Calculate new dimensions
           if (width > height) {
             if (width > maxWidth) {
               height = height * (maxWidth / width);
@@ -462,7 +448,6 @@ export default function BeatBoardPage() {
     });
   };
 
-  // Upload image to server
   const uploadImage = async (file: File): Promise<string> => {
     const compressedBlob = await compressImage(file);
 

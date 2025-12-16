@@ -424,6 +424,7 @@ message UpdateElementRequest {
   string element_id = 1;
   string user_id = 2;
   string content = 3;
+  string type = 4;
 }
 
 message UpdateElementResponse {

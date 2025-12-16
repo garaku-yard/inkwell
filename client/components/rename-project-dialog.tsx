@@ -32,11 +32,11 @@ const descriptionOptions = [
   { value: "documentary", label: "Documentary" },
   { value: "web-series", label: "Web Series" },
 ]
-// Add this function after the descriptionOptions array
+
 const getDescriptionLabel = (value: string) => {
-    const option = descriptionOptions.find((opt) => opt.value === value)
-    return option ? option.label : value // Return the original value if not found in options
-  }
+  const option = descriptionOptions.find((opt) => opt.value === value)
+  return option ? option.label : value
+}
 
 export function RenameProjectDialog({
   open,
@@ -49,7 +49,6 @@ export function RenameProjectDialog({
   const [newName, setNewName] = useState(projectName)
   const [newDescription, setNewDescription] = useState(projectDescription)
 
-  // Reset form when dialog opens/closes or project changes
   useEffect(() => {
     if (open) {
       setNewName(projectName)
@@ -57,7 +56,6 @@ export function RenameProjectDialog({
     }
   }, [open, projectName, projectDescription])
 
-  // Ensure the current description is always in the dropdown list
   const dynamicOptions = [...descriptionOptions]
   if (
     projectDescription &&

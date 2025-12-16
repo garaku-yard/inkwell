@@ -14,10 +14,10 @@ interface OutlineNodeProps {
   showScriptContent?: boolean;
 }
 
-export function OutlineNode({ 
-  element, 
-  level, 
-  activeElementId, 
+export function OutlineNode({
+  element,
+  level,
+  activeElementId,
   onElementSelect,
   onDragStart,
   onDragOver,
@@ -50,17 +50,15 @@ export function OutlineNode({
     }
   };
 
-  // Act level (level 0) - Full width colored section
   if (level === 0) {
     return (
       <div className="relative">
-        {/* Act Header */}
         <div
           className={cn(
             "sticky top-24 z-10 border-b bg-gradient-to-r from-transparent via-white to-transparent dark:via-gray-900 py-4 pl-6",
             isActive && "ring-2 ring-blue-500"
           )}
-          style={{ 
+          style={{
             backgroundColor: `${element.color}15`,
             borderLeft: `6px solid ${element.color}`
           }}
@@ -93,7 +91,6 @@ export function OutlineNode({
           )}
         </div>
 
-        {/* Act Content */}
         {isExpanded && hasChildren && (
           <div className="px-12 py-6 mt-15">
             {element.children.map(child => (
@@ -115,10 +112,8 @@ export function OutlineNode({
     );
   }
 
-  // Sequence/Beat level (level 1+) - Colored bars with screenplay formatting
   return (
     <div className="mb-8">
-      {/* Beat/Sequence Header */}
       <div
         draggable
         onDragStart={handleDragStart}
@@ -128,7 +123,7 @@ export function OutlineNode({
           "relative pl-6 py-3 mb-4 rounded-r-lg cursor-pointer transition-all",
           isActive && "bg-blue-50 dark:bg-blue-900/20"
         )}
-        style={{ 
+        style={{
           backgroundColor: `${element.color}15`,
           borderLeft: `4px solid ${element.color}`
         }}
@@ -166,7 +161,6 @@ export function OutlineNode({
         </div>
       </div>
 
-      {/* Children */}
       {isExpanded && hasChildren && (
         <div className="ml-8 space-y-6">
           {element.children.map(child => (

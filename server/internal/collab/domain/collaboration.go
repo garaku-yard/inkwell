@@ -6,19 +6,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// Collaborator represents a project collaborator
 type Collaborator struct {
 	ID        uuid.UUID  `json:"id" db:"collaborator_id"`
 	ProjectID uuid.UUID  `json:"project_id" db:"project_id"`
 	UserID    uuid.UUID  `json:"user_id" db:"user_id"`
-	Role      string     `json:"role" db:"role"`     // "owner", "editor", "viewer"
-	Status    string     `json:"status" db:"status"` // "pending", "active", "inactive"
+	Role      string     `json:"role" db:"role"`
+	Status    string     `json:"status" db:"status"`
 	InvitedBy uuid.UUID  `json:"invited_by" db:"invited_by"`
 	InvitedAt time.Time  `json:"invited_at" db:"invited_at"`
 	JoinedAt  *time.Time `json:"joined_at,omitempty" db:"joined_at"`
 }
 
-// Invitation represents a pending collaboration invitation
 type Invitation struct {
 	ID         uuid.UUID  `json:"id" db:"invitation_id"`
 	ProjectID  uuid.UUID  `json:"project_id" db:"project_id"`
@@ -32,7 +30,6 @@ type Invitation struct {
 	CreatedAt  time.Time  `json:"created_at" db:"created_at"`
 }
 
-// Comment represents a project comment
 type Comment struct {
 	ID              uuid.UUID  `json:"id" db:"comment_id"`
 	ProjectID       uuid.UUID  `json:"project_id" db:"project_id"`

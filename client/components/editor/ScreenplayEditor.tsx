@@ -9,14 +9,12 @@ import { Button } from "@/components/ui/button"
 import { Toolbar } from "./Toolbar"
 import { SidePanel } from "./SidePanel"
 import { EditorPane, type EditorPaneRef } from "./EditorPane"
-import { ImportProjectDialog } from "../import-dialog" // Already imported
+import { ImportProjectDialog } from "../import-dialog"
 import {
   createScene,
   createElement,
   updateElementContent,
   updateSceneHeading,
-  getProjectScenes,
-  getProjectScriptElements,
   addComment,
   updateComment,
   deleteComment,
@@ -25,9 +23,9 @@ import {
   type Scene,
   type ScriptElement,
   type Project,
-  type Comment // Added Comment type for the handler
+  type Comment
 } from "@/services/project"
-import { deleteScriptElement } from "@/services/editor"
+import { deleteScriptElement, updateScriptElement } from "@/services/editor"
 import { getKeyString, createKeymap } from "@/lib/editor/keymap";
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { AIChatPanel } from "./AIChatPanel"
@@ -41,7 +39,6 @@ interface ScreenplayEditorProps {
   projectData: FullProject
 }
 
-// Placeholder functions for features not yet implemented in microservices
 const updateSceneSetting = async (sceneId: string, content: string) => {
   console.warn('updateSceneSetting not yet implemented in microservices')
   // TODO: Implement scene update endpoint
@@ -57,8 +54,6 @@ const deleteScene = async (sceneId: string) => {
   // TODO: Implement scene delete endpoint
 }
 
-// Comment functions are now imported from services/project
-
 export function ScreenplayEditor({ projectData: initialProjectData }: ScreenplayEditorProps) {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -67,21 +62,17 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const [activeElementType, setActiveElementType] = useState<ToolbarScriptElementType | null>(null)
   const [elementToFocus, setElementToFocus] = useState<string | null>(null)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
-  const [isImportProjectDialogOpen, setIsImportProjectDialogOpen] = useState(false) // New state for import dialog
+  const [isImportProjectDialogOpen, setIsImportProjectDialogOpen] = useState(false)
   const elementRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
   const editorPaneRef = useRef<EditorPaneRef>(null)
   const sidePanelRef = useRef<HTMLDivElement>(null)
 
-  // Function to refresh comments after adding one
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const refreshComments = useCallback(() => {
     setRefreshTrigger(prev => prev + 1)
   }, [])
 
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-
-
 
   const debouncedSave = useDebouncedCallback((id: string, content: string, isScene: boolean) => {
     if (id.startsWith("new-")) return
@@ -90,7 +81,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     } else {
       updateScriptElementContent(id, content).catch((err) => console.error("Element save failed:", err))
     }
-  }, 1500)
+  }, 2000)
 
   const allScenes = useMemo(() => project?.scenes || [], [project.scenes])
   const totalScenes = allScenes.length
@@ -120,18 +111,16 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const handleAddComment = useCallback(async (elementId: string, isScene: boolean, content: string) => {
     try {
-      // Call the actual API to save the comment
       await addComment(
-        project.id, // project ID
-        project.id, // Use project ID as screenplay ID for now
+        project.id,
+        project.id,
         content,
-        0, // line number - would need to be calculated based on element position
-        isScene ? undefined : elementId, // script element ID only if it's not a scene
-        isScene ? elementId : undefined, // scene ID only if it's a scene
-        undefined // parent ID for replies
+        0,
+        isScene ? undefined : elementId,
+        isScene ? elementId : undefined,
+        undefined
       )
 
-      // Trigger refresh of comments in SidePanel
       refreshComments()
     } catch (err) {
       console.error("Failed to add comment:", err)
@@ -140,10 +129,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const handleUpdateComment = useCallback(async (commentId: string, content: string) => {
     try {
-      // Call the actual API to update the comment
       const updatedComment = await updateComment(commentId, content)
 
-      // Update local state with the updated comment
       setProject((prevProject) => {
         if (!prevProject.scenes) return prevProject
 
@@ -165,10 +152,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const handleDeleteComment = useCallback(async (commentId: string) => {
     try {
-      // Call the actual API to delete the comment
       await deleteComment(commentId)
 
-      // Update local state to remove the comment
       setProject((prevProject) => {
         if (!prevProject.scenes) return prevProject
 
@@ -194,10 +179,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       const originalProject = JSON.parse(JSON.stringify(project))
 
       try {
-        // Call the actual API to toggle the comment resolved state
         const updatedComment = await toggleCommentResolved(commentId, newResolvedState)
 
-        // Update local state with the updated comment
         setProject((prevProject) => {
           if (!prevProject.scenes) return prevProject
 
@@ -268,13 +251,11 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
       setProject((prevProject) => {
         if (isScene) {
-          // Update scene in flat scenes array
           const newScenes = prevProject.scenes?.map((scene) =>
             scene.id === id ? { ...scene, scene_heading: content } : scene
           ) || []
           return { ...prevProject, scenes: newScenes }
         } else {
-          // Update element within scenes
           const newScenes = prevProject.scenes?.map((scene) => ({
             ...scene,
             elements: scene.elements?.map((el) => (el.id === id ? { ...el, content: content } : el)),
@@ -315,10 +296,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   }, [])
 
   const handleBlur = useCallback(() => {
-    // Set a timeout to check the active element after a short delay
     blurTimeoutRef.current = setTimeout(() => {
       if (sidePanelRef.current && sidePanelRef.current.contains(document.activeElement)) {
-        // If the new active element is within the side panel, do nothing
         return
       }
       setActiveElementId(null)
@@ -372,7 +351,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         scene_id: sceneId,
         element_type: type,
         content: "",
-        line_number: Math.max(insertIndex, 1) // Ensure line number is at least 1
+        line_number: Math.max(insertIndex, 1)
       }
 
       createElement(project.id, user.id, newElementData)
@@ -389,9 +368,16 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
           setElementToFocus(createdElement.id)
         })
-        .catch((err) => console.error("Failed to create new element:", err))
+        .catch((err) => {
+          console.error("Failed to create new element:", err)
+          toast({
+            title: "Error",
+            description: "Failed to create new element. Please try again.",
+            variant: "destructive",
+          })
+        })
     },
-    [project.scenes, activeElementId, allScenes],
+    [project.scenes, activeElementId, allScenes, project.id, user?.id, toast],
   )
 
   const handleDeleteElement = useCallback(
@@ -453,24 +439,20 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     e.preventDefault();
     e.stopPropagation();
 
-    // Get only the actual screenplay text elements
     const textElements = Array.from(
       document.querySelectorAll('[data-screenplay-text]')
     ) as HTMLElement[];
 
     if (textElements.length === 0) return;
 
-    // Extract plain text from all elements
     const screenplay = textElements
       .map(el => el.textContent || '')
       .join('\n');
 
-    // Copy to clipboard using modern Clipboard API with fallback
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(screenplay);
       } else {
-        // Fallback for non-HTTPS or older browsers
         const textArea = document.createElement('textarea');
         textArea.value = screenplay;
         textArea.style.position = 'fixed';
@@ -487,13 +469,11 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         }
       }
 
-      // Show success toast
       toast({
         title: "Copied to clipboard",
         description: `${textElements.length} screenplay elements copied successfully.`,
       });
 
-      // Provide visual feedback by temporarily highlighting all text elements
       const selection = window.getSelection();
       if (selection) {
         selection.removeAllRanges();
@@ -504,7 +484,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           selection.addRange(range);
         });
 
-        // Clear selection after brief visual feedback
         setTimeout(() => {
           selection.removeAllRanges();
         }, 150);
@@ -519,6 +498,48 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     }
   }, [toast]);
 
+  const handleChangeElementType = useCallback(
+    (elementId: string, newType: ToolbarScriptElementType, currentContent: string) => {
+      const originalProjectState = project;
+
+      if (!user?.id) {
+        console.error("Cannot change element type: No user ID available.");
+        return;
+      }
+
+      // Update local state optimistically
+      setProject((prevProject) => {
+        if (!prevProject.scenes) return prevProject;
+
+        const newScenes = prevProject.scenes.map((scene: Scene) => ({
+          ...scene,
+          elements: scene.elements?.map((el: ScriptElement) =>
+            el.id === elementId ? { ...el, element_type: newType, content: currentContent } : el
+          ),
+        }));
+
+        return { ...prevProject, scenes: newScenes };
+      });
+
+      // Update on server - include both type and content
+      updateScriptElement(elementId, { 
+        user_id: user.id,
+        elementType: newType,
+        content: currentContent
+      })
+        .catch((err) => {
+          console.error("Failed to change element type:", err);
+          setProject(originalProjectState);
+          toast({
+            title: "Error",
+            description: "Failed to change element type.",
+            variant: "destructive",
+          });
+        });
+    },
+    [project, user?.id, toast]
+  );
+
 
   const keyMap = useMemo(() => createKeymap({
     handleFinalizeUpdate,
@@ -526,12 +547,14 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     handleDeleteScene,
     handleDeleteElement,
     handleSelectAll,
+    handleChangeElementType,
   }), [
     handleFinalizeUpdate,
     handleInsertElement,
     handleDeleteScene,
     handleDeleteElement,
     handleSelectAll,
+    handleChangeElementType,
   ]);
 
   const handleKeyDown = useCallback(
@@ -557,7 +580,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       return
     }
 
-    // Create scene data for microservices structure
     const newSceneData = {
       scene_heading: "",
       content: "",
@@ -582,7 +604,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     setIsAIChatOpen((prev) => !prev)
   }, [])
 
-  const handleProjectImported = (importedProject: Project) => {
+  const handleProjectImported = () => {
     setIsImportProjectDialogOpen(false);
   }
 
@@ -614,7 +636,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
               <Download className="h-4 w-4" />
               Export
             </Button>
-            {/* Connect the Import button to open the dialog */}
             <Button variant="outline" className="gap-2 bg-transparent" onClick={() => setIsImportProjectDialogOpen(true)}>
               <FilePlus2Icon className="h-4 w-4" />
               Import
@@ -671,7 +692,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         />
       </div>
 
-      {/* Render the Import Dialog */}
       <ImportProjectDialog
         open={isImportProjectDialogOpen}
         onOpenChange={setIsImportProjectDialogOpen}

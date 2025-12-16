@@ -125,7 +125,7 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
 
   const handleRoleChange = async (collaboratorId: string, newRole: CollaboratorRole) => {
     try {
-      await updateCollaboratorRole(projectId, collaboratorId, newRole)
+      await updateCollaboratorRole(collaboratorId, newRole)
       setCollaborators((prev) =>
         prev.map((collab) => (collab.id === collaboratorId ? { ...collab, role: newRole } : collab)),
       )
@@ -137,7 +137,7 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
 
   const handleRemoveCollaborator = async (collaboratorId: string) => {
     try {
-      await removeCollaborator(projectId, collaboratorId)
+      await removeCollaborator(collaboratorId)
       setCollaborators((prev) => prev.filter((c) => c.id !== collaboratorId))
     } catch (err: any) {
       setError("Failed to remove collaborator")

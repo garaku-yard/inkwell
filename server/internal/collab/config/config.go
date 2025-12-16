@@ -6,13 +6,11 @@ import (
 	"time"
 )
 
-// Config holds the configuration for the collaboration service
 type Config struct {
 	GRPCPort       string
 	DatabaseConfig DatabaseConfig
 }
 
-// DatabaseConfig holds database configuration
 type DatabaseConfig struct {
 	Host            string
 	Port            string
@@ -25,7 +23,6 @@ type DatabaseConfig struct {
 	ConnMaxLifetime time.Duration
 }
 
-// Load loads configuration from environment variables
 func Load() (*Config, error) {
 	maxOpenConns, _ := strconv.Atoi(getEnvOrDefault("COLLAB_DB_MAX_OPEN_CONNS", "25"))
 	maxIdleConns, _ := strconv.Atoi(getEnvOrDefault("COLLAB_DB_MAX_IDLE_CONNS", "10"))

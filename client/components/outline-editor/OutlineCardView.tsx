@@ -1,4 +1,3 @@
-import React from 'react';
 import { cn } from '@/lib/utils';
 import { type Beat } from '@/services/beat';
 import { type Lane, type OutlineItem } from '@/services/beat-board';
@@ -11,7 +10,6 @@ interface OutlineCardViewProps {
   onElementSelect: (id: string | null) => void;
 }
 
-// Parse page range from sceneNumbers string
 const parsePageRange = (sceneNumbers: string): { start: number; end: number } | null => {
   if (!sceneNumbers) return null;
   const cleaned = sceneNumbers.replace(/Pg\.\s*/i, '');
@@ -21,17 +19,15 @@ const parsePageRange = (sceneNumbers: string): { start: number; end: number } | 
   return null;
 };
 
-export function OutlineCardView({ 
-  lanes, 
-  beats, 
-  outlineItems, 
-  activeElementId, 
-  onElementSelect 
+export function OutlineCardView({
+  lanes,
+  beats,
+  outlineItems,
+  activeElementId,
+  onElementSelect
 }: OutlineCardViewProps) {
-  // Sort lanes by order
   const sortedLanes = [...lanes].sort((a, b) => a.order - b.order);
 
-  // Group outline items by lane and parse page ranges
   const itemsByLane = sortedLanes.map(lane => {
     const laneItems = outlineItems
       .filter(item => item.laneId === lane.id)
@@ -40,19 +36,17 @@ export function OutlineCardView({
         const pageRange = beat?.sceneNumbers ? parsePageRange(beat.sceneNumbers) : null;
         return { ...item, beat, pageRange };
       })
-      .filter(item => item.beat && item.pageRange) // Only include items with valid beats and page ranges
+      .filter(item => item.beat && item.pageRange)
       .sort((a, b) => {
-        // Sort by start page chronologically
         const pageA = a.pageRange?.start ?? Infinity;
         const pageB = b.pageRange?.start ?? Infinity;
         return pageA - pageB;
       });
 
     return { lane, items: laneItems };
-  }).filter(group => group.items.length > 0); // Only show lanes with items
+  }).filter(group => group.items.length > 0);
 
-  // Flatten all items and sort by page number chronologically
-  const allItems = itemsByLane.flatMap(({ lane, items }) => 
+  const allItems = itemsByLane.flatMap(({ lane, items }) =>
     items.map(item => ({ ...item, lane }))
   ).sort((a, b) => {
     const pageA = a.pageRange?.start ?? Infinity;
@@ -78,14 +72,12 @@ export function OutlineCardView({
           <h2 className="text-xl font-semibold text-gray-800 mb-2">Story Outline</h2>
           <p className="text-sm text-gray-500">Beats displayed in chronological order by page number</p>
         </div>
-        
-        {/* Beat Cards in Sequential Order */}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {allItems.map(({ beat, id: itemId, lane, pageRange }) => {
+          {allItems.map(({ beat, id: itemId, lane }) => {
             if (!beat) return null;
-            
+
             const isActive = activeElementId === beat.id;
-                
             return (
               <div
                 key={itemId}
@@ -97,13 +89,11 @@ export function OutlineCardView({
                 onMouseLeave={() => onElementSelect(null)}
                 onClick={() => onElementSelect(beat.id)}
               >
-                {/* Color Indicator at Top */}
                 <div
                   className="absolute top-0 left-0 w-full h-1 rounded-t-lg"
                   style={{ backgroundColor: lane.color }}
                 />
 
-                {/* Lane Badge */}
                 <div className="flex items-center gap-2 mb-2">
                   <div
                     className="w-3 h-3 rounded-full"
@@ -112,21 +102,18 @@ export function OutlineCardView({
                   <span className="text-xs font-medium text-gray-500">{lane.name}</span>
                 </div>
 
-                {/* Beat Title */}
                 {beat.title && (
                   <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
                     {beat.title}
                   </h3>
                 )}
 
-                {/* Beat Description */}
                 {beat.description && (
                   <p className="text-sm text-gray-600 line-clamp-4 mb-3">
                     {beat.description}
                   </p>
                 )}
 
-                {/* Scene Number / Page Range */}
                 {beat.sceneNumbers && (
                   <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
                     <span className="text-xs font-medium text-gray-500">

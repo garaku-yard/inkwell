@@ -8,34 +8,30 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"syscall"
-
-	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
-
 	"scriptlith/server/internal/collab/config"
 	"scriptlith/server/internal/collab/handlers"
 	"scriptlith/server/internal/collab/repository"
 	"scriptlith/server/internal/collab/service"
 	"scriptlith/server/pkg/database"
 	"scriptlith/server/pkg/grpc/collab"
+	"syscall"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 func main() {
-	// Load environment variables from .env file
 	if err := godotenv.Load(); err != nil {
 		log.Printf("Warning: Could not load .env file: %v", err)
 	}
 
-	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Connect to database
 	db, err := connectDatabase(cfg.DatabaseConfig)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -46,33 +42,25 @@ func main() {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
-	// Initialize repository
 	repo := repository.NewPostgresCollaborationRepository(db)
 
-	// Initialize service
 	collabService := service.NewCollaborationService(repo)
 
-	// Initialize handler
 	handler := handlers.NewCollaborationHandler(collabService)
 
-	// Create gRPC server
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),
 	)
 
-	// Register service
 	collab.RegisterCollaborationServiceServer(grpcServer, handler)
 
-	// Enable reflection for development
 	reflection.Register(grpcServer)
 
-	// Start server
 	listener, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 	if err != nil {
 		log.Fatalf("Failed to listen on port %s: %v", cfg.GRPCPort, err)
 	}
 
-	// Graceful shutdown
 	go func() {
 		log.Printf("Collaboration service starting on port %s", cfg.GRPCPort)
 		if err := grpcServer.Serve(listener); err != nil {
@@ -80,7 +68,6 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -90,7 +77,6 @@ func main() {
 	log.Println("Collaboration service stopped")
 }
 
-// connectDatabase establishes database connection
 func connectDatabase(cfg config.DatabaseConfig) (*sql.DB, error) {
 	dbConfig := database.Config{
 		Host:            cfg.Host,

@@ -1,7 +1,6 @@
 import { apiClient } from "@/lib/api"
 import { type CollaboratorRole, CollaboratorRoles } from "@/models/constants/collaboratorRoles"
 
-// Updated Project interface to match microservices backend
 export interface Project {
   id: string
   title: string
@@ -37,7 +36,7 @@ export interface ScriptElement {
   formatting: Record<string, string>
   created_at: string
   updated_at: string
-  comments?: Comment[]  // Comments for this element
+  comments?: Comment[]
 }
 
 export interface Scene {
@@ -47,10 +46,10 @@ export interface Scene {
   scene_heading: string
   content: string
   order_index: number
-  elements?: ScriptElement[]  // Elements within the scene
+  elements?: ScriptElement[]
   created_at: string
   updated_at: string
-  comments?: Comment[]  // Comments for this scene
+  comments?: Comment[]
 }
 
 export interface Character {
@@ -78,7 +77,7 @@ export interface OutlineUnit {
   id: string
   project_id: string
   parent_id?: string
-  unit_type: string // "act", "sequence", "beat", "sub-beat"
+  unit_type: string
   title: string
   description: string
   color?: string
@@ -90,7 +89,6 @@ export interface OutlineUnit {
   updated_at: string
 }
 
-// Legacy interfaces for compatibility (will be removed later)
 export interface Act {
   id: string
   projectId: string
@@ -106,7 +104,6 @@ export interface FullProject extends Project {
   outline_units?: OutlineUnit[]
 }
 
-// Project collaborators interface (for future implementation)
 export interface ProjectCollaborator {
   id: string
   name: string
@@ -125,8 +122,8 @@ export interface Comment {
   content: string
   timestamp: string
   isResolved: boolean
-  elementId?: string // script element ID or scene ID that the comment belongs to
-  isScene?: boolean // whether this comment belongs to a scene or script element
+  elementId?: string
+  isScene?: boolean
 }
 
 // --- Service Functions ---
@@ -159,7 +156,7 @@ export const getMyProjects = async (userId: string): Promise<{ projects: (Projec
   const response = await apiClient<{ projects: Project[], total: number }>(`projects?user_id=${userId}`, {
     method: 'GET',
   })
-  
+
   // Fetch collaborator count for each project
   const projectsWithCounts = await Promise.all(
     response.projects.map(async (project) => {
@@ -175,7 +172,7 @@ export const getMyProjects = async (userId: string): Promise<{ projects: (Projec
       }
     })
   )
-  
+
   return {
     projects: projectsWithCounts,
     total: response.total
@@ -198,7 +195,7 @@ export const updateProject = async (
 }
 
 export const toggleProjectStar = async (projectId: string, userId: string): Promise<Project> => {
-  const response = await apiClient<{project: Project}>(`projects/${projectId}/star`, {
+  const response = await apiClient<{ project: Project }>(`projects/${projectId}/star`, {
     method: 'PATCH',
     body: { user_id: userId }
   })
@@ -215,36 +212,29 @@ export const deleteProject = async (projectId: string, userId: string): Promise<
   })
 }
 
-// Get full project with scenes and elements
 export const getFullProject = async (projectId: string, userId: string): Promise<FullProject> => {
-  // Get the basic project info
   const projectResponse = await apiClient<{ project: Project }>(`projects/${projectId}?user_id=${userId}`, {
     method: 'GET',
   })
-  
-  // Get the scenes for this project
+
   const scenes = await getProjectScenes(projectId, userId)
-  
-  // Get all comments for the project
+
   const allComments = await getComments(projectId)
-  
-  // For each scene, get its elements and attach comments
+
   const scenesWithElements = await Promise.all(
     scenes.map(async (scene) => {
       try {
         const elements = await getSceneElements(scene.id, userId)
-        
-        // Attach comments to elements
+
         const elementsWithComments = elements.map(element => ({
           ...element,
           comments: allComments.filter(comment => comment.elementId === element.id && !comment.isScene)
         }))
-        
-        // Attach comments to scene
+
         const sceneComments = allComments.filter(comment => comment.elementId === scene.id && comment.isScene)
-        
-        return { 
-          ...scene, 
+
+        return {
+          ...scene,
           elements: elementsWithComments,
           comments: sceneComments
         }
@@ -254,14 +244,13 @@ export const getFullProject = async (projectId: string, userId: string): Promise
       }
     })
   )
-  
+
   return {
     ...projectResponse.project,
     scenes: scenesWithElements,
   }
 }
 
-// Scene management functions
 export const createScene = async (
   projectId: string,
   userId: string,
@@ -305,12 +294,11 @@ export const updateSceneHeading = async (
   return response.scene
 }
 
-// Script Element management functions
 export const createElement = async (
   projectId: string,
   userId: string,
   elementData: {
-    scene_id: string // Required - elements must belong to a scene
+    scene_id: string
     element_type: "ACTION" | "CHARACTER" | "DIALOG" | "PARENTHETICAL" | "SHOT" | "TRANSITION"
     content: string
     character_id?: string
@@ -351,7 +339,6 @@ export const getSceneElements = async (sceneId: string, userId: string): Promise
   return response.elements
 }
 
-// Character management functions
 export const createCharacter = async (
   projectId: string,
   userId: string,
@@ -380,7 +367,6 @@ export const getProjectCharacters = async (projectId: string, userId: string): P
   return response.characters
 }
 
-// Location management functions
 export const createLocation = async (
   projectId: string,
   userId: string,
@@ -408,12 +394,11 @@ export const getProjectLocations = async (projectId: string, userId: string): Pr
   return response.locations
 }
 
-// Script element management functions
 export const createScriptElement = async (
   projectId: string,
   userId: string,
   elementData: {
-    scene_id: string // Required - elements must belong to a scene
+    scene_id: string
     element_type: string
     content: string
     character_id?: string
@@ -441,14 +426,12 @@ export const getProjectScriptElements = async (
   let url = `script-elements?project_id=${projectId}&user_id=${userId}`
   if (startLine !== undefined) url += `&start_line=${startLine}`
   if (endLine !== undefined) url += `&end_line=${endLine}`
-  
+
   const response = await apiClient<{ script_elements: ScriptElement[] }>(url, {
     method: 'GET',
   })
   return response.script_elements
 }
-
-// Legacy functions for backward compatibility (will be updated gradually)
 
 /**
  * @deprecated Use getProjectById instead
@@ -469,7 +452,6 @@ export const createSceneLegacy = (actId: string, sceneData: { setting: string })
   })
 }
 
-// Collaborator functions
 export const addCollaborator = async (
   projectId: string,
   email: string,
@@ -496,7 +478,7 @@ export const addCollaborator = async (
 
   return {
     id: response.id,
-    name: email.split('@')[0], // Use email prefix as name for now
+    name: email.split('@')[0],
     email: email,
     usernameWithTag: email,
     role: response.role as CollaboratorRole,
@@ -521,8 +503,8 @@ export const getProjectCollaborators = async (projectId: string): Promise<Projec
 
   return collaborators.map(collab => ({
     id: collab.id,
-    name: `User ${collab.user_id.slice(0, 8)}`, // Placeholder name
-    email: `user-${collab.user_id.slice(0, 8)}@example.com`, // Placeholder email
+    name: `User ${collab.user_id.slice(0, 8)}`,
+    email: `user-${collab.user_id.slice(0, 8)}@example.com`,
     usernameWithTag: `user-${collab.user_id.slice(0, 8)}`,
     role: collab.role as CollaboratorRole,
     status: collab.status === 'active' ? 'active' : 'pending',
@@ -532,7 +514,6 @@ export const getProjectCollaborators = async (projectId: string): Promise<Projec
 }
 
 export const updateCollaboratorRole = async (
-  projectId: string,
   collaboratorId: string,
   role: CollaboratorRole
 ): Promise<ProjectCollaborator> => {
@@ -564,7 +545,6 @@ export const updateCollaboratorRole = async (
 }
 
 export const removeCollaborator = async (
-  projectId: string,
   collaboratorId: string
 ): Promise<void> => {
   await apiClient(`collaborators/${collaboratorId}`, {
@@ -579,7 +559,6 @@ export const collaboratorRoleOptions = Object.entries(CollaboratorRoles).map(
   })
 )
 
-// Comment CRUD functions
 export const addComment = async (
   projectId: string,
   screenplayId: string,
@@ -611,7 +590,7 @@ export const addComment = async (
       screenplay_id: screenplayId,
       content,
       line_number: lineNumber,
-      char_position: 0, // Default to 0 for now
+      char_position: 0,
       script_element_id: scriptElementId,
       scene_id: sceneId,
       parent_id: parentId
@@ -656,7 +635,7 @@ export const getComments = async (
     timestamp: comment.created_at,
     isResolved: comment.is_resolved,
     elementId: comment.script_element_id || comment.scene_id,
-    isScene: !!comment.scene_id // if scene_id exists, it's a scene comment
+    isScene: !!comment.scene_id
   }))
 }
 

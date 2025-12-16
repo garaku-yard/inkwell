@@ -8,6 +8,11 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"scriptlith/server/internal/scripts/config"
+	"scriptlith/server/internal/scripts/handler"
+	"scriptlith/server/internal/scripts/models"
+	"scriptlith/server/internal/scripts/repository"
+	"scriptlith/server/internal/scripts/service"
 	"syscall"
 
 	"github.com/joho/godotenv"
@@ -17,67 +22,50 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"scriptlith/server/internal/scripts/config"
-	"scriptlith/server/internal/scripts/handler"
-	"scriptlith/server/internal/scripts/models"
-	"scriptlith/server/internal/scripts/repository"
-	"scriptlith/server/internal/scripts/service"
 	scriptspb "scriptlith/server/pkg/grpc/scripts"
 )
 
 func main() {
-	// Load environment variables from .env file
 	if err := godotenv.Load(); err != nil {
 		log.Printf("Warning: Could not load .env file: %v", err)
 	}
 
-	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Connect to database with GORM
 	gormDB, sqlDB, err := connectDatabase(cfg.DatabaseConfig)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer sqlDB.Close()
 
-	// Run database migrations (like EF Core's database.Migrate())
 	if err := models.AutoMigrate(gormDB); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 	log.Println("Database migrations completed successfully")
 
-	// Initialize repository
 	repo := repository.NewRepository(sqlDB)
 
-	// Initialize services
 	scriptsService := service.NewScriptsService(repo, cfg)
 	beatBoardService := service.NewBeatBoardService(repo)
 
-	// Initialize handler
 	scriptsHandler := handler.NewScriptsHandler(scriptsService, beatBoardService)
 
-	// Create gRPC server
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),
 	)
 
-	// Register service
 	scriptspb.RegisterScriptsServiceServer(grpcServer, scriptsHandler)
 
-	// Enable reflection for development
 	reflection.Register(grpcServer)
 
-	// Start server
 	listener, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 	if err != nil {
 		log.Fatalf("Failed to listen on port %s: %v", cfg.GRPCPort, err)
 	}
 
-	// Graceful shutdown
 	go func() {
 		log.Printf("Scripts service starting on port %s", cfg.GRPCPort)
 		if err := grpcServer.Serve(listener); err != nil {
@@ -85,7 +73,6 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -95,8 +82,6 @@ func main() {
 	log.Println("Scripts service stopped")
 }
 
-// connectDatabase establishes database connection with GORM
-// Returns both GORM DB and underlying sql.DB
 func connectDatabase(cfg config.DatabaseConfig) (*gorm.DB, *sql.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
@@ -115,7 +100,6 @@ func connectDatabase(cfg config.DatabaseConfig) (*gorm.DB, *sql.DB, error) {
 		return nil, nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
 
-	// Set connection pool settings
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
 	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
@@ -123,7 +107,6 @@ func connectDatabase(cfg config.DatabaseConfig) (*gorm.DB, *sql.DB, error) {
 	return gormDB, sqlDB, nil
 }
 
-// loggingInterceptor logs incoming gRPC requests
 func loggingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	log.Printf("gRPC method: %s", info.FullMethod)
 

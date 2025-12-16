@@ -74,7 +74,6 @@ export async function apiStreamClient(
   const headers = new Headers(customHeaders);
   headers.set("Content-Type", "application/json");
 
-  // Re-use the same token logic
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -85,7 +84,6 @@ export async function apiStreamClient(
     headers,
   };
 
-  // Default to POST if a body is present
   if (!config.method) {
     config.method = body ? "POST" : "GET";
   }
@@ -96,9 +94,7 @@ export async function apiStreamClient(
 
   const response = await fetch(`${API_BASE_URL}/${endpoint}`, config);
 
-  // Handle errors, but don't consume the body on success
   if (!response.ok) {
-    // Try to parse the error message as JSON, as the server likely sends it this way
     const errorData = await response.json().catch(() => null);
     const errorMessage = errorData?.error || `An error occurred: ${response.statusText}`;
     throw new Error(errorMessage);
@@ -108,6 +104,5 @@ export async function apiStreamClient(
     throw new Error("Response body is empty or null.");
   }
 
-  // On success, return the stream directly
   return response.body;
 }

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Bot, Send, User, Lightbulb, Sparkles, X, BrainCircuit, Zap } from "lucide-react"
+import { Bot, Send, User, Sparkles, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { streamChatCompletion } from "@/services/ai"
 
@@ -24,8 +24,6 @@ interface AIChatPanelProps {
   currentElement?: string
 }
 
-const QUICK_PROMPTS = ["Suggest dialogue for this scene", "Improve this action line", "Add character motivation"]
-
 export const AIChatPanel = React.memo(({ isOpen, onClose }: AIChatPanelProps) => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -41,7 +39,6 @@ export const AIChatPanel = React.memo(({ isOpen, onClose }: AIChatPanelProps) =>
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Focus input when panel opens
   useEffect(() => {
     if (isOpen) {
       inputRef.current?.focus()
@@ -135,11 +132,6 @@ export const AIChatPanel = React.memo(({ isOpen, onClose }: AIChatPanelProps) =>
     }
   }
 
-  const handleQuickPrompt = (prompt: string) => {
-    setInputValue(prompt)
-    inputRef.current?.focus()
-  }
-
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
@@ -147,7 +139,6 @@ export const AIChatPanel = React.memo(({ isOpen, onClose }: AIChatPanelProps) =>
     }
   }
 
-  // --- START OF UI CHANGES ---
   return (
     <div
       className={cn(
@@ -156,16 +147,14 @@ export const AIChatPanel = React.memo(({ isOpen, onClose }: AIChatPanelProps) =>
         isOpen ? "w-[420px]" : "w-0",
       )}
     >
-      {/* Add spacer div to match toolbar height (p-3 padding top/bottom + content) */}
       <div className="h-[57px] flex-shrink-0 border-b border-border/40" />
-      
+
       <div
         className={cn(
           "flex-1 flex flex-col border-t border-border/40",
           !isOpen && "invisible",
         )}
       >
-        {/* The rest of the component's JSX remains the same */}
         <div className={cn("flex-1 flex flex-col", !isOpen && "invisible")}>
           <div className="relative p-6 border-b border-border/40 flex-shrink-0 space-y-5 overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
@@ -190,28 +179,6 @@ export const AIChatPanel = React.memo(({ isOpen, onClose }: AIChatPanelProps) =>
               </Button>
             </div>
           </div>
-          {/* <div className="p-5 border-b border-border/30 bg-gradient-to-b from-muted/10 to-transparent flex-shrink-0"> */}
-          {/*   <div className="flex items-center gap-2.5 mb-3.5"> */}
-          {/*     <div className="p-1.5 bg-gradient-to-br from-amber-500/20 to-amber-500/10 rounded-lg"> */}
-          {/*       <Lightbulb className="h-3.5 w-3.5 text-amber-500" /> */}
-          {/*     </div> */}
-          {/*     <span className="text-xs font-bold text-foreground/90 uppercase tracking-wider">Quick Start</span> */}
-          {/*   </div> */}
-          {/*   <div className="flex flex-wrap gap-2"> */}
-          {/*     {QUICK_PROMPTS.map((prompt, index) => ( */}
-          {/*       <Button */}
-          {/*         key={index} */}
-          {/*         variant="outline" */}
-          {/*         size="sm" */}
-          {/*         className="text-xs h-9 px-4 bg-background/90 hover:bg-primary/10 hover:text-primary hover:border-primary/40 hover:shadow-md hover:scale-105 transition-all duration-200 rounded-xl font-medium" */}
-          {/*         onClick={() => handleQuickPrompt(prompt)} */}
-          {/*       > */}
-          {/*         <Zap className="h-3 w-3 mr-1.5" /> */}
-          {/*         {prompt} */}
-          {/*       </Button> */}
-          {/*     ))} */}
-          {/*   </div> */}
-          {/* </div> */}
           <ScrollArea className="flex-1 p-5 min-h-0">
             <div className="space-y-7 p-1">
               {messages.map((message) => (

@@ -183,7 +183,8 @@ export const SidePanel = React.memo(
                             </Badge>
                           )}
                         </div>
-                      </div>                      {scene.elements && scene.elements.length > 0 && (
+                      </div>
+                      {scene.elements && scene.elements.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {Array.from(new Set(scene.elements.map((el) => el.element_type).filter(Boolean)))
                             .slice(0, 4)

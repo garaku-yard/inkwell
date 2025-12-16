@@ -5,20 +5,20 @@ import { useRouter } from "next/navigation"
 import { jwtDecode } from "jwt-decode";
 
 interface DecodedToken {
-  sub: string;        // Subject (User ID as UUID string)
-  user_id?: string;   // Also includes user_id for compatibility
-  eml?: string;       // User email (abbreviated)
-  usn?: string;       // Username (abbreviated)
-  tag?: string;       // UserTag (abbreviated)
-  email?: string;     // User email (full)
-  username?: string;  // Username (full)
-  user_tag?: string;  // UserTag (full)
-  role?: string;      // User role
-  exp: number;        // Expiration timestamp
-  iat: number;        // Issued at timestamp
-  nbf?: number;       // Not before timestamp
-  iss?: string;       // Issuer
-  [key: string]: any; // Allow any other fields
+  sub: string;
+  user_id?: string;
+  eml?: string;
+  usn?: string;
+  tag?: string;
+  email?: string;
+  username?: string;
+  user_tag?: string;
+  role?: string;
+  exp: number;
+  iat: number;
+  nbf?: number;
+  iss?: string;
+  [key: string]: any;
 }
 
 interface AuthContextType {

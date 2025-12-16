@@ -27,7 +27,6 @@ export default function LoginPage() {
 
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
   const { login } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,7 +40,6 @@ export default function LoginPage() {
       if (data.token) {
         const success = login(data.token);
         if (success) {
-          // Use window.location to force a full page reload with the new auth state
           window.location.href = "/dashboard";
         } else {
           setError("Failed to process login token");
@@ -62,7 +60,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Header */}
         <div className="flex items-center gap-2 mb-8">
           <Link href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />

@@ -53,7 +53,7 @@ export const getAvailableAIProviders = (): Promise<AIProvidersResponse> => {
 export const streamChatCompletion = (data: AIChatRequest | LegacyAIChatRequest): Promise<ReadableStream<Uint8Array>> => {
   // Handle legacy format for backward compatibility
   let requestData: AIChatRequest;
-  
+
   if ('prompt' in data) {
     // Convert legacy format to new format
     requestData = {

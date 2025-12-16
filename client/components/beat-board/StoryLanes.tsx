@@ -48,10 +48,8 @@ export function StoryLanes({
   const [slidingItem, setSlidingItem] = useState<{ itemId: string; startX: number; originalPosition: number; } | null>(null);
   const [editingLaneId, setEditingLaneId] = useState<string | null>(null);
   const [dropIndicator, setDropIndicator] = useState<string | null>(null);
-  const [pageInterval, setPageInterval] = useState(1); // Show every N pages
-  const [zoomLevel, setZoomLevel] = useState(1); // 1 = normal, 2 = 2x width, etc.
+  const [zoomLevel, setZoomLevel] = useState(1);
 
-  // Adjust page interval based on zoom level to avoid clutter
   const adjustedPageInterval = zoomLevel >= 2 ? 1 : zoomLevel >= 1 ? 2 : 5;
 
   const getPagePosition = (page: number) => (page / totalPages) * 100;
@@ -175,9 +173,9 @@ export function StoryLanes({
                   const page = i + 1;
                   const shouldShowLabel = page % adjustedPageInterval === 0 || page === 1;
                   return (
-                    <div 
-                      key={page} 
-                      className="absolute top-0 bottom-0 flex items-center" 
+                    <div
+                      key={page}
+                      className="absolute top-0 bottom-0 flex items-center"
                       style={{ left: `${getPagePosition(page)}%` }}
                     >
                       <div className={`${shouldShowLabel ? 'w-px bg-gray-400' : 'w-px bg-gray-200'} h-full`} />
@@ -237,7 +235,6 @@ export function StoryLanes({
                       const beat = beats.find(b => b.id === item.beatId); if (!beat) return null;
                       const position = item.timelinePosition || 0; const width = item.width || getPagePosition(5);
                       const isInteracting = resizingItem?.itemId === item.id || slidingItem?.itemId === item.id;
-                      // Use the proper startPage/endPage fields
                       const displayPages = beat.startPage && beat.endPage
                         ? (beat.startPage === beat.endPage ? `Pg. ${beat.startPage}` : `Pg. ${beat.startPage}-${beat.endPage}`)
                         : (beat.sceneNumbers || "No pages");

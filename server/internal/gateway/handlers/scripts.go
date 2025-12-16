@@ -547,8 +547,9 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		UserID  string `json:"user_id"`
-		Content string `json:"content"`
+		UserID      string  `json:"user_id"`
+		Content     *string `json:"content"`
+		ElementType *string `json:"elementType"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -562,15 +563,30 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// At least one field must be provided for update
+	if req.Content == nil && req.ElementType == nil {
+		http.Error(w, `{"error":"Either content or elementType must be provided"}`, http.StatusBadRequest)
+		return
+	}
+
 	// Call Scripts service
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	response, err := h.scriptsClient.UpdateElement(ctx, &scriptspb.UpdateElementRequest{
+	updateReq := &scriptspb.UpdateElementRequest{
 		ElementId: elementID,
 		UserId:    req.UserID,
-		Content:   req.Content,
-	})
+	}
+
+	if req.Content != nil {
+		updateReq.Content = *req.Content
+	}
+
+	if req.ElementType != nil {
+		updateReq.Type = *req.ElementType
+	}
+
+	response, err := h.scriptsClient.UpdateElement(ctx, updateReq)
 
 	if err != nil {
 		http.Error(w, `{"error":"Failed to update element"}`, http.StatusInternalServerError)

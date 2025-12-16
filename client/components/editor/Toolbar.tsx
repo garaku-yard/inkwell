@@ -37,14 +37,12 @@ export const Toolbar = React.memo(({ onInsertElement, onAddNewScene, activeEleme
                 const config = SCRIPT_ELEMENT_CONFIG[type]
                 const Icon = config.icon
 
-                // Active check now works without error because 'type' can be 'SCENE_HEADING'
                 const isSceneHeading = type === 'SCENE_HEADING';
-                const isActive = activeElementType === type; // This comparison is now type-safe
+                const isActive = activeElementType === type;
 
-                // Determine the correct function to call based on the element type
                 const handleClick = isSceneHeading
                   ? onAddNewScene
-                  : () => onInsertElement(type as ToolbarScriptElementType); // Cast back if necessary
+                  : () => onInsertElement(type as ToolbarScriptElementType);
 
                 return (
                   <Tooltip key={type}>

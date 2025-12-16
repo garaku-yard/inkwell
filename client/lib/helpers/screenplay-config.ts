@@ -12,7 +12,7 @@ export const SCRIPT_ELEMENT_CONFIG = {
     icon: Clapperboard,
     toolbarColor: "hover:bg-purple-50 hover:text-purple-700",
     badgeColor: "bg-purple-100 text-purple-700 border-purple-200",
-    editorClasses: "w-full block", // Simplified to ensure proper block layout
+    editorClasses: "w-full block",
   },
   CHARACTER: {
     tooltip: "Character",

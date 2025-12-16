@@ -20,7 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 
-import { createProject, addCollaborator, Project, deleteProject } from "@/services/project"
+import { createProject, addCollaborator, Project, deleteProject, createScene } from "@/services/project"
 
 const projectTypes = [
   { value: "feature", label: "Feature Film" },
@@ -91,6 +91,19 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
         description: description || projectTypes.find(t => t.value === projectType)?.label || "New Project",
         owner_id: userId,
       })
+
+      // Automatically create the first scene for the new project
+      try {
+        await createScene(newProject.id, userId, {
+          scene_heading: "",
+          content: "",
+          order_index: 0
+        })
+      } catch (sceneErr) {
+        console.error("Failed to create initial scene:", sceneErr)
+        // Don't fail project creation if scene creation fails
+        // The user can create a scene manually if needed
+      }
 
       if (collaborators.length > 0) {
         await Promise.all(
