@@ -57,16 +57,26 @@ export const EditorPane = React.memo(
       measureElement: (element) => element.getBoundingClientRect().height,
     })
 
-    const A4_HEIGHT_PX = 11.69 * 96
-    const PAGE_CONTENT_HEIGHT = A4_HEIGHT_PX - (2 * 96)
+    // US Letter: 8.5in x 11in at 96 DPI
+    // With margins: 1in top, 1in bottom = 9in content height
+    // 9 inches × 96 DPI = 864px available for content
+    const PAGE_CONTENT_HEIGHT = 9 * 96 // 864px
 
     const organizeItemsIntoPages = () => {
       const pages: { items: ScriptItem[], height: number }[] = []
       let currentPageHeight = 0
       let currentPageItems: ScriptItem[] = []
 
-      items.forEach((item, index) => {
-        const estimatedHeight = rowVirtualizer.options.estimateSize(index)
+      // Use a more realistic line height calculation
+      // 12pt font with 1.5 line-height = 18pt = ~24px per line
+      const LINE_HEIGHT = 24
+      const ELEMENT_PADDING = 8 // py-1 = 4px top + 4px bottom
+
+      items.forEach((item) => {
+        const content = item.type === "SCENE_HEADING" ? item.data.scene_heading : item.data.content
+        // Calculate based on actual content - roughly 60 chars per line for screenplay
+        const lines = Math.max(1, Math.ceil((content?.length || 0) / 60))
+        const estimatedHeight = (lines * LINE_HEIGHT) + ELEMENT_PADDING
 
         if (currentPageHeight + estimatedHeight > PAGE_CONTENT_HEIGHT && currentPageItems.length > 0) {
           pages.push({ items: [...currentPageItems], height: currentPageHeight })
@@ -106,22 +116,24 @@ export const EditorPane = React.memo(
 
     return (
       <div ref={parentRef} className="flex-1 overflow-auto p-8 bg-gray-100 dark:bg-gray-900">
-        {/* Multiple A4 pages */}
+        {/* Multiple US Letter pages (standard screenplay format) */}
         <div ref={pagesContainerRef} className="mx-auto space-y-8">
           {pages.map((page, pageIndex) => (
             <div
               key={pageIndex}
               id={`page-${pageIndex}`}
               ref={pageIndex === 0 ? scriptContainerRef : undefined}
-              className="w-[8.27in] h-[11.69in] bg-white dark:bg-gray-800 shadow-2xl relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden"
+              className="bg-white dark:bg-gray-800 shadow-2xl relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
               style={{
+                width: '8.5in',
+                height: '11in',
                 paddingTop: '1in',
                 paddingBottom: '1in',
                 paddingLeft: '1.5in',
                 paddingRight: '1in'
               }}
             >
-              <div className="absolute right-4 top-4 text-xs text-gray-400 pointer-events-none">
+              <div className="absolute text-xs text-gray-400 pointer-events-none" style={{ top: '0.5in', right: '1in' }}>
                 Page {pageIndex + 1}
               </div>
 
