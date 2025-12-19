@@ -803,43 +803,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     [flattenedScriptItems, scrollToElement]
   );
 
-  const keyMap = useMemo(() => createKeymap({
-    handleFinalizeUpdate,
-    handleInsertElement,
-    handleDeleteScene,
-    handleDeleteElement,
-    handleSelectAll,
-    handleChangeElementType,
-    handleNavigateToPrevious,
-    handleNavigateToNext,
-  }), [
-    handleFinalizeUpdate,
-    handleInsertElement,
-    handleDeleteScene,
-    handleDeleteElement,
-    handleSelectAll,
-    handleChangeElementType,
-    handleNavigateToPrevious,
-    handleNavigateToNext,
-  ]);
-
-  const handleKeyDown = useCallback(
-    (
-      e: React.KeyboardEvent<HTMLDivElement>,
-      elementId: string,
-      isScene: boolean,
-      elementType: ToolbarScriptElementType | "SCENE_HEADING",
-    ) => {
-      const keyString = getKeyString(e);
-
-      const handler = keyMap[keyString as keyof typeof keyMap];
-      if (handler) {
-        handler(e, elementId, isScene, elementType);
-      }
-    },
-    [keyMap],
-  );
-
   const handleAddNewScene = useCallback(() => {
     if (!project.id || !user?.id) {
       console.error("Cannot add a scene: No project ID or user ID available.")
@@ -867,6 +830,45 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         console.error("Failed to create new scene:", err)
       })
   }, [project.id, project.scenes, user?.id, scrollToElement, focusElementAtEnd])
+
+  const keyMap = useMemo(() => createKeymap({
+    handleFinalizeUpdate,
+    handleInsertElement,
+    handleDeleteScene,
+    handleDeleteElement,
+    handleSelectAll,
+    handleChangeElementType,
+    handleNavigateToPrevious,
+    handleNavigateToNext,
+    handleAddNewScene,
+  }), [
+    handleFinalizeUpdate,
+    handleInsertElement,
+    handleDeleteScene,
+    handleDeleteElement,
+    handleSelectAll,
+    handleChangeElementType,
+    handleNavigateToPrevious,
+    handleNavigateToNext,
+    handleAddNewScene,
+  ]);
+
+  const handleKeyDown = useCallback(
+    (
+      e: React.KeyboardEvent<HTMLDivElement>,
+      elementId: string,
+      isScene: boolean,
+      elementType: ToolbarScriptElementType | "SCENE_HEADING",
+    ) => {
+      const keyString = getKeyString(e);
+
+      const handler = keyMap[keyString as keyof typeof keyMap];
+      if (handler) {
+        handler(e, elementId, isScene, elementType);
+      }
+    },
+    [keyMap],
+  );
 
   const toggleAIChat = useCallback(() => {
     setIsAIChatOpen((prev) => !prev)

@@ -10,7 +10,13 @@ export interface KeymapHandlers {
   handleChangeElementType: (elementId: string, newType: ToolbarScriptElementType, currentContent: string) => void;
   handleNavigateToPrevious?: (elementId: string) => void;
   handleNavigateToNext?: (elementId: string) => void;
+  handleAddNewScene?: () => void;
 }
+
+// Track last Enter press for double-Enter detection
+let lastEnterTime = 0;
+let pendingEnterTimeout: ReturnType<typeof setTimeout> | null = null;
+const DOUBLE_ENTER_THRESHOLD = 300; // ms
 
 export const getKeyString = (e: React.KeyboardEvent): string => {
   let key = e.key.toLowerCase();
@@ -29,43 +35,70 @@ export const createKeymap = (handlers: KeymapHandlers) => ({
     elementType: ToolbarScriptElementType | "SCENE_HEADING"
   ) => {
     e.preventDefault();
-    handlers.handleFinalizeUpdate(elementId, e.currentTarget.innerHTML, isScene);
-
-    // Contextual Workflow Logic for Enter key
-    if (isScene) {
-      // From Scene Heading → Action
-      handlers.handleInsertElement("ACTION", elementId, true);
-    } else {
-      const currentElementType = elementType as ToolbarScriptElementType;
-      let nextElementType: ToolbarScriptElementType | null = null;
-      switch (currentElementType) {
-        case "ACTION":
-          // From Action → Action
-          nextElementType = "ACTION";
-          break;
-        case "CHARACTER":
-          // From Character → Dialogue
-          nextElementType = "DIALOG";
-          break;
-        case "DIALOG":
-          // From Dialogue → Action
-          nextElementType = "ACTION";
-          break;
-        case "PARENTHETICAL":
-          // From Parenthetical → Dialogue
-          nextElementType = "DIALOG";
-          break;
-        case "TRANSITION":
-          nextElementType = "ACTION";
-          break;
-        case "SHOT":
-          nextElementType = "ACTION";
-          break;
+    
+    const now = Date.now();
+    const isDoubleEnter = (now - lastEnterTime) < DOUBLE_ENTER_THRESHOLD;
+    lastEnterTime = now;
+    
+    // Double-Enter creates a new scene - cancel pending action
+    if (isDoubleEnter && handlers.handleAddNewScene) {
+      if (pendingEnterTimeout) {
+        clearTimeout(pendingEnterTimeout);
+        pendingEnterTimeout = null;
       }
-      if (nextElementType) {
-        handlers.handleInsertElement(nextElementType, elementId, false);
-      }
+      handlers.handleAddNewScene();
+      return;
     }
+    
+    // Store current content for the delayed action
+    const currentContent = e.currentTarget.innerHTML;
+    
+    // Delay the normal Enter action to see if a second Enter is coming
+    if (pendingEnterTimeout) {
+      clearTimeout(pendingEnterTimeout);
+    }
+    
+    pendingEnterTimeout = setTimeout(() => {
+      pendingEnterTimeout = null;
+      
+      handlers.handleFinalizeUpdate(elementId, currentContent, isScene);
+
+      // Contextual Workflow Logic for Enter key
+      if (isScene) {
+        // From Scene Heading → Action
+        handlers.handleInsertElement("ACTION", elementId, true);
+      } else {
+        const currentElementType = elementType as ToolbarScriptElementType;
+        let nextElementType: ToolbarScriptElementType | null = null;
+        switch (currentElementType) {
+          case "ACTION":
+            // From Action → Action
+            nextElementType = "ACTION";
+            break;
+          case "CHARACTER":
+            // From Character → Dialogue
+            nextElementType = "DIALOG";
+            break;
+          case "DIALOG":
+            // From Dialogue → Action
+            nextElementType = "ACTION";
+            break;
+          case "PARENTHETICAL":
+            // From Parenthetical → Dialogue
+            nextElementType = "DIALOG";
+            break;
+          case "TRANSITION":
+            nextElementType = "ACTION";
+            break;
+          case "SHOT":
+            nextElementType = "ACTION";
+            break;
+        }
+        if (nextElementType) {
+          handlers.handleInsertElement(nextElementType, elementId, false);
+        }
+      }
+    }, DOUBLE_ENTER_THRESHOLD);
   },
   "tab": (
     e: React.KeyboardEvent<HTMLDivElement>,
