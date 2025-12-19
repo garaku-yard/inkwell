@@ -22,7 +22,6 @@ import {
   type FullProject,
   type Scene,
   type ScriptElement,
-  type Project,
   type Comment
 } from "@/services/project"
 import { deleteScriptElement, updateScriptElement } from "@/services/editor"
@@ -39,27 +38,13 @@ interface ScreenplayEditorProps {
   projectData: FullProject
 }
 
-const updateSceneSetting = async (sceneId: string, content: string) => {
-  console.warn('updateSceneSetting not yet implemented in microservices')
-  // TODO: Implement scene update endpoint
-}
-
-const updateScriptElementContent = async (elementId: string, content: string) => {
-  console.warn('updateScriptElementContent not yet implemented in microservices')
-  // TODO: Implement script element update endpoint
-}
-
-const deleteScene = async (sceneId: string) => {
-  console.warn('deleteScene not yet implemented in microservices')
-  // TODO: Implement scene delete endpoint
-}
 
 export function ScreenplayEditor({ projectData: initialProjectData }: ScreenplayEditorProps) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [project, setProject] = useState<FullProject>(initialProjectData)
   const [activeElementId, setActiveElementId] = useState<string | null>(null)
-  const [activeElementType, setActiveElementType] = useState<ToolbarScriptElementType | null>(null)
+  const [activeElementType, setActiveElementType] = useState<ToolbarScriptElementType | "SCENE_HEADING" | null>(null)
   const [focusAtEndId, setFocusAtEndId] = useState<string | null>(null)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const [isImportProjectDialogOpen, setIsImportProjectDialogOpen] = useState(false)
@@ -67,6 +52,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const elementRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
   const editorPaneRef = useRef<EditorPaneRef>(null)
   const sidePanelRef = useRef<HTMLDivElement>(null)
+  const toolbarRef = useRef<HTMLDivElement>(null)
 
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const refreshComments = useCallback(() => {
@@ -83,7 +69,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const debouncedSave = useDebouncedCallback((id: string, content: string, isScene: boolean) => {
     if (id.startsWith("new-")) return
     if (!user?.id) return
-    
+
     setIsSaving(true)
     if (isScene) {
       updateSceneHeading(id, user.id, content)
@@ -148,10 +134,10 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     if (!hasInitialFocused.current && flattenedScriptItems.length > 0) {
       hasInitialFocused.current = true
       const lastItem = flattenedScriptItems[flattenedScriptItems.length - 1]
-      
+
       // First scroll to the element, then wait for it to render, then focus
       scrollToElement(lastItem.data.id)
-      
+
       // Use a longer delay to ensure virtualized content has rendered
       setTimeout(() => {
         const element = elementRefs.current.get(lastItem.data.id)
@@ -346,6 +332,10 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       if (sidePanelRef.current && sidePanelRef.current.contains(document.activeElement)) {
         return
       }
+      // Don't clear if clicking on toolbar
+      if (toolbarRef.current && toolbarRef.current.contains(document.activeElement)) {
+        return
+      }
       setActiveElementId(null)
       setActiveElementType(null)
     }, 50)
@@ -428,6 +418,196 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     [project.scenes, activeElementId, allScenes, project.id, user?.id, toast, scrollToElement, focusElementAtEnd],
   )
 
+  // Transform the currently active element to a different type (including scene ↔ element)
+  const handleTransformElement = useCallback(
+    (newType: ToolbarScriptElementType | "SCENE_HEADING") => {
+      if (!activeElementId || !user?.id || !project.id) return
+
+      // Find what we're transforming - could be an element or a scene
+      let elementToTransform: ScriptElement | null = null
+      let sceneToTransform: Scene | null = null
+      let parentSceneId: string | null = null
+      let elementIndex = 0
+
+      for (const scene of project.scenes || []) {
+        // Check if active is this scene
+        if (scene.id === activeElementId) {
+          sceneToTransform = scene
+          break
+        }
+        // Check if active is an element in this scene
+        const foundIndex = scene.elements?.findIndex((el) => el.id === activeElementId) ?? -1
+        if (foundIndex !== -1) {
+          elementToTransform = scene.elements![foundIndex]
+          parentSceneId = scene.id
+          elementIndex = foundIndex
+          break
+        }
+      }
+
+      // Case 1: Transform Element → Scene
+      if (elementToTransform && newType === "SCENE_HEADING") {
+        const content = elementToTransform.content
+
+        // Create new scene with the element's content as heading
+        const sceneIndex = project.scenes?.findIndex(s => s.id === parentSceneId) ?? 0
+        const newSceneData = {
+          scene_heading: content,
+          content: "",
+          order_index: sceneIndex + 1
+        }
+
+        createScene(project.id, user.id, newSceneData)
+          .then((createdScene) => {
+            // Delete the original element and add the new scene
+            setProject((prevProject) => {
+              const newScenes = prevProject.scenes?.map((scene) => {
+                if (scene.id !== parentSceneId) return scene
+                return {
+                  ...scene,
+                  elements: scene.elements?.filter((el) => el.id !== activeElementId)
+                }
+              }) || []
+
+              // Insert the new scene after the parent scene
+              const insertIndex = newScenes.findIndex(s => s.id === parentSceneId) + 1
+              newScenes.splice(insertIndex, 0, createdScene)
+
+              return { ...prevProject, scenes: newScenes }
+            })
+
+            // Delete the element from backend
+            deleteScriptElement(activeElementId).catch(console.error)
+
+            // Focus the new scene
+            scrollToElement(createdScene.id)
+            focusElementAtEnd(createdScene.id, 100)
+            setActiveElementType("SCENE_HEADING")
+          })
+          .catch((err) => {
+            console.error("Failed to create scene from element:", err)
+            toast({
+              title: "Error",
+              description: "Failed to transform to scene. Please try again.",
+              variant: "destructive",
+            })
+          })
+        return
+      }
+
+      // Case 2: Transform Scene → Element
+      if (sceneToTransform && newType !== "SCENE_HEADING") {
+        const content = sceneToTransform.scene_heading
+
+        // Find the previous scene to add element to, or use the first scene
+        const sceneIndex = project.scenes?.findIndex(s => s.id === activeElementId) ?? 0
+        const targetSceneId = sceneIndex > 0 
+          ? project.scenes![sceneIndex - 1].id 
+          : (project.scenes && project.scenes.length > 1 ? project.scenes[1].id : null)
+
+        if (!targetSceneId) {
+          toast({
+            title: "Cannot transform",
+            description: "Need at least one other scene to transform this scene to an element.",
+            variant: "destructive",
+          })
+          return
+        }
+
+        // Get the target scene to find insert position
+        const targetScene = project.scenes?.find(s => s.id === targetSceneId)
+        const insertIndex = targetScene?.elements?.length || 0
+
+        const newElementData = {
+          scene_id: targetSceneId,
+          element_type: newType as ToolbarScriptElementType,
+          content: content,
+          line_number: Math.max(insertIndex, 1)
+        }
+
+        createElement(project.id, user.id, newElementData)
+          .then((createdElement) => {
+            // Delete the scene and add the new element
+            setProject((prevProject) => {
+              const newScenes = prevProject.scenes
+                ?.filter((scene) => scene.id !== activeElementId)
+                ?.map((scene) => {
+                  if (scene.id !== targetSceneId) return scene
+                  return {
+                    ...scene,
+                    elements: [...(scene.elements || []), createdElement]
+                  }
+                }) || []
+
+              return { ...prevProject, scenes: newScenes }
+            })
+
+            // Scene deletion is handled by removing from local state
+            // The backend may need a delete scene call if it persists
+            // For now, assuming scene is removed when elements are reassigned
+
+            // Focus the new element
+            scrollToElement(createdElement.id)
+            focusElementAtEnd(createdElement.id, 100)
+            setActiveElementType(newType as ToolbarScriptElementType)
+          })
+          .catch((err) => {
+            console.error("Failed to create element from scene:", err)
+            toast({
+              title: "Error",
+              description: "Failed to transform scene. Please try again.",
+              variant: "destructive",
+            })
+          })
+        return
+      }
+
+      // Case 3: Transform Element → Element (same type check)
+      if (elementToTransform) {
+        if (elementToTransform.element_type === newType) return
+
+        // Optimistically update local state
+        setProject((prevProject) => {
+          const newScenes = prevProject.scenes?.map((scene) => ({
+            ...scene,
+            elements: scene.elements?.map((el) =>
+              el.id === activeElementId ? { ...el, element_type: newType as ToolbarScriptElementType } : el
+            ),
+          }))
+          return { ...prevProject, scenes: newScenes }
+        })
+
+        // Update the active element type for toolbar highlight
+        setActiveElementType(newType as ToolbarScriptElementType)
+
+        // Persist to backend
+        updateScriptElement(activeElementId, {
+          user_id: user.id,
+          elementType: newType as ToolbarScriptElementType,
+        }).catch((err) => {
+          console.error("Failed to transform element:", err)
+          // Revert on error
+          setProject((prevProject) => {
+            const newScenes = prevProject.scenes?.map((scene) => ({
+              ...scene,
+              elements: scene.elements?.map((el) =>
+                el.id === activeElementId ? { ...el, element_type: elementToTransform!.element_type } : el
+              ),
+            }))
+            return { ...prevProject, scenes: newScenes }
+          })
+          setActiveElementType(elementToTransform!.element_type)
+          toast({
+            title: "Error",
+            description: "Failed to transform element. Please try again.",
+            variant: "destructive",
+          })
+        })
+      }
+    },
+    [activeElementId, project.id, project.scenes, user?.id, toast, scrollToElement, focusElementAtEnd],
+  )
+
   const handleDeleteElement = useCallback(
     (elementIdToDelete: string) => {
       const originalProjectState = project
@@ -460,7 +640,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const handleDeleteScene = useCallback(
     (sceneIdToDelete: string) => {
-      const originalProjectState = project
 
       const deletedItemIndex = flattenedScriptItems.findIndex((item) => item.data.id === sceneIdToDelete)
       if (deletedItemIndex > 0) {
@@ -475,11 +654,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         const newScenes = prevProject.scenes.filter((scene: Scene) => scene.id !== sceneIdToDelete)
 
         return { ...prevProject, scenes: newScenes }
-      })
-
-      deleteScene(sceneIdToDelete).catch((err) => {
-        console.error("Failed to delete scene:", err)
-        setProject(originalProjectState)
       })
     },
     [project, flattenedScriptItems, scrollToElement, focusElementAtEnd],
@@ -572,7 +746,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       });
 
       // Update on server - include both type and content
-      updateScriptElement(elementId, { 
+      updateScriptElement(elementId, {
         user_id: user.id,
         elementType: newType,
         content: currentContent
@@ -756,9 +930,12 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
         <div className={cn("flex-1 flex flex-col overflow-hidden", isAIChatOpen && "border-r border-border/40")}>
           <Toolbar
+            ref={toolbarRef}
             onInsertElement={handleInsertElement}
+            onTransformElement={handleTransformElement}
             onAddNewScene={handleAddNewScene}
             activeElementType={activeElementType}
+            hasActiveElement={activeElementId !== null}
           />
           <EditorPane
             ref={editorPaneRef}

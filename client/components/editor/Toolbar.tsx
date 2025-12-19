@@ -13,15 +13,18 @@ const allElementTypes = Object.keys(SCRIPT_ELEMENT_CONFIG) as ScriptConfigKey[]
 
 interface ToolbarProps {
   onInsertElement: (type: ToolbarScriptElementType) => void
+  onTransformElement: (type: ToolbarScriptElementType | "SCENE_HEADING") => void
   onAddNewScene: () => void
-  activeElementType: ToolbarScriptElementType | null
+  activeElementType: ToolbarScriptElementType | "SCENE_HEADING" | null
+  hasActiveElement: boolean
 }
 
-export const Toolbar = React.memo(({ onInsertElement, onAddNewScene, activeElementType }: ToolbarProps) => {
+export const Toolbar = React.memo(
+  React.forwardRef<HTMLDivElement, ToolbarProps>(({ onInsertElement, onTransformElement, onAddNewScene, activeElementType, hasActiveElement }, ref) => {
   const ActionIcon = SCRIPT_ELEMENT_CONFIG.ACTION.icon
 
   return (
-    <div className="border-b bg-gradient-to-r from-background to-muted/20 shadow-sm">
+    <div ref={ref} className="border-b bg-gradient-to-r from-background to-muted/20 shadow-sm">
       <div className="p-3 flex items-center gap-3">
         <TooltipProvider>
           <Separator orientation="vertical" className="h-8 bg-border/50" />
@@ -40,9 +43,20 @@ export const Toolbar = React.memo(({ onInsertElement, onAddNewScene, activeEleme
                 const isSceneHeading = type === 'SCENE_HEADING';
                 const isActive = activeElementType === type;
 
-                const handleClick = isSceneHeading
-                  ? onAddNewScene
-                  : () => onInsertElement(type as ToolbarScriptElementType);
+                const handleClick = () => {
+                  if (hasActiveElement) {
+                    // Transform current element to the clicked type (including scene ↔ element)
+                    if (activeElementType !== type) {
+                      onTransformElement(type as ToolbarScriptElementType | "SCENE_HEADING")
+                    }
+                  } else if (isSceneHeading) {
+                    // No active element, create new scene
+                    onAddNewScene()
+                  } else {
+                    // No active element, insert new element
+                    onInsertElement(type as ToolbarScriptElementType)
+                  }
+                }
 
                 return (
                   <Tooltip key={type}>
@@ -80,6 +94,6 @@ export const Toolbar = React.memo(({ onInsertElement, onAddNewScene, activeEleme
       </div>
     </div>
   )
-})
+}))
 
 Toolbar.displayName = "Toolbar"
