@@ -44,7 +44,7 @@ type DatabaseConfig struct {
 type JWTConfig struct {
 	AccessTokenSecret  string        `env:"JWT_ACCESS_SECRET" default:"dev-access-secret"`
 	RefreshTokenSecret string        `env:"JWT_REFRESH_SECRET" default:"dev-refresh-secret"`
-	AccessTokenExpiry  time.Duration `env:"JWT_ACCESS_EXPIRY" default:"15m"`
+	AccessTokenExpiry  time.Duration `env:"JWT_ACCESS_EXPIRY" default:"24h"`
 	RefreshTokenExpiry time.Duration `env:"JWT_REFRESH_EXPIRY" default:"168h"` // 7 days
 	Issuer             string        `env:"JWT_ISSUER" default:"scriptlith-identity"`
 }
@@ -93,7 +93,7 @@ func Load() (*Config, error) {
 		JWTConfig: JWTConfig{
 			AccessTokenSecret:  getEnvOrDefault("JWT_ACCESS_SECRET", "dev-access-secret"),
 			RefreshTokenSecret: getEnvOrDefault("JWT_REFRESH_SECRET", "dev-refresh-secret"),
-			AccessTokenExpiry:  getEnvDurationOrDefault("JWT_ACCESS_EXPIRY", 15*time.Minute),
+			AccessTokenExpiry:  getEnvDurationOrDefault("JWT_ACCESS_EXPIRY", 24*time.Hour),
 			RefreshTokenExpiry: getEnvDurationOrDefault("JWT_REFRESH_EXPIRY", 168*time.Hour), // 7 days
 			Issuer:             getEnvOrDefault("JWT_ISSUER", "scriptlith-identity"),
 		},

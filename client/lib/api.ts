@@ -4,6 +4,15 @@ type ApiClientOptions = Omit<RequestInit, 'body'> & {
   body?: Record<string, any> | any[];
 };
 
+// Event-based session expiry notification
+// Components can listen to this custom event to show the session expired modal
+const notifySessionExpired = () => {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("authToken");
+    window.dispatchEvent(new CustomEvent("session-expired"));
+  }
+};
+
 export async function apiClient<T>(
   endpoint: string,
   options: ApiClientOptions = {}
@@ -33,6 +42,12 @@ export async function apiClient<T>(
 
 
   const response = await fetch(`${API_BASE_URL}/${endpoint}`, config);
+
+  // Handle 401 Unauthorized - session expired
+  if (response.status === 401) {
+    notifySessionExpired();
+    throw new Error("Session expired. Please login again.");
+  }
 
   if (response.status === 204) {
     return {} as T;
@@ -93,6 +108,12 @@ export async function apiStreamClient(
   }
 
   const response = await fetch(`${API_BASE_URL}/${endpoint}`, config);
+
+  // Handle 401 Unauthorized - session expired
+  if (response.status === 401) {
+    notifySessionExpired();
+    throw new Error("Session expired. Please login again.");
+  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
