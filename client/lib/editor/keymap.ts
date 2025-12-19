@@ -93,6 +93,31 @@ export const createKeymap = (handlers: KeymapHandlers) => ({
           case "SHOT":
             nextElementType = "ACTION";
             break;
+          // New element types
+          case "TEXT":
+            nextElementType = "TEXT";
+            break;
+          case "NOTE":
+            nextElementType = "ACTION";
+            break;
+          case "OUTLINE":
+            nextElementType = "ACTION";
+            break;
+          case "NEW_ACT":
+            nextElementType = "ACTION";
+            break;
+          case "END_ACT":
+            nextElementType = "ACTION";
+            break;
+          case "LYRICS":
+            nextElementType = "LYRICS";
+            break;
+          case "SEQUENCE":
+            nextElementType = "ACTION";
+            break;
+          case "DUAL_DIALOG":
+            nextElementType = "DUAL_DIALOG";
+            break;
         }
         if (nextElementType) {
           handlers.handleInsertElement(nextElementType, elementId, false);

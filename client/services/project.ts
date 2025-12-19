@@ -29,7 +29,7 @@ export interface ScriptElement {
   id: string
   project_id: string
   scene_id?: string
-  element_type: "ACTION" | "CHARACTER" | "DIALOG" | "PARENTHETICAL" | "SHOT" | "TRANSITION"
+  element_type: "ACTION" | "CHARACTER" | "DIALOG" | "PARENTHETICAL" | "SHOT" | "TRANSITION" | "TEXT" | "NOTE" | "OUTLINE" | "NEW_ACT" | "END_ACT" | "LYRICS" | "SEQUENCE" | "DUAL_DIALOG"
   content: string
   character_id?: string
   line_number: number
@@ -299,7 +299,7 @@ export const createElement = async (
   userId: string,
   elementData: {
     scene_id: string
-    element_type: "ACTION" | "CHARACTER" | "DIALOG" | "PARENTHETICAL" | "SHOT" | "TRANSITION"
+    element_type: "ACTION" | "CHARACTER" | "DIALOG" | "PARENTHETICAL" | "SHOT" | "TRANSITION" | "TEXT" | "NOTE" | "OUTLINE" | "NEW_ACT" | "END_ACT" | "LYRICS" | "SEQUENCE" | "DUAL_DIALOG"
     content: string
     character_id?: string
     line_number?: number

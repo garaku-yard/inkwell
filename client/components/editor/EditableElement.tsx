@@ -225,6 +225,22 @@ function getPlaceholderText(type: ToolbarScriptElementType | "SCENE_HEADING") {
       return "FADE IN:"
     case "SHOT":
       return "CLOSE UP:"
+    case "TEXT":
+      return "General text..."
+    case "NOTE":
+      return "Script note (not printed)..."
+    case "OUTLINE":
+      return "Outline beat..."
+    case "NEW_ACT":
+      return "ACT ONE"
+    case "END_ACT":
+      return "END OF ACT"
+    case "LYRICS":
+      return "♪ Lyrics go here... ♪"
+    case "SEQUENCE":
+      return "MONTAGE - SEQUENCE NAME"
+    case "DUAL_DIALOG":
+      return "Dual dialogue..."
     default:
       return "Type here..."
   }
