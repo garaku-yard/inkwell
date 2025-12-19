@@ -148,10 +148,32 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     if (!hasInitialFocused.current && flattenedScriptItems.length > 0) {
       hasInitialFocused.current = true
       const lastItem = flattenedScriptItems[flattenedScriptItems.length - 1]
+      
+      // First scroll to the element, then wait for it to render, then focus
       scrollToElement(lastItem.data.id)
-      focusElementAtEnd(lastItem.data.id, 300)
+      
+      // Use a longer delay to ensure virtualized content has rendered
+      setTimeout(() => {
+        const element = elementRefs.current.get(lastItem.data.id)
+        if (element) {
+          element.focus()
+          // Double requestAnimationFrame to ensure layout is complete
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              const selection = window.getSelection()
+              if (selection && element) {
+                const range = document.createRange()
+                range.selectNodeContents(element)
+                range.collapse(false)
+                selection.removeAllRanges()
+                selection.addRange(range)
+              }
+            })
+          })
+        }
+      }, 500)
     }
-  }, [flattenedScriptItems, scrollToElement, focusElementAtEnd])
+  }, [flattenedScriptItems, scrollToElement])
 
   const handleAddComment = useCallback(async (elementId: string, isScene: boolean, content: string) => {
     try {

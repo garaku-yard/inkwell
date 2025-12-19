@@ -49,6 +49,7 @@ export const EditableElement = React.memo(
 
     const elementRef = useRef<HTMLDivElement>(null)
     const lastSyncedContent = useRef(content)
+    const isInitialMount = useRef(true)
     
     // Expose the element ref and a method to focus at end
     React.useImperativeHandle(fwdRef, () => {
@@ -61,6 +62,15 @@ export const EditableElement = React.memo(
         }
       })
     })
+
+    // Set initial content on mount only
+    useEffect(() => {
+      if (isInitialMount.current && elementRef.current) {
+        elementRef.current.innerHTML = content
+        lastSyncedContent.current = content
+        isInitialMount.current = false
+      }
+    }, [])
 
     // Handle focusAtEnd prop - focus and place cursor at end
     useEffect(() => {
@@ -75,9 +85,10 @@ export const EditableElement = React.memo(
       }
     }, [focusAtEnd, onFocusHandled])
 
-    // Sync content from props ONLY when element is not focused
+    // Sync content from props ONLY when element is not focused and content changed externally
     useEffect(() => {
       if (
+        !isInitialMount.current &&
         elementRef.current && 
         document.activeElement !== elementRef.current &&
         lastSyncedContent.current !== content
@@ -144,7 +155,6 @@ export const EditableElement = React.memo(
             onBlur()
           }}
           onKeyDown={(e) => onKeyDown(e, element.id, isScene, type)}
-          dangerouslySetInnerHTML={{ __html: content }}
           className={cn(
             "leading-[1.5] outline-none resize-none block",
             "screenplay-text",
