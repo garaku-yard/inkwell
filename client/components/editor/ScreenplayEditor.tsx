@@ -942,6 +942,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           <EditorPane
             ref={editorPaneRef}
             items={flattenedScriptItems}
+            scenes={allScenes}
             elementRefs={elementRefs}
             onContentChange={handleContentChange}
             onFinalizeUpdate={handleFinalizeUpdate}

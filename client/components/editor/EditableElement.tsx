@@ -6,6 +6,7 @@ import { SCRIPT_ELEMENT_CONFIG, type ToolbarScriptElementType } from "@/lib/help
 import { MessageSquare } from "lucide-react"
 import type { Scene, ScriptElement } from "@/services/project"
 import { SceneHeadingAutocomplete } from "./SceneHeadingAutocomplete"
+import { CharacterAutocomplete } from "./CharacterAutocomplete"
 
 interface EditableElementProps {
   element: ScriptElement | Scene
@@ -22,6 +23,9 @@ interface EditableElementProps {
   onBlur: () => void
   focusAtEnd?: boolean
   onFocusHandled?: () => void
+  // For character autocomplete
+  scenes?: Scene[]
+  currentSceneId?: string
 }
 
 // Helper to place cursor at end of contentEditable
@@ -39,7 +43,7 @@ const placeCursorAtEnd = (el: HTMLElement) => {
 
 export const EditableElement = React.memo(
   React.forwardRef<HTMLDivElement, EditableElementProps>((props, fwdRef) => {
-    const { element, onContentChange, onFinalizeUpdate, onKeyDown, activeElementId, onFocus, onBlur, focusAtEnd, onFocusHandled } = props
+    const { element, onContentChange, onFinalizeUpdate, onKeyDown, activeElementId, onFocus, onBlur, focusAtEnd, onFocusHandled, scenes, currentSceneId } = props
     const isScene = "scene_heading" in element
     const type = isScene ? "SCENE_HEADING" : element.element_type
     const content = isScene ? element.scene_heading : element.content
@@ -126,6 +130,22 @@ export const EditableElement = React.memo(
       })
     }, [element.id, isScene, onContentChange])
 
+    // Handle character name autocomplete selection
+    const handleCharacterSelect = useCallback((characterName: string) => {
+      if (!elementRef.current) return
+
+      elementRef.current.textContent = characterName
+      onContentChange(element.id, characterName, false)
+      lastSyncedContent.current = characterName
+
+      // Move cursor to end
+      requestAnimationFrame(() => {
+        if (elementRef.current) {
+          placeCursorAtEnd(elementRef.current)
+        }
+      })
+    }, [element.id, onContentChange])
+
     const handleInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
       const newContent = e.currentTarget.innerHTML
       lastSyncedContent.current = newContent
@@ -169,6 +189,15 @@ export const EditableElement = React.memo(
             elementRef={elementRef}
             isActive={isActive}
             onSuggestionSelect={handleSuggestionSelect}
+          />
+        )}
+        {!isScene && type === "CHARACTER" && scenes && currentSceneId && (
+          <CharacterAutocomplete
+            elementRef={elementRef}
+            isActive={isActive}
+            onSuggestionSelect={handleCharacterSelect}
+            scenes={scenes}
+            currentSceneId={currentSceneId}
           />
         )}
         {unresolvedCommentsCount > 0 && (

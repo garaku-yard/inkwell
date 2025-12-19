@@ -10,6 +10,7 @@ type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; da
 
 interface EditorPaneProps {
   items: ScriptItem[]
+  scenes: Scene[]
   elementRefs: React.MutableRefObject<Map<string, HTMLDivElement | null>>
   onContentChange: (id: string, content: string, isScene: boolean) => void
   onFinalizeUpdate: (id: string, content: string, isScene: boolean) => void
@@ -34,7 +35,7 @@ export interface EditorPaneRef {
 
 export const EditorPane = React.memo(
   React.forwardRef<EditorPaneRef, EditorPaneProps>((props, ref) => {
-    const { items, elementRefs, onContentChange, onFinalizeUpdate, onKeyDown, activeElementId, onFocus, onBlur, focusAtEndId, onFocusHandled } = props
+    const { items, scenes, elementRefs, onContentChange, onFinalizeUpdate, onKeyDown, activeElementId, onFocus, onBlur, focusAtEndId, onFocusHandled } = props
     const parentRef = useRef<HTMLDivElement>(null)
     const scriptContainerRef = useRef<HTMLDivElement>(null)
     const pagesContainerRef = useRef<HTMLDivElement>(null)
@@ -144,6 +145,10 @@ export const EditorPane = React.memo(
               >
                 {page.items.map((item) => {
                   const element = item.data
+                  // Get the current scene ID - for scene headings it's the scene itself, for elements it's the scene_id
+                  const currentSceneId = item.type === "SCENE_HEADING" 
+                    ? element.id 
+                    : (element as ScriptElement).scene_id || ""
 
                   return (
                     <div key={element.id} className="relative">
@@ -160,6 +165,8 @@ export const EditorPane = React.memo(
                         onBlur={onBlur}
                         focusAtEnd={focusAtEndId === element.id}
                         onFocusHandled={onFocusHandled}
+                        scenes={scenes}
+                        currentSceneId={currentSceneId}
                       />
                     </div>
                   )
