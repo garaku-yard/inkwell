@@ -22,6 +22,8 @@ interface EditorPaneProps {
   activeElementId: string | null
   onFocus: (id: string, type: ToolbarScriptElementType | "SCENE_HEADING" | null) => void
   onBlur: () => void
+  focusAtEndId: string | null
+  onFocusHandled: () => void
 }
 
 
@@ -32,7 +34,7 @@ export interface EditorPaneRef {
 
 export const EditorPane = React.memo(
   React.forwardRef<EditorPaneRef, EditorPaneProps>((props, ref) => {
-    const { items, elementRefs, onContentChange, onFinalizeUpdate, onKeyDown, activeElementId, onFocus, onBlur } = props
+    const { items, elementRefs, onContentChange, onFinalizeUpdate, onKeyDown, activeElementId, onFocus, onBlur, focusAtEndId, onFocusHandled } = props
     const parentRef = useRef<HTMLDivElement>(null)
     const scriptContainerRef = useRef<HTMLDivElement>(null)
     const pagesContainerRef = useRef<HTMLDivElement>(null)
@@ -144,6 +146,8 @@ export const EditorPane = React.memo(
                         activeElementId={activeElementId}
                         onFocus={onFocus}
                         onBlur={onBlur}
+                        focusAtEnd={focusAtEndId === element.id}
+                        onFocusHandled={onFocusHandled}
                       />
                     </div>
                   )

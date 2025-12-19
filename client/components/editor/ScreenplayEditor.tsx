@@ -60,7 +60,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const [project, setProject] = useState<FullProject>(initialProjectData)
   const [activeElementId, setActiveElementId] = useState<string | null>(null)
   const [activeElementType, setActiveElementType] = useState<ToolbarScriptElementType | null>(null)
-  const [elementToFocus, setElementToFocus] = useState<string | null>(null)
+  const [focusAtEndId, setFocusAtEndId] = useState<string | null>(null)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const [isImportProjectDialogOpen, setIsImportProjectDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -74,6 +74,11 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   }, [])
 
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hasInitialFocused = useRef(false)
+
+  const handleFocusHandled = useCallback(() => {
+    setFocusAtEndId(null)
+  }, [])
 
   const debouncedSave = useDebouncedCallback((id: string, content: string, isScene: boolean) => {
     if (id.startsWith("new-")) return
@@ -116,6 +121,37 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     },
     [flattenedScriptItems],
   )
+
+  // Helper function to focus an element and place cursor at end
+  const focusElementAtEnd = useCallback((elementId: string, delay: number = 100) => {
+    setTimeout(() => {
+      const element = elementRefs.current.get(elementId)
+      if (element) {
+        element.focus()
+        // Place cursor at end after focus
+        requestAnimationFrame(() => {
+          const selection = window.getSelection()
+          if (selection && element) {
+            const range = document.createRange()
+            range.selectNodeContents(element)
+            range.collapse(false) // false = collapse to end
+            selection.removeAllRanges()
+            selection.addRange(range)
+          }
+        })
+      }
+    }, delay)
+  }, [])
+
+  // Focus on last element when opening/refreshing the project
+  useEffect(() => {
+    if (!hasInitialFocused.current && flattenedScriptItems.length > 0) {
+      hasInitialFocused.current = true
+      const lastItem = flattenedScriptItems[flattenedScriptItems.length - 1]
+      scrollToElement(lastItem.data.id)
+      focusElementAtEnd(lastItem.data.id, 300)
+    }
+  }, [flattenedScriptItems, scrollToElement, focusElementAtEnd])
 
   const handleAddComment = useCallback(async (elementId: string, isScene: boolean, content: string) => {
     try {
@@ -225,26 +261,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     },
     [project],
   )
-
-  useEffect(() => {
-    if (elementToFocus) {
-      scrollToElement(elementToFocus)
-      const focusTimeout = setTimeout(() => {
-        const element = elementRefs.current.get(elementToFocus)
-        if (element) {
-          element.focus()
-          const selection = window.getSelection()
-          const range = document.createRange()
-          range.selectNodeContents(element)
-          range.collapse(false)
-          selection?.removeAllRanges()
-          selection?.addRange(range)
-        }
-        setElementToFocus(null)
-      }, 100)
-      return () => clearTimeout(focusTimeout)
-    }
-  }, [elementToFocus, scrollToElement])
 
   const handleContentChange = useCallback(
     (id: string, content: string, isScene: boolean) => {
@@ -374,7 +390,9 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             return { ...prevProject, scenes: newScenes }
           })
 
-          setElementToFocus(createdElement.id)
+          // Focus the new element at end (it's empty so cursor at start = end)
+          scrollToElement(createdElement.id)
+          focusElementAtEnd(createdElement.id, 100)
         })
         .catch((err) => {
           console.error("Failed to create new element:", err)
@@ -385,7 +403,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           })
         })
     },
-    [project.scenes, activeElementId, allScenes, project.id, user?.id, toast],
+    [project.scenes, activeElementId, allScenes, project.id, user?.id, toast, scrollToElement, focusElementAtEnd],
   )
 
   const handleDeleteElement = useCallback(
@@ -395,7 +413,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       const deletedItemIndex = flattenedScriptItems.findIndex((item) => item.data.id === elementIdToDelete)
       if (deletedItemIndex > 0) {
         const previousElementId = flattenedScriptItems[deletedItemIndex - 1].data.id
-        setElementToFocus(previousElementId)
+        scrollToElement(previousElementId)
+        focusElementAtEnd(previousElementId, 50)
       }
 
       setProject((prevProject) => {
@@ -414,7 +433,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         setProject(originalProjectState)
       })
     },
-    [project, flattenedScriptItems],
+    [project, flattenedScriptItems, scrollToElement, focusElementAtEnd],
   )
 
   const handleDeleteScene = useCallback(
@@ -424,7 +443,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       const deletedItemIndex = flattenedScriptItems.findIndex((item) => item.data.id === sceneIdToDelete)
       if (deletedItemIndex > 0) {
         const previousElementId = flattenedScriptItems[deletedItemIndex - 1].data.id
-        setElementToFocus(previousElementId)
+        scrollToElement(previousElementId)
+        focusElementAtEnd(previousElementId, 50)
       }
 
       setProject((prevProject) => {
@@ -440,7 +460,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         setProject(originalProjectState)
       })
     },
-    [project, flattenedScriptItems],
+    [project, flattenedScriptItems, scrollToElement, focusElementAtEnd],
   )
 
   const handleSelectAll = useCallback(async (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -548,6 +568,44 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     [project, user?.id, toast]
   );
 
+  // Navigate to previous element (for arrow up at start of element)
+  const handleNavigateToPrevious = useCallback(
+    (currentElementId: string) => {
+      const currentIndex = flattenedScriptItems.findIndex((item) => item.data.id === currentElementId);
+      if (currentIndex > 0) {
+        const previousElementId = flattenedScriptItems[currentIndex - 1].data.id;
+        scrollToElement(previousElementId);
+        focusElementAtEnd(previousElementId, 0);
+      }
+    },
+    [flattenedScriptItems, scrollToElement, focusElementAtEnd]
+  );
+
+  // Navigate to next element (for arrow down at end of element)
+  const handleNavigateToNext = useCallback(
+    (currentElementId: string) => {
+      const currentIndex = flattenedScriptItems.findIndex((item) => item.data.id === currentElementId);
+      if (currentIndex < flattenedScriptItems.length - 1) {
+        const nextElementId = flattenedScriptItems[currentIndex + 1].data.id;
+        // Focus at start for down arrow
+        const nextElement = elementRefs.current.get(nextElementId);
+        if (nextElement) {
+          nextElement.focus();
+          // Place cursor at start
+          const selection = window.getSelection();
+          if (selection) {
+            const range = document.createRange();
+            range.selectNodeContents(nextElement);
+            range.collapse(true); // true = collapse to start
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+        }
+        scrollToElement(nextElementId);
+      }
+    },
+    [flattenedScriptItems, scrollToElement]
+  );
 
   const keyMap = useMemo(() => createKeymap({
     handleFinalizeUpdate,
@@ -556,6 +614,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     handleDeleteElement,
     handleSelectAll,
     handleChangeElementType,
+    handleNavigateToPrevious,
+    handleNavigateToNext,
   }), [
     handleFinalizeUpdate,
     handleInsertElement,
@@ -563,6 +623,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     handleDeleteElement,
     handleSelectAll,
     handleChangeElementType,
+    handleNavigateToPrevious,
+    handleNavigateToNext,
   ]);
 
   const handleKeyDown = useCallback(
@@ -601,12 +663,14 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           scenes: [...(prevProject.scenes || []), createdScene]
         }))
 
-        setElementToFocus(createdScene.id)
+        // Focus the new scene at end (it's empty so cursor at start = end)
+        scrollToElement(createdScene.id)
+        focusElementAtEnd(createdScene.id, 100)
       })
       .catch((err) => {
         console.error("Failed to create new scene:", err)
       })
-  }, [project.id, project.scenes, user?.id])
+  }, [project.id, project.scenes, user?.id, scrollToElement, focusElementAtEnd])
 
   const toggleAIChat = useCallback(() => {
     setIsAIChatOpen((prev) => !prev)
@@ -684,6 +748,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             activeElementId={activeElementId}
             onFocus={handleFocus}
             onBlur={handleBlur}
+            focusAtEndId={focusAtEndId}
+            onFocusHandled={handleFocusHandled}
           />
         </div>
         <AIChatPanel
