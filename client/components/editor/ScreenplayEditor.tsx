@@ -63,6 +63,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const [elementToFocus, setElementToFocus] = useState<string | null>(null)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const [isImportProjectDialogOpen, setIsImportProjectDialogOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const elementRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
   const editorPaneRef = useRef<EditorPaneRef>(null)
   const sidePanelRef = useRef<HTMLDivElement>(null)
@@ -76,10 +77,17 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const debouncedSave = useDebouncedCallback((id: string, content: string, isScene: boolean) => {
     if (id.startsWith("new-")) return
+    if (!user?.id) return
+    
+    setIsSaving(true)
     if (isScene) {
-      updateSceneSetting(id, content).catch((err) => console.error("Scene save failed:", err))
+      updateSceneHeading(id, user.id, content)
+        .catch((err) => console.error("Scene save failed:", err))
+        .finally(() => setIsSaving(false))
     } else {
-      updateScriptElementContent(id, content).catch((err) => console.error("Element save failed:", err))
+      updateElementContent(id, user.id, content)
+        .catch((err) => console.error("Element save failed:", err))
+        .finally(() => setIsSaving(false))
     }
   }, 2000)
 
@@ -697,6 +705,14 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         onOpenChange={setIsImportProjectDialogOpen}
         onProjectImported={handleProjectImported}
       />
+
+      {/* Saving indicator */}
+      {isSaving && (
+        <div className="fixed bottom-4 right-4 bg-background/95 backdrop-blur-sm border rounded-lg shadow-lg px-4 py-2 flex items-center gap-2 z-50">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+          <span className="text-sm text-muted-foreground">Saving...</span>
+        </div>
+      )}
     </div>
   )
 }
