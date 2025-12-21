@@ -252,7 +252,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose }: AIChatPanelProps) =>
                   ref={inputRef}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  onKeyPress={handleKeyPress}
+                  onKeyDown={handleKeyPress}
                   placeholder="Ask for writing suggestions..."
                   className="w-full text-sm bg-background/90 border-border/40 h-11 pl-4 pr-4 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/50 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 font-medium"
                   disabled={isTyping}

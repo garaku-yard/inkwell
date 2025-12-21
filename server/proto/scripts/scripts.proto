@@ -301,6 +301,15 @@ message UpdateSceneResponse {
   Scene scene = 1;
 }
 
+message DeleteSceneRequest {
+  string scene_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+message DeleteSceneResponse {
+  bool success = 1;
+}
+
 // Character requests/responses
 message CreateCharacterRequest {
   string project_id = 1;
@@ -674,6 +683,7 @@ service ScriptsService {
   rpc CreateScene(CreateSceneRequest) returns (CreateSceneResponse);
   rpc GetProjectScenes(GetProjectScenesRequest) returns (GetProjectScenesResponse);
   rpc UpdateScene(UpdateSceneRequest) returns (UpdateSceneResponse);
+  rpc DeleteScene(DeleteSceneRequest) returns (DeleteSceneResponse);
   
   // Character management
   rpc CreateCharacter(CreateCharacterRequest) returns (CreateCharacterResponse);

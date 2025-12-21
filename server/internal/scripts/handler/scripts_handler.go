@@ -363,6 +363,30 @@ func (h *ScriptsHandler) UpdateScene(ctx context.Context, req *scriptspb.UpdateS
 	}, nil
 }
 
+func (h *ScriptsHandler) DeleteScene(ctx context.Context, req *scriptspb.DeleteSceneRequest) (*scriptspb.DeleteSceneResponse, error) {
+	// Parse scene ID
+	sceneID, err := uuid.Parse(req.SceneId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid scene ID: %v", err)
+	}
+
+	// Parse user ID
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	}
+
+	// Delete scene through service
+	err = h.service.DeleteScene(ctx, sceneID, userID)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	return &scriptspb.DeleteSceneResponse{
+		Success: true,
+	}, nil
+}
+
 // Character management methods
 func (h *ScriptsHandler) CreateCharacter(ctx context.Context, req *scriptspb.CreateCharacterRequest) (*scriptspb.CreateCharacterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateCharacter not implemented")

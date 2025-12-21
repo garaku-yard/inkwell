@@ -53,7 +53,6 @@ export function StoryLanes({
   const adjustedPageInterval = zoomLevel >= 2 ? 1 : zoomLevel >= 1 ? 2 : 5;
 
   const getPagePosition = (page: number) => (page / totalPages) * 100;
-  const getPageFromPosition = (position: number) => { const page = (position / 100) * totalPages; return Math.max(1, page); }
   const snapToEighthOfPage = (positionPercent: number) => { const totalEighths = totalPages * 8; const currentEighth = (positionPercent / 100) * totalEighths; const snappedEighth = Math.round(currentEighth); return (snappedEighth / totalEighths) * 100; };
 
   const handleItemMouseDown = (e: React.MouseEvent, itemId: string, edge?: "left" | "right") => {

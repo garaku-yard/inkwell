@@ -665,7 +665,16 @@ func (r *sceneRepository) UpdateScene(ctx context.Context, scene *domain.Scene) 
 
 	return err
 }
-func (r *sceneRepository) DeleteScene(ctx context.Context, sceneID uuid.UUID) error { return nil }
+func (r *sceneRepository) DeleteScene(ctx context.Context, sceneID uuid.UUID) error {
+	// Delete all elements in the scene first, then delete the scene
+	_, err := r.db.ExecContext(ctx, `DELETE FROM script_elements WHERE scene_id = $1`, sceneID)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.ExecContext(ctx, `DELETE FROM scenes WHERE scene_id = $1`, sceneID)
+	return err
+}
 
 type characterRepository struct{ db *sql.DB }
 

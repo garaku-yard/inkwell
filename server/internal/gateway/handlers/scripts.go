@@ -481,6 +481,44 @@ func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// DeleteScene handles scene deletion requests
+func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
+	// Extract scene ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/scenes/")
+	sceneID := path
+
+	if sceneID == "" {
+		http.Error(w, `{"error":"Scene ID is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Get user ID from context (set by auth middleware)
+	userID := getUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	// Call Scripts service
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, err := h.scriptsClient.DeleteScene(ctx, &scriptspb.DeleteSceneRequest{
+		SceneId: sceneID,
+		UserId:  userID,
+	})
+
+	if err != nil {
+		http.Error(w, `{"error":"Failed to delete scene"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Scene deleted successfully"})
+}
+
 // CreateElement handles script element creation requests
 func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 	var req struct {

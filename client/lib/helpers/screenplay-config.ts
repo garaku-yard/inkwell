@@ -5,7 +5,7 @@ import {
   Parentheses,
   ArrowRight,
   Video,
-  MapPinned,
+  Image,
   Type,
   StickyNote,
   List,
@@ -16,7 +16,6 @@ import {
   Columns
 } from "lucide-react"
 
-// Define the order of elements as they should appear in the toolbar
 export const ELEMENT_ORDER = [
   "SCENE_HEADING",
   "ACTION",
@@ -39,7 +38,7 @@ export const SCRIPT_ELEMENT_CONFIG = {
   SCENE_HEADING: {
     tooltip: "Scene",
     toolbarColor: "hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-900/30 dark:hover:text-green-400",
-    icon: MapPinned,
+    icon: Image,
     editorClasses: "uppercase font-bold max-w-full",
   },
   ACTION: {

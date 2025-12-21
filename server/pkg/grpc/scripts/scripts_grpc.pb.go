@@ -32,6 +32,7 @@ const (
 	ScriptsService_CreateScene_FullMethodName              = "/scripts.ScriptsService/CreateScene"
 	ScriptsService_GetProjectScenes_FullMethodName         = "/scripts.ScriptsService/GetProjectScenes"
 	ScriptsService_UpdateScene_FullMethodName              = "/scripts.ScriptsService/UpdateScene"
+	ScriptsService_DeleteScene_FullMethodName              = "/scripts.ScriptsService/DeleteScene"
 	ScriptsService_CreateCharacter_FullMethodName          = "/scripts.ScriptsService/CreateCharacter"
 	ScriptsService_GetProjectCharacters_FullMethodName     = "/scripts.ScriptsService/GetProjectCharacters"
 	ScriptsService_UpdateCharacter_FullMethodName          = "/scripts.ScriptsService/UpdateCharacter"
@@ -85,6 +86,7 @@ type ScriptsServiceClient interface {
 	CreateScene(ctx context.Context, in *CreateSceneRequest, opts ...grpc.CallOption) (*CreateSceneResponse, error)
 	GetProjectScenes(ctx context.Context, in *GetProjectScenesRequest, opts ...grpc.CallOption) (*GetProjectScenesResponse, error)
 	UpdateScene(ctx context.Context, in *UpdateSceneRequest, opts ...grpc.CallOption) (*UpdateSceneResponse, error)
+	DeleteScene(ctx context.Context, in *DeleteSceneRequest, opts ...grpc.CallOption) (*DeleteSceneResponse, error)
 	// Character management
 	CreateCharacter(ctx context.Context, in *CreateCharacterRequest, opts ...grpc.CallOption) (*CreateCharacterResponse, error)
 	GetProjectCharacters(ctx context.Context, in *GetProjectCharactersRequest, opts ...grpc.CallOption) (*GetProjectCharactersResponse, error)
@@ -253,6 +255,16 @@ func (c *scriptsServiceClient) UpdateScene(ctx context.Context, in *UpdateSceneR
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateSceneResponse)
 	err := c.cc.Invoke(ctx, ScriptsService_UpdateScene_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) DeleteScene(ctx context.Context, in *DeleteSceneRequest, opts ...grpc.CallOption) (*DeleteSceneResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteSceneResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_DeleteScene_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -571,6 +583,7 @@ type ScriptsServiceServer interface {
 	CreateScene(context.Context, *CreateSceneRequest) (*CreateSceneResponse, error)
 	GetProjectScenes(context.Context, *GetProjectScenesRequest) (*GetProjectScenesResponse, error)
 	UpdateScene(context.Context, *UpdateSceneRequest) (*UpdateSceneResponse, error)
+	DeleteScene(context.Context, *DeleteSceneRequest) (*DeleteSceneResponse, error)
 	// Character management
 	CreateCharacter(context.Context, *CreateCharacterRequest) (*CreateCharacterResponse, error)
 	GetProjectCharacters(context.Context, *GetProjectCharactersRequest) (*GetProjectCharactersResponse, error)
@@ -653,6 +666,9 @@ func (UnimplementedScriptsServiceServer) GetProjectScenes(context.Context, *GetP
 }
 func (UnimplementedScriptsServiceServer) UpdateScene(context.Context, *UpdateSceneRequest) (*UpdateSceneResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateScene not implemented")
+}
+func (UnimplementedScriptsServiceServer) DeleteScene(context.Context, *DeleteSceneRequest) (*DeleteSceneResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteScene not implemented")
 }
 func (UnimplementedScriptsServiceServer) CreateCharacter(context.Context, *CreateCharacterRequest) (*CreateCharacterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateCharacter not implemented")
@@ -992,6 +1008,24 @@ func _ScriptsService_UpdateScene_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ScriptsServiceServer).UpdateScene(ctx, req.(*UpdateSceneRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_DeleteScene_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteSceneRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).DeleteScene(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_DeleteScene_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).DeleteScene(ctx, req.(*DeleteSceneRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1576,6 +1610,10 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateScene",
 			Handler:    _ScriptsService_UpdateScene_Handler,
+		},
+		{
+			MethodName: "DeleteScene",
+			Handler:    _ScriptsService_DeleteScene_Handler,
 		},
 		{
 			MethodName: "CreateCharacter",

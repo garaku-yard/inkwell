@@ -24,7 +24,7 @@ import {
   type ScriptElement,
   type Comment
 } from "@/services/project"
-import { deleteScriptElement, updateScriptElement } from "@/services/editor"
+import { deleteScriptElement, updateScriptElement, deleteScene } from "@/services/editor"
 import { getKeyString, createKeymap } from "@/lib/editor/keymap";
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { AIChatPanel } from "./AIChatPanel"
@@ -640,6 +640,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const handleDeleteScene = useCallback(
     (sceneIdToDelete: string) => {
+      const originalProjectState = project
 
       const deletedItemIndex = flattenedScriptItems.findIndex((item) => item.data.id === sceneIdToDelete)
       if (deletedItemIndex > 0) {
@@ -654,6 +655,11 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         const newScenes = prevProject.scenes.filter((scene: Scene) => scene.id !== sceneIdToDelete)
 
         return { ...prevProject, scenes: newScenes }
+      })
+
+      deleteScene(sceneIdToDelete).catch((err) => {
+        console.error("Failed to delete scene:", err)
+        setProject(originalProjectState)
       })
     },
     [project, flattenedScriptItems, scrollToElement, focusElementAtEnd],

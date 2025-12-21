@@ -104,6 +104,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			r.Get("/", scriptsHandler.GetProjectScenes)
 			r.Post("/", scriptsHandler.CreateScene)
 			r.Put("/{sceneId}", scriptsHandler.UpdateScene)
+			r.Delete("/{sceneId}", scriptsHandler.DeleteScene)
 		})
 
 		// Element routes

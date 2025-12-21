@@ -34,6 +34,7 @@ type ScriptsService interface {
 	CreateScene(ctx context.Context, projectID, userID uuid.UUID, scene *domain.Scene) (*domain.Scene, error)
 	GetProjectScenes(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Scene, error)
 	UpdateScene(ctx context.Context, sceneID, userID uuid.UUID, updates *domain.Scene) (*domain.Scene, error)
+	DeleteScene(ctx context.Context, sceneID, userID uuid.UUID) error
 
 	// Character operations
 	CreateCharacter(ctx context.Context, projectID, userID uuid.UUID, character *domain.Character) (*domain.Character, error)
@@ -353,6 +354,19 @@ func (s *scriptsService) UpdateScene(ctx context.Context, sceneID, userID uuid.U
 	}
 
 	return scene, nil
+}
+
+func (s *scriptsService) DeleteScene(ctx context.Context, sceneID, userID uuid.UUID) error {
+	scene, err := s.repo.Scene.GetScene(ctx, sceneID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.verifyProjectAccess(ctx, scene.ProjectID, userID); err != nil {
+		return err
+	}
+
+	return s.repo.Scene.DeleteScene(ctx, sceneID)
 }
 
 // Character operations

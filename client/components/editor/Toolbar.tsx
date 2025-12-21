@@ -40,8 +40,8 @@ const ElementButton: React.FC<ElementButtonProps> = ({
   const isComingSoon = "comingSoon" in config && config.comingSoon
 
   const handleClick = () => {
-    if (isComingSoon) return // Disabled for coming soon elements
-    
+    if (isComingSoon) return
+
     if (hasActiveElement) {
       if (activeElementType !== type) {
         onTransformElement(type as ToolbarScriptElementType | "SCENE_HEADING")
@@ -61,7 +61,7 @@ const ElementButton: React.FC<ElementButtonProps> = ({
           size="sm"
           className={cn(
             "h-9 w-9 transition-all duration-200 border",
-            isComingSoon 
+            isComingSoon
               ? "opacity-40 cursor-not-allowed"
               : config.toolbarColor,
             isActive && !isComingSoon

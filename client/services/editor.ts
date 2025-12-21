@@ -43,3 +43,12 @@ export const deleteScriptElement = (elementId: string): Promise<void> => {
     method: "DELETE",
   });
 };
+
+/**
+ * Deletes a scene and all its elements.
+ */
+export const deleteScene = (sceneId: string): Promise<void> => {
+  return apiClient<void>(`scenes/${sceneId}`, {
+    method: "DELETE",
+  });
+};
