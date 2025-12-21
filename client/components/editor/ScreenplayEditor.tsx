@@ -958,6 +958,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             onBlur={handleBlur}
             focusAtEndId={focusAtEndId}
             onFocusHandled={handleFocusHandled}
+            onAddNewScene={handleAddNewScene}
           />
         </div>
         <AIChatPanel

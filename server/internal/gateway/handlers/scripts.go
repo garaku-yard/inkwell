@@ -621,7 +621,7 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.ElementType != nil {
-		updateReq.Type	 = *req.ElementType
+		updateReq.Type = *req.ElementType
 	}
 
 	response, err := h.scriptsClient.UpdateElement(ctx, updateReq)

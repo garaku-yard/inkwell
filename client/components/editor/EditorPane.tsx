@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useRef, useImperativeHandle } from "react"
+import React, { useRef, useImperativeHandle, useEffect } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import type { Scene, ScriptElement } from "@/services/project"
 import { EditableElement } from "./EditableElement"
@@ -25,6 +25,7 @@ interface EditorPaneProps {
   onBlur: () => void
   focusAtEndId: string | null
   onFocusHandled: () => void
+  onAddNewScene?: () => void
 }
 
 
@@ -35,11 +36,36 @@ export interface EditorPaneRef {
 
 export const EditorPane = React.memo(
   React.forwardRef<EditorPaneRef, EditorPaneProps>((props, ref) => {
-    const { items, scenes, elementRefs, onContentChange, onFinalizeUpdate, onKeyDown, activeElementId, onFocus, onBlur, focusAtEndId, onFocusHandled } = props
+    const { items, scenes, elementRefs, onContentChange, onFinalizeUpdate, onKeyDown, activeElementId, onFocus, onBlur, focusAtEndId, onFocusHandled, onAddNewScene } = props
     const parentRef = useRef<HTMLDivElement>(null)
     const scriptContainerRef = useRef<HTMLDivElement>(null)
     const pagesContainerRef = useRef<HTMLDivElement>(null)
     const contentOnlyRef = useRef<HTMLDivElement>(null)
+    const lastEnterTimeRef = useRef<number>(0)
+    const DOUBLE_ENTER_THRESHOLD = 300
+
+    const handleEmptyEditorKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && onAddNewScene) {
+        e.preventDefault()
+        const now = Date.now()
+        const isDoubleEnter = (now - lastEnterTimeRef.current) < DOUBLE_ENTER_THRESHOLD
+        lastEnterTimeRef.current = now
+        
+        if (isDoubleEnter) {
+          onAddNewScene()
+        }
+      }
+    }
+
+    // Auto-focus the empty editor when it's empty
+    useEffect(() => {
+      if (items.length === 0 && contentOnlyRef.current) {
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          contentOnlyRef.current?.focus()
+        }, 100)
+      }
+    }, [items.length])
 
     const rowVirtualizer = useVirtualizer({
       count: items.length,
@@ -119,7 +145,38 @@ export const EditorPane = React.memo(
       <div ref={parentRef} className="flex-1 overflow-auto p-8 bg-gray-100 dark:bg-gray-900">
         {/* Multiple US Letter pages (standard screenplay format) */}
         <div ref={pagesContainerRef} className="mx-auto space-y-8">
-          {pages.map((page, pageIndex) => (
+          {pages.length === 0 ? (
+            // Empty state - show a placeholder page that allows double-enter to create a scene
+            <div
+              ref={scriptContainerRef}
+              className="bg-white dark:bg-gray-800 shadow-2xl relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
+              style={{
+                width: '8.5in',
+                height: '11in',
+                paddingTop: '1in',
+                paddingBottom: '1in',
+                paddingLeft: '1.5in',
+                paddingRight: '1in'
+              }}
+            >
+              <div className="absolute text-xs text-gray-400 pointer-events-none" style={{ top: '0.5in', right: '1in' }}>
+                Page 1
+              </div>
+              <div
+                ref={contentOnlyRef}
+                className="h-full relative screenplay-content flex items-start justify-center pt-20 outline-none"
+                data-screenplay-content
+                tabIndex={0}
+                onKeyDown={handleEmptyEditorKeyDown}
+              >
+                <div className="text-gray-400 text-sm text-center">
+                  <p className="mb-2">Press <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded border">Enter</kbd> twice to create a new scene</p>
+                  <p>or use the "New Scene" button in the toolbar</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            pages.map((page, pageIndex) => (
             <div
               key={pageIndex}
               id={`page-${pageIndex}`}
@@ -177,7 +234,8 @@ export const EditorPane = React.memo(
                 <div className="absolute bottom-0 left-0 w-full h-px bg-gray-300 dark:bg-gray-600" />
               )}
             </div>
-          ))}
+          ))
+          )}
         </div>
       </div>
     )
