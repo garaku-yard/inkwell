@@ -79,9 +79,9 @@ export function BeatCard({
       <div className={`flex items-start justify-between mb-2 ${beat.imageUrl ? 'relative z-10' : ''}`}>
         <div className="flex-1 min-w-0" onDoubleClick={() => handleDoubleClick(beat.id, "title")}>
           {editingField?.beatId === beat.id && editingField?.field === "title" ? (
-            <Input autoFocus onBlur={handleFieldBlur} value={beat.title} onChange={(e) => handleFieldChange(beat.id, "title", e.target.value)} className={`h-auto p-0 text-sm font-semibold border-none bg-transparent focus-visible:ring-0 ${beat.imageUrl ? 'text-white' : ''}`} />
+            <Input autoFocus onBlur={handleFieldBlur} value={beat.title} onChange={(e) => handleFieldChange(beat.id, "title", e.target.value)} className={`h-auto p-0 text-sm font-semibold border-none bg-transparent focus-visible:ring-0 ${beat.imageUrl ? 'text-white' : 'text-gray-900 dark:text-gray-900'}`} />
           ) : (
-            <h3 className={`font-semibold text-sm leading-tight truncate ${beat.imageUrl ? 'text-white drop-shadow-lg' : 'text-gray-900'}`}>{beat.title}</h3>
+            <h3 className={`font-semibold text-sm leading-tight truncate ${beat.imageUrl ? 'text-white drop-shadow-lg' : 'text-gray-900 dark:text-gray-900'}`}>{beat.title}</h3>
           )}
         </div>
         <div className="flex items-center gap-1">
@@ -121,15 +121,15 @@ export function BeatCard({
       {!beat.imageUrl && (
         <div className="flex-1 overflow-auto" onDoubleClick={() => handleDoubleClick(beat.id, "description")}>
           {editingField?.beatId === beat.id && editingField?.field === "description" ? (
-            <Textarea autoFocus onBlur={handleFieldBlur} value={beat.description} onChange={(e) => handleFieldChange(beat.id, "description", e.target.value)} className="text-sm w-full h-full bg-transparent border-none outline-none resize-none p-0 focus-visible:ring-0" />
+            <Textarea autoFocus onBlur={handleFieldBlur} value={beat.description} onChange={(e) => handleFieldChange(beat.id, "description", e.target.value)} className="text-sm w-full h-full bg-transparent border-none outline-none resize-none p-0 focus-visible:ring-0 text-gray-900 dark:text-gray-900" />
           ) : (
-            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{beat.description}</p>
+            <p className="text-sm text-gray-700 dark:text-gray-900 leading-relaxed whitespace-pre-wrap">{beat.description}</p>
           )}
         </div>
       )}
-      <div className={`mt-2 pt-2 border-t ${beat.imageUrl ? 'border-white/30 relative z-10' : 'border-gray-200'}`}>
+      <div className={`mt-2 pt-2 border-t ${beat.imageUrl ? 'border-white/30 relative z-10' : 'border-gray-200 dark:border-gray-300'}`}>
         <div className="flex items-center gap-2">
-          <span className={`text-xs ${beat.imageUrl ? 'text-white/70' : 'text-gray-400'}`}>Pg.</span>
+          <span className={`text-xs ${beat.imageUrl ? 'text-white/70' : 'text-gray-400 dark:text-gray-600'}`}>Pg.</span>
           <div className="flex-1" onDoubleClick={() => handleDoubleClick(beat.id, "startPage")}>
             {editingField?.beatId === beat.id && editingField?.field === "startPage" ? (
               <Input
@@ -138,16 +138,16 @@ export function BeatCard({
                 type="number"
                 value={beat.startPage || ''}
                 onChange={(e) => handleFieldChange(beat.id, "startPage", e.target.value ? parseInt(e.target.value) : null)}
-                className={`h-auto p-0 text-xs border-none bg-transparent focus-visible:ring-0 ${beat.imageUrl ? 'text-white' : ''}`}
+                className={`h-auto p-0 text-xs border-none bg-transparent focus-visible:ring-0 ${beat.imageUrl ? 'text-white' : 'text-gray-900 dark:text-gray-900'}`}
                 placeholder="1"
               />
             ) : (
-              <p className={`text-xs ${beat.imageUrl ? 'text-white/90 drop-shadow' : 'text-gray-500'}`}>
+              <p className={`text-xs ${beat.imageUrl ? 'text-white/90 drop-shadow' : 'text-gray-500 dark:text-gray-900'}`}>
                 {beat.startPage || "-"}
               </p>
             )}
           </div>
-          <span className={`text-xs ${beat.imageUrl ? 'text-white/70' : 'text-gray-400'}`}>-</span>
+          <span className={`text-xs ${beat.imageUrl ? 'text-white/70' : 'text-gray-400 dark:text-gray-600'}`}>-</span>
           <div className="flex-1" onDoubleClick={() => handleDoubleClick(beat.id, "endPage")}>
             {editingField?.beatId === beat.id && editingField?.field === "endPage" ? (
               <Input

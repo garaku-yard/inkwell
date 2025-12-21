@@ -133,19 +133,19 @@ export function StoryLanes({
   }, [resizingItem, slidingItem, handleMouseMove, handleMouseUp]);
 
   return (
-    <div className="bg-gray-50">
+    <div className="bg-gray-50 dark:bg-gray-900">
       <div className="px-6 py-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Ruler className="h-4 w-4 text-gray-600" />
-          <h3 className="text-sm font-medium text-gray-600">Story Structure</h3>
-          <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">{outlineItems.length} items</span>
+          <Ruler className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Story Structure</h3>
+          <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">{outlineItems.length} items</span>
           <Button variant="ghost" size="sm" className="h-6 p-1" onClick={onAddLane}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">Zoom</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Zoom</span>
             <Slider
               value={[zoomLevel]}
               onValueChange={(value) => setZoomLevel(value[0])}
@@ -154,7 +154,7 @@ export function StoryLanes({
               step={0.25}
               className="w-32"
             />
-            <span className="text-xs text-gray-600 font-mono w-12 text-center">{Math.round(zoomLevel * 100)}%</span>
+            <span className="text-xs text-gray-600 dark:text-gray-300 font-mono w-12 text-center">{Math.round(zoomLevel * 100)}%</span>
           </div>
           <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="h-6 w-6 p-0">
             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -167,7 +167,7 @@ export function StoryLanes({
           <div className="relative overflow-x-auto">
             <div className="flex h-6 mb-1" style={{ minWidth: `${zoomLevel * 100}%` }}>
               <div className="w-28 flex-shrink-0" />
-              <div className="relative flex-1 bg-white border border-gray-300 rounded-t timeline-area-content">
+              <div className="relative flex-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-t timeline-area-content">
                 {Array.from({ length: totalPages }, (_, i) => {
                   const page = i + 1;
                   const shouldShowLabel = page % adjustedPageInterval === 0 || page === 1;
@@ -177,9 +177,9 @@ export function StoryLanes({
                       className="absolute top-0 bottom-0 flex items-center"
                       style={{ left: `${getPagePosition(page)}%` }}
                     >
-                      <div className={`${shouldShowLabel ? 'w-px bg-gray-400' : 'w-px bg-gray-200'} h-full`} />
+                      <div className={`${shouldShowLabel ? 'w-px bg-gray-400 dark:bg-gray-500' : 'w-px bg-gray-200 dark:bg-gray-700'} h-full`} />
                       {shouldShowLabel && (
-                        <span className="text-xs text-gray-600 ml-1 font-mono">{page}</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-400 ml-1 font-mono">{page}</span>
                       )}
                     </div>
                   );
@@ -206,7 +206,7 @@ export function StoryLanes({
                   onMouseLeave={() => setHoveredLane(null)}
                 >
                   <div
-                    className="w-28 flex-shrink-0 h-16 flex items-center justify-start pl-2 bg-white rounded-l cursor-grab"
+                    className="w-28 flex-shrink-0 h-16 flex items-center justify-start pl-2 bg-white dark:bg-gray-800 rounded-l cursor-grab"
                     draggable
                     onDragStart={(e) => onLaneDragStart(e, lane.id)}
                     onDragEnd={onLaneDragEnd}
@@ -222,14 +222,14 @@ export function StoryLanes({
                       />
                     ) : (
                       <span
-                        className="font-medium text-gray-700 text-xs p-2 w-full"
+                        className="font-medium text-gray-700 dark:text-gray-300 text-xs p-2 w-full"
                         onDoubleClick={() => setEditingLaneId(lane.id)}
                       >
                         {lane.name}
                       </span>
                     )}
                   </div>
-                  <div className={`relative flex-1 h-16 timeline-area-content ${hoveredLane === lane.id ? "bg-blue-50" : "bg-white"}`} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.stopPropagation(); handleDropOnTimeline(e, lane.id); }}>
+                  <div className={`relative flex-1 h-16 timeline-area-content ${hoveredLane === lane.id ? "bg-blue-50 dark:bg-blue-900/20" : "bg-white dark:bg-gray-800"}`} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.stopPropagation(); handleDropOnTimeline(e, lane.id); }}>
                     {outlineItems.filter((item) => item.laneId === lane.id).map((item) => {
                       const beat = beats.find(b => b.id === item.beatId); if (!beat) return null;
                       const position = item.timelinePosition || 0; const width = item.width || getPagePosition(5);
@@ -269,7 +269,7 @@ export function StoryLanes({
             </div>
             <div className="flex">
               <div className="w-28 flex-shrink-0" />
-              <div className="relative flex-1 h-4 bg-gradient-to-r from-green-100 via-yellow-100 to-green-100 border border-gray-300 rounded">
+              <div className="relative flex-1 h-4 bg-gradient-to-r from-green-100 via-yellow-100 to-green-100 dark:from-green-900/30 dark:via-yellow-900/30 dark:to-green-900/30 border border-gray-300 dark:border-gray-700 rounded">
                 {scriptMarkers.map((marker) => (
                   <div key={marker.name} className="absolute top-0 bottom-0 group cursor-help" style={{ left: `${getPagePosition(marker.page)}%` }}>
                     <div className="w-1 h-full opacity-80" style={{ backgroundColor: marker.color }} />

@@ -22,9 +22,12 @@ import {
   ArrowDownUp,
   Folder,
   Briefcase,
-  FilePlus2Icon
+  FilePlus2Icon,
+  Moon,
+  Sun
 } from "lucide-react"
 import { useAuth } from "@/lib/AuthContext"
+import { useTheme } from "@/lib/ThemeContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
@@ -82,6 +85,7 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
   const { isAuthenticated, isLoading: authLoading, logout, user } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const userId = user?.id
   const [projects, setProjects] = useState<(Project & { collaborator_count?: number })[]>([])
   const [renameDialog, setRenameDialog] = useState<{
@@ -337,6 +341,14 @@ export default function DashboardPage() {
                       </div>
                     </DropdownMenuItem>
                   </Link>
+                  <DropdownMenuItem onClick={toggleTheme}>
+                    {theme === "light" ? (
+                      <Moon className="mr-2 h-4 w-4" />
+                    ) : (
+                      <Sun className="mr-2 h-4 w-4" />
+                    )}
+                    <span>{theme === "light" ? "Dark mode" : "Light mode"}</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={logout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>

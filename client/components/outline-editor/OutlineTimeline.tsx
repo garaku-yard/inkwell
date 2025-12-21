@@ -27,14 +27,14 @@ export function OutlineTimeline({ outlines, structure, activeElementId, onElemen
   const totalDuration = allBeats.length || 1;
 
   return (
-    <div className="border-b bg-gray-50 p-4">
+    <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4">
       <div className="space-y-1">
         {outlines.map(outline => (
           <div key={outline.id} className="flex items-center h-12">
-            <div className="w-40 flex-shrink-0 text-xs font-medium text-gray-600 pr-4">
+            <div className="w-40 flex-shrink-0 text-xs font-medium text-gray-600 dark:text-gray-400 pr-4">
               {outline.name}
             </div>
-            <div className="relative flex-1 h-full bg-gray-200 rounded">
+            <div className="relative flex-1 h-full bg-gray-200 dark:bg-gray-800 rounded">
               {allBeats
                 .filter(beat => beat.outlineId === outline.id)
                 .map((beat, index) => (

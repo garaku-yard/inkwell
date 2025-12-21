@@ -531,8 +531,8 @@ export default function BeatBoardPage() {
   if (error) return <div>{error}</div>;
 
   return (
-    <div className="h-screen flex flex-col bg-white" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
-      <div className="border-b border-gray-200 bg-white z-10">
+    <div className="h-screen flex flex-col bg-white dark:bg-black" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+      <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black z-10">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
             <Link href={`/projects/${projectId}/editor`}><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back to Editor</Button></Link>
@@ -542,8 +542,8 @@ export default function BeatBoardPage() {
                 Go to Outline Editor
               </Button>
             </Link>
-            <div className="h-6 w-px bg-gray-200" />
-            <h1 className="text-xl font-semibold text-gray-900">{project?.title || 'Beat Board'}</h1>
+            <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{project?.title || 'Beat Board'}</h1>
           </div>
         </div>
         <StoryLanes

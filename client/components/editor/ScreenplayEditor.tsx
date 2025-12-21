@@ -31,7 +31,6 @@ import { AIChatPanel } from "./AIChatPanel"
 import { useAuth } from "@/lib/AuthContext"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { ThemeToggle } from "@/components/ui/theme-toggle"
 
 type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ScriptElement }
 
@@ -899,7 +898,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             <h1 className="text-lg font-medium">{project.title}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <ThemeToggle />
             <Button variant="outline" className="gap-2 bg-transparent" onClick={toggleAIChat}>
               <Bot className="h-4 w-4" />
               Writing Buddy

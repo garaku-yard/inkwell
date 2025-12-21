@@ -142,14 +142,14 @@ export const EditorPane = React.memo(
     }))
 
     return (
-      <div ref={parentRef} className="flex-1 overflow-auto p-8 bg-gray-100 dark:bg-gray-900">
+      <div ref={parentRef} className="flex-1 overflow-auto p-8 bg-gray-100 dark:bg-black">
         {/* Multiple US Letter pages (standard screenplay format) */}
         <div ref={pagesContainerRef} className="mx-auto space-y-8">
           {pages.length === 0 ? (
             // Empty state - show a placeholder page that allows double-enter to create a scene
             <div
               ref={scriptContainerRef}
-              className="bg-white dark:bg-gray-800 shadow-2xl relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
+              className="bg-white dark:bg-gray-900 shadow-2xl relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
               style={{
                 width: '8.5in',
                 height: '11in',
@@ -181,7 +181,7 @@ export const EditorPane = React.memo(
               key={pageIndex}
               id={`page-${pageIndex}`}
               ref={pageIndex === 0 ? scriptContainerRef : undefined}
-              className="bg-white dark:bg-gray-800 shadow-2xl relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
+              className="bg-white dark:bg-gray-900 shadow-2xl relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
               style={{
                 width: '8.5in',
                 height: '11in',

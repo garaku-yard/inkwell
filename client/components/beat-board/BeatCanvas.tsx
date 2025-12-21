@@ -57,11 +57,10 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
     const to = getConnectionPoint(toBeat, connection.toSide);
     return (
       <g key={connection.id} className="group">
-        <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#6b7280" strokeWidth="2" markerEnd="url(#arrowhead)" />
-        <circle cx={(from.x + to.x) / 2} cy={(from.y + to.y) / 2} r="8" fill="white" stroke="#6b7280" strokeWidth="1"
-          className="cursor-pointer hover:fill-red-100" onClick={() => props.handleDeleteConnection(connection.id)} />
-        <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 + 1} textAnchor="middle" fontSize="10" fill="#6b7280"
-          className="pointer-events-none">×</text>
+        <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} className="stroke-gray-500 dark:stroke-gray-400" strokeWidth="2" markerEnd="url(#arrowhead)" />
+        <circle cx={(from.x + to.x) / 2} cy={(from.y + to.y) / 2} r="8" className="fill-white dark:fill-gray-800 stroke-gray-500 dark:stroke-gray-400 cursor-pointer hover:fill-red-100 dark:hover:fill-red-900" strokeWidth="1"
+          onClick={() => props.handleDeleteConnection(connection.id)} />
+        <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 + 1} textAnchor="middle" fontSize="10" className="fill-gray-500 dark:fill-gray-400 pointer-events-none">×</text>
       </g>
     );
   };
@@ -78,11 +77,10 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
   return (
     <div
       ref={boardRef}
-      className="flex-1 relative overflow-auto cursor-default select-none beat-board-background"
+      className="flex-1 relative overflow-auto cursor-default select-none beat-board-background bg-gray-50 dark:bg-black"
       style={{
-        backgroundImage: `radial-gradient(circle, #e5e7eb 1px, transparent 1px)`,
+        backgroundImage: `radial-gradient(circle, var(--grid-color, #e5e7eb) 1px, transparent 1px)`,
         backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
-        backgroundColor: "#f9fafb",
       }}
       onDoubleClick={props.onBoardDoubleClick}
       onDrop={props.onImageDrop}
@@ -92,10 +90,10 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
     >
       {!isLoading && beats.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center text-gray-500 p-8 rounded-lg bg-white/50 backdrop-blur-sm">
-            <ClipboardList className="h-12 w-12 mx-auto text-gray-400" />
-            <h2 className="mt-4 text-lg font-medium text-gray-800">Your Beat Board is Empty</h2>
-            <p className="mt-1 text-sm text-gray-600">Double-click to create a beat or drop an image to create a visual beat.</p>
+          <div className="text-center text-gray-500 dark:text-gray-400 p-8 rounded-lg bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
+            <ClipboardList className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500" />
+            <h2 className="mt-4 text-lg font-medium text-gray-800 dark:text-gray-200">Your Beat Board is Empty</h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Double-click to create a beat or drop an image to create a visual beat.</p>
           </div>
         </div>
       )}
