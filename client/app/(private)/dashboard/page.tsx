@@ -357,6 +357,14 @@ export default function DashboardPage() {
                       <span>Settings</span>
                     </Link>
                   </DropdownMenuItem>
+                  {/* {user?.role === "admin" && ( */}
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin/billing" className="cursor-pointer">
+                      <Briefcase className="mr-2 h-4 w-4" />
+                      <span>Admin Billing</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  {/* )} */}
                   <DropdownMenuItem onClick={logout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
