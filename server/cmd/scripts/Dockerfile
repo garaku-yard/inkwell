@@ -23,13 +23,16 @@ RUN apk --no-cache add ca-certificates
 # Create non-root user
 RUN adduser -D -s /bin/sh appuser
 
-WORKDIR /root/
+WORKDIR /app
 
 # Copy the binary from builder stage
 COPY --from=builder /app/bin/scripts-service .
 
+# Copy migration files
+COPY --from=builder /app/internal/scripts/migrations ./internal/scripts/migrations
+
 # Change ownership to appuser
-RUN chown appuser:appuser scripts-service
+RUN chown -R appuser:appuser /app
 USER appuser
 
 # Expose port

@@ -2,25 +2,20 @@ package main
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"scriptlith/server/internal/scripts/config"
 	"scriptlith/server/internal/scripts/handler"
-	"scriptlith/server/internal/scripts/models"
 	"scriptlith/server/internal/scripts/repository"
 	"scriptlith/server/internal/scripts/service"
+	"scriptlith/server/pkg/database"
 	"syscall"
 
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 
 	scriptspb "scriptlith/server/pkg/grpc/scripts"
 )
@@ -35,18 +30,38 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	gormDB, sqlDB, err := connectDatabase(cfg.DatabaseConfig)
+	// Database configuration
+	dbConfig := &database.Config{
+		Host:            cfg.DatabaseConfig.Host,
+		Port:            cfg.DatabaseConfig.Port,
+		User:            cfg.DatabaseConfig.User,
+		Password:        cfg.DatabaseConfig.Password,
+		Name:            cfg.DatabaseConfig.Name,
+		SSLMode:         cfg.DatabaseConfig.SSLMode,
+		MaxOpenConns:    cfg.DatabaseConfig.MaxOpenConns,
+		MaxIdleConns:    cfg.DatabaseConfig.MaxIdleConns,
+		ConnMaxLifetime: cfg.DatabaseConfig.ConnMaxLifetime,
+	}
+
+	// Connect to database
+	db, err := database.Connect(dbConfig)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer sqlDB.Close()
+	defer db.Close()
 
-	if err := models.AutoMigrate(gormDB); err != nil {
+	// Run migrations
+	migrationsPath := "internal/scripts/migrations"
+	log.Printf("Running migrations from: %s", migrationsPath)
+
+	if err := database.RunMigrations(db, migrationsPath); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 	log.Println("Database migrations completed successfully")
 
-	repo := repository.NewRepository(sqlDB)
+	// Create repositories (still using database/sql for now)
+	// TODO: Refactor repositories to use sqlc queries
+	repo := repository.NewRepository(db)
 
 	scriptsService := service.NewScriptsService(repo, cfg)
 	beatBoardService := service.NewBeatBoardService(repo)
@@ -80,31 +95,6 @@ func main() {
 	log.Println("Shutting down Scripts service...")
 	grpcServer.GracefulStop()
 	log.Println("Scripts service stopped")
-}
-
-func connectDatabase(cfg config.DatabaseConfig) (*gorm.DB, *sql.DB, error) {
-	dsn := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode,
-	)
-
-	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	sqlDB, err := gormDB.DB()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
-	}
-
-	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
-	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
-	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
-
-	return gormDB, sqlDB, nil
 }
 
 func loggingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {

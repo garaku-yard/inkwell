@@ -396,6 +396,102 @@ tasks:
       - "{{.DOCKER_COMPOSE}} logs -f client"
 
   # ====================
+  # Database Migrations & SQLC
+  # ====================
+  tools:install:
+    desc: Install development tools (sqlc, golang-migrate)
+    dir: server
+    cmds:
+      - go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+      - go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+      - 'echo "✅ Tools installed successfully!"'
+
+  sqlc:generate:
+    desc: Generate Go code from SQL queries for all services
+    dir: server
+    cmds:
+      - cd internal/identity && sqlc generate
+      - cd internal/scripts && sqlc generate
+      - cd internal/collab && sqlc generate
+      - cd internal/billing && sqlc generate
+      - 'echo "✅ SQLC code generated for all services!"'
+
+  migrate:up:
+    desc: Run all pending migrations for all services
+    cmds:
+      - task: migrate:up:identity
+      - task: migrate:up:scripts
+      - task: migrate:up:collab
+      - task: migrate:up:billing
+
+  migrate:down:
+    desc: Rollback last migration for all services
+    cmds:
+      - task: migrate:down:identity
+      - task: migrate:down:scripts
+      - task: migrate:down:collab
+      - task: migrate:down:billing
+
+  migrate:up:identity:
+    desc: Run migrations for Identity service
+    dir: server
+    cmds:
+      - migrate -path internal/identity/migrations -database "postgresql://${IDENTITY_DB_USER:-postgres}:${IDENTITY_DB_PASSWORD:-postgres}@${IDENTITY_DB_HOST:-localhost}:${IDENTITY_DB_PORT:-5432}/${IDENTITY_DB_NAME:-identity_db}?sslmode=disable" up
+      - 'echo "✅ Identity migrations applied!"'
+
+  migrate:down:identity:
+    desc: Rollback last migration for Identity service
+    dir: server
+    cmds:
+      - migrate -path internal/identity/migrations -database "postgresql://${IDENTITY_DB_USER:-postgres}:${IDENTITY_DB_PASSWORD:-postgres}@${IDENTITY_DB_HOST:-localhost}:${IDENTITY_DB_PORT:-5432}/${IDENTITY_DB_NAME:-identity_db}?sslmode=disable" down 1
+
+  migrate:up:scripts:
+    desc: Run migrations for Scripts service
+    dir: server
+    cmds:
+      - migrate -path internal/scripts/migrations -database "postgresql://${SCRIPTS_DB_USER:-postgres}:${SCRIPTS_DB_PASSWORD:-postgres}@${SCRIPTS_DB_HOST:-localhost}:${SCRIPTS_DB_PORT:-5433}/${SCRIPTS_DB_NAME:-scripts_db}?sslmode=disable" up
+      - 'echo "✅ Scripts migrations applied!"'
+
+  migrate:down:scripts:
+    desc: Rollback last migration for Scripts service
+    dir: server
+    cmds:
+      - migrate -path internal/scripts/migrations -database "postgresql://${SCRIPTS_DB_USER:-postgres}:${SCRIPTS_DB_PASSWORD:-postgres}@${SCRIPTS_DB_HOST:-localhost}:${SCRIPTS_DB_PORT:-5433}/${SCRIPTS_DB_NAME:-scripts_db}?sslmode=disable" down 1
+
+  migrate:up:collab:
+    desc: Run migrations for Collaboration service
+    dir: server
+    cmds:
+      - migrate -path internal/collab/migrations -database "postgresql://${COLLAB_DB_USER:-postgres}:${COLLAB_DB_PASSWORD:-postgres}@${COLLAB_DB_HOST:-localhost}:${COLLAB_DB_PORT:-5434}/${COLLAB_DB_NAME:-collab_db}?sslmode=disable" up
+      - 'echo "✅ Collaboration migrations applied!"'
+
+  migrate:down:collab:
+    desc: Rollback last migration for Collaboration service
+    dir: server
+    cmds:
+      - migrate -path internal/collab/migrations -database "postgresql://${COLLAB_DB_USER:-postgres}:${COLLAB_DB_PASSWORD:-postgres}@${COLLAB_DB_HOST:-localhost}:${COLLAB_DB_PORT:-5434}/${COLLAB_DB_NAME:-collab_db}?sslmode=disable" down 1
+
+  migrate:up:billing:
+    desc: Run migrations for Billing service
+    dir: server
+    cmds:
+      - migrate -path internal/billing/migrations -database "postgresql://${BILLING_DB_USER:-postgres}:${BILLING_DB_PASSWORD:-postgres}@${BILLING_DB_HOST:-localhost}:${BILLING_DB_PORT:-5435}/${BILLING_DB_NAME:-billing_db}?sslmode=disable" up
+      - 'echo "✅ Billing migrations applied!"'
+
+  migrate:down:billing:
+    desc: Rollback last migration for Billing service
+    dir: server
+    cmds:
+      - migrate -path internal/billing/migrations -database "postgresql://${BILLING_DB_USER:-postgres}:${BILLING_DB_PASSWORD:-postgres}@${BILLING_DB_HOST:-localhost}:${BILLING_DB_PORT:-5435}/${BILLING_DB_NAME:-billing_db}?sslmode=disable" down 1
+
+  migrate:create:
+    desc: Create a new migration file (usage - task migrate:create SERVICE=identity NAME=add_users_table)
+    dir: server
+    cmds:
+      - migrate create -ext sql -dir internal/{{.SERVICE}}/migrations -seq {{.NAME}}
+      - 'echo "✅ Migration files created in internal/{{.SERVICE}}/migrations/"'
+
+  # ====================
   # Utilities
   # ====================
   clean:
@@ -405,6 +501,7 @@ tasks:
       - rm -rf client/.next
       - rm -rf client/node_modules
       - rm -rf server/vendor
+      - rm -rf server/internal/*/sqlc/*.go
 
   setup:
     desc: Initial setup for new developers
@@ -412,6 +509,7 @@ tasks:
       - 'echo "🚀 Setting up Scriptlith development environment..."'
       - task: install
       - 'echo "✅ Dependencies installed!"'
+      - task: tools:install
       - 'echo "⚠️  Next steps:"'
       - 'echo "1. Create .env file: cp .env.example .env"'
       - 'echo "2. Edit .env with your credentials (POSTGRES_USER, POSTGRES_PASSWORD, etc)"'
@@ -432,6 +530,12 @@ tasks:
       - task: docker:build
       - 'echo "🚀 Starting all services..."'
       - task: docker:up
+      - 'echo "⏳ Waiting for databases to be ready..."'
+      - sleep 5
+      - 'echo "🗄️  Running database migrations..."'
+      - task: migrate:up
+      - 'echo "📝 Generating SQLC code..."'
+      - task: sqlc:generate
       - 'echo "✅ All services started! Frontend at http://localhost:3000, API at http://localhost:8080"'
 
   help:
