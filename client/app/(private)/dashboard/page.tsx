@@ -24,7 +24,8 @@ import {
   Briefcase,
   FilePlus2Icon,
   Moon,
-  Sun
+  Sun,
+  Settings
 } from "lucide-react"
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
@@ -348,6 +349,13 @@ export default function DashboardPage() {
                       <Sun className="mr-2 h-4 w-4" />
                     )}
                     <span>{theme === "light" ? "Dark mode" : "Light mode"}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings" className="cursor-pointer">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={logout}>
                     <LogOut className="mr-2 h-4 w-4" />
