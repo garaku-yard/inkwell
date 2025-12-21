@@ -9,6 +9,7 @@ import { SettingsSidebar } from "@/components/settings/settings-sidebar"
 import { AccountSection } from "@/components/settings/sections/account-section"
 import { SecuritySection } from "@/components/settings/sections/security-section"
 import { PrivacySection } from "@/components/settings/sections/privacy-section"
+import { AppearanceSection } from "@/components/settings/sections/appearance-section"
 import { NotificationsSection } from "@/components/settings/sections/notifications-section"
 import { DataControlSection } from "@/components/settings/sections/data-control-section"
 import { BillingSection } from "@/components/settings/sections/billing-section"
@@ -21,6 +22,7 @@ export type SettingsSection =
   | "account"
   | "security"
   | "privacy"
+  | "appearance"
   | "notifications"
   | "data"
   | "billing"
@@ -41,6 +43,8 @@ export default function SettingsPage() {
         return <SecuritySection />
       case "privacy":
         return <PrivacySection />
+      case "appearance":
+        return <AppearanceSection userRole={user?.role} />
       case "notifications":
         return <NotificationsSection />
       case "data":
