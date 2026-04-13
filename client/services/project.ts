@@ -1,11 +1,22 @@
 import { apiClient } from "@/lib/api"
 import { type CollaboratorRole, CollaboratorRoles } from "@/models/constants/collaboratorRoles"
 
+export type ProjectCategory =
+  | "screenplay"
+  | "novel"
+  | "comic_script"
+  | "poetry"
+  | "interactive_fiction"
+  | "tabletop_rpg"
+  | "memoir"
+  | "lyrics"
+
 export interface Project {
   id: string
   title: string
   description: string
   owner_id: string
+  category: ProjectCategory
   status: string
   is_starred: boolean
   collaborator_count?: number
@@ -17,6 +28,7 @@ export interface CreateProjectRequest {
   title: string
   description?: string
   owner_id: string
+  category?: ProjectCategory
 }
 
 export interface UpdateProjectRequest {
@@ -29,7 +41,7 @@ export interface ScriptElement {
   id: string
   project_id: string
   scene_id?: string
-  element_type: "ACTION" | "CHARACTER" | "DIALOG" | "PARENTHETICAL" | "SHOT" | "TRANSITION" | "TEXT" | "NOTE" | "OUTLINE" | "NEW_ACT" | "END_ACT" | "LYRICS" | "SEQUENCE" | "DUAL_DIALOG"
+  element_type: string
   content: string
   character_id?: string
   line_number: number
@@ -299,7 +311,7 @@ export const createElement = async (
   userId: string,
   elementData: {
     scene_id: string
-    element_type: "ACTION" | "CHARACTER" | "DIALOG" | "PARENTHETICAL" | "SHOT" | "TRANSITION" | "TEXT" | "NOTE" | "OUTLINE" | "NEW_ACT" | "END_ACT" | "LYRICS" | "SEQUENCE" | "DUAL_DIALOG"
+    element_type: string
     content: string
     character_id?: string
     line_number?: number
@@ -683,4 +695,23 @@ export const deleteComment = async (commentId: string): Promise<void> => {
 
 export const toggleCommentResolved = async (commentId: string, newResolvedState: boolean): Promise<Comment> => {
   return updateComment(commentId, undefined, newResolvedState)
+}
+
+// Generic element creator for non-screenplay editors (prose, poetry, comic, IF, TTRPG)
+export const createSceneElement = async (
+  projectId: string,
+  sceneId: string,
+  userId: string,
+  elementData: {
+    element_type: string
+    content: string
+    order_index?: number
+  }
+): Promise<ScriptElement> => {
+  return createElement(projectId, userId, {
+    scene_id: sceneId,
+    element_type: elementData.element_type,
+    content: elementData.content,
+    line_number: elementData.order_index ?? 0,
+  })
 }

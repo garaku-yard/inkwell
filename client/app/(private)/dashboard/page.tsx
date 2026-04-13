@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
-import Image from 'next/image';
 import { useRouter } from "next/navigation"
 import { jwtDecode } from "jwt-decode"
 import {
@@ -29,6 +28,8 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
+import { useWorkspace } from "@/lib/WorkspaceContext"
+import { WorkspaceSwitcher } from "@/components/workspace/WorkspaceSwitcher"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
@@ -87,6 +88,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const { isAuthenticated, isLoading: authLoading, logout, user } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const { needsOnboarding, activeWorkspace } = useWorkspace()
   const userId = user?.id
   const [projects, setProjects] = useState<(Project & { collaborator_count?: number })[]>([])
   const [renameDialog, setRenameDialog] = useState<{
@@ -121,6 +123,12 @@ export default function DashboardPage() {
   }
 
   const userTag = getUserTag()
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && needsOnboarding) {
+      router.replace("/onboarding")
+    }
+  }, [authLoading, isAuthenticated, needsOnboarding, router])
 
   useEffect(() => {
     if (authLoading) {
@@ -261,20 +269,24 @@ export default function DashboardPage() {
   }
 
   const filteredProjects = useMemo(() => {
-    let processedProjects = [...projects]
+    // Filter by active workspace categories first
+    const workspaceSlugs = activeWorkspace?.categories?.map(c => c.slug) ?? []
+    let processedProjects = workspaceSlugs.length > 0
+      ? projects.filter(p => workspaceSlugs.includes(p.category))
+      : projects
 
     switch (activeFilter) {
       case "lastUpdated":
         processedProjects.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
         break
       case "myProjects":
-        processedProjects = projects.filter((p) => p.owner_id === userId)
+        processedProjects = processedProjects.filter((p) => p.owner_id === userId)
         break
       case "collaborations":
-        processedProjects = projects.filter((p) => p.owner_id !== userId)
+        processedProjects = processedProjects.filter((p) => p.owner_id !== userId)
         break
       case "starred":
-        processedProjects = []
+        processedProjects = processedProjects.filter((p) => p.is_starred)
         break
       default:
         break
@@ -287,24 +299,21 @@ export default function DashboardPage() {
     return processedProjects.filter((project) =>
       project.title.toLowerCase().includes(searchQuery.toLowerCase()),
     )
-  }, [projects, activeFilter, searchQuery, userId])
+  }, [projects, activeFilter, searchQuery, userId, activeWorkspace])
 
   const handleProjectClick = (projectId: string) => {
     router.push(`/projects/${projectId}/editor`)
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       <header className="border-b bg-background">
         <div className="container mx-auto flex items-center justify-between py-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
-            <Image
-              src="/scriptalith.png"
-              alt="Scriptlith Logo"
-              width={40}
-              height={40}
-            />
-            <h1 className="text-xl font-bold">Scriptlith</h1>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground text-background font-serif font-bold text-lg select-none">
+              I
+            </div>
+            <h1 className="text-xl font-bold">Inkwell</h1>
           </div>
           <div className="flex items-center gap-2">
             {isAuthenticated ? (
@@ -387,8 +396,12 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {/* Body: sidebar + content */}
+      <div className="flex flex-1 overflow-hidden">
+        <WorkspaceSwitcher />
+
       {/* Main Content */}
-      <main className="flex-grow flex flex-col items-center py-6">
+      <main className="flex-grow flex flex-col items-center py-6 overflow-y-auto">
         <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-bold">My Projects</h2>
@@ -565,7 +578,7 @@ export default function DashboardPage() {
                   <p className="text-muted-foreground mt-2">
                     {searchQuery
                       ? "Try a different search term"
-                      : "Create your first screenplay project to get started."}
+                      : `No ${activeWorkspace?.name ?? "projects"} yet. Create your first project to get started.`}
                   </p>
                 </div>
               )}
@@ -573,6 +586,8 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+
+      </div>{/* end body flex */}
 
       <NewProjectDialog
         open={isNewProjectDialogOpen}

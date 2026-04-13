@@ -45,9 +45,9 @@ export const EditableElement = React.memo(
   React.forwardRef<HTMLDivElement, EditableElementProps>((props, fwdRef) => {
     const { element, onContentChange, onFinalizeUpdate, onKeyDown, activeElementId, onFocus, onBlur, focusAtEnd, onFocusHandled, scenes, currentSceneId } = props
     const isScene = "scene_heading" in element
-    const type = isScene ? "SCENE_HEADING" : element.element_type
+    const type = isScene ? "SCENE_HEADING" : element.element_type as ToolbarScriptElementType | "SCENE_HEADING"
     const content = isScene ? element.scene_heading : element.content
-    const config = SCRIPT_ELEMENT_CONFIG[type] || SCRIPT_ELEMENT_CONFIG.ACTION
+    const config = SCRIPT_ELEMENT_CONFIG[type as keyof typeof SCRIPT_ELEMENT_CONFIG] || SCRIPT_ELEMENT_CONFIG.ACTION
     const isActive = element.id === activeElementId
     const unresolvedCommentsCount = element.comments?.filter((c) => !c.isResolved).length || 0
 

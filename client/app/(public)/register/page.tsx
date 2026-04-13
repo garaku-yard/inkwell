@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Eye, EyeOff, FileText, AlertCircle, CheckCircle } from "lucide-react"
+import { ArrowLeft, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -62,11 +62,11 @@ export default function RegisterPage() {
 
     try {
       await registerUser(apiPayload)
-      setSuccess("Registration successful! Redirecting to login...")
+      setSuccess("Registration successful! Let's set up your workspace...")
 
       setTimeout(() => {
-        router.push("/login")
-      }, 2000)
+        router.push("/login?next=/onboarding")
+      }, 1500)
 
     } catch (err: any) {
       setError(err.message)
@@ -86,8 +86,10 @@ export default function RegisterPage() {
         </div>
 
         <div className="flex items-center justify-center gap-2 mb-8">
-          <FileText className="h-8 w-8" />
-          <h1 className="text-2xl font-bold">Screenwriter</h1>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground text-background font-serif font-bold text-xl select-none">
+            I
+          </div>
+          <h1 className="text-2xl font-bold">Inkwell</h1>
         </div>
 
         <Card>

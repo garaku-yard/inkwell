@@ -34,24 +34,27 @@ tasks:
   # Development
   # ====================
   dev:
-    desc: Start all services in development mode
+    desc: Start backends in Docker + Next.js locally with hot reload (recommended)
+    preconditions:
+      - test -f .env || (echo "❌ ERROR - .env file not found! Run 'task setup' first" && exit 1)
+    cmds:
+      - "{{.DOCKER_COMPOSE}} up -d --scale client=0"
+      - 'echo "✅ Backend services started! Launching Next.js dev server at http://localhost:3000..."'
+      - task: dev:client
+
+  dev:full:
+    desc: Start all services in Docker including client (production build, no hot reload)
     preconditions:
       - test -f .env || (echo "❌ ERROR - .env file not found! Run 'task setup' first" && exit 1)
     cmds:
       - task: docker:up
       - 'echo "Services started! Frontend: http://localhost:3000, API: http://localhost:8080"'
 
-  dev:watch:
-    desc: Start services with live reload (for local development without Docker)
-    deps:
-      - task: db:up
-    cmds:
-      - task: dev:client
-
   dev:client:
-    desc: Run client in development mode with hot reload
+    desc: Run Next.js client locally with hot reload
     dir: client
     cmds:
+      - npm install
       - npm run dev
 
   # ====================
@@ -127,8 +130,15 @@ tasks:
       - "{{.DOCKER_COMPOSE}} up -d ai-service"
       - "{{.DOCKER_COMPOSE}} logs -f ai-service"
 
+  docker:rebuild:workspace:
+    desc: Rebuild and restart Workspace Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build workspace-service"
+      - "{{.DOCKER_COMPOSE}} up -d workspace-service"
+      - "{{.DOCKER_COMPOSE}} logs -f workspace-service"
+
   docker:rebuild:client:
-    desc: Rebuild and restart Client
+    desc: Rebuild and restart Client (production build)
     cmds:
       - "{{.DOCKER_COMPOSE}} build client"
       - "{{.DOCKER_COMPOSE}} up -d client"
@@ -155,12 +165,12 @@ tasks:
   db:up:
     desc: Start only database containers
     cmds:
-      - "{{.DOCKER_COMPOSE}} up -d postgres-identity postgres-scripts postgres-collab postgres-billing redis"
+      - "{{.DOCKER_COMPOSE}} up -d postgres-identity postgres-scripts postgres-collab postgres-billing postgres-workspace redis"
 
   db:down:
     desc: Stop database containers
     cmds:
-      - "{{.DOCKER_COMPOSE}} stop postgres-identity postgres-scripts postgres-collab postgres-billing redis"
+      - "{{.DOCKER_COMPOSE}} stop postgres-identity postgres-scripts postgres-collab postgres-billing postgres-workspace redis"
 
   db:migrate:
     desc: Run migrations for all services (happens automatically on service startup with GORM)

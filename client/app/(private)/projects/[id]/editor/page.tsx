@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { Loader2, AlertCircle } from "lucide-react"
-import { ScreenplayEditor } from "@/components/editor/ScreenplayEditor"
+import { EditorFactory } from "@/components/editor/EditorFactory"
 import { getFullProject, FullProject } from "@/services/project"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useAuth } from "@/lib/AuthContext"
@@ -63,5 +63,5 @@ export default function ProjectPage() {
     return null;
   }
 
-  return <ScreenplayEditor projectData={project} />;
+  return <EditorFactory projectData={project} />;
 }

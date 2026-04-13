@@ -3,8 +3,8 @@
 import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Eye, EyeOff, FileText, AlertCircle } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ArrowLeft, Eye, EyeOff, AlertCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,6 +28,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const { login } = useAuth()
+  const searchParams = useSearchParams()
+  const nextPath = searchParams.get("next") || "/dashboard"
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,7 +42,7 @@ export default function LoginPage() {
       if (data.token) {
         const success = login(data.token);
         if (success) {
-          window.location.href = "/dashboard";
+          window.location.href = nextPath;
         } else {
           setError("Failed to process login token");
         }
@@ -68,8 +70,10 @@ export default function LoginPage() {
         </div>
 
         <div className="flex items-center justify-center gap-2 mb-8">
-          <FileText className="h-8 w-8" />
-          <h1 className="text-2xl font-bold">Screenwriter</h1>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground text-background font-serif font-bold text-xl select-none">
+            I
+          </div>
+          <h1 className="text-2xl font-bold">Inkwell</h1>
         </div>
 
         <Card>

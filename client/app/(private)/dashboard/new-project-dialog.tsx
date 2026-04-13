@@ -19,17 +19,9 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { useWorkspace } from "@/lib/WorkspaceContext"
 
-import { createProject, addCollaborator, Project, deleteProject, createScene } from "@/services/project"
-
-const projectTypes = [
-  { value: "feature", label: "Feature Film" },
-  { value: "short", label: "Short Film" },
-  { value: "tv-pilot", label: "TV Pilot" },
-  { value: "tv-episode", label: "TV Episode" },
-  { value: "documentary", label: "Documentary" },
-  { value: "web-series", label: "Web Series" },
-]
+import { createProject, addCollaborator, Project, createScene } from "@/services/project"
 
 interface NewProjectDialogProps {
   open: boolean
@@ -40,7 +32,7 @@ interface NewProjectDialogProps {
 export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewProjectDialogProps) {
   const [projectName, setProjectName] = useState("")
   const [description, setDescription] = useState("")
-  const [projectType, setProjectType] = useState("")
+  const [selectedCategory, setSelectedCategory] = useState("")
   const [collaborators, setCollaborators] = useState<{ username: string; role: CollaboratorRole }[]>([])
   const [collaboratorInput, setCollaboratorInput] = useState("")
   const [openTypeSelect, setOpenTypeSelect] = useState(false)
@@ -51,6 +43,8 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
   const router = useRouter()
   const { user } = useAuth()
   const userId = user?.id
+  const { activeWorkspace } = useWorkspace()
+  const workspaceCategories = activeWorkspace?.categories ?? []
 
   const handleAddCollaborator = () => {
     const trimmed = collaboratorInput.trim()
@@ -86,10 +80,13 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
     setError(null)
 
     try {
+      const categoryLabel = workspaceCategories.find(c => c.slug === selectedCategory)?.name
+      const effectiveCategory = (selectedCategory || workspaceCategories[0]?.slug || "screenplay") as import("@/services/project").ProjectCategory
       const newProject = await createProject({
         title: projectName,
-        description: description || projectTypes.find(t => t.value === projectType)?.label || "New Project",
+        description: description || categoryLabel || "New Project",
         owner_id: userId,
+        category: effectiveCategory,
       })
 
       // Automatically create the first scene for the new project
@@ -133,7 +130,7 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
           <DialogDescription>
-            Set up your new screenplay project. You can add collaborators by their unique username.
+            Set up your new project. You can add collaborators by their unique username.
           </DialogDescription>
         </DialogHeader>
 
@@ -166,44 +163,46 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
               disabled={isLoading}
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="project-type">Project Type</Label>
-            <Popover open={openTypeSelect} onOpenChange={setOpenTypeSelect}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" aria-expanded={openTypeSelect} className="justify-between" disabled={isLoading}>
-                  {projectType
-                    ? projectTypes.find((type) => type.value === projectType)?.label
-                    : "Select project type..."}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0">
-                <Command>
-                  <CommandInput placeholder="Search project types..." />
-                  <CommandList>
-                    <CommandEmpty>No project type found.</CommandEmpty>
-                    <CommandGroup>
-                      {projectTypes.map((type) => (
-                        <CommandItem
-                          key={type.value}
-                          value={type.value}
-                          onSelect={(currentValue) => {
-                            setProjectType(currentValue === projectType ? "" : currentValue)
-                            setOpenTypeSelect(false)
-                          }}
-                        >
-                          <Check
-                            className={cn("mr-2 h-4 w-4", projectType === type.value ? "opacity-100" : "opacity-0")}
-                          />
-                          {type.label}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
+          {workspaceCategories.length > 1 && (
+            <div className="grid gap-2">
+              <Label htmlFor="project-category">Category</Label>
+              <Popover open={openTypeSelect} onOpenChange={setOpenTypeSelect}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={openTypeSelect} className="justify-between" disabled={isLoading}>
+                    {selectedCategory
+                      ? workspaceCategories.find((c) => c.slug === selectedCategory)?.name
+                      : "Select category..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search categories..." />
+                    <CommandList>
+                      <CommandEmpty>No category found.</CommandEmpty>
+                      <CommandGroup>
+                        {workspaceCategories.map((cat) => (
+                          <CommandItem
+                            key={cat.slug}
+                            value={cat.slug}
+                            onSelect={(val) => {
+                              setSelectedCategory(val === selectedCategory ? "" : val)
+                              setOpenTypeSelect(false)
+                            }}
+                          >
+                            <Check
+                              className={cn("mr-2 h-4 w-4", selectedCategory === cat.slug ? "opacity-100" : "opacity-0")}
+                            />
+                            {cat.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
           <div className="grid gap-2">
             <Label htmlFor="collaborators">Collaborators (Optional)</Label>
             <div className="flex gap-2">

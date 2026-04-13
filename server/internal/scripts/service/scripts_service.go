@@ -16,7 +16,7 @@ import (
 // ScriptsService defines the business logic interface for the Scripts service
 type ScriptsService interface {
 	// Project operations
-	CreateProject(ctx context.Context, title, description string, ownerID uuid.UUID) (*domain.Project, error)
+	CreateProject(ctx context.Context, title, description, category string, ownerID uuid.UUID) (*domain.Project, error)
 	GetProject(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error)
 	UpdateProject(ctx context.Context, projectID, userID uuid.UUID, title, description, status *string) (*domain.Project, error)
 	ToggleProjectStar(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error)
@@ -73,11 +73,15 @@ func NewScriptsService(repo *repository.Repository, cfg *config.Config) ScriptsS
 }
 
 // CreateProject creates a new project
-func (s *scriptsService) CreateProject(ctx context.Context, title, description string, ownerID uuid.UUID) (*domain.Project, error) {
+func (s *scriptsService) CreateProject(ctx context.Context, title, description, category string, ownerID uuid.UUID) (*domain.Project, error) {
+	if category == "" {
+		category = "screenplay"
+	}
 	project := &domain.Project{
 		ID:          uuid.New(),
 		Title:       title,
 		Description: description,
+		Category:    category,
 		OwnerID:     ownerID,
 		Status:      "draft",
 		CreatedAt:   time.Now(),

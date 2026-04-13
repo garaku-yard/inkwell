@@ -130,12 +130,12 @@ func (r *PostgresCollaborationRepository) GetProjectCollaborators(ctx context.Co
 }
 
 func (r *PostgresCollaborationRepository) GetUserInvitations(ctx context.Context, userID uuid.UUID) ([]*domain.Collaborator, error) {
-	// Query collaboration_invitations table for pending invites by email
+	// Query invitations table for pending invites by email
 	// Note: Since we don't have user's email from user ID, we'll need to enhance this
 	// For now, return all pending invitations as the user might match by email
 	query := `
 		SELECT invitation_id, project_id, inviter_id, email, role, created_at
-		FROM collaboration_invitations
+		FROM invitations
 		WHERE accepted = false AND expires_at > NOW()
 		ORDER BY created_at DESC`
 
@@ -185,11 +185,11 @@ func (r *PostgresCollaborationRepository) GetUserInvitations(ctx context.Context
 }
 
 func (r *PostgresCollaborationRepository) GetUserInvitationsByEmail(ctx context.Context, email string) ([]*domain.Collaborator, error) {
-	// Query collaboration_invitations table for pending invites by specific email
+	// Query invitations table for pending invites by specific email
 	// Also search for user tags that might resolve to this email (for backward compatibility)
 	query := `
 		SELECT invitation_id, project_id, inviter_id, email, role, created_at
-		FROM collaboration_invitations
+		FROM invitations
 		WHERE email = $1 AND accepted = false AND expires_at > NOW()
 		ORDER BY created_at DESC`
 
@@ -238,10 +238,10 @@ func (r *PostgresCollaborationRepository) GetUserInvitationsByEmail(ctx context.
 	return collaborators, nil
 }
 
-// CreateInvitation creates a new invitation in the collaboration_invitations table
+// CreateInvitation creates a new invitation in the invitations table
 func (r *PostgresCollaborationRepository) CreateInvitation(ctx context.Context, invitation *domain.Invitation) error {
 	query := `
-		INSERT INTO collaboration_invitations (invitation_id, project_id, inviter_id, email, role, token, expires_at, created_at)
+		INSERT INTO invitations (invitation_id, project_id, inviter_id, email, role, token, expires_at, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 	_, err := r.db.ExecContext(ctx, query,

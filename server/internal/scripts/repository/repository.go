@@ -152,8 +152,8 @@ func NewProjectRepository(db *sql.DB) ProjectRepository {
 // CreateProject creates a new project in the database
 func (r *projectRepository) CreateProject(ctx context.Context, project *domain.Project) error {
 	query := `
-		INSERT INTO projects (project_id, title, description, owner_id, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO projects (project_id, title, description, owner_id, category, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -161,6 +161,7 @@ func (r *projectRepository) CreateProject(ctx context.Context, project *domain.P
 		project.Title,
 		project.Description,
 		project.OwnerID,
+		project.Category,
 		project.Status,
 		project.CreatedAt,
 		project.UpdatedAt,
@@ -179,7 +180,7 @@ func (r *projectRepository) CreateProject(ctx context.Context, project *domain.P
 // GetProjectByID retrieves a project by ID
 func (r *projectRepository) GetProjectByID(ctx context.Context, projectID uuid.UUID) (*domain.Project, error) {
 	query := `
-		SELECT project_id, title, description, owner_id, status, is_starred, created_at, updated_at, deleted_at
+		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at
 		FROM projects
 		WHERE project_id = $1 AND deleted_at IS NULL
 	`
@@ -190,6 +191,7 @@ func (r *projectRepository) GetProjectByID(ctx context.Context, projectID uuid.U
 		&project.Title,
 		&project.Description,
 		&project.OwnerID,
+		&project.Category,
 		&project.Status,
 		&project.IsStarred,
 		&project.CreatedAt,
@@ -219,7 +221,7 @@ func (r *projectRepository) GetProjectsByOwner(ctx context.Context, ownerID uuid
 
 	// Get projects
 	query := `
-		SELECT project_id, title, description, owner_id, status, is_starred, created_at, updated_at, deleted_at
+		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at
 		FROM projects
 		WHERE owner_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -240,6 +242,7 @@ func (r *projectRepository) GetProjectsByOwner(ctx context.Context, ownerID uuid
 			&project.Title,
 			&project.Description,
 			&project.OwnerID,
+			&project.Category,
 			&project.Status,
 			&project.IsStarred,
 			&project.CreatedAt,

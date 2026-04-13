@@ -41,6 +41,11 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		return nil, err
 	}
 
+	workspaceHandler, err := handlers.NewWorkspaceHandler(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	// Static file serving for uploaded images
 	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
 
@@ -169,6 +174,36 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		r.Post("/api/ai/chat", aiHandler.Chat)
 		r.Get("/api/ai/providers", aiHandler.GetProviders)
 		r.Get("/api/ai/health", aiHandler.Health)
+
+		// Categories (read-only, no workspace context needed)
+		r.Get("/categories", workspaceHandler.ListCategories)
+
+		// Workspace routes
+		r.Route("/workspaces", func(r chi.Router) {
+			r.Get("/", workspaceHandler.ListUserWorkspaces)
+			r.Post("/personal", workspaceHandler.CreatePersonalWorkspaces)
+			r.Post("/org", workspaceHandler.CreateOrgWorkspace)
+
+			// Invite accept/decline (token in URL, no workspace context)
+			r.Post("/invites/{token}/accept", workspaceHandler.AcceptInvite)
+			r.Post("/invites/{token}/decline", workspaceHandler.DeclineInvite)
+
+			r.Route("/{workspaceId}", func(r chi.Router) {
+				r.Get("/", workspaceHandler.GetWorkspace)
+				r.Patch("/", workspaceHandler.UpdateWorkspace)
+				r.Delete("/", workspaceHandler.DeleteWorkspace)
+
+				// Category management (org workspaces)
+				r.Post("/categories/{slug}", workspaceHandler.EnableCategory)
+				r.Delete("/categories/{slug}", workspaceHandler.DisableCategory)
+
+				// Member management
+				r.Get("/members", workspaceHandler.ListMembers)
+				r.Post("/members/invite", workspaceHandler.InviteMember)
+				r.Patch("/members/{userId}/role", workspaceHandler.UpdateMemberRole)
+				r.Delete("/members/{userId}", workspaceHandler.RemoveMember)
+			})
+		})
 	})
 
 	return r, nil

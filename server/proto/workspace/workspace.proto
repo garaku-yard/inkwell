@@ -1,0 +1,227 @@
+syntax = "proto3";
+
+package workspace;
+
+option go_package = "scriptlith/server/pkg/grpc/workspace";
+
+import "common/types.proto";
+
+// ─── Entities ────────────────────────────────────────────────────────────────
+
+message Category {
+  string id   = 1;
+  string slug = 2; // novel, screenplay, comic_script, poetry, interactive_fiction, tabletop_rpg, memoir, lyrics
+  string name = 3;
+  string description = 4;
+  string icon = 5;
+}
+
+message Workspace {
+  string id          = 1;
+  string name        = 2;
+  string slug        = 3;
+  string type        = 4; // personal | org
+  string owner_id    = 5;
+  string avatar_url  = 6;
+  string description = 7;
+  repeated Category categories = 8;
+  common.Timestamp created_at  = 9;
+  common.Timestamp updated_at  = 10;
+}
+
+message WorkspaceMember {
+  string id           = 1;
+  string workspace_id = 2;
+  string user_id      = 3;
+  string role         = 4; // owner | admin | editor | viewer
+  string invited_by   = 5;
+  common.Timestamp joined_at  = 6;
+  common.Timestamp created_at = 7;
+}
+
+// ─── Category RPCs ───────────────────────────────────────────────────────────
+
+message ListCategoriesRequest {}
+
+message ListCategoriesResponse {
+  repeated Category categories = 1;
+}
+
+// ─── Workspace RPCs ──────────────────────────────────────────────────────────
+
+message CreatePersonalWorkspacesRequest {
+  string user_id = 1; // called on registration, creates one workspace per category slug provided
+  repeated string category_slugs = 2;
+}
+
+message CreatePersonalWorkspacesResponse {
+  repeated Workspace workspaces = 1;
+}
+
+message CreateOrgWorkspaceRequest {
+  string owner_id        = 1;
+  string name            = 2;
+  string description     = 3;
+  repeated string category_slugs = 4;
+}
+
+message CreateOrgWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+message GetWorkspaceRequest {
+  string workspace_id = 1;
+}
+
+message GetWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+message ListUserWorkspacesRequest {
+  string user_id = 1;
+}
+
+message ListUserWorkspacesResponse {
+  repeated Workspace personal  = 1;
+  repeated Workspace org       = 2;
+}
+
+message UpdateWorkspaceRequest {
+  string workspace_id = 1;
+  string name         = 2;
+  string description  = 3;
+  string avatar_url   = 4;
+}
+
+message UpdateWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+message DeleteWorkspaceRequest {
+  string workspace_id = 1;
+  string user_id      = 2; // must be owner
+}
+
+message DeleteWorkspaceResponse {
+  bool success = 1;
+}
+
+// ─── Category enable/disable (org workspaces only) ───────────────────────────
+
+message EnableCategoryRequest {
+  string workspace_id   = 1;
+  string category_slug  = 2;
+}
+
+message EnableCategoryResponse {
+  Workspace workspace = 1;
+}
+
+message DisableCategoryRequest {
+  string workspace_id   = 1;
+  string category_slug  = 2;
+}
+
+message DisableCategoryResponse {
+  Workspace workspace = 1;
+}
+
+// ─── Members ─────────────────────────────────────────────────────────────────
+
+message AddMemberRequest {
+  string workspace_id = 1;
+  string user_id      = 2;
+  string role         = 3;
+  string invited_by   = 4;
+}
+
+message AddMemberResponse {
+  WorkspaceMember member = 1;
+}
+
+message RemoveMemberRequest {
+  string workspace_id = 1;
+  string user_id      = 2;
+}
+
+message RemoveMemberResponse {
+  bool success = 1;
+}
+
+message UpdateMemberRoleRequest {
+  string workspace_id = 1;
+  string user_id      = 2;
+  string role         = 3;
+}
+
+message UpdateMemberRoleResponse {
+  WorkspaceMember member = 1;
+}
+
+message ListMembersRequest {
+  string workspace_id = 1;
+}
+
+message ListMembersResponse {
+  repeated WorkspaceMember members = 1;
+}
+
+// ─── Invites ─────────────────────────────────────────────────────────────────
+
+message InviteMemberRequest {
+  string workspace_id = 1;
+  string email        = 2;
+  string role         = 3;
+  string invited_by   = 4;
+}
+
+message InviteMemberResponse {
+  string invite_token = 1;
+}
+
+message AcceptInviteRequest {
+  string token   = 1;
+  string user_id = 2;
+}
+
+message AcceptInviteResponse {
+  Workspace workspace = 1;
+}
+
+message DeclineInviteRequest {
+  string token = 1;
+}
+
+message DeclineInviteResponse {
+  bool success = 1;
+}
+
+// ─── Service ─────────────────────────────────────────────────────────────────
+
+service WorkspaceService {
+  // Categories
+  rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
+
+  // Workspaces
+  rpc CreatePersonalWorkspaces(CreatePersonalWorkspacesRequest) returns (CreatePersonalWorkspacesResponse);
+  rpc CreateOrgWorkspace(CreateOrgWorkspaceRequest) returns (CreateOrgWorkspaceResponse);
+  rpc GetWorkspace(GetWorkspaceRequest) returns (GetWorkspaceResponse);
+  rpc ListUserWorkspaces(ListUserWorkspacesRequest) returns (ListUserWorkspacesResponse);
+  rpc UpdateWorkspace(UpdateWorkspaceRequest) returns (UpdateWorkspaceResponse);
+  rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (DeleteWorkspaceResponse);
+
+  // Workspace categories (org only)
+  rpc EnableCategory(EnableCategoryRequest) returns (EnableCategoryResponse);
+  rpc DisableCategory(DisableCategoryRequest) returns (DisableCategoryResponse);
+
+  // Members
+  rpc AddMember(AddMemberRequest) returns (AddMemberResponse);
+  rpc RemoveMember(RemoveMemberRequest) returns (RemoveMemberResponse);
+  rpc UpdateMemberRole(UpdateMemberRoleRequest) returns (UpdateMemberRoleResponse);
+  rpc ListMembers(ListMembersRequest) returns (ListMembersResponse);
+
+  // Invites
+  rpc InviteMember(InviteMemberRequest) returns (InviteMemberResponse);
+  rpc AcceptInvite(AcceptInviteRequest) returns (AcceptInviteResponse);
+  rpc DeclineInvite(DeclineInviteRequest) returns (DeclineInviteResponse);
+}

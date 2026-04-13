@@ -1,0 +1,1 @@
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS category VARCHAR(100) NOT NULL DEFAULT 'screenplay';

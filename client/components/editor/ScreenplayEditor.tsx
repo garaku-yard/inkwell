@@ -281,37 +281,21 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     (id: string, content: string, isScene: boolean) => {
       debouncedSave.cancel()
 
-      setProject((prevProject) => {
-        if (isScene) {
-          const newScenes = prevProject.scenes?.map((scene) =>
-            scene.id === id ? { ...scene, scene_heading: content } : scene
-          ) || []
-          return { ...prevProject, scenes: newScenes }
-        } else {
-          const newScenes = prevProject.scenes?.map((scene) => ({
-            ...scene,
-            elements: scene.elements?.map((el) => (el.id === id ? { ...el, content: content } : el)),
-          })) || []
-          return { ...prevProject, scenes: newScenes }
-        }
-      })
+      // contentEditable manages its own DOM — no React state update needed here.
+      // Syncing content into project state on every blur causes a full re-render
+      // cascade across all elements. The DOM already has the latest content and
+      // the backend save below is the source of truth.
 
       if (id.startsWith("new-")) return
+      if (!user?.id) return
+
       if (isScene) {
-        if (!user?.id) {
-          console.error("Cannot update scene: No user ID available.")
-          return
-        }
         updateSceneHeading(id, user.id, content).catch((err) => console.error("Scene save failed on blur:", err))
       } else {
-        if (!user?.id) {
-          console.error("Cannot update element: No user ID available.")
-          return
-        }
         updateElementContent(id, user.id, content).catch((err) => console.error("Element save failed on blur:", err))
       }
     },
-    [debouncedSave],
+    [debouncedSave, user?.id],
   )
 
   const handleFocus = useCallback((id: string, type: ToolbarScriptElementType | "SCENE_HEADING" | null) => {
@@ -596,7 +580,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             }))
             return { ...prevProject, scenes: newScenes }
           })
-          setActiveElementType(elementToTransform!.element_type)
+          setActiveElementType(elementToTransform!.element_type as ToolbarScriptElementType)
           toast({
             title: "Error",
             description: "Failed to transform element. Please try again.",
@@ -922,7 +906,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
       <div className="flex flex-1 overflow-hidden">
         <SidePanel
-          key={refreshTrigger}
           ref={sidePanelRef}
           project={project}
           allScenes={allScenes}
@@ -934,6 +917,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           onUpdateComment={handleUpdateComment}
           onDeleteComment={handleDeleteComment}
           onToggleCommentResolved={handleToggleCommentResolved}
+          refreshTrigger={refreshTrigger}
         />
 
         <div className={cn("flex-1 flex flex-col overflow-hidden", isAIChatOpen && "border-r border-border/40")}>

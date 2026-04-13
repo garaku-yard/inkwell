@@ -45,7 +45,7 @@ func (h *ScriptsHandler) CreateProject(ctx context.Context, req *scriptspb.Creat
 	}
 
 	// Create project via service
-	project, err := h.service.CreateProject(ctx, req.Title, req.Description, ownerID)
+	project, err := h.service.CreateProject(ctx, req.Title, req.Description, req.Category, ownerID)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -524,6 +524,7 @@ func convertProjectToProto(project *domain.Project) *scriptspb.Project {
 		Title:       project.Title,
 		Description: project.Description,
 		OwnerId:     project.OwnerID.String(),
+		Category:    project.Category,
 		Status:      project.Status,
 		IsStarred:   project.IsStarred,
 		CreatedAt: &common.Timestamp{

@@ -17,12 +17,13 @@ type Config struct {
 	AllowedOrigins []string `env:"ALLOWED_ORIGINS" default:"http://localhost:3000"`
 
 	// Service configurations
-	IdentityService ServiceConfig
-	ScriptsService  ServiceConfig
-	CollabService   ServiceConfig
-	BillingService  ServiceConfig
-	AIService       ServiceConfig
-	AIChatService   ServiceConfig
+	IdentityService  ServiceConfig
+	ScriptsService   ServiceConfig
+	CollabService    ServiceConfig
+	BillingService   ServiceConfig
+	AIService        ServiceConfig
+	AIChatService    ServiceConfig
+	WorkspaceService ServiceConfig
 
 	// JWT configuration (for token validation)
 	JWTSecret string `env:"JWT_SECRET" default:"dev-gateway-secret"`
@@ -84,6 +85,10 @@ func Load() (*Config, error) {
 		AIChatService: ServiceConfig{
 			Host: getEnvOrDefault("AI_CHAT_SERVICE_HOST", "localhost"),
 			Port: getEnvOrDefault("AI_CHAT_SERVICE_PORT", "50054"),
+		},
+		WorkspaceService: ServiceConfig{
+			Host: getEnvOrDefault("WORKSPACE_SERVICE_HOST", "localhost"),
+			Port: getEnvOrDefault("WORKSPACE_SERVICE_PORT", "50056"),
 		},
 	}
 

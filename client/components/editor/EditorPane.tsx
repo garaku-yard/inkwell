@@ -1,7 +1,6 @@
 "use client"
 
-import React, { useRef, useImperativeHandle, useEffect } from "react"
-import { useVirtualizer } from "@tanstack/react-virtual"
+import React, { useRef, useImperativeHandle, useEffect, useMemo } from "react"
 import type { Scene, ScriptElement } from "@/services/project"
 import { EditableElement } from "./EditableElement"
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
@@ -67,46 +66,27 @@ export const EditorPane = React.memo(
       }
     }, [items.length])
 
-    const rowVirtualizer = useVirtualizer({
-      count: items.length,
-      getScrollElement: () => parentRef.current,
-      estimateSize: (index) => {
-        const item = items[index]
-        if (!item) return 40
-
-        const content = item.type === "SCENE_HEADING" ? item.data.scene_heading : item.data.content
-        const contentLength = content.length
-
-        const estimatedLines = Math.max(1, Math.ceil(contentLength / 80))
-        return Math.max(40, estimatedLines * 24)
-      },
-      overscan: 10,
-      measureElement: (element) => element.getBoundingClientRect().height,
-    })
-
     // US Letter: 8.5in x 11in at 96 DPI
     // With margins: 1in top, 1in bottom = 9in content height
     // 9 inches × 96 DPI = 864px available for content
     const PAGE_CONTENT_HEIGHT = 9 * 96 // 864px
 
-    const organizeItemsIntoPages = () => {
-      const pages: { items: ScriptItem[], height: number }[] = []
+    const pages = useMemo(() => {
+      const result: { items: ScriptItem[], height: number }[] = []
       let currentPageHeight = 0
       let currentPageItems: ScriptItem[] = []
 
-      // Use a more realistic line height calculation
       // 12pt font with 1.5 line-height = 18pt = ~24px per line
       const LINE_HEIGHT = 24
       const ELEMENT_PADDING = 8 // py-1 = 4px top + 4px bottom
 
       items.forEach((item) => {
         const content = item.type === "SCENE_HEADING" ? item.data.scene_heading : item.data.content
-        // Calculate based on actual content - roughly 60 chars per line for screenplay
         const lines = Math.max(1, Math.ceil((content?.length || 0) / 60))
         const estimatedHeight = (lines * LINE_HEIGHT) + ELEMENT_PADDING
 
         if (currentPageHeight + estimatedHeight > PAGE_CONTENT_HEIGHT && currentPageItems.length > 0) {
-          pages.push({ items: [...currentPageItems], height: currentPageHeight })
+          result.push({ items: [...currentPageItems], height: currentPageHeight })
           currentPageItems = [item]
           currentPageHeight = estimatedHeight
         } else {
@@ -116,13 +96,11 @@ export const EditorPane = React.memo(
       })
 
       if (currentPageItems.length > 0) {
-        pages.push({ items: [...currentPageItems], height: currentPageHeight })
+        result.push({ items: [...currentPageItems], height: currentPageHeight })
       }
 
-      return pages
-    }
-
-    const pages = organizeItemsIntoPages()
+      return result
+    }, [items])
 
     useImperativeHandle(ref, () => ({
       scrollToIndex: (index: number) => {

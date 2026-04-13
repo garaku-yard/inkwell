@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Clipboard, Film, Hash, MessageCircle } from "lucide-react"
 import type { FullProject, Scene, ScriptElement, Comment } from "@/services/project"
 import { getComments } from "@/services/project"
-import { SCRIPT_ELEMENT_CONFIG } from "@/lib/helpers/screenplay-config"
+import { SCRIPT_ELEMENT_CONFIG, type ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { Separator } from "@/components/ui/separator"
 import { CommentPanel } from "./CommentPanel"
 
@@ -27,7 +27,8 @@ interface SidePanelProps {
   onAddComment: (elementId: string, isScene: boolean, content: string) => void
   onUpdateComment: (commentId: string, content: string) => void
   onDeleteComment: (commentId: string) => void
-  onToggleCommentResolved: (elementId: string, commentId: string, isScene: boolean, newResolvedState: boolean) => void;
+  onToggleCommentResolved: (elementId: string, commentId: string, isScene: boolean, newResolvedState: boolean) => void
+  refreshTrigger?: number
 }
 
 export const SidePanel = React.memo(
@@ -44,6 +45,7 @@ export const SidePanel = React.memo(
         onUpdateComment,
         onDeleteComment,
         onToggleCommentResolved,
+        refreshTrigger,
       },
       ref,
     ) => {
@@ -54,7 +56,7 @@ export const SidePanel = React.memo(
 
       useEffect(() => {
         loadAllComments()
-      }, [project.id])
+      }, [project.id, refreshTrigger])
 
       const loadAllComments = async () => {
         setCommentsLoading(true)
@@ -70,7 +72,7 @@ export const SidePanel = React.memo(
       };
 
       const getElementIcon = (elementType: ScriptElement["element_type"]) => {
-        const config = SCRIPT_ELEMENT_CONFIG[elementType]
+        const config = SCRIPT_ELEMENT_CONFIG[elementType as keyof typeof SCRIPT_ELEMENT_CONFIG]
         if (config && typeof config.icon === "function") {
           const IconComponent = config.icon
           return <IconComponent className="h-3 w-3" />
@@ -79,7 +81,7 @@ export const SidePanel = React.memo(
       }
 
       const getElementTypeColor = (elementType: ScriptElement["element_type"]) => {
-        return SCRIPT_ELEMENT_CONFIG[elementType]?.badgeColor || "bg-gray-100 text-gray-700 border-gray-200"
+        return (SCRIPT_ELEMENT_CONFIG[elementType as keyof typeof SCRIPT_ELEMENT_CONFIG] as any)?.badgeColor || "bg-gray-100 text-gray-700 border-gray-200"
       }
 
       const getCommentCount = (elementId: string) => {

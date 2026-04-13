@@ -46,6 +46,7 @@ build-all: proto
 	@go build -o bin/scriptlith-scripts ./cmd/scripts
 	@go build -o bin/scriptlith-collab ./cmd/collab
 	@go build -o bin/scriptlith-billing ./cmd/billing
+	@go build -o bin/scriptlith-workspace ./cmd/workspace
 	@echo "✅ All services built successfully"
 
 # Build specific service
@@ -63,6 +64,9 @@ build-collab: proto
 
 build-billing: proto
 	@go build -o bin/scriptlith-billing ./cmd/billing
+
+build-workspace: proto
+	@go build -o bin/scriptlith-workspace ./cmd/workspace
 
 # Development environment
 run-dev:

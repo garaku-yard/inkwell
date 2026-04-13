@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS workspace_invites CASCADE;
+DROP TABLE IF EXISTS workspace_members CASCADE;
+DROP TABLE IF EXISTS workspace_categories CASCADE;
+DROP TABLE IF EXISTS workspaces CASCADE;
+DROP TABLE IF EXISTS categories CASCADE;

@@ -261,6 +261,49 @@ services:
     networks:
       - scriptlith-network
 
+  postgres-workspace:
+    image: postgres:15-alpine
+    container_name: scriptlith-workspace-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: workspace_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres_workspace_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - scriptlith-network
+
+  workspace-service:
+    build:
+      context: ./server
+      dockerfile: cmd/workspace/Dockerfile
+    container_name: scriptlith-workspace-service
+    restart: unless-stopped
+    ports:
+      - "50056:50056"
+    environment:
+      - GRPC_PORT=50056
+      - WORKSPACE_DB_HOST=postgres-workspace
+      - WORKSPACE_DB_PORT=5432
+      - WORKSPACE_DB_USER=${POSTGRES_USER:-postgres}
+      - WORKSPACE_DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - WORKSPACE_DB_NAME=workspace_db
+      - WORKSPACE_DB_SSLMODE=disable
+      - RUN_MIGRATIONS=true
+    depends_on:
+      postgres-workspace:
+        condition: service_healthy
+    networks:
+      - scriptlith-network
+
   ai-service:
     build:
       context: ./server/services/ai
@@ -301,6 +344,8 @@ services:
       - AI_SERVICE_PORT=50051
       - AI_CHAT_SERVICE_HOST=ai-service
       - AI_CHAT_SERVICE_PORT=50054
+      - WORKSPACE_SERVICE_HOST=workspace-service
+      - WORKSPACE_SERVICE_PORT=50056
       - REDIS_URL=redis:6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-redis}
       - JWT_SECRET=${JWT_SECRET:-dev-secret-key-change-in-production}
@@ -312,6 +357,7 @@ services:
       - collab-service
       - billing-service
       - ai-service
+      - workspace-service
     networks:
       - scriptlith-network
 
@@ -341,6 +387,8 @@ volumes:
   postgres_collab_data:
     driver: local
   postgres_billing_data:
+    driver: local
+  postgres_workspace_data:
     driver: local
   redis_data:
     driver: local

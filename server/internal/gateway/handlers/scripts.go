@@ -83,6 +83,7 @@ func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		Title       string `json:"title"`
 		Description string `json:"description"`
 		OwnerID     string `json:"owner_id"`
+		Category    string `json:"category"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -107,6 +108,7 @@ func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		Title:       req.Title,
 		Description: req.Description,
 		OwnerId:     req.OwnerID,
+		Category:    req.Category,
 	})
 	if err != nil {
 		http.Error(w, "Failed to create project: "+err.Error(), http.StatusInternalServerError)
@@ -727,6 +729,7 @@ func convertProjectFromProto(project *scriptspb.Project) map[string]interface{} 
 		"title":       project.Title,
 		"description": project.Description,
 		"owner_id":    project.OwnerId,
+		"category":    project.Category,
 		"status":      project.Status,
 		"is_starred":  project.IsStarred,
 	}

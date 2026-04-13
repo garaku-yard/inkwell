@@ -6,13 +6,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// Project represents a screenplay project
+// Project represents a writing project
 type Project struct {
 	ID          uuid.UUID  `json:"id" db:"project_id"`
 	Title       string     `json:"title" db:"title"`
 	Description string     `json:"description" db:"description"`
 	OwnerID     uuid.UUID  `json:"owner_id" db:"owner_id"`
-	Status      string     `json:"status" db:"status"` // "draft", "active", "completed", "archived"
+	Category    string     `json:"category" db:"category"` // "screenplay", "novel", "comic_script", "poetry", "interactive_fiction", "tabletop_rpg", "memoir", "lyrics"
+	Status      string     `json:"status" db:"status"`     // "draft", "active", "completed", "archived"
 	IsStarred   bool       `json:"is_starred" db:"is_starred"`
 	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
