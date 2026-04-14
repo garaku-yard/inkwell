@@ -1,26 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus, Settings2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useWorkspace } from "@/lib/WorkspaceContext"
 import { AddWorkspaceDialog } from "./AddWorkspaceDialog"
 import { CreateOrgWorkspaceDialog } from "./CreateOrgWorkspaceDialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import type { Workspace } from "@/services/workspace"
-import { deleteWorkspace } from "@/services/workspace"
 import { CategoryIcon, CATEGORY_COLORS } from "./CategoryIcon"
-import { useToast } from "@/hooks/use-toast"
 
 function workspaceInitials(name: string): string {
   return name
@@ -40,10 +29,8 @@ function WorkspaceIcon({
   isActive: boolean
   onClick: () => void
 }) {
-  // For personal workspaces with a single category, use that category's color
   const primarySlug = workspace.categories?.[0]?.slug ?? ""
   const categoryColor = CATEGORY_COLORS[primarySlug]
-  // Use category ring color when active, else subtle default
   const ringColor = categoryColor?.ring ?? "#6366f1"
 
   return (
@@ -71,7 +58,6 @@ function WorkspaceIcon({
           ) : primarySlug ? (
             <CategoryIcon slug={primarySlug} size={40} rounded={isActive ? 10 : 14} />
           ) : (
-            // org workspace or unknown — initials with dark bg
             <span className="flex h-10 w-10 items-center justify-center rounded-[inherit] bg-muted text-muted-foreground text-sm font-bold">
               {workspaceInitials(workspace.name)}
             </span>
@@ -95,35 +81,10 @@ function WorkspaceIcon({
 }
 
 export function WorkspaceSwitcher() {
-  const { workspaces, activeWorkspace, setActiveWorkspace, isLoading, refetch } = useWorkspace()
+  const { workspaces, activeWorkspace, setActiveWorkspace, isLoading } = useWorkspace()
+  const router = useRouter()
   const [addOpen, setAddOpen] = useState(false)
   const [createOrgOpen, setCreateOrgOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const { toast } = useToast()
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget) return
-    setIsDeleting(true)
-    try {
-      await deleteWorkspace(deleteTarget.id)
-      toast({ title: "Organization deleted", description: `"${deleteTarget.name}" has been deleted.` })
-      // If we deleted the active workspace, switch to the first remaining one
-      if (activeWorkspace?.id === deleteTarget.id) {
-        const remaining = [
-          ...(workspaces.personal ?? []),
-          ...(workspaces.org ?? []).filter(w => w.id !== deleteTarget.id),
-        ]
-        if (remaining.length > 0) setActiveWorkspace(remaining[0])
-      }
-      setDeleteTarget(null)
-      refetch()
-    } catch {
-      toast({ title: "Failed to delete", description: "Could not delete the organization.", variant: "destructive" })
-    } finally {
-      setIsDeleting(false)
-    }
-  }
 
   const allPersonal = workspaces.personal ?? []
   const allOrg = workspaces.org ?? []
@@ -153,26 +114,19 @@ export function WorkspaceSwitcher() {
               <div className="my-1 h-px w-8 bg-border" />
             )}
 
-            {/* Org workspaces — right-click to delete */}
+            {/* Org workspaces */}
             {allOrg.map((ws) => (
-              <div
+              <WorkspaceIcon
                 key={ws.id}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  setDeleteTarget(ws)
-                }}
-              >
-                <WorkspaceIcon
-                  workspace={ws}
-                  isActive={activeWorkspace?.id === ws.id}
-                  onClick={() => setActiveWorkspace(ws)}
-                />
-              </div>
+                workspace={ws}
+                isActive={activeWorkspace?.id === ws.id}
+                onClick={() => setActiveWorkspace(ws)}
+              />
             ))}
           </>
         )}
 
-        {/* Spacer pushes the add button to the bottom */}
+        {/* Spacer pushes the buttons to the bottom */}
         <div className="flex-1" />
 
         {/* Add workspace */}
@@ -193,6 +147,27 @@ export function WorkspaceSwitcher() {
             <p>Add workspace</p>
           </TooltipContent>
         </Tooltip>
+
+        {/* Workspace settings */}
+        {activeWorkspace && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => router.push(`/workspace/${activeWorkspace.id}/settings`)}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-[14px] border border-border",
+                  "text-muted-foreground transition-all duration-150 hover:rounded-[10px] hover:border-primary hover:text-primary"
+                )}
+                aria-label="Workspace settings"
+              >
+                <Settings2 className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Workspace settings</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </aside>
 
       <AddWorkspaceDialog
@@ -204,27 +179,6 @@ export function WorkspaceSwitcher() {
         open={createOrgOpen}
         onOpenChange={setCreateOrgOpen}
       />
-
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete &quot;{deleteTarget?.name}&quot;?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the organization and all its data. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? "Deleting…" : "Delete organization"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   )
 }
