@@ -53,6 +53,10 @@ func (c *Config) CollaborationServiceURL() string {
 	return c.CollabService.URL()
 }
 
+func (c *Config) BillingServiceURL() string {
+	return c.BillingService.URL()
+}
+
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	config := &Config{

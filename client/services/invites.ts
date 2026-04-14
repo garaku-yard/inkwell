@@ -1,10 +1,13 @@
 import { apiClient } from "@/lib/api";
 
 export interface Invitation {
+  id: string;
   projectId: string;
   projectName: string;
   invitedBy: string;
   createdAt: string;
+  role?: string;
+  status?: string;
 }
 
 /**
@@ -15,13 +18,21 @@ export const getPendingInvites = (): Promise<Invitation[]> => {
 };
 
 /**
- * Responds to a pending invitation.
- * @param projectId The ID of the project for the invitation.
- * @param accepted True to accept the invitation, false to decline.
+ * Accepts a pending invitation by its invitation ID.
  */
-export const respondToInvite = (projectId: string, accepted: boolean): Promise<void> => {
-  return apiClient<void>(`invitations/${projectId}`, {
-    method: "PATCH",
-    body: { accepted },
+export const acceptInvite = (invitationId: string): Promise<void> => {
+  return apiClient<void>("invitations/accept", {
+    method: "POST",
+    body: { id: invitationId },
+  });
+};
+
+/**
+ * Declines a pending invitation by its invitation ID.
+ */
+export const declineInvite = (invitationId: string): Promise<void> => {
+  return apiClient<void>("invitations/decline", {
+    method: "POST",
+    body: { id: invitationId },
   });
 };

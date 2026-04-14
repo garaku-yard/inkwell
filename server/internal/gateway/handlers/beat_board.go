@@ -444,7 +444,7 @@ func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 
 // UpdateLaneOrder handles PUT /projects/{projectID}/beat-board/lanes/order
 func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
+	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -453,7 +453,8 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes/order")
 
 	var req struct {
-		LaneIDs []string `json:"laneIds"`
+		LaneIDs    []string `json:"laneIds"`
+		OrderedIDs []string `json:"orderedIds"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -461,10 +462,15 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	laneIds := req.LaneIDs
+	if len(laneIds) == 0 {
+		laneIds = req.OrderedIDs
+	}
+
 	_, err := h.scriptsClient.UpdateLaneOrder(context.Background(), &scriptspb.UpdateLaneOrderRequest{
 		ProjectId: projectID,
 		UserId:    userID,
-		LaneIds:   req.LaneIDs,
+		LaneIds:   laneIds,
 	})
 
 	if err != nil {

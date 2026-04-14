@@ -9,6 +9,40 @@ export interface DataDeletionRequest {
   expectedCompletionDate?: string
 }
 
+export interface UpdateProfileData {
+  username?: string
+  email?: string
+}
+
+export interface UpdateProfileResponse {
+  id: string
+  username: string
+  usernameTag: string
+  name: string
+  lastName: string
+  email: string
+}
+
+/**
+ * Update the current user's profile (username, email)
+ */
+export const updateUserProfile = async (data: UpdateProfileData): Promise<UpdateProfileResponse> => {
+  return apiClient<UpdateProfileResponse>("users/me", {
+    method: "PATCH",
+    body: data,
+  })
+}
+
+/**
+ * Change the current user's password
+ */
+export const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+  return apiClient<void>("users/me/password", {
+    method: "POST",
+    body: { currentPassword, newPassword },
+  })
+}
+
 /**
  * Clear local cache data
  */

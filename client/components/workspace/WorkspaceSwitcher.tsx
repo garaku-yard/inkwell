@@ -1,14 +1,26 @@
 "use client"
 
 import { useState } from "react"
-import { Plus } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useWorkspace } from "@/lib/WorkspaceContext"
 import { AddWorkspaceDialog } from "./AddWorkspaceDialog"
 import { CreateOrgWorkspaceDialog } from "./CreateOrgWorkspaceDialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import type { Workspace } from "@/services/workspace"
+import { deleteWorkspace } from "@/services/workspace"
 import { CategoryIcon, CATEGORY_COLORS } from "./CategoryIcon"
+import { useToast } from "@/hooks/use-toast"
 
 function workspaceInitials(name: string): string {
   return name
@@ -40,9 +52,9 @@ function WorkspaceIcon({
         <button
           onClick={onClick}
           className={cn(
-            "relative flex h-10 w-10 items-center justify-center rounded-[14px] text-sm font-bold transition-all duration-150 select-none overflow-hidden",
+            "relative flex h-10 w-10 items-center justify-center rounded-[14px] text-sm font-bold transition-all duration-150 select-none border",
             "hover:rounded-[10px]",
-            isActive ? "rounded-[10px]" : ""
+            isActive ? "rounded-[10px] border-transparent" : "border-black dark:border-black"
           )}
           style={isActive ? {
             boxShadow: `0 0 0 2.5px ${ringColor}, 0 0 0 4px var(--background, #fff)`,
@@ -83,9 +95,35 @@ function WorkspaceIcon({
 }
 
 export function WorkspaceSwitcher() {
-  const { workspaces, activeWorkspace, setActiveWorkspace, isLoading } = useWorkspace()
+  const { workspaces, activeWorkspace, setActiveWorkspace, isLoading, refetch } = useWorkspace()
   const [addOpen, setAddOpen] = useState(false)
   const [createOrgOpen, setCreateOrgOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const { toast } = useToast()
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    setIsDeleting(true)
+    try {
+      await deleteWorkspace(deleteTarget.id)
+      toast({ title: "Organization deleted", description: `"${deleteTarget.name}" has been deleted.` })
+      // If we deleted the active workspace, switch to the first remaining one
+      if (activeWorkspace?.id === deleteTarget.id) {
+        const remaining = [
+          ...(workspaces.personal ?? []),
+          ...(workspaces.org ?? []).filter(w => w.id !== deleteTarget.id),
+        ]
+        if (remaining.length > 0) setActiveWorkspace(remaining[0])
+      }
+      setDeleteTarget(null)
+      refetch()
+    } catch {
+      toast({ title: "Failed to delete", description: "Could not delete the organization.", variant: "destructive" })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   const allPersonal = workspaces.personal ?? []
   const allOrg = workspaces.org ?? []
@@ -115,14 +153,21 @@ export function WorkspaceSwitcher() {
               <div className="my-1 h-px w-8 bg-border" />
             )}
 
-            {/* Org workspaces */}
+            {/* Org workspaces — right-click to delete */}
             {allOrg.map((ws) => (
-              <WorkspaceIcon
+              <div
                 key={ws.id}
-                workspace={ws}
-                isActive={activeWorkspace?.id === ws.id}
-                onClick={() => setActiveWorkspace(ws)}
-              />
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setDeleteTarget(ws)
+                }}
+              >
+                <WorkspaceIcon
+                  workspace={ws}
+                  isActive={activeWorkspace?.id === ws.id}
+                  onClick={() => setActiveWorkspace(ws)}
+                />
+              </div>
             ))}
           </>
         )}
@@ -159,6 +204,27 @@ export function WorkspaceSwitcher() {
         open={createOrgOpen}
         onOpenChange={setCreateOrgOpen}
       />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete &quot;{deleteTarget?.name}&quot;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the organization and all its data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting…" : "Delete organization"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

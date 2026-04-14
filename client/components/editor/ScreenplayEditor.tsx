@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useRef, useCallback, useMemo, useEffect } from "react"
 import Link from "next/link"
-import { Download, FileText, ArrowLeft, Bot, FilePlus2Icon, BarChart3 } from "lucide-react"
+import { Download, FileText, ArrowLeft, Bot, FilePlus2Icon, BarChart3, ChevronDown } from "lucide-react"
 import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { Toolbar } from "./Toolbar"
@@ -29,6 +29,14 @@ import { getKeyString, createKeymap } from "@/lib/editor/keymap";
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { AIChatPanel } from "./AIChatPanel"
 import { useAuth } from "@/lib/AuthContext"
+import { exportScreenplayToPDF } from "@/lib/export/screenplay-pdf"
+import { exportScreenplayToFDX } from "@/lib/export/screenplay-fdx"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -886,16 +894,29 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
               <Bot className="h-4 w-4" />
               Writing Buddy
             </Button>
-            <Link href={`/dashboard/projects/${project.id}/analytics`}>
+            <Link href={`/analytics?project=${project.id}`}>
               <Button variant="outline" className="gap-2 bg-transparent">
                 <BarChart3 className="h-4 w-4" />
                 Analytics
               </Button>
             </Link>
-            <Button variant="outline" className="gap-2 bg-transparent">
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2 bg-transparent">
+                  <Download className="h-4 w-4" />
+                  Export
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportScreenplayToPDF(project)}>
+                  Export as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportScreenplayToFDX(project)}>
+                  Export as FDX (Final Draft)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="outline" className="gap-2 bg-transparent" onClick={() => setIsImportProjectDialogOpen(true)}>
               <FilePlus2Icon className="h-4 w-4" />
               Import

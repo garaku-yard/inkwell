@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, ChevronRight, ChevronDown } from "lucide-react"
+import { ArrowLeft, Plus, ChevronRight, ChevronDown, Table, Pencil } from "lucide-react"
 import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -40,6 +40,32 @@ const ELEMENT_PLACEHOLDERS: Record<RPGElementType, string> = {
   rule_box: "Rule text in a highlighted box…",
 }
 
+interface ParsedTable {
+  headers: string[]
+  rows: string[][]
+}
+
+function parsePipeTable(content: string): ParsedTable | null {
+  const lines = content.split("\n").map((l) => l.trim()).filter(Boolean)
+  if (lines.length < 2) return null
+
+  const splitRow = (line: string): string[] => {
+    // Strip leading/trailing pipes if present, then split
+    const stripped = line.replace(/^\||\|$/g, "")
+    return stripped.split("|").map((c) => c.trim())
+  }
+
+  const headers = splitRow(lines[0])
+  if (headers.length === 0) return null
+
+  // Second line must be a separator row (--- | --- | ---)
+  const isSeparator = /^[-|\s:]+$/.test(lines[1])
+  if (!isSeparator) return null
+
+  const rows = lines.slice(2).map(splitRow)
+  return { headers, rows }
+}
+
 interface TabletopRPGEditorProps {
   projectData: FullProject
 }
@@ -52,6 +78,11 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const [elements, setElements] = useState<ScriptElement[]>([])
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [tableMode, setTableMode] = useState<Record<string, "edit" | "preview">>({})
+
+  const toggleTableMode = useCallback((id: string) => {
+    setTableMode((prev) => ({ ...prev, [id]: prev[id] === "preview" ? "edit" : "preview" }))
+  }, [])
 
   useEffect(() => {
     if (!user?.id) return
@@ -187,26 +218,96 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     }
 
     if (el.element_type === "table") {
+      const mode = tableMode[el.id] ?? "edit"
+      const parsed = mode === "preview" ? parsePipeTable(el.content) : null
+
       return (
         <div key={el.id} className="my-3 rounded-lg border overflow-hidden">
-          <div
-            className="flex items-center justify-between px-3 py-1.5 bg-muted cursor-pointer select-none"
-            onClick={() => toggleCollapse(el.id)}
-          >
-            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Table</span>
-            {isCollapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" />}
+          <div className="flex items-center justify-between px-3 py-1.5 bg-muted select-none">
+            <div
+              className="flex items-center gap-1.5 cursor-pointer flex-1"
+              onClick={() => toggleCollapse(el.id)}
+            >
+              <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Table</span>
+              {isCollapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" />}
+            </div>
+            {!isCollapsed && (
+              <button
+                onClick={() => toggleTableMode(el.id)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-background/60"
+              >
+                {mode === "edit" ? (
+                  <><Table className="h-3 w-3" /> Preview</>
+                ) : (
+                  <><Pencil className="h-3 w-3" /> Edit</>
+                )}
+              </button>
+            )}
           </div>
           {!isCollapsed && (
-            <div
-              id={`el-${el.id}`}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
-              className="font-mono text-sm outline-none px-3 py-2 whitespace-pre-wrap min-h-[3rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/40"
-              data-placeholder={ELEMENT_PLACEHOLDERS.table}
-            >
-              {el.content}
-            </div>
+            mode === "preview" && parsed ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-muted/60">
+                      {parsed.headers.map((h, i) => (
+                        <th
+                          key={i}
+                          className="px-3 py-2 text-left font-semibold border-b border-border text-foreground text-xs uppercase tracking-wide"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsed.rows.map((row, ri) => (
+                      <tr
+                        key={ri}
+                        className={cn(
+                          "border-b border-border/50 last:border-0",
+                          ri % 2 === 0 ? "bg-background" : "bg-muted/20"
+                        )}
+                      >
+                        {row.map((cell, ci) => (
+                          <td key={ci} className="px-3 py-2 text-foreground/90">
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                    {parsed.rows.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={parsed.headers.length}
+                          className="px-3 py-4 text-center text-muted-foreground text-xs"
+                        >
+                          No rows yet
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : mode === "preview" && !parsed ? (
+              <div className="px-3 py-4 text-center text-muted-foreground text-xs">
+                No valid table syntax yet. Switch to Edit and use:<br />
+                <code className="font-mono mt-1 block">Col A | Col B | Col C</code>
+                <code className="font-mono">--- | --- | ---</code>
+                <code className="font-mono">Val 1 | Val 2 | Val 3</code>
+              </div>
+            ) : (
+              <div
+                id={`el-${el.id}`}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                className="font-mono text-sm outline-none px-3 py-2 whitespace-pre-wrap min-h-[3rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/40"
+                data-placeholder={ELEMENT_PLACEHOLDERS.table}
+              >
+                {el.content}
+              </div>
+            )
           )}
         </div>
       )

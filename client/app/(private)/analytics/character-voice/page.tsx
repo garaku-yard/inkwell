@@ -5,34 +5,27 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
-import { ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useSearchParams } from 'next/navigation'
-
-const vocabularyData = [
-  { character: "JANE", unique: 245, total: 680 },
-  { character: "MARK", unique: 198, total: 520 },
-  { character: "SARAH", unique: 156, total: 380 },
-]
-
-const sentenceComplexity = [
-  { character: "JANE", simple: 45, compound: 35, complex: 20 },
-  { character: "MARK", simple: 60, compound: 25, complex: 15 },
-  { character: "SARAH", simple: 50, compound: 30, complex: 20 },
-]
-
-const emotionalTone = [
-  { name: "Professional", value: 45, color: "oklch(0.62 0.24 264)" },
-  { name: "Confident", value: 30, color: "oklch(0.58 0.19 210)" },
-  { name: "Urgent", value: 15, color: "oklch(0.68 0.15 85)" },
-  { name: "Casual", value: 10, color: "oklch(0.55 0.18 142)" },
-]
+import { useProjectAnalytics } from "@/hooks/useProjectAnalytics"
 
 export default function CharacterVoiceAnalysis() {
-  const searchParams = useSearchParams()
-  const projectId = searchParams.get('project') || '272b597d-63c1-4b29-9150-c0cefd009987'
+  const { projectId, analytics, isLoading, error } = useProjectAnalytics()
+
+  if (isLoading) return (
+    <div className="flex h-screen items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  )
+
+  if (error || !analytics) return (
+    <div className="flex h-screen items-center justify-center text-muted-foreground">
+      {error ?? "No project data."}
+    </div>
+  )
+
+  const maxWords = Math.max(...analytics.characters.map(c => c.words), 1)
+  const maxDistinct = Math.max(...analytics.characters.map(c => c.distinctWords), 1)
 
   return (
     <div className="min-h-screen bg-background">
@@ -53,262 +46,136 @@ export default function CharacterVoiceAnalysis() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl p-6">
-        <Tabs defaultValue="jane" className="space-y-6">
-          <TabsList className="bg-muted">
-            <TabsTrigger value="jane">JANE</TabsTrigger>
-            <TabsTrigger value="mark">MARK</TabsTrigger>
-            <TabsTrigger value="sarah">SARAH</TabsTrigger>
+      <main className="mx-auto max-w-7xl p-6 space-y-6">
+        <div className="grid gap-6 md:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Speaking Characters</CardDescription>
+              <CardTitle className="text-3xl font-bold">{analytics.characters.length}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">With at least one dialogue line</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Total Dialogue Lines</CardDescription>
+              <CardTitle className="text-3xl font-bold">{analytics.totalDialogueLines}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">Across all characters</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Most Verbose</CardDescription>
+              <CardTitle className="text-3xl font-bold truncate">
+                {analytics.characters.sort((a, b) => b.wordsPerLine - a.wordsPerLine)[0]?.name ?? "—"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                {analytics.characters.sort((a, b) => b.wordsPerLine - a.wordsPerLine)[0]
+                  ? `${analytics.characters.sort((a, b) => b.wordsPerLine - a.wordsPerLine)[0].wordsPerLine} words/line`
+                  : ""}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Tabs defaultValue="vocabulary" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="vocabulary">Vocabulary</TabsTrigger>
+            <TabsTrigger value="verbosity">Verbosity</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="jane" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vocabulary Range</CardTitle>
-                  <CardDescription>Unique words vs total words spoken</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">245 unique</div>
-                  <p className="text-xs text-muted-foreground">out of 680 total words</p>
-                  <Progress value={36} className="mt-3" />
-                  <p className="text-xs text-muted-foreground mt-1">36% vocabulary diversity</p>
-                </CardContent>
-              </Card>
+          <TabsContent value="vocabulary" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Vocabulary Richness</CardTitle>
+                <CardDescription>Unique words used per character — higher = more varied vocabulary</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {analytics.characters.map(c => (
+                  <div key={c.name} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{c.name}</span>
+                      <span className="text-sm text-muted-foreground">{c.distinctWords} unique words</span>
+                    </div>
+                    <Progress value={(c.distinctWords / maxDistinct) * 100} className="h-2" />
+                  </div>
+                ))}
+                {analytics.characters.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No dialogue data.</p>
+                )}
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Sentence Structure</CardTitle>
-                  <CardDescription>Complexity of dialogue patterns</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Simple</span>
-                    <span className="text-sm font-medium">45%</span>
-                  </div>
-                  <Progress value={45} className="h-2" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Compound</span>
-                    <span className="text-sm font-medium">35%</span>
-                  </div>
-                  <Progress value={35} className="h-2" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Complex</span>
-                    <span className="text-sm font-medium">20%</span>
-                  </div>
-                  <Progress value={20} className="h-2" />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Emotional Tone</CardTitle>
-                  <CardDescription>Distribution of emotional markers</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ChartContainer
-                    config={{
-                      professional: { label: "Professional", color: "oklch(0.62 0.24 264)" },
-                      confident: { label: "Confident", color: "oklch(0.58 0.19 210)" },
-                      urgent: { label: "Urgent", color: "oklch(0.68 0.15 85)" },
-                      casual: { label: "Casual", color: "oklch(0.55 0.18 142)" },
-                    }}
-                    className="h-[200px]"
-                  >
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={emotionalTone}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={40}
-                          outerRadius={80}
-                          dataKey="value"
-                        >
-                          {emotionalTone.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Speech Patterns</CardTitle>
-                  <CardDescription>Characteristic phrases and word choices</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">Most Frequent Phrases</h4>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary">"I think we should"</Badge>
-                        <Badge variant="secondary">"according to"</Badge>
-                        <Badge variant="secondary">"let me check"</Badge>
-                        <Badge variant="secondary">"that makes sense"</Badge>
-                      </div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {analytics.characters.slice(0, 6).map(c => (
+                <Card key={c.name}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">{c.name}</CardTitle>
+                    <CardDescription>{c.lines} lines · {c.words} words</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Unique words</span>
+                      <span className="font-medium">{c.distinctWords}</span>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">Unique Vocabulary</h4>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline">methodology</Badge>
-                        <Badge variant="outline">protocol</Badge>
-                        <Badge variant="outline">parameters</Badge>
-                        <Badge variant="outline">optimization</Badge>
-                      </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Words / line</span>
+                      <span className="font-medium">{c.wordsPerLine}</span>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Voice Consistency</CardTitle>
-                  <CardDescription>How consistent this character's voice remains</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Vocabulary Consistency</span>
-                        <span className="text-sm font-medium">92%</span>
-                      </div>
-                      <Progress value={92} className="h-2" />
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Dialogue share</span>
+                      <Badge variant="secondary" className="text-xs">{c.percentage}%</Badge>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Tone Stability</span>
-                        <span className="text-sm font-medium">87%</span>
-                      </div>
-                      <Progress value={87} className="h-2" />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Speech Pattern</span>
-                        <span className="text-sm font-medium">94%</span>
-                      </div>
-                      <Progress value={94} className="h-2" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </TabsContent>
 
-          <TabsContent value="mark" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vocabulary Range</CardTitle>
-                  <CardDescription>Unique words vs total words spoken</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">198 unique</div>
-                  <p className="text-xs text-muted-foreground">out of 520 total words</p>
-                  <Progress value={38} className="mt-3" />
-                  <p className="text-xs text-muted-foreground mt-1">38% vocabulary diversity</p>
-                </CardContent>
-              </Card>
+          <TabsContent value="verbosity" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Words per Line</CardTitle>
+                <CardDescription>Average words spoken per dialogue line — higher = longer speeches</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[...analytics.characters].sort((a, b) => b.wordsPerLine - a.wordsPerLine).map(c => (
+                  <div key={c.name} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{c.name}</span>
+                      <span className="text-sm text-muted-foreground">{c.wordsPerLine} words/line</span>
+                    </div>
+                    <Progress
+                      value={(c.wordsPerLine / Math.max(...analytics.characters.map(x => x.wordsPerLine), 1)) * 100}
+                      className="h-2"
+                    />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Sentence Structure</CardTitle>
-                  <CardDescription>Complexity of dialogue patterns</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Simple</span>
-                    <span className="text-sm font-medium">60%</span>
+            <Card>
+              <CardHeader>
+                <CardTitle>Total Words Spoken</CardTitle>
+                <CardDescription>Cumulative word count per character</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[...analytics.characters].sort((a, b) => b.words - a.words).map(c => (
+                  <div key={c.name} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{c.name}</span>
+                      <span className="text-sm text-muted-foreground">{c.words.toLocaleString()} words</span>
+                    </div>
+                    <Progress value={(c.words / maxWords) * 100} className="h-2" />
                   </div>
-                  <Progress value={60} className="h-2" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Compound</span>
-                    <span className="text-sm font-medium">25%</span>
-                  </div>
-                  <Progress value={25} className="h-2" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Complex</span>
-                    <span className="text-sm font-medium">15%</span>
-                  </div>
-                  <Progress value={15} className="h-2" />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Character Traits</CardTitle>
-                  <CardDescription>Mark's distinctive characteristics</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <Badge className="bg-blue-100 text-blue-800">Direct Communicator</Badge>
-                    <Badge className="bg-green-100 text-green-800">Action-Oriented</Badge>
-                    <Badge className="bg-orange-100 text-orange-800">Informal Speech</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="sarah" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vocabulary Range</CardTitle>
-                  <CardDescription>Unique words vs total words spoken</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">156 unique</div>
-                  <p className="text-xs text-muted-foreground">out of 380 total words</p>
-                  <Progress value={41} className="mt-3" />
-                  <p className="text-xs text-muted-foreground mt-1">41% vocabulary diversity</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Sentence Structure</CardTitle>
-                  <CardDescription>Complexity of dialogue patterns</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Simple</span>
-                    <span className="text-sm font-medium">50%</span>
-                  </div>
-                  <Progress value={50} className="h-2" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Compound</span>
-                    <span className="text-sm font-medium">30%</span>
-                  </div>
-                  <Progress value={30} className="h-2" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Complex</span>
-                    <span className="text-sm font-medium">20%</span>
-                  </div>
-                  <Progress value={20} className="h-2" />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Character Traits</CardTitle>
-                  <CardDescription>Sarah's distinctive characteristics</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <Badge className="bg-purple-100 text-purple-800">Thoughtful</Badge>
-                    <Badge className="bg-pink-100 text-pink-800">Empathetic</Badge>
-                    <Badge className="bg-indigo-100 text-indigo-800">Diplomatic</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                ))}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>

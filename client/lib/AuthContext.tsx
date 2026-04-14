@@ -33,6 +33,7 @@ interface AuthContextType {
     username: string;
     role: string;
   } | null;
+  updateUser: (updates: Partial<{ email: string; username: string }>) => void;
   showSessionExpired: () => void;
 }
 
@@ -231,6 +232,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
+  const updateUser = useCallback((updates: Partial<{ email: string; username: string }>) => {
+    setUser(prev => prev ? { ...prev, ...updates } : prev);
+  }, []);
+
   const login = (token: string) => {
     try {
       localStorage.setItem("authToken", token);
@@ -266,7 +271,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout, showSessionExpired }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout, updateUser, showSessionExpired }}>
       {children}
       <SessionExpiryModal
         isOpen={sessionModalType !== null}

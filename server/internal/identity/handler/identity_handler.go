@@ -193,11 +193,58 @@ func (h *IdentityHandler) GetUsers(ctx context.Context, req *identitypb.GetUsers
 }
 
 func (h *IdentityHandler) UpdateUser(ctx context.Context, req *identitypb.UpdateUserRequest) (*identitypb.UpdateUserResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "UpdateUser not implemented")
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+
+	serviceReq := &service.UpdateProfileRequest{
+		Email:    req.Email,
+		Username: req.Username,
+	}
+
+	if err := h.authService.UpdateUserProfile(ctx, userID, serviceReq); err != nil {
+		return nil, h.handleError(err)
+	}
+
+	profile, err := h.authService.GetUserProfile(ctx, userID)
+	if err != nil {
+		return nil, h.handleError(err)
+	}
+
+	return &identitypb.UpdateUserResponse{
+		User: &identitypb.User{
+			Id:        profile.ID.String(),
+			Email:     profile.Email,
+			Username:  profile.Username,
+			UserTag:   profile.UserTag,
+			FirstName: stringValue(profile.FirstName),
+			LastName:  stringValue(profile.LastName),
+			AvatarUrl: stringValue(profile.AvatarURL),
+			CreatedAt: timeToCommonTimestamp(profile.CreatedAt),
+			UpdatedAt: timeToCommonTimestamp(profile.UpdatedAt),
+			IsActive:  profile.IsActive,
+			Role:      profile.Role,
+		},
+	}, nil
 }
 
 func (h *IdentityHandler) ChangePassword(ctx context.Context, req *identitypb.ChangePasswordRequest) (*identitypb.ChangePasswordResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "ChangePassword not implemented")
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+
+	serviceReq := &service.ChangePasswordRequest{
+		CurrentPassword: req.CurrentPassword,
+		NewPassword:     req.NewPassword,
+	}
+
+	if err := h.authService.ChangePassword(ctx, userID, serviceReq); err != nil {
+		return nil, h.handleError(err)
+	}
+
+	return &identitypb.ChangePasswordResponse{Success: true}, nil
 }
 
 // Helper functions

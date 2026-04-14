@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, Link2 } from "lucide-react"
+import { ArrowLeft, Plus, Link2, GitBranch, PenLine } from "lucide-react"
+import { PassageGraph } from "./PassageGraph"
 import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -34,6 +35,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const [elements, setElements] = useState<ScriptElement[]>([])
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
   const [search, setSearch] = useState("")
+  const [view, setView] = useState<"write" | "graph">("write")
 
   useEffect(() => {
     if (!user?.id) return
@@ -170,21 +172,56 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               <p className="text-xs text-muted-foreground">Interactive Fiction</p>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Link2 className="h-3 w-3" />{linkCount} links
-            </span>
-            <span>{passages.length} passages</span>
-            <span className={cn(
-              saveStatus === "saved" ? "text-green-600 dark:text-green-400" :
-              saveStatus === "saving" ? "text-yellow-600" : "text-muted-foreground"
-            )}>
-              {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving…" : "Unsaved"}
-            </span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Link2 className="h-3 w-3" />{linkCount} links
+              </span>
+              <span>{passages.length} passages</span>
+              <span className={cn(
+                saveStatus === "saved" ? "text-green-600 dark:text-green-400" :
+                saveStatus === "saving" ? "text-yellow-600" : "text-muted-foreground"
+              )}>
+                {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving…" : "Unsaved"}
+              </span>
+            </div>
+            <div className="flex items-center rounded-md border overflow-hidden text-xs">
+              <button
+                onClick={() => setView("write")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 transition-colors",
+                  view === "write" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                )}
+              >
+                <PenLine className="h-3 w-3" /> Write
+              </button>
+              <button
+                onClick={() => setView("graph")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 transition-colors",
+                  view === "graph" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                )}
+              >
+                <GitBranch className="h-3 w-3" /> Graph
+              </button>
+            </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto">
+        {view === "graph" && (
+          <div className="flex-1 overflow-hidden">
+            <PassageGraph
+              passages={passages}
+              activePassageId={activePassageId}
+              onSelectPassage={(id) => {
+                setActivePassageId(id)
+                setView("write")
+              }}
+            />
+          </div>
+        )}
+
+        {view === "write" && <div className="flex-1 overflow-y-auto">
           <div className="max-w-2xl mx-auto px-8 py-10">
             {activePassageId && (
               <>
@@ -287,7 +324,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               </div>
             )}
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   )

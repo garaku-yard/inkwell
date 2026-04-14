@@ -46,6 +46,11 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		return nil, err
 	}
 
+	billingHandler, err := handlers.NewBillingHandler(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	// Static file serving for uploaded images
 	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
 
@@ -64,6 +69,10 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		r.Use(func(next http.Handler) http.Handler {
 			return authMiddleware.Middleware(next)
 		})
+
+		// User profile routes
+		r.Patch("/users/me", authHandler.UpdateProfile)
+		r.Post("/users/me/password", authHandler.ChangePassword)
 
 		// Project routes
 		r.Route("/projects", func(r chi.Router) {
@@ -91,6 +100,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 					r.Get("/lanes", scriptsHandler.GetProjectLanes)
 					r.Post("/lanes", scriptsHandler.CreateLane)
 					r.Put("/lanes/order", scriptsHandler.UpdateLaneOrder)
+					r.Patch("/lanes/order", scriptsHandler.UpdateLaneOrder)
 					r.Post("/outline-items", scriptsHandler.CreateOutlineItem)
 				})
 
@@ -100,6 +110,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 				r.Get("/lanes", scriptsHandler.GetProjectLanes)
 				r.Post("/lanes", scriptsHandler.CreateLane)
 				r.Put("/lanes/order", scriptsHandler.UpdateLaneOrder)
+				r.Patch("/lanes/order", scriptsHandler.UpdateLaneOrder)
 				r.Post("/outline-items", scriptsHandler.CreateOutlineItem)
 			})
 		})
@@ -134,12 +145,14 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		// Lane routes
 		r.Route("/lanes", func(r chi.Router) {
 			r.Put("/{laneId}", scriptsHandler.UpdateLane)
+			r.Patch("/{laneId}", scriptsHandler.UpdateLane)
 			r.Delete("/{laneId}", scriptsHandler.DeleteLane)
 		})
 
 		// Outline item routes
 		r.Route("/outline-items", func(r chi.Router) {
 			r.Put("/{itemId}", scriptsHandler.UpdateOutlineItem)
+			r.Patch("/{itemId}", scriptsHandler.UpdateOutlineItem)
 			r.Delete("/{itemId}", scriptsHandler.DeleteOutlineItem)
 		})
 
@@ -167,6 +180,14 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			r.Get("/", collaborationHandler.GetUserInvitations)
 			r.Post("/accept", collaborationHandler.AcceptInvitation)
 			r.Post("/decline", collaborationHandler.DeclineInvitation)
+		})
+
+		// Admin billing routes
+		r.Route("/api/admin/billing", func(r chi.Router) {
+			r.Get("/tiers", billingHandler.GetTiers)
+			r.Get("/analytics", billingHandler.GetAnalytics)
+			r.Get("/gateways", billingHandler.GetGateways)
+			r.Get("/subscriptions", billingHandler.GetSubscriptions)
 		})
 
 		// AI routes

@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import Link from "next/link"
-import { getPendingInvites, respondToInvite, type Invitation } from "@/services/invites"
+import { getPendingInvites, acceptInvite, declineInvite, type Invitation } from "@/services/invites"
 
 const formatRelativeTime = (dateString: string) => {
   const date = new Date(dateString)
@@ -45,11 +45,15 @@ export default function InvitesPage() {
       .finally(() => setIsLoading(false))
   }, [])
 
-  const handleInviteAction = async (projectId: string, accepted: boolean) => {
-    setProcessingInvites((prev) => new Set(prev).add(projectId))
+  const handleInviteAction = async (invitationId: string, projectId: string, accepted: boolean) => {
+    setProcessingInvites((prev) => new Set(prev).add(invitationId))
     try {
-      await respondToInvite(projectId, accepted)
-      setInvites((prevInvites) => prevInvites.filter((invite) => invite.projectId !== projectId))
+      if (accepted) {
+        await acceptInvite(invitationId)
+      } else {
+        await declineInvite(invitationId)
+      }
+      setInvites((prevInvites) => prevInvites.filter((invite) => invite.id !== invitationId))
       if (accepted) {
         router.push(`/projects/${projectId}/editor`)
       }
@@ -58,14 +62,14 @@ export default function InvitesPage() {
     } finally {
       setProcessingInvites((prev) => {
         const newSet = new Set(prev)
-        newSet.delete(projectId)
+        newSet.delete(invitationId)
         return newSet
       })
     }
   }
 
   const InviteCard = ({ invite }: { invite: Invitation }) => {
-    const isProcessing = processingInvites.has(invite.projectId)
+    const isProcessing = processingInvites.has(invite.id)
 
     return (
       <Card className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-200 border-border/50 h-full flex flex-col overflow-hidden">
@@ -111,7 +115,7 @@ export default function InvitesPage() {
               variant="outline"
               size="sm"
               className="flex-1 text-muted-foreground hover:text-red-600 hover:border-red-200 hover:bg-red-50 border-border/50 bg-transparent transition-colors"
-              onClick={() => handleInviteAction(invite.projectId, false)}
+              onClick={() => handleInviteAction(invite.id, invite.projectId, false)}
               disabled={isProcessing}
             >
               {isProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
@@ -120,7 +124,7 @@ export default function InvitesPage() {
             <Button
               size="sm"
               className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm"
-              onClick={() => handleInviteAction(invite.projectId, true)}
+              onClick={() => handleInviteAction(invite.id, invite.projectId, true)}
               disabled={isProcessing}
             >
               {isProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
@@ -167,7 +171,7 @@ export default function InvitesPage() {
             {invites.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
                 {invites.map((invite) => (
-                  <InviteCard key={`${invite.projectId}-${invite.invitedBy}-${invite.createdAt}`} invite={invite} />
+                  <InviteCard key={invite.id} invite={invite} />
                 ))}
               </div>
             ) : (

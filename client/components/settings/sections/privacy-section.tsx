@@ -1,16 +1,49 @@
 "use client"
 
-import { useState } from "react"
-import { Eye, EyeOff, Globe, FileText } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Eye, Globe, FileText } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
+
+const STORAGE_KEY = "inkwell:privacy"
+
+interface PrivacyPrefs {
+  profileVisibility: string
+  projectVisibilityDefault: string
+  allowSearchEngineIndexing: boolean
+}
+
+const DEFAULTS: PrivacyPrefs = {
+  profileVisibility: "public",
+  projectVisibilityDefault: "private",
+  allowSearchEngineIndexing: true,
+}
+
+function loadPrefs(): PrivacyPrefs {
+  if (typeof window === "undefined") return DEFAULTS
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored ? { ...DEFAULTS, ...JSON.parse(stored) } : DEFAULTS
+  } catch { return DEFAULTS }
+}
 
 export function PrivacySection() {
-  const [profileVisibility, setProfileVisibility] = useState("public")
-  const [projectVisibilityDefault, setProjectVisibilityDefault] = useState("private")
-  const [allowSearchEngineIndexing, setAllowSearchEngineIndexing] = useState(true)
+  const [prefs, setPrefs] = useState<PrivacyPrefs>(DEFAULTS)
+  const { toast } = useToast()
+
+  useEffect(() => { setPrefs(loadPrefs()) }, [])
+
+  const update = (key: keyof PrivacyPrefs, value: string | boolean) => {
+    const next = { ...prefs, [key]: value }
+    setPrefs(next)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    toast({ title: "Preferences saved", description: "Your privacy settings have been updated." })
+  }
+
+  const { profileVisibility, projectVisibilityDefault, allowSearchEngineIndexing } = prefs
 
   return (
     <div className="space-y-6">
@@ -36,7 +69,7 @@ export function PrivacySection() {
                     </p>
                   </div>
                 </div>
-                <Select value={profileVisibility} onValueChange={setProfileVisibility}>
+                <Select value={profileVisibility} onValueChange={(v) => update("profileVisibility", v)}>
                   <SelectTrigger id="profileVisibility" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -62,7 +95,7 @@ export function PrivacySection() {
                     </p>
                   </div>
                 </div>
-                <Select value={projectVisibilityDefault} onValueChange={setProjectVisibilityDefault}>
+                <Select value={projectVisibilityDefault} onValueChange={(v) => update("projectVisibilityDefault", v)}>
                   <SelectTrigger id="projectVisibility" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -101,7 +134,7 @@ export function PrivacySection() {
                 <Switch
                   id="searchIndexing"
                   checked={allowSearchEngineIndexing}
-                  onCheckedChange={setAllowSearchEngineIndexing}
+                  onCheckedChange={(v) => update("allowSearchEngineIndexing", v)}
                 />
               </div>
             </div>

@@ -1,16 +1,29 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
-import { ChevronRight, ArrowLeft } from "lucide-react"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useSearchParams } from 'next/navigation'
+import { useProjectAnalytics } from "@/hooks/useProjectAnalytics"
 
 export default function AnalyticsOverview() {
-  const searchParams = useSearchParams()
-  const projectId = searchParams.get('project') || '272b597d-63c1-4b29-9150-c0cefd009987'
+  const { projectId, analytics, isLoading, error } = useProjectAnalytics()
+
+  if (isLoading) return (
+    <div className="flex h-screen items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  )
+
+  if (error || !analytics) return (
+    <div className="flex h-screen items-center justify-center text-muted-foreground">
+      {error ?? "No project data. Open analytics from a project."}
+    </div>
+  )
+
+  const top4Characters = analytics.characters.slice(0, 4)
+  const othersPercentage = analytics.characters.slice(4).reduce((sum, c) => sum + c.percentage, 0)
 
   return (
     <div className="min-h-screen bg-background">
@@ -22,14 +35,12 @@ export default function AnalyticsOverview() {
             </Link>
             <h1 className="text-xl font-semibold text-foreground">Analytics Overview</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <Link href={`/projects/${projectId}/editor`}>
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Editor
-              </Button>
-            </Link>
-          </div>
+          <Link href={`/projects/${projectId}/editor`}>
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Editor
+            </Button>
+          </Link>
         </div>
       </header>
 
@@ -38,196 +49,184 @@ export default function AnalyticsOverview() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Total Pages</CardDescription>
-              <CardTitle className="text-2xl">42</CardTitle>
+              <CardDescription>Total Scenes</CardDescription>
+              <CardTitle className="text-2xl">{analytics.totalScenes}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground">Industry standard: 90-120</p>
+              <p className="text-xs text-muted-foreground">{analytics.intScenes} interior · {analytics.extScenes} exterior</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Character Count</CardDescription>
-              <CardTitle className="text-2xl">8</CardTitle>
+              <CardDescription>Characters</CardDescription>
+              <CardTitle className="text-2xl">{analytics.characters.length}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground">Major: 3, Minor: 5</p>
+              <p className="text-xs text-muted-foreground">{analytics.totalDialogueLines} total dialogue lines</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Dialogue Ratio</CardDescription>
-              <CardTitle className="text-2xl">67%</CardTitle>
+              <CardTitle className="text-2xl">{analytics.dialogueRatio}%</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground">Dialogue vs. Action</p>
+              <p className="text-xs text-muted-foreground">Dialogue vs. action lines</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Pacing Score</CardDescription>
-              <CardTitle className="text-2xl">87/100</CardTitle>
+              <CardDescription>Total Words</CardDescription>
+              <CardTitle className="text-2xl">{analytics.totalWords.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground">Well-paced</p>
+              <p className="text-xs text-muted-foreground">{analytics.totalActionWords.toLocaleString()} in action lines</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Main Analytics Sections */}
         <div className="grid gap-6 md:grid-cols-2">
+          {/* Character distribution */}
           <Card>
             <CardHeader>
-              <CardTitle>Character Distribution</CardTitle>
-              <CardDescription>
-                Lines of dialogue per character across your screenplay
-              </CardDescription>
+              <CardTitle>Character Dialogue Distribution</CardTitle>
+              <CardDescription>Lines of dialogue per character</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Sarah Chen</span>
-                  <span className="text-sm text-muted-foreground">32%</span>
+              {top4Characters.map(c => (
+                <div key={c.name} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{c.name}</span>
+                    <span className="text-sm text-muted-foreground">{c.lines} lines ({c.percentage}%)</span>
+                  </div>
+                  <Progress value={c.percentage} className="h-2" />
                 </div>
-                <Progress value={32} className="h-2" />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Marcus Rivera</span>
-                  <span className="text-sm text-muted-foreground">28%</span>
+              ))}
+              {othersPercentage > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Others</span>
+                    <span className="text-sm text-muted-foreground">{othersPercentage}%</span>
+                  </div>
+                  <Progress value={othersPercentage} className="h-2" />
                 </div>
-                <Progress value={28} className="h-2" />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Dr. Elizabeth Hayes</span>
-                  <span className="text-sm text-muted-foreground">21%</span>
-                </div>
-                <Progress value={21} className="h-2" />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Others</span>
-                  <span className="text-sm text-muted-foreground">19%</span>
-                </div>
-                <Progress value={19} className="h-2" />
-              </div>
+              )}
+              {analytics.characters.length === 0 && (
+                <p className="text-sm text-muted-foreground">No character dialogue found.</p>
+              )}
             </CardContent>
           </Card>
 
+          {/* Scene breakdown INT/EXT */}
           <Card>
             <CardHeader>
               <CardTitle>Scene Breakdown</CardTitle>
-              <CardDescription>
-                Analysis of your scenes by type and location
-              </CardDescription>
+              <CardDescription>Interior vs exterior scenes</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Interior Scenes</span>
-                  <span className="text-sm text-muted-foreground">18 scenes</span>
-                </div>
-                <Progress value={72} className="h-2" />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Exterior Scenes</span>
-                  <span className="text-sm text-muted-foreground">7 scenes</span>
-                </div>
-                <Progress value={28} className="h-2" />
-              </div>
+              {analytics.totalScenes > 0 ? (
+                <>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Interior (INT)</span>
+                      <span className="text-sm text-muted-foreground">{analytics.intScenes} scenes</span>
+                    </div>
+                    <Progress value={(analytics.intScenes / analytics.totalScenes) * 100} className="h-2" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Exterior (EXT)</span>
+                      <span className="text-sm text-muted-foreground">{analytics.extScenes} scenes</span>
+                    </div>
+                    <Progress value={(analytics.extScenes / analytics.totalScenes) * 100} className="h-2" />
+                  </div>
+                  {analytics.totalScenes - analytics.intScenes - analytics.extScenes > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Other / Untagged</span>
+                        <span className="text-sm text-muted-foreground">
+                          {analytics.totalScenes - analytics.intScenes - analytics.extScenes} scenes
+                        </span>
+                      </div>
+                      <Progress
+                        value={((analytics.totalScenes - analytics.intScenes - analytics.extScenes) / analytics.totalScenes) * 100}
+                        className="h-2"
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No scenes found.</p>
+              )}
             </CardContent>
           </Card>
 
+          {/* Pacing (word count per scene) */}
           <Card>
             <CardHeader>
-              <CardTitle>Pacing Analysis</CardTitle>
-              <CardDescription>
-                Tension and dramatic flow throughout your script
-              </CardDescription>
+              <CardTitle>Pacing Overview</CardTitle>
+              <CardDescription>Relative word density per scene — heavier bars = longer scenes</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-32 flex items-end justify-between space-x-1">
-                {[20, 35, 45, 30, 60, 75, 55, 80, 90, 70, 85, 95].map((height, index) => (
-                  <div
-                    key={index}
-                    className="bg-primary/20 flex-1 rounded-sm"
-                    style={{ height: `${height}%` }}
-                  />
-                ))}
-              </div>
+              {analytics.pacingData.length > 0 ? (
+                <div className="h-32 flex items-end gap-px">
+                  {analytics.pacingData.map((d) => (
+                    <div
+                      key={d.scene}
+                      title={`Scene ${d.scene}: ${d.name}`}
+                      className="bg-primary/30 hover:bg-primary/60 flex-1 rounded-sm transition-colors"
+                      style={{ height: `${Math.max(d.words, 4)}%` }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No scene data.</p>
+              )}
               <p className="text-xs text-muted-foreground mt-2">
-                Tension peaks appropriately placed for maximum dramatic impact
+                {analytics.totalScenes} scenes · avg {analytics.totalScenes > 0 ? Math.round(analytics.totalWords / analytics.totalScenes) : 0} words/scene
               </p>
             </CardContent>
           </Card>
 
+          {/* Dialogue stats */}
           <Card>
             <CardHeader>
-              <CardTitle>Dialogue Quality</CardTitle>
-              <CardDescription>
-                Analysis of dialogue naturalness and readability
-              </CardDescription>
+              <CardTitle>Dialogue Stats</CardTitle>
+              <CardDescription>Across all characters</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Readability Score</span>
-                  <span className="text-sm text-muted-foreground">92/100</span>
+                  <span className="text-sm font-medium">Dialogue lines</span>
+                  <span className="text-sm text-muted-foreground">{analytics.totalDialogueLines}</span>
                 </div>
-                <Progress value={92} className="h-2" />
+                <Progress value={analytics.dialogueRatio} className="h-2" />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Natural Flow</span>
-                  <span className="text-sm text-muted-foreground">89/100</span>
+                  <span className="text-sm font-medium">Unique characters</span>
+                  <span className="text-sm text-muted-foreground">{analytics.characters.length}</span>
                 </div>
-                <Progress value={89} className="h-2" />
+                <Progress
+                  value={Math.min(analytics.characters.length * 10, 100)}
+                  className="h-2"
+                />
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Character Voice</span>
-                  <span className="text-sm text-muted-foreground">85/100</span>
+              {analytics.characters[0] && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Avg words/line ({analytics.characters[0].name})</span>
+                    <span className="text-sm text-muted-foreground">{analytics.characters[0].wordsPerLine}</span>
+                  </div>
+                  <Progress value={Math.min(analytics.characters[0].wordsPerLine * 5, 100)} className="h-2" />
                 </div>
-                <Progress value={85} className="h-2" />
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>
-
-        {/* Recommendations */}
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>AI Recommendations</CardTitle>
-            <CardDescription>
-              Suggestions to improve your screenplay based on industry standards
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="border-l-4 border-blue-500 pl-4">
-              <h4 className="font-semibold text-sm">Consider Adding Conflict</h4>
-              <p className="text-sm text-muted-foreground">
-                Scene 3 shows low tension. Consider adding internal or external conflict to maintain audience engagement.
-              </p>
-            </div>
-            <div className="border-l-4 border-green-500 pl-4">
-              <h4 className="font-semibold text-sm">Strong Character Development</h4>
-              <p className="text-sm text-muted-foreground">
-                Sarah Chen's character arc shows excellent progression. Consider applying similar depth to secondary characters.
-              </p>
-            </div>
-            <div className="border-l-4 border-orange-500 pl-4">
-              <h4 className="font-semibold text-sm">Pacing Opportunity</h4>
-              <p className="text-sm text-muted-foreground">
-                The middle section could benefit from tighter pacing. Consider condensing scenes 8-12.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
       </main>
     </div>
   )

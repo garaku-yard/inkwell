@@ -1,19 +1,57 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Mail, Bell, MessageSquare, AtSign, Megaphone, TrendingUp } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { useToast } from "@/hooks/use-toast"
+
+const STORAGE_KEY = "inkwell:notifications"
+
+interface NotificationPrefs {
+  emailComments: boolean
+  emailMentions: boolean
+  emailProjectUpdates: boolean
+  emailCollaboratorJoins: boolean
+  inAppNotifications: boolean
+  marketingEmails: boolean
+  productUpdates: boolean
+}
+
+const DEFAULTS: NotificationPrefs = {
+  emailComments: true,
+  emailMentions: true,
+  emailProjectUpdates: true,
+  emailCollaboratorJoins: true,
+  inAppNotifications: true,
+  marketingEmails: false,
+  productUpdates: true,
+}
+
+function loadPrefs(): NotificationPrefs {
+  if (typeof window === "undefined") return DEFAULTS
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored ? { ...DEFAULTS, ...JSON.parse(stored) } : DEFAULTS
+  } catch { return DEFAULTS }
+}
 
 export function NotificationsSection() {
-  const [emailComments, setEmailComments] = useState(true)
-  const [emailMentions, setEmailMentions] = useState(true)
-  const [emailProjectUpdates, setEmailProjectUpdates] = useState(true)
-  const [emailCollaboratorJoins, setEmailCollaboratorJoins] = useState(true)
-  const [inAppNotifications, setInAppNotifications] = useState(true)
-  const [marketingEmails, setMarketingEmails] = useState(false)
-  const [productUpdates, setProductUpdates] = useState(true)
+  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULTS)
+  const { toast } = useToast()
+
+  useEffect(() => { setPrefs(loadPrefs()) }, [])
+
+  const update = (key: keyof NotificationPrefs, value: boolean) => {
+    const next = { ...prefs, [key]: value }
+    setPrefs(next)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    toast({ title: "Preferences saved", description: "Your notification settings have been updated." })
+  }
+
+  const { emailComments, emailMentions, emailProjectUpdates, emailCollaboratorJoins,
+          inAppNotifications, marketingEmails, productUpdates } = prefs
 
   return (
     <div className="space-y-6">
@@ -46,7 +84,7 @@ export function NotificationsSection() {
               <Switch
                 id="emailComments"
                 checked={emailComments}
-                onCheckedChange={setEmailComments}
+                onCheckedChange={(v) => update("emailComments", v)}
               />
             </div>
 
@@ -63,7 +101,7 @@ export function NotificationsSection() {
               <Switch
                 id="emailMentions"
                 checked={emailMentions}
-                onCheckedChange={setEmailMentions}
+                onCheckedChange={(v) => update("emailMentions", v)}
               />
             </div>
 
@@ -80,7 +118,7 @@ export function NotificationsSection() {
               <Switch
                 id="emailProjectUpdates"
                 checked={emailProjectUpdates}
-                onCheckedChange={setEmailProjectUpdates}
+                onCheckedChange={(v) => update("emailProjectUpdates", v)}
               />
             </div>
 
@@ -97,7 +135,7 @@ export function NotificationsSection() {
               <Switch
                 id="emailCollaboratorJoins"
                 checked={emailCollaboratorJoins}
-                onCheckedChange={setEmailCollaboratorJoins}
+                onCheckedChange={(v) => update("emailCollaboratorJoins", v)}
               />
             </div>
           </div>
@@ -129,7 +167,7 @@ export function NotificationsSection() {
             <Switch
               id="inAppNotifications"
               checked={inAppNotifications}
-              onCheckedChange={setInAppNotifications}
+              onCheckedChange={(v) => update("inAppNotifications", v)}
             />
           </div>
         </CardContent>
@@ -161,7 +199,7 @@ export function NotificationsSection() {
               <Switch
                 id="marketingEmails"
                 checked={marketingEmails}
-                onCheckedChange={setMarketingEmails}
+                onCheckedChange={(v) => update("marketingEmails", v)}
               />
             </div>
 
@@ -175,7 +213,7 @@ export function NotificationsSection() {
               <Switch
                 id="productUpdates"
                 checked={productUpdates}
-                onCheckedChange={setProductUpdates}
+                onCheckedChange={(v) => update("productUpdates", v)}
               />
             </div>
           </div>

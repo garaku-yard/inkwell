@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
+import { changePassword } from "@/services/settings"
 
 interface Session {
   id: string
@@ -46,15 +47,19 @@ export function SecuritySection() {
       toast({ title: "Passwords don't match", variant: "destructive" })
       return
     }
+    if (passwordStrength.strength < 50) {
+      toast({ title: "Password too weak", description: "Please choose a stronger password.", variant: "destructive" })
+      return
+    }
     setIsChangingPassword(true)
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await changePassword(currentPassword, newPassword)
       toast({ title: "Password changed", description: "Your password has been successfully updated." })
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
     } catch (error) {
-      toast({ title: "Failed to change password", variant: "destructive" })
+      toast({ title: "Failed to change password", description: "Current password may be incorrect.", variant: "destructive" })
     } finally {
       setIsChangingPassword(false)
     }

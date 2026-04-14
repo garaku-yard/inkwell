@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/lib/AuthContext"
+import { updateUserProfile } from "@/services/settings"
 
 interface AccountSectionProps {
   user: {
@@ -28,12 +30,13 @@ export function AccountSection({ user }: AccountSectionProps) {
   const [email, setEmail] = useState(user?.email || "")
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+  const { updateUser } = useAuth()
 
   const handleSaveUsername = async () => {
     setIsLoading(true)
     try {
-      // API call to update username
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await updateUserProfile({ username })
+      updateUser({ username })
       toast({ title: "Username updated", description: "Your username has been successfully changed." })
       setIsEditingUsername(false)
     } catch (error) {
@@ -46,7 +49,9 @@ export function AccountSection({ user }: AccountSectionProps) {
   const handleSaveDisplayName = async () => {
     setIsLoading(true)
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Display name maps to username in the current schema
+      await updateUserProfile({ username: displayName })
+      updateUser({ username: displayName })
       toast({ title: "Display name updated", description: "Your display name has been successfully changed." })
       setIsEditingDisplayName(false)
     } catch (error) {
@@ -59,10 +64,11 @@ export function AccountSection({ user }: AccountSectionProps) {
   const handleSaveEmail = async () => {
     setIsLoading(true)
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      toast({ 
-        title: "Verification email sent", 
-        description: "Please check your email to verify the new address." 
+      await updateUserProfile({ email })
+      updateUser({ email })
+      toast({
+        title: "Email updated",
+        description: "Your email address has been successfully changed."
       })
       setIsEditingEmail(false)
     } catch (error) {
