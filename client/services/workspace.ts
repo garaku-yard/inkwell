@@ -196,23 +196,29 @@ export const listMembers = (workspaceId: string): Promise<WorkspaceMember[]> =>
   apiClient<WorkspaceMember[]>(`workspaces/${workspaceId}/members`)
 
 /**
- * Generates an invitation token for the given email address and role. The token
- * should be delivered to the invitee out-of-band (e.g. by email).
+ * Generates an invitation token for the given target and role. The `target`
+ * may be a plain email, an `@username` handle, or a `username#tag`
+ * discriminator — the gateway resolves non-email targets via the identity
+ * service before handing the invite to the workspace service. The returned
+ * token should be delivered to the invitee out-of-band (e.g. by email).
  *
  * @param workspaceId - UUID of the workspace to invite the user to.
- * @param email - Email address of the person being invited.
+ * @param target - Email, `@username`, or `username#tag` identifying the invitee.
  * @param role - Role to assign when the invitation is accepted.
  * @returns A promise that resolves to an object containing the `invite_token`.
+ * @throws {ApiError} When the target is a username that does not resolve.
  *
  * @example
  * ```ts
- * const { invite_token } = await inviteMember(wsId, "bob@example.com", "editor");
+ * await inviteMember(wsId, "bob@example.com", "editor");
+ * await inviteMember(wsId, "@alice", "viewer");
+ * await inviteMember(wsId, "alice#1234", "editor");
  * ```
  */
-export const inviteMember = (workspaceId: string, email: string, role: string): Promise<{ invite_token: string }> =>
+export const inviteMember = (workspaceId: string, target: string, role: string): Promise<{ invite_token: string }> =>
   apiClient<{ invite_token: string }>(`workspaces/${workspaceId}/members/invite`, {
     method: "POST",
-    body: { email, role },
+    body: { target, role },
   })
 
 /**

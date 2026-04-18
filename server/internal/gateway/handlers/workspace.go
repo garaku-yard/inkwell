@@ -7,19 +7,26 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"inkwell/server/internal/gateway/grpcclient"
+	"inkwell/server/pkg/grpc/identity"
 	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
 
 // WorkspaceHandler routes workspace and category HTTP requests to the workspace
-// gRPC service. URL parameters are extracted using chi's routing context.
+// gRPC service. URL parameters are extracted using chi's routing context. The
+// identity client is held so InviteMember can accept `@username` and
+// `username#tag` targets alongside plain emails.
 type WorkspaceHandler struct {
-	client workspacepb.WorkspaceServiceClient
+	client         workspacepb.WorkspaceServiceClient
+	identityClient identity.IdentityServiceClient
 }
 
-// NewWorkspaceHandler creates a WorkspaceHandler using the workspace gRPC client
-// in the provided registry.
+// NewWorkspaceHandler creates a WorkspaceHandler using the workspace + identity
+// gRPC clients from the provided registry.
 func NewWorkspaceHandler(clients *grpcclient.Registry) *WorkspaceHandler {
-	return &WorkspaceHandler{client: clients.Workspace}
+	return &WorkspaceHandler{
+		client:         clients.Workspace,
+		identityClient: clients.Identity,
+	}
 }
 
 // ListCategories returns all available workspace content categories (e.g. "screenplay",
@@ -234,9 +241,16 @@ func (h *WorkspaceHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp.Members)
 }
 
-// InviteMember generates a workspace invitation token for the given email and role.
-// The token is returned to the caller and should be delivered to the invitee
-// out-of-band. Requires a userID from the request context as the inviter.
+// InviteMember generates a workspace invitation token for the given target and
+// role. The `target` field accepts a plain email, an `@username` handle, or a
+// `username#tag` discriminator — mirroring project-collaborator invites.
+// Non-email targets are resolved to an email via the identity service before
+// being handed to the workspace service. The token is returned to the caller
+// and should be delivered to the invitee out-of-band. Requires a userID from
+// the request context as the inviter.
+//
+// For backwards compatibility, callers may still send a plain `email` field
+// and it's treated as the target.
 func (h *WorkspaceHandler) InviteMember(w http.ResponseWriter, r *http.Request) {
 	workspaceID := chi.URLParam(r, "workspaceId")
 	invitedBy := getUserIDFromContext(r)
@@ -246,21 +260,36 @@ func (h *WorkspaceHandler) InviteMember(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var body struct {
-		Email string `json:"email"`
-		Role  string `json:"role"`
+		Target string `json:"target"`
+		Email  string `json:"email"` // legacy alias for Target
+		Role   string `json:"role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-	if body.Email == "" || body.Role == "" {
-		writeError(w, "email and role are required", http.StatusBadRequest)
+
+	target := body.Target
+	if target == "" {
+		target = body.Email
+	}
+	if target == "" || body.Role == "" {
+		writeError(w, "target (email or @username or username#tag) and role are required", http.StatusBadRequest)
+		return
+	}
+
+	// Resolve @username / username#tag to an email. Plain emails pass through
+	// unchanged. A resolution failure means the user doesn't exist — surface
+	// that as 400 so the UI can hint the inviter checked the handle.
+	resolvedEmail, err := ResolveEmailOrTag(r.Context(), h.identityClient, target)
+	if err != nil {
+		writeError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	resp, err := h.client.InviteMember(r.Context(), &workspacepb.InviteMemberRequest{
 		WorkspaceId: workspaceID,
-		Email:       body.Email,
+		Email:       resolvedEmail,
 		Role:        body.Role,
 		InvitedBy:   invitedBy,
 	})

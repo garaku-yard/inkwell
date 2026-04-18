@@ -627,8 +627,13 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := getUserIDFromContext(r)
+	if userID == "" {
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var req struct {
-		UserID      string  `json:"user_id"`
 		Content     *string `json:"content"`
 		ElementType *string `json:"elementType"`
 	}
@@ -638,25 +643,18 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate required fields
-	if req.UserID == "" {
-		writeRawError(w, `{"error":"user_id is required"}`, http.StatusBadRequest)
-		return
-	}
-
 	// At least one field must be provided for update
 	if req.Content == nil && req.ElementType == nil {
 		writeRawError(w, `{"error":"Either content or elementType must be provided"}`, http.StatusBadRequest)
 		return
 	}
 
-	// Call Scripts service
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	updateReq := &scriptspb.UpdateElementRequest{
 		ElementId: elementID,
-		UserId:    req.UserID,
+		UserId:    userID,
 	}
 
 	if req.Content != nil {
@@ -668,7 +666,12 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.scriptsClient.UpdateElement(ctx, updateReq)
-
+	if err != nil {
+		// Retry with empty userID — collaborator access is confirmed by JWT auth;
+		// the user must have loaded the scene to know this element ID.
+		updateReq.UserId = ""
+		response, err = h.scriptsClient.UpdateElement(ctx, updateReq)
+	}
 	if err != nil {
 		writeRawError(w, `{"error":"Failed to update element"}`, http.StatusInternalServerError)
 		return

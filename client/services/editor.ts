@@ -18,8 +18,6 @@ export interface CreateElementRequest {
 
 /** Payload for updating an existing script element. */
 export interface UpdateElementRequest {
-  /** UUID of the requesting user. */
-  user_id: string;
   /** New text content, if changing. */
   content?: string;
   /** New element type, if changing. */

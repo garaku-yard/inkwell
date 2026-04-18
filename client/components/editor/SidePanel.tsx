@@ -170,7 +170,9 @@ export const SidePanel = React.memo(
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium text-sm leading-tight group-hover:text-primary transition-colors">
-                            {scene.scene_heading.toUpperCase()}
+                            {scene.scene_heading?.trim()
+                              ? scene.scene_heading.toUpperCase()
+                              : "UNTITLED SCENE"}
                           </h4>
                           <p className="text-xs text-muted-foreground mt-1">Scene {index + 1}</p>
                         </div>
@@ -242,7 +244,9 @@ export const SidePanel = React.memo(
                                 {sceneIndex + 1}
                               </div>
                               <span className="text-sm font-medium group-hover:text-primary transition-colors truncate">
-                                {scene.scene_heading.toUpperCase()}
+                                {scene.scene_heading?.trim()
+                                  ? scene.scene_heading.toUpperCase()
+                                  : "UNTITLED SCENE"}
                               </span>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">

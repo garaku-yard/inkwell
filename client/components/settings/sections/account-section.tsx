@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Camera, Check, X, Loader2 } from "lucide-react"
+import { Check, X, Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -99,12 +99,9 @@ export function AccountSection({ user }: AccountSectionProps) {
             <div className="flex-1">
               <Label>Profile Picture</Label>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Upload a profile picture to personalize your account
+                Avatar uploads arrive with the workspace-avatar work. For now
+                your initials stand in.
               </p>
-              <Button variant="outline" size="sm" className="mt-2">
-                <Camera className="h-4 w-4 mr-2" />
-                Upload Photo
-              </Button>
             </div>
           </div>
 

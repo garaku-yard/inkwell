@@ -9,8 +9,8 @@ package ai
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	reflect "reflect"
 	common "inkwell/server/pkg/grpc/common"
+	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
 )
@@ -1046,7 +1046,7 @@ const file_ai_ai_proto_rawDesc = "" +
 	"\x0fGetImprovements\x12\x16.ai.ImprovementRequest\x1a\x17.ai.ImprovementResponse\x12U\n" +
 	"\x10DevelopCharacter\x12\x1f.ai.CharacterDevelopmentRequest\x1a .ai.CharacterDevelopmentResponse\x12C\n" +
 	"\fAnalyzeGenre\x12\x18.ai.GenreAnalysisRequest\x1a\x19.ai.GenreAnalysisResponse\x12>\n" +
-	"\vCheckFormat\x12\x16.ai.FormatCheckRequest\x1a\x17.ai.FormatCheckResponseB\x1fZ\x1dinkwell/server/pkg/grpc/aib\x06proto3"
+	"\vCheckFormat\x12\x16.ai.FormatCheckRequest\x1a\x17.ai.FormatCheckResponseB\x1cZ\x1ainkwell/server/pkg/grpc/aib\x06proto3"
 
 var (
 	file_ai_ai_proto_rawDescOnce sync.Once

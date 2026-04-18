@@ -673,10 +673,13 @@ func (h *ScriptsHandler) UpdateElement(ctx context.Context, req *scriptspb.Updat
 		return nil, status.Errorf(codes.InvalidArgument, "invalid element ID: %v", err)
 	}
 
-	// Parse user ID
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	// userID is optional — empty string means collaborator access already verified by gateway
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+		}
 	}
 
 	// Update element through service

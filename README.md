@@ -93,4 +93,8 @@ Contributions are welcome. Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for 
 
 ## License
 
-[MIT](./LICENSE) © Inkwell contributors.
+[PolyForm Noncommercial 1.0.0](./LICENSE) © Inkwell contributors.
+
+Inkwell is free to use, study, modify, and share for any **noncommercial** purpose — personal projects, research, education, hobby work, non-profits, and government use all qualify. Commercial use (including selling, rebranding, or offering Inkwell as a paid service) requires a separate agreement with the authors.
+
+See [polyformproject.org/licenses/noncommercial/1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) for the full terms.

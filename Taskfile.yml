@@ -340,6 +340,7 @@ tasks:
       - task: proto:gen:scripts
       - task: proto:gen:collab
       - task: proto:gen:billing
+      - task: proto:gen:workspace
       - task: proto:gen:ai
 
   proto:gen:common:
@@ -371,6 +372,12 @@ tasks:
     dir: server
     cmds:
       - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative billing/billing.proto
+
+  proto:gen:workspace:
+    desc: Generate protobuf code for Workspace service
+    dir: server
+    cmds:
+      - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative workspace/workspace.proto
 
   proto:gen:ai:
     desc: Generate protobuf code for AI service

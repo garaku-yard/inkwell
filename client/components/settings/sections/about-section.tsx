@@ -16,10 +16,22 @@ export function AboutSection() {
   const appVersion = "1.0.0"
   const buildDate = "2024-03-15"
 
+  // Clears known local-preference keys. Server-side state (account, projects,
+  // workspaces) is untouched. The allow-list is explicit so an errant addition
+  // can't accidentally nuke the auth token or unrelated localStorage entries.
   const handleResetSettings = () => {
-    toast({ 
-      title: "Settings reset", 
-      description: "All settings have been restored to their defaults." 
+    if (typeof window === "undefined") return
+    const keysToClear = [
+      "inkwell:notifications",
+      "inkwell:privacy",
+      "inkwell:collaboration",
+      "inkwell:accessibility",
+      "inkwell:appearance",
+    ]
+    keysToClear.forEach((key) => localStorage.removeItem(key))
+    toast({
+      title: "Preferences reset",
+      description: "Local settings restored to defaults. Your account, projects, and workspaces are unchanged.",
     })
   }
 

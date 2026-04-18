@@ -171,7 +171,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const handleAddComment = useCallback(async (elementId: string, isScene: boolean, content: string) => {
     try {
-      await addComment(
+      const createdComment = await addComment(
         project.id,
         project.id,
         content,
@@ -180,6 +180,35 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         isScene ? elementId : undefined,
         undefined
       )
+
+      // Attach the new comment to the matching element / scene in project state
+      // so EditableElement's "unresolvedCommentsCount" badge appears immediately.
+      // Without this the inline indicator would only surface on next full reload.
+      const commentForState: Comment = {
+        ...createdComment,
+        elementId,
+        isScene,
+      }
+      setProject((prevProject) => {
+        if (!prevProject.scenes) return prevProject
+        const newScenes = prevProject.scenes.map((scene: Scene) => {
+          if (isScene && scene.id === elementId) {
+            return { ...scene, comments: [...(scene.comments ?? []), commentForState] }
+          }
+          if (!isScene && scene.elements?.some((el: ScriptElement) => el.id === elementId)) {
+            return {
+              ...scene,
+              elements: scene.elements.map((el: ScriptElement) =>
+                el.id === elementId
+                  ? { ...el, comments: [...(el.comments ?? []), commentForState] }
+                  : el,
+              ),
+            }
+          }
+          return scene
+        })
+        return { ...prevProject, scenes: newScenes }
+      })
 
       refreshComments()
     } catch (err) {
@@ -205,10 +234,16 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
         return { ...prevProject, scenes: newScenes }
       })
+
+      // SidePanel keeps an independent `allComments` list sourced from
+      // getComments(project.id); bump the refresh trigger so it re-reads with
+      // the updated content. Without this the user's edit doesn't appear in
+      // the CommentPanel even though the backend saved it.
+      refreshComments()
     } catch (err) {
       console.error("Failed to update comment:", err)
     }
-  }, [])
+  }, [refreshComments])
 
   const handleDeleteComment = useCallback(async (commentId: string) => {
     try {
@@ -228,10 +263,12 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
         return { ...prevProject, scenes: newScenes }
       })
+
+      refreshComments()
     } catch (err) {
       console.error("Failed to delete comment:", err)
     }
-  }, [])
+  }, [refreshComments])
 
 
   const handleToggleCommentResolved = useCallback(
@@ -270,12 +307,16 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
           return { ...prevProject, scenes: newScenes }
         })
+
+        // Force SidePanel to reload allComments so the resolve state change
+        // is visible in the CommentPanel and the tab badge counter.
+        refreshComments()
       } catch (err) {
         console.error("Failed to toggle comment resolved status:", err)
         setProject(originalProject)
       }
     },
-    [project],
+    [project, refreshComments],
   )
 
   const handleContentChange = useCallback(
@@ -289,13 +330,31 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     (id: string, content: string, isScene: boolean) => {
       debouncedSave.cancel()
 
-      // contentEditable manages its own DOM — no React state update needed here.
-      // Syncing content into project state on every blur causes a full re-render
-      // cascade across all elements. The DOM already has the latest content and
-      // the backend save below is the source of truth.
-
       if (id.startsWith("new-")) return
       if (!user?.id) return
+
+      // Sync the finalised content into React state so the sidebar (scene list,
+      // structure tab) reflects what the user actually typed. We only do this on
+      // blur, not on every keystroke — contentEditable owns keystroke-level state
+      // to avoid a re-render cascade across all elements while typing.
+      setProject((prevProject) => {
+        if (!prevProject.scenes) return prevProject
+        const newScenes = prevProject.scenes.map((scene: Scene) => {
+          if (isScene && scene.id === id) {
+            return { ...scene, scene_heading: content }
+          }
+          if (!isScene && scene.elements?.some((el: ScriptElement) => el.id === id)) {
+            return {
+              ...scene,
+              elements: scene.elements.map((el: ScriptElement) =>
+                el.id === id ? { ...el, content } : el,
+              ),
+            }
+          }
+          return scene
+        })
+        return { ...prevProject, scenes: newScenes }
+      })
 
       if (isScene) {
         updateSceneHeading(id, user.id, content).catch((err) => console.error("Scene save failed on blur:", err))
@@ -574,7 +633,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
         // Persist to backend
         updateScriptElement(activeElementId, {
-          user_id: user.id,
           elementType: newType as ToolbarScriptElementType,
         }).catch((err) => {
           console.error("Failed to transform element:", err)
@@ -745,7 +803,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
       // Update on server - include both type and content
       updateScriptElement(elementId, {
-        user_id: user.id,
         elementType: newType,
         content: currentContent
       })

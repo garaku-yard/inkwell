@@ -9,7 +9,9 @@ import (
 
 	"github.com/sony/gobreaker"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"inkwell/server/internal/gateway/config"
 	billingpb "inkwell/server/pkg/grpc/billing"
@@ -98,6 +100,9 @@ func newBreaker(name string) *gobreaker.CircuitBreaker {
 // breakerInterceptor wraps every unary gRPC call with the circuit breaker.
 // When the breaker is open, calls fail immediately with an error rather than
 // blocking downstream and propagating latency to the HTTP client.
+// Only transport-level failures (Unavailable, DeadlineExceeded, Internal)
+// count as breaker failures — application-level codes like PermissionDenied
+// or NotFound are expected responses and must not trip the breaker.
 func breakerInterceptor(cb *gobreaker.CircuitBreaker, serviceName string) grpc.UnaryClientInterceptor {
 	return func(
 		ctx context.Context,
@@ -107,12 +112,32 @@ func breakerInterceptor(cb *gobreaker.CircuitBreaker, serviceName string) grpc.U
 		invoker grpc.UnaryInvoker,
 		opts ...grpc.CallOption,
 	) error {
-		_, err := cb.Execute(func() (any, error) {
-			return nil, invoker(ctx, method, req, reply, cc, opts...)
+		var callErr error
+		_, breakerErr := cb.Execute(func() (any, error) {
+			callErr = invoker(ctx, method, req, reply, cc, opts...)
+			if callErr != nil && isTransportError(callErr) {
+				return nil, callErr // transport failure — trip the breaker
+			}
+			return nil, nil // success or app-level error — don't trip the breaker
 		})
-		if err == gobreaker.ErrOpenState {
+		if breakerErr == gobreaker.ErrOpenState {
 			return fmt.Errorf("%s service is temporarily unavailable", serviceName)
 		}
-		return err
+		return callErr // return the real error (PermissionDenied, NotFound, etc.) to the caller
+	}
+}
+
+// isTransportError reports whether err represents a connection-level failure
+// that should count toward tripping the circuit breaker.
+func isTransportError(err error) bool {
+	s, ok := status.FromError(err)
+	if !ok {
+		return true // not a gRPC status error — treat as transport failure
+	}
+	switch s.Code() {
+	case codes.Unavailable, codes.DeadlineExceeded, codes.Internal, codes.Unknown:
+		return true
+	default:
+		return false
 	}
 }

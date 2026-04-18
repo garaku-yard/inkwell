@@ -1,84 +1,55 @@
 "use client"
 
-import { useState } from "react"
-import { Cloud, FileText, Plug, CheckCircle2, XCircle } from "lucide-react"
+import { Cloud, FileText, CheckCircle2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 
-interface Integration {
-  id: string
-  name: string
-  description: string
-  icon: string
-  connected: boolean
-  category: "cloud" | "export"
-}
-
+/**
+ * Integrations settings page.
+ *
+ * Cloud-storage integrations (Google Drive, Dropbox, OneDrive) require OAuth
+ * flows the backend doesn't yet implement; they're surfaced here as "Coming
+ * soon" so the user knows the roadmap without the previous mock-toggle UX.
+ *
+ * Export formats (FDX, Fountain, PDF) are always enabled: they live in the
+ * gateway's `/projects/{id}/export?format=...` endpoint and don't need
+ * per-user opt-in. They're shown here as a reference of what you can export,
+ * not as gated features.
+ */
 export function IntegrationsSection() {
-  const [integrations, setIntegrations] = useState<Integration[]>([
+  const cloudProviders = [
     {
       id: "gdrive",
       name: "Google Drive",
       description: "Automatically sync your projects to Google Drive",
-      icon: "☁️",
-      connected: false,
-      category: "cloud"
     },
     {
       id: "dropbox",
       name: "Dropbox",
       description: "Backup your work to Dropbox automatically",
-      icon: "📦",
-      connected: false,
-      category: "cloud"
     },
     {
       id: "onedrive",
       name: "OneDrive",
       description: "Sync projects with Microsoft OneDrive",
-      icon: "☁️",
-      connected: false,
-      category: "cloud"
+    },
+  ]
+
+  const availableExports = [
+    {
+      name: "Final Draft (.fdx)",
+      description: "Screenplay XML format accepted by Final Draft, Highland, and WriterDuet",
     },
     {
-      id: "finaldraft",
-      name: "Final Draft",
-      description: "Export your screenplays to Final Draft format (.fdx)",
-      icon: "📝",
-      connected: true,
-      category: "export"
+      name: "PDF",
+      description: "Industry-standard formatted PDF with proper screenplay margins and fonts",
     },
     {
-      id: "fountain",
       name: "Fountain",
-      description: "Export to Fountain plain text format",
-      icon: "⛲",
-      connected: true,
-      category: "export"
+      description: "Plain-text screenplay format — coming soon",
+      comingSoon: true,
     },
-    {
-      id: "pdf",
-      name: "PDF Export",
-      description: "Export professionally formatted PDFs",
-      icon: "📄",
-      connected: true,
-      category: "export"
-    }
-  ])
-
-  const handleToggleIntegration = (id: string) => {
-    setIntegrations(integrations.map(integration => 
-      integration.id === id 
-        ? { ...integration, connected: !integration.connected }
-        : integration
-    ))
-  }
-
-  const cloudIntegrations = integrations.filter(i => i.category === "cloud")
-  const exportIntegrations = integrations.filter(i => i.category === "export")
+  ]
 
   return (
     <div className="space-y-6">
@@ -91,87 +62,31 @@ export function IntegrationsSection() {
             <div>
               <CardTitle>Cloud Storage</CardTitle>
               <CardDescription>
-                Connect your cloud storage providers for automatic backups
+                Keep your projects in sync with your preferred cloud provider
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {cloudIntegrations.map((integration) => (
-            <div 
-              key={integration.id} 
-              className="flex items-start justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-800"
+          {cloudProviders.map((provider) => (
+            <div
+              key={provider.id}
+              className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-800 opacity-75"
             >
-              <div className="flex items-start gap-3">
-                <div className="text-3xl">{integration.icon}</div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="font-medium">{integration.name}</h4>
-                    <Badge variant={integration.connected ? "default" : "secondary"} className="gap-1">
-                      {integration.connected ? (
-                        <>
-                          <CheckCircle2 className="h-3 w-3" />
-                          Connected
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="h-3 w-3" />
-                          Not Connected
-                        </>
-                      )}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {integration.description}
-                  </p>
-                </div>
+              <div>
+                <h4 className="font-medium text-sm">{provider.name}</h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {provider.description}
+                </p>
               </div>
-              <Button 
-                variant={integration.connected ? "outline" : "default"}
-                onClick={() => handleToggleIntegration(integration.id)}
-              >
-                {integration.connected ? "Disconnect" : "Connect"}
-              </Button>
+              <Badge variant="secondary">Coming soon</Badge>
             </div>
           ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-purple-100 dark:bg-purple-900/30 p-2">
-              <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <CardTitle>Export Formats</CardTitle>
-              <CardDescription>
-                Enable or disable export options for your projects
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {exportIntegrations.map((integration) => (
-            <div 
-              key={integration.id}
-              className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-800"
-            >
-              <div className="flex items-start gap-3">
-                <div className="text-3xl">{integration.icon}</div>
-                <div>
-                  <h4 className="font-medium mb-1">{integration.name}</h4>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {integration.description}
-                  </p>
-                </div>
-              </div>
-              <Switch
-                checked={integration.connected}
-                onCheckedChange={() => handleToggleIntegration(integration.id)}
-              />
-            </div>
-          ))}
+          <p className="text-xs text-muted-foreground pt-2">
+            OAuth integrations require additional backend work before they can
+            securely connect to your storage provider. We&apos;ll enable them as
+            each provider&apos;s flow is implemented.
+          </p>
         </CardContent>
       </Card>
 
@@ -179,40 +94,41 @@ export function IntegrationsSection() {
         <CardHeader>
           <div className="flex items-start gap-3">
             <div className="rounded-full bg-green-100 dark:bg-green-900/30 p-2">
-              <Plug className="h-5 w-5 text-green-600 dark:text-green-400" />
+              <FileText className="h-5 w-5 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <CardTitle>Coming Soon</CardTitle>
+              <CardTitle>Available Export Formats</CardTitle>
               <CardDescription>
-                More integrations are on the way
+                Formats you can export your projects to today
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              We're working on integrations with:
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                <span className="text-lg">📧</span>
-                <span>Gmail</span>
+        <CardContent className="space-y-3">
+          {availableExports.map((fmt) => (
+            <div
+              key={fmt.name}
+              className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-800"
+            >
+              <div>
+                <h4 className="font-medium text-sm">{fmt.name}</h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {fmt.description}
+                </p>
               </div>
-              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                <span className="text-lg">📅</span>
-                <span>Google Calendar</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                <span className="text-lg">💬</span>
-                <span>Slack</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                <span className="text-lg">📊</span>
-                <span>Notion</span>
-              </div>
+              {fmt.comingSoon ? (
+                <Badge variant="secondary">Coming soon</Badge>
+              ) : (
+                <Badge variant="default" className="gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Available
+                </Badge>
+              )}
             </div>
-          </div>
+          ))}
+          <p className="text-xs text-muted-foreground pt-2">
+            Use the Export button on any project to download in one of these formats.
+          </p>
         </CardContent>
       </Card>
     </div>

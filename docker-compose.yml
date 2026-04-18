@@ -135,9 +135,10 @@ services:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
       test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
-      interval: 30s
+      interval: 10s
       timeout: 10s
-      retries: 5
+      retries: 10
+      start_period: 30s
     networks:
       - inkwell-network
 
@@ -187,6 +188,8 @@ services:
       - SCRIPTS_DB_SSLMODE=disable
       - KAFKA_BROKERS=kafka:29092
       - IDENTITY_SERVICE_URL=identity-service:50051
+      - BILLING_SERVICE_HOST=billing-service
+      - BILLING_SERVICE_PORT=50054
       - RUN_MIGRATIONS=true
     depends_on:
       postgres-scripts:
@@ -194,6 +197,8 @@ services:
       kafka:
         condition: service_healthy
       identity-service:
+        condition: service_started
+      billing-service:
         condition: service_started
     networks:
       - inkwell-network

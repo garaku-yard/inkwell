@@ -22,77 +22,79 @@ interface AppHeaderProps {
 export function AppHeader({ inviteCount = 0 }: AppHeaderProps) {
   const { isAuthenticated, logout, user } = useAuth()
   const { theme, toggleTheme } = useTheme()
-
   return (
     <header className="border-b bg-background shrink-0">
-      <div className="container mx-auto flex items-center justify-between py-4 px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground text-background font-serif font-bold text-lg select-none">
-            I
+      <div className="container mx-auto flex items-center justify-between py-3 px-4 sm:px-6 lg:px-8">
+
+        {/* Left — logo + nav */}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground text-background font-serif font-bold text-lg select-none">
+              I
+            </div>
+            <h1 className="text-xl font-bold">Inkwell</h1>
           </div>
-          <h1 className="text-xl font-bold">Inkwell</h1>
+
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Right — actions + user */}
+        <div className="flex items-center gap-1">
           {isAuthenticated ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                  <UserIcon className="h-5 w-5" />
+            <>
+              {/* Theme toggle */}
+              <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-8 w-8">
+                {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+              </Button>
+
+              {/* Inbox */}
+              <Link href="/invites">
+                <Button variant="ghost" size="icon" className="relative h-8 w-8">
+                  <Inbox className="h-4 w-4" />
                   {inviteCount > 0 && (
-                    <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-teal-500 ring-2 ring-white" />
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-teal-500" />
                   )}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {user?.username && user?.tag ? `${user.username}#${user.tag}` : user?.username || "User"}
-                    </p>
-                    <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <Link href="/invites" passHref>
-                  <DropdownMenuItem>
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center">
-                        <Inbox className="mr-2 h-4 w-4" />
-                        <span>Inbox</span>
-                      </div>
-                      {inviteCount > 0 && (
-                        <Badge className="h-5 bg-teal-100 text-teal-800 dark:bg-teal-800 dark:text-teal-100">
-                          {inviteCount}
-                        </Badge>
-                      )}
+              </Link>
+
+              {/* User menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full ml-1">
+                    <UserIcon className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {user?.username && user?.tag ? `${user.username}#${user.tag}` : user?.username || "User"}
+                      </p>
+                      <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                     </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings" className="cursor-pointer">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </Link>
                   </DropdownMenuItem>
-                </Link>
-                <DropdownMenuItem onClick={toggleTheme}>
-                  {theme === "light" ? <Moon className="mr-2 h-4 w-4" /> : <Sun className="mr-2 h-4 w-4" />}
-                  <span>{theme === "light" ? "Dark mode" : "Light mode"}</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </Link>
-                </DropdownMenuItem>
-                {user?.role === "admin" && (
-                <DropdownMenuItem asChild>
-                  <Link href="/admin/billing" className="cursor-pointer">
-                    <Briefcase className="mr-2 h-4 w-4" />
-                    <span>Admin Billing</span>
-                  </Link>
-                </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={logout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  {user?.role === "admin" && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin/billing" className="cursor-pointer">
+                        <Briefcase className="mr-2 h-4 w-4" />
+                        <span>Admin Billing</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={logout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
           ) : (
             <>
               <Link href="/login">
@@ -104,6 +106,7 @@ export function AppHeader({ inviteCount = 0 }: AppHeaderProps) {
             </>
           )}
         </div>
+
       </div>
     </header>
   )

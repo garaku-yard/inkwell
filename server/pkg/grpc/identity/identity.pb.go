@@ -9,8 +9,8 @@ package identity
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	reflect "reflect"
 	common "inkwell/server/pkg/grpc/common"
+	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
 )
@@ -1175,7 +1175,7 @@ const file_identity_identity_proto_rawDesc = "" +
 	"\bGetUsers\x12\x19.identity.GetUsersRequest\x1a\x1a.identity.GetUsersResponse\x12G\n" +
 	"\n" +
 	"UpdateUser\x12\x1b.identity.UpdateUserRequest\x1a\x1c.identity.UpdateUserResponse\x12S\n" +
-	"\x0eChangePassword\x12\x1f.identity.ChangePasswordRequest\x1a .identity.ChangePasswordResponseB%Z#inkwell/server/pkg/grpc/identityb\x06proto3"
+	"\x0eChangePassword\x12\x1f.identity.ChangePasswordRequest\x1a .identity.ChangePasswordResponseB\"Z inkwell/server/pkg/grpc/identityb\x06proto3"
 
 var (
 	file_identity_identity_proto_rawDescOnce sync.Once

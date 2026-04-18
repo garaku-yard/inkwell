@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast"
 import {
   deleteProject,
   getMyProjects,
+  getSharedProjects,
   updateProject,
   toggleProjectStar,
   type Project,
@@ -66,14 +67,27 @@ export function useProjects({
       setIsLoading(true)
       const fetchDashboardData = async () => {
         try {
-          const [projectsResponse, fetchedInvites] = await Promise.all([
+          // Fetch owned + shared projects in parallel so the "Collaborations"
+          // filter has data to work with. Shared projects fail silently — the
+          // collab service may be down — rather than empty the dashboard.
+          const [ownedResponse, shared, fetchedInvites] = await Promise.all([
             getMyProjects(userId),
+            getSharedProjects().catch((err) => {
+              console.warn("Shared projects service not available:", err.message)
+              return [] as Project[]
+            }),
             getPendingInvites().catch((err) => {
               console.warn("Invites service not available:", err.message)
               return []
             }),
           ])
-          setProjects(projectsResponse.projects)
+
+          // Merge owned + shared, dedup by id in case a project is in both lists.
+          const merged = new Map<string, Project & { collaborator_count?: number }>()
+          for (const p of ownedResponse.projects) merged.set(p.id, p)
+          for (const p of shared) if (!merged.has(p.id)) merged.set(p.id, p)
+          setProjects(Array.from(merged.values()))
+
           setInviteCount(fetchedInvites.length)
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err)

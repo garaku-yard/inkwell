@@ -330,8 +330,8 @@ export default function WorkspaceSettingsPage() {
                 <CardContent>
                   <form onSubmit={handleInvite} className="flex gap-2">
                     <Input
-                      type="email"
-                      placeholder="Email address"
+                      type="text"
+                      placeholder="Email, @username, or username#tag"
                       value={inviteEmail}
                       onChange={e => setInviteEmail(e.target.value)}
                       className="flex-1"
@@ -350,6 +350,10 @@ export default function WorkspaceSettingsPage() {
                       <span className="ml-1.5">Invite</span>
                     </Button>
                   </form>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Invite by email, <code className="font-mono">@username</code>, or
+                    <code className="font-mono">username#tag</code>. Usernames resolve via the identity service.
+                  </p>
                 </CardContent>
               </Card>
 
