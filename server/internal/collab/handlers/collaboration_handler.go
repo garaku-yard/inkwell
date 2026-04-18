@@ -605,11 +605,12 @@ func (h *CollaborationHandler) UpdatePresence(ctx context.Context, req *collab_p
 	}, nil
 }
 
-// GetPresence retrieves presence records for a screenplay. Note: the project ID is
-// currently derived from a placeholder uuid.New() call and does not reflect the actual
-// project; this method requires a proper screenplay-to-project lookup before production use.
+// GetPresence retrieves active presence records for a collaborative editing session.
+// The request carries a screenplay ID, which in this schema is equivalent to the
+// project ID (same convention used by GetComments above). The gRPC request name is
+// kept for backwards compatibility with existing clients.
 func (h *CollaborationHandler) GetPresence(ctx context.Context, req *collab_pb.GetPresenceRequest) (*collab_pb.GetPresenceResponse, error) {
-	_, err := parseUUID(req.ScreenplayId)
+	projectID, err := parseUUID(req.ScreenplayId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid screenplay ID: %v", err)
 	}
@@ -618,10 +619,6 @@ func (h *CollaborationHandler) GetPresence(ctx context.Context, req *collab_pb.G
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
-
-	// For this simplified version, we'll get presence for the project
-	// In a real implementation, you'd determine the project ID from the screenplay
-	projectID := uuid.New() // This should be looked up from the screenplay
 
 	presences, err := h.service.GetProjectUserPresence(ctx, userID, projectID)
 	if err != nil {

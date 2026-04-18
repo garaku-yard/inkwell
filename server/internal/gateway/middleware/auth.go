@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/pkg/grpc/identity"
 )
 
@@ -86,8 +87,7 @@ func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx = context.WithValue(r.Context(), "userID", resp.User.Id)
-		r = r.WithContext(ctx)
+		r = r.WithContext(contextx.WithUserID(r.Context(), resp.User.Id))
 		r.Header.Set("X-User-ID", resp.User.Id)
 
 		next.ServeHTTP(w, r)
@@ -106,9 +106,8 @@ func isPublicEndpoint(path string) bool {
 }
 
 // GetUserIDFromRequest extracts the authenticated user ID from the request context.
+// Returns an empty string if no authenticated user is attached.
 func GetUserIDFromRequest(r *http.Request) string {
-	if userID, ok := r.Context().Value("userID").(string); ok {
-		return userID
-	}
-	return ""
+	id, _ := contextx.UserIDFrom(r.Context())
+	return id
 }

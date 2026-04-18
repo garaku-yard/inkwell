@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"inkwell/server/pkg/database"
 	"inkwell/server/pkg/events"
 	billingpb "inkwell/server/pkg/grpc/billing"
+	"inkwell/server/pkg/outbox"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -74,12 +74,17 @@ func main() {
 	}
 
 	repo := repository.NewPostgresRepository(db)
-	svc := service.NewBillingService(repo, publisher)
+	outboxStore := outbox.NewPostgresStore(db, "billing_outbox")
+	svc := service.NewBillingService(db, repo, outboxStore, publisher)
 	billingHandler := handler.NewBillingHandler(svc)
 
 	// Outbox poller — flushes unpublished billing events to Kafka every 10 s.
+	// Batch size of 50 mirrors the previous inline poller.
 	pollerCtx, cancelPoller := context.WithCancel(context.Background())
-	go runOutboxPoller(pollerCtx, repo, publisher)
+	go outbox.
+		NewPoller(outboxStore, publisher, 10*time.Second, 50).
+		WithLogger(slog.Default().With("component", "billing_outbox")).
+		Run(pollerCtx)
 
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),
@@ -112,36 +117,6 @@ func main() {
 	slog.Info("billing service stopped")
 }
 
-// runOutboxPoller polls billing_outbox every 10 s and publishes pending events to Kafka.
-// This gives reliable at-least-once delivery for billing events even if an in-process
-// Publish call fails at the moment of the subscription change.
-func runOutboxPoller(ctx context.Context, repo repository.BillingRepository, pub events.Publisher) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			pending, err := repo.ListUnpublishedOutboxEvents(ctx, 50)
-			if err != nil {
-				slog.Warn("outbox poller: failed to list events", "error", err)
-				continue
-			}
-			for _, e := range pending {
-				var payload json.RawMessage = e.Payload
-				if err := pub.Publish(ctx, e.EventType, payload); err != nil {
-					slog.Warn("outbox poller: failed to publish event", "id", e.ID, "error", err)
-					continue
-				}
-				if err := repo.MarkOutboxEventPublished(ctx, e.ID); err != nil {
-					slog.Warn("outbox poller: failed to mark event published", "id", e.ID, "error", err)
-				}
-			}
-		}
-	}
-}
 
 func loggingInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, h grpc.UnaryHandler) (any, error) {
 	slog.Info("grpc call", "method", info.FullMethod)

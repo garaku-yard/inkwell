@@ -34,7 +34,7 @@ type AuthService interface {
 	DeleteAccount(ctx context.Context, userID uuid.UUID) error
 
 	// Token validation
-	ValidateToken(ctx context.Context, tokenString string) (*UserInfo, error)
+	ValidateToken(ctx context.Context, tokenString string) (*UserInfo, time.Time, error)
 	ValidateAccessToken(ctx context.Context, tokenString string) (*TokenClaims, error)
 	ValidateRefreshToken(ctx context.Context, tokenString string) (*domain.UserSession, error)
 
@@ -440,20 +440,26 @@ func (s *authService) DeleteAccount(ctx context.Context, userID uuid.UUID) error
 }
 
 // ValidateToken validates an access token and returns user info
-func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*UserInfo, error) {
-	// Validate the token
+// ValidateToken validates a JWT access token and returns the associated user
+// profile together with the token's natural expiry timestamp. The expiry is
+// read from the RegisteredClaims embedded in the JWT; callers can use it to
+// surface an accurate "session ends at" time rather than a placeholder.
+func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*UserInfo, time.Time, error) {
 	claims, err := s.ValidateAccessToken(ctx, tokenString)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 
-	// Get user from database
 	user, err := s.userRepo.GetUserByID(ctx, claims.UserID)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 
-	// Convert to UserInfo
+	var expiresAt time.Time
+	if claims.ExpiresAt != nil {
+		expiresAt = claims.ExpiresAt.Time
+	}
+
 	return &UserInfo{
 		ID:          user.ID,
 		Email:       user.Email,
@@ -468,7 +474,7 @@ func (s *authService) ValidateToken(ctx context.Context, tokenString string) (*U
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
 		LastLoginAt: user.LastLoginAt,
-	}, nil
+	}, expiresAt, nil
 }
 
 // ValidateAccessToken validates and parses an access token

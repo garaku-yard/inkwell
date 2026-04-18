@@ -17,6 +17,9 @@ type Config struct {
 	// Identity Service configuration (for user validation)
 	IdentityConfig IdentityConfig
 
+	// Billing Service configuration (for quota checks and usage tracking)
+	BillingConfig BillingConfig
+
 	// Kafka configuration
 	KafkaConfig KafkaConfig
 
@@ -41,6 +44,15 @@ type DatabaseConfig struct {
 type IdentityConfig struct {
 	Host string `env:"IDENTITY_SERVICE_HOST" default:"localhost"`
 	Port string `env:"IDENTITY_SERVICE_PORT" default:"50051"`
+}
+
+// BillingConfig holds settings for connecting to the Billing Service. Used by
+// the scripts service to enforce per-tier quotas (projects, collaborators, etc.)
+// and report usage back. Leave the host empty to disable quota enforcement in
+// environments where billing is not running.
+type BillingConfig struct {
+	Host string `env:"BILLING_SERVICE_HOST" default:"localhost"`
+	Port string `env:"BILLING_SERVICE_PORT" default:"50054"`
 }
 
 // KafkaConfig holds Kafka connection settings
@@ -75,6 +87,10 @@ func Load() (*Config, error) {
 		IdentityConfig: IdentityConfig{
 			Host: getEnvOrDefault("IDENTITY_SERVICE_HOST", "localhost"),
 			Port: getEnvOrDefault("IDENTITY_SERVICE_PORT", "50051"),
+		},
+		BillingConfig: BillingConfig{
+			Host: getEnvOrDefault("BILLING_SERVICE_HOST", "localhost"),
+			Port: getEnvOrDefault("BILLING_SERVICE_PORT", "50054"),
 		},
 		KafkaConfig: KafkaConfig{
 			Brokers:       []string{getEnvOrDefault("KAFKA_BROKERS", "localhost:9092")},

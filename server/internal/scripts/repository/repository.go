@@ -16,10 +16,16 @@ import (
 type ProjectRepository interface {
 	// Project operations
 	CreateProject(ctx context.Context, project *domain.Project) error
+	// CreateProjectTx inserts a project inside the given transaction, used by the
+	// service layer to commit the write alongside an outbox event atomically.
+	CreateProjectTx(ctx context.Context, tx *sql.Tx, project *domain.Project) error
 	GetProjectByID(ctx context.Context, projectID uuid.UUID) (*domain.Project, error)
 	GetProjectsByOwner(ctx context.Context, ownerID uuid.UUID, offset, limit int) ([]*domain.Project, int64, error)
 	UpdateProject(ctx context.Context, project *domain.Project) error
 	SoftDeleteProject(ctx context.Context, projectID uuid.UUID) error
+	// SoftDeleteProjectTx is the transaction-scoped variant of SoftDeleteProject,
+	// paired with an outbox enqueue by the service layer.
+	SoftDeleteProjectTx(ctx context.Context, tx *sql.Tx, projectID uuid.UUID) error
 
 	// Authorization helpers
 	IsProjectOwner(ctx context.Context, projectID, userID uuid.UUID) (bool, error)
@@ -150,13 +156,37 @@ func NewProjectRepository(db *sql.DB) ProjectRepository {
 }
 
 // CreateProject creates a new project in the database
-func (r *projectRepository) CreateProject(ctx context.Context, project *domain.Project) error {
-	query := `
-		INSERT INTO projects (project_id, title, description, owner_id, category, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`
+// projectInsert is the shared SQL used by CreateProject and CreateProjectTx.
+const projectInsert = `
+	INSERT INTO projects (project_id, title, description, owner_id, category, status, created_at, updated_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+`
 
-	_, err := r.db.ExecContext(ctx, query,
+// CreateProjectTx inserts a project inside the given transaction. The service
+// layer calls this alongside outbox.EnqueueTx to keep the project row and its
+// project.created event atomic.
+func (r *projectRepository) CreateProjectTx(ctx context.Context, tx *sql.Tx, project *domain.Project) error {
+	_, err := tx.ExecContext(ctx, projectInsert,
+		project.ID,
+		project.Title,
+		project.Description,
+		project.OwnerID,
+		project.Category,
+		project.Status,
+		project.CreatedAt,
+		project.UpdatedAt,
+	)
+	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
+			return domain.ErrProjectExists
+		}
+		return fmt.Errorf("failed to create project: %w", err)
+	}
+	return nil
+}
+
+func (r *projectRepository) CreateProject(ctx context.Context, project *domain.Project) error {
+	_, err := r.db.ExecContext(ctx, projectInsert,
 		project.ID,
 		project.Title,
 		project.Description,
@@ -292,14 +322,33 @@ func (r *projectRepository) UpdateProject(ctx context.Context, project *domain.P
 }
 
 // SoftDeleteProject marks a project as deleted
-func (r *projectRepository) SoftDeleteProject(ctx context.Context, projectID uuid.UUID) error {
-	query := `
-		UPDATE projects 
-		SET deleted_at = NOW(), updated_at = NOW()
-		WHERE project_id = $1 AND deleted_at IS NULL
-	`
+// softDeleteProjectSQL is the shared UPDATE used by both SoftDelete variants.
+const softDeleteProjectSQL = `
+	UPDATE projects
+	SET deleted_at = NOW(), updated_at = NOW()
+	WHERE project_id = $1 AND deleted_at IS NULL
+`
 
-	result, err := r.db.ExecContext(ctx, query, projectID)
+// SoftDeleteProjectTx runs the same soft-delete as SoftDeleteProject inside the
+// caller's transaction, used so the deletion and its project.deleted outbox event
+// commit together.
+func (r *projectRepository) SoftDeleteProjectTx(ctx context.Context, tx *sql.Tx, projectID uuid.UUID) error {
+	result, err := tx.ExecContext(ctx, softDeleteProjectSQL, projectID)
+	if err != nil {
+		return fmt.Errorf("failed to delete project: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return domain.ErrProjectNotFound
+	}
+	return nil
+}
+
+func (r *projectRepository) SoftDeleteProject(ctx context.Context, projectID uuid.UUID) error {
+	result, err := r.db.ExecContext(ctx, softDeleteProjectSQL, projectID)
 	if err != nil {
 		return fmt.Errorf("failed to delete project: %w", err)
 	}

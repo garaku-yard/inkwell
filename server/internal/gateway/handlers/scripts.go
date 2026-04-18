@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/pkg/grpc/collab"
 	"inkwell/server/pkg/grpc/common"
@@ -37,65 +38,63 @@ func NewScriptsHandler(clients *grpcclient.Registry) *ScriptsHandler {
 // creator as an "owner" collaborator in the collab service. If the collab
 // service call fails the project is still returned — the error is logged but
 // not surfaced to the client.
+// createProjectBody is the JSON shape accepted by CreateProject.
+type createProjectBody struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	OwnerID     string `json:"owner_id"`
+	Category    string `json:"category"`
+}
+
+// createProjectResponse is the JSON shape returned by CreateProject.
+type createProjectResponse struct {
+	Project any `json:"project"`
+}
+
+// CreateProject handles POST /projects.
+//
+// Reference implementation for the Wrap[Req, Resp] generic: all boilerplate
+// (method guard, JSON decode, auth, error envelope, response writer) lives in
+// the Endpoint declaration; the Handle closure carries only business logic —
+// field validation, the gRPC call, and the owner-as-collaborator side effect.
 func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	Endpoint[createProjectBody, createProjectResponse]{
+		Method:        http.MethodPost,
+		Decode:        JSONBody[createProjectBody],
+		SuccessStatus: http.StatusCreated,
+		Handle: func(r *http.Request, _ string, body *createProjectBody) (*createProjectResponse, error) {
+			if body.Title == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "title is required")
+			}
+			if body.OwnerID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "owner_id is required")
+			}
 
-	// Parse request body
-	var req struct {
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		OwnerID     string `json:"owner_id"`
-		Category    string `json:"category"`
-	}
+			resp, err := h.scriptsClient.CreateProject(r.Context(), &scriptspb.CreateProjectRequest{
+				Title:       body.Title,
+				Description: body.Description,
+				OwnerId:     body.OwnerID,
+				Category:    body.Category,
+			})
+			if err != nil {
+				return nil, err
+			}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
+			// Register the owner as a collaborator with the "owner" role so they
+			// appear in collaborator listings. Failures are logged but non-fatal —
+			// the project itself already committed.
+			if _, err := h.collabClient.AddCollaboratorDirect(r.Context(), &collab.AddCollaboratorDirectRequest{
+				ProjectId: resp.Project.Id,
+				UserId:    body.OwnerID,
+				InviterId: body.OwnerID,
+				Role:      "owner",
+			}); err != nil {
+				log.Printf("failed to add owner %s as collaborator for project %s: %v", body.OwnerID, resp.Project.Id, err)
+			}
 
-	// Validate required fields
-	if req.Title == "" {
-		writeError(w, "Title is required", http.StatusBadRequest)
-		return
-	}
-	if req.OwnerID == "" {
-		writeError(w, "Owner ID is required", http.StatusBadRequest)
-		return
-	}
-
-	// Call Scripts service
-	resp, err := h.scriptsClient.CreateProject(r.Context(), &scriptspb.CreateProjectRequest{
-		Title:       req.Title,
-		Description: req.Description,
-		OwnerId:     req.OwnerID,
-		Category:    req.Category,
-	})
-	if err != nil {
-		writeError(w, "Failed to create project: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Add the owner as a collaborator with "owner" role in the collaboration service
-	if _, err = h.collabClient.AddCollaboratorDirect(r.Context(), &collab.AddCollaboratorDirectRequest{
-		ProjectId: resp.Project.Id,
-		UserId:    req.OwnerID,
-		InviterId: req.OwnerID,
-		Role:      "owner",
-	}); err != nil {
-		log.Printf("failed to add owner %s as collaborator for project %s: %v", req.OwnerID, resp.Project.Id, err)
-	}
-
-	// Convert response
-	project := convertProjectFromProto(resp.Project)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"project": project,
-	})
+			return &createProjectResponse{Project: convertProjectFromProto(resp.Project)}, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // GetProject fetches a single project by ID. It requires a userID from the
@@ -134,7 +133,7 @@ func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 		UserId:    resolvedID,
 	})
 	if err != nil {
-		writeError(w, "Failed to get project: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 
@@ -177,7 +176,7 @@ func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		UserId:    userID,
 	})
 	if err != nil {
-		writeError(w, "Failed to delete project: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 
@@ -217,7 +216,7 @@ func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Reques
 		UserId:    userID,
 	})
 	if err != nil {
-		writeError(w, "Failed to toggle star: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 
@@ -275,7 +274,7 @@ func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request)
 		},
 	})
 	if err != nil {
-		writeError(w, "Failed to get projects: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 
@@ -343,7 +342,7 @@ func (h *ScriptsHandler) GetSharedProjects(w http.ResponseWriter, r *http.Reques
 		UserId: userID,
 	})
 	if err != nil {
-		writeError(w, "Failed to get collaborations: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 

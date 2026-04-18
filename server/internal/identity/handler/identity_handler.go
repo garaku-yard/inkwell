@@ -115,7 +115,7 @@ func (h *IdentityHandler) RefreshToken(ctx context.Context, req *identitypb.Refr
 // returns Valid:false rather than a gRPC error, so callers can handle expired sessions
 // without treating them as hard failures.
 func (h *IdentityHandler) ValidateToken(ctx context.Context, req *identitypb.ValidateTokenRequest) (*identitypb.ValidateTokenResponse, error) {
-	userInfo, err := h.authService.ValidateToken(ctx, req.AccessToken)
+	userInfo, expiresAt, err := h.authService.ValidateToken(ctx, req.AccessToken)
 	if err != nil {
 		return &identitypb.ValidateTokenResponse{
 			Valid: false,
@@ -137,7 +137,7 @@ func (h *IdentityHandler) ValidateToken(ctx context.Context, req *identitypb.Val
 			IsActive:  userInfo.IsActive,
 			Role:      userInfo.Role,
 		},
-		ExpiresAt: timeToCommonTimestamp(userInfo.CreatedAt), // Placeholder
+		ExpiresAt: timeToCommonTimestamp(expiresAt),
 	}, nil
 }
 

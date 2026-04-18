@@ -104,6 +104,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 					r.Get("/", scriptsHandler.GetProject)
 					r.Delete("/", scriptsHandler.DeleteProject)
 					r.Patch("/star", scriptsHandler.ToggleProjectStar)
+					r.Get("/export", scriptsHandler.ExportProject)
 
 					r.Get("/collaborators", collaborationHandler.GetProjectCollaborators)
 					r.Post("/collaborators", collaborationHandler.AddCollaborator)
@@ -254,6 +255,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 				r.Get("/", scriptsHandler.GetProject)
 				r.Delete("/", scriptsHandler.DeleteProject)
 				r.Patch("/star", scriptsHandler.ToggleProjectStar)
+				r.Get("/export", scriptsHandler.ExportProject)
 
 				r.Get("/collaborators", collaborationHandler.GetProjectCollaborators)
 				r.Post("/collaborators", collaborationHandler.AddCollaborator)

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/pkg/grpc/collab"
 	"inkwell/server/pkg/grpc/identity"
@@ -91,7 +92,7 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 		Role:      req.Role,
 	})
 	if err != nil {
-		writeError(w, "Failed to add collaborator: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 
@@ -458,21 +459,13 @@ func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Req
 // string if neither source yields a value, which callers should treat as an
 // unauthenticated request and respond with 401.
 func getUserIDFromContext(r *http.Request) string {
-	// First, try to get user ID from context (set by auth middleware)
-	if userID := r.Context().Value("userID"); userID != nil {
-		if userIDStr, ok := userID.(string); ok {
-			return userIDStr
-		}
+	if id, ok := contextx.UserIDFrom(r.Context()); ok {
+		return id
 	}
-
-	// Fallback: try to get from header (also set by auth middleware)
-	userID := r.Header.Get("X-User-ID")
-	if userID != "" {
-		return userID
-	}
-
-	// If no proper auth, return empty (which will trigger 401)
-	return ""
+	// Fallback to the X-User-ID header that AuthMiddleware also sets, so
+	// handlers reached via internal routing (or during tests) can still
+	// resolve the caller without a fully populated context.
+	return r.Header.Get("X-User-ID")
 }
 
 // resolveEmailOrUserTag normalises an invitation target to an email address.
@@ -561,7 +554,7 @@ func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http
 		UserId: userID,
 	})
 	if err != nil {
-		writeError(w, "Failed to get user details: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 
@@ -577,7 +570,7 @@ func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http
 		Email: userEmail,
 	})
 	if err != nil {
-		writeError(w, "Failed to get user invitations: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 
@@ -678,7 +671,7 @@ func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.R
 		CollaboratorId: collaboratorID,
 	})
 	if err != nil {
-		writeError(w, "Failed to accept invitation: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 
@@ -746,7 +739,7 @@ func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.
 		CollaboratorId: collaboratorID,
 	})
 	if err != nil {
-		writeError(w, "Failed to decline invitation: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 
@@ -815,7 +808,7 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *
 		NewRole:        req.Role,
 	})
 	if err != nil {
-		writeError(w, "Failed to update collaborator role: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 
@@ -867,7 +860,7 @@ func (h *CollaborationHandler) RemoveCollaborator(w http.ResponseWriter, r *http
 		CollaboratorId: collaboratorID,
 	})
 	if err != nil {
-		writeError(w, "Failed to remove collaborator: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 
@@ -933,7 +926,7 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 
 	resp, err := h.client.UpdateComment(ctx, req)
 	if err != nil {
-		writeError(w, "Failed to update comment: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 
@@ -988,7 +981,7 @@ func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Requ
 		UserId:    userID,
 	})
 	if err != nil {
-		writeError(w, "Failed to delete comment: "+err.Error(), http.StatusInternalServerError)
+		handleGRPCError(w, err)
 		return
 	}
 

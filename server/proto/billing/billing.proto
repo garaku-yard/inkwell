@@ -218,6 +218,46 @@ message ProcessWebhookResponse {
   string message = 2;
 }
 
+// Admin analytics
+message GetBillingAnalyticsRequest {}
+
+message TierDistributionEntry {
+  string tier_id = 1;
+  string tier_name = 2;
+  int64 count = 3;
+}
+
+message RevenueByTierEntry {
+  string tier_id = 1;
+  string tier_name = 2;
+  // Revenue in whole-dollar units matching SubscriptionTier.MonthlyPrice.
+  double revenue = 3;
+}
+
+message GetBillingAnalyticsResponse {
+  // Monthly recurring revenue: sum of monthly_price for active subscriptions.
+  double mrr = 1;
+  // Annual recurring revenue: mrr * 12.
+  double arr = 2;
+  // Fraction of subscriptions canceled in the last 30 days over active ones (0–1).
+  double churn_rate = 3;
+  // Count of active subscriptions per tier.
+  repeated TierDistributionEntry tier_distribution = 4;
+  // Revenue contribution per tier.
+  repeated RevenueByTierEntry revenue_by_tier = 5;
+}
+
+message ListAllSubscriptionsRequest {
+  int32 offset = 1;
+  int32 limit = 2;
+  string status_filter = 3;
+}
+
+message ListAllSubscriptionsResponse {
+  repeated Subscription subscriptions = 1;
+  int32 total = 2;
+}
+
 // Billing service definition
 service BillingService {
   // Plan management
@@ -245,4 +285,10 @@ service BillingService {
   
   // Webhook processing
   rpc ProcessWebhook(ProcessWebhookRequest) returns (ProcessWebhookResponse);
+
+  // Admin analytics — MRR, ARR, churn, tier distribution. Callers must have the
+  // admin role; enforcement lives in the gateway.
+  rpc GetBillingAnalytics(GetBillingAnalyticsRequest) returns (GetBillingAnalyticsResponse);
+  // Admin listing of every subscription across all users.
+  rpc ListAllSubscriptions(ListAllSubscriptionsRequest) returns (ListAllSubscriptionsResponse);
 }

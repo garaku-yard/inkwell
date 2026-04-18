@@ -1,29 +1,64 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
+	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/pkg/grpc/common"
 )
 
-// writeError writes a JSON error response: {"error": "message"}.
-// Use this for plain-text error messages.
+// writeError emits a structured JSON error envelope with the given HTTP status.
+// The message is carried in the envelope's `message` field and the envelope's
+// `code` is inferred from the HTTP status, producing a stable shape that
+// front-end callers can branch on.
 func writeError(w http.ResponseWriter, message string, status int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	apierror.WriteStatus(w, status, codeForHTTPStatus(status), message)
 }
 
 // writeRawError writes a pre-formatted JSON body as an application/json error response.
-// Use this when the body is already a valid JSON string (e.g. `{"error":"..."}`).
+// Retained for legacy callers that already produced a valid JSON string; prefer
+// writeError or apierror.Write for new code.
 func writeRawError(w http.ResponseWriter, body string, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	fmt.Fprint(w, body)
 }
+
+// handleGRPCError converts a gRPC error into a structured envelope and writes
+// it to w. It preserves the gRPC status code (NotFound, PermissionDenied, etc.)
+// and the server-provided message rather than collapsing everything to HTTP 500.
+func handleGRPCError(w http.ResponseWriter, err error) {
+	apierror.Write(w, err)
+}
+
+// codeForHTTPStatus maps ad-hoc HTTP statuses emitted by handler-level
+// validation to the matching apierror.Code so that responses created via
+// writeError carry the same envelope shape as those translated from gRPC.
+func codeForHTTPStatus(status int) apierror.Code {
+	switch status {
+	case http.StatusBadRequest:
+		return apierror.CodeInvalidArgument
+	case http.StatusUnauthorized:
+		return apierror.CodeUnauthenticated
+	case http.StatusForbidden:
+		return apierror.CodePermissionDenied
+	case http.StatusNotFound:
+		return apierror.CodeNotFound
+	case http.StatusConflict:
+		return apierror.CodeAlreadyExists
+	case http.StatusUnprocessableEntity:
+		return apierror.CodeFailedPrecondition
+	case http.StatusServiceUnavailable:
+		return apierror.CodeUnavailable
+	case http.StatusGatewayTimeout:
+		return apierror.CodeDeadlineExceeded
+	default:
+		return apierror.CodeInternal
+	}
+}
+
 
 // timestampToString converts a protobuf Timestamp to an RFC3339 UTC string.
 // Returns "" for nil timestamps.

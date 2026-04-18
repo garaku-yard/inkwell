@@ -1,6 +1,8 @@
 /**
  * Core HTTP client used by all service modules. Handles authentication,
- * JSON serialisation, and session expiry notifications.
+ * JSON serialisation, and session-expiry notifications. Non-OK responses are
+ * surfaced as `ApiError` instances so callers can branch on the structured
+ * `code` and per-field validation `fields` instead of pattern-matching on text.
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -11,6 +13,58 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 type ApiClientOptions = Omit<RequestInit, 'body'> & {
   body?: unknown;
 };
+
+/**
+ * Stable machine-readable error codes emitted by the gateway's error envelope.
+ * Extend this union if the server adds new codes; missing values fall back to
+ * `"UNKNOWN"` so callers can still render a generic error.
+ */
+export type ApiErrorCode =
+  | "UNKNOWN"
+  | "INVALID_ARGUMENT"
+  | "UNAUTHENTICATED"
+  | "PERMISSION_DENIED"
+  | "NOT_FOUND"
+  | "ALREADY_EXISTS"
+  | "FAILED_PRECONDITION"
+  | "INTERNAL"
+  | "UNAVAILABLE"
+  | "DEADLINE_EXCEEDED";
+
+/**
+ * Structured error thrown by `apiClient` and `apiStreamClient` for every
+ * non-OK response. Preserves the server-provided `code` and any `fields`
+ * (per-field validation details) so UI code can branch on failure type.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await createProject(data);
+ * } catch (err) {
+ *   if (err instanceof ApiError && err.code === "ALREADY_EXISTS") {
+ *     toast.error("A project with that title already exists.");
+ *   } else {
+ *     throw err;
+ *   }
+ * }
+ * ```
+ */
+export class ApiError extends Error {
+  /** HTTP status code of the response (e.g. 404, 409). */
+  public readonly status: number;
+  /** Stable, machine-readable identifier of the error kind. */
+  public readonly code: ApiErrorCode;
+  /** Optional per-field validation details keyed by field name. */
+  public readonly fields?: Record<string, string>;
+
+  constructor(status: number, code: ApiErrorCode, message: string, fields?: Record<string, string>) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.fields = fields;
+  }
+}
 
 /**
  * Fires a `"session-expired"` custom event on `window` and removes the stored
@@ -25,6 +79,32 @@ const notifySessionExpired = () => {
 };
 
 /**
+ * Parses a non-OK response body into an `ApiError`. Supports the structured
+ * envelope shape (`{code, message, fields}`) and falls back to the legacy
+ * `{error}` shape or plain status-text when the body cannot be parsed.
+ */
+async function parseApiError(response: Response): Promise<ApiError> {
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    // Body wasn't JSON — fall through to status-text fallback below.
+  }
+
+  if (body && typeof body === "object") {
+    const obj = body as { code?: string; message?: string; error?: string; fields?: Record<string, string> };
+    if (typeof obj.code === "string" && typeof obj.message === "string") {
+      return new ApiError(response.status, obj.code as ApiErrorCode, obj.message, obj.fields);
+    }
+    if (typeof obj.error === "string") {
+      return new ApiError(response.status, "UNKNOWN", obj.error);
+    }
+  }
+
+  return new ApiError(response.status, "UNKNOWN", response.statusText || "Request failed");
+}
+
+/**
  * Generic JSON API client for the Inkwell gateway. Attaches the stored JWT as
  * a `Bearer` token, serialises the request body to JSON, and parses the
  * response. Treats HTTP 204 No Content as an empty object.
@@ -32,10 +112,9 @@ const notifySessionExpired = () => {
  * @param endpoint - Path relative to `NEXT_PUBLIC_API_URL` (e.g. `"projects"`).
  * @param options - Optional fetch options including a typed `body` object.
  * @returns A promise that resolves to the parsed JSON response cast to `T`.
- * @throws {Error} `"Session expired. Please login again."` when the server
- *   returns HTTP 401. The `"session-expired"` window event is also dispatched.
- * @throws {Error} The `error` field from the response body, or a generic
- *   status-text message, for any other non-OK response.
+ * @throws {ApiError} For any non-OK response, with the gateway's structured
+ *   `code`, `message`, and optional `fields`. On HTTP 401 the
+ *   `"session-expired"` window event is also dispatched.
  *
  * @example
  * ```ts
@@ -73,29 +152,23 @@ export async function apiClient<T>(
 
   if (response.status === 401) {
     notifySessionExpired();
-    throw new Error("Session expired. Please login again.");
+    throw new ApiError(401, "UNAUTHENTICATED", "Session expired. Please login again.");
   }
 
   if (response.status === 204) {
     return {} as T;
   }
 
+  if (!response.ok) {
+    throw await parseApiError(response);
+  }
+
   const contentType = response.headers.get("content-type");
   if (!contentType || !contentType.includes("application/json")) {
-    if (!response.ok) {
-      throw new Error(`An error occurred: ${response.statusText}`);
-    }
     return {} as T;
   }
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    const errorMessage = data.error || `An error occurred: ${response.statusText}`;
-    throw new Error(errorMessage);
-  }
-
-  return data as T;
+  return (await response.json()) as T;
 }
 
 /**
@@ -107,8 +180,8 @@ export async function apiClient<T>(
  * @param endpoint - Path relative to `NEXT_PUBLIC_API_URL`.
  * @param options - Optional fetch options including a typed `body` object.
  * @returns A promise that resolves to the response `ReadableStream`.
- * @throws {Error} `"Session expired. Please login again."` on HTTP 401.
- * @throws {Error} The `error` field from the response body for non-OK responses.
+ * @throws {ApiError} On HTTP 401 (also dispatches `"session-expired"`) or any
+ *   other non-OK response, with the gateway's structured envelope.
  * @throws {Error} `"Response body is empty or null."` when the server sends no body.
  *
  * @example
@@ -148,13 +221,11 @@ export async function apiStreamClient(
 
   if (response.status === 401) {
     notifySessionExpired();
-    throw new Error("Session expired. Please login again.");
+    throw new ApiError(401, "UNAUTHENTICATED", "Session expired. Please login again.");
   }
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    const errorMessage = errorData?.error || `An error occurred: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw await parseApiError(response);
   }
 
   if (!response.body) {

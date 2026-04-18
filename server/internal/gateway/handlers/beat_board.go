@@ -646,11 +646,6 @@ func getIDFromPath(path, prefix string) string {
 	return strings.TrimPrefix(path, prefix)
 }
 
-// handleGRPCError converts gRPC errors to HTTP responses
-func handleGRPCError(w http.ResponseWriter, err error) {
-	writeError(w, "Failed to process request: "+err.Error(), http.StatusInternalServerError)
-}
-
 // UploadBeatImage handles POST /beats/upload-image
 func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request) {
 	log.Printf("UploadBeatImage: Request received")

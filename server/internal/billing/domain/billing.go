@@ -76,13 +76,35 @@ type UserSubscription struct {
 	UpdatedAt              time.Time  `db:"updated_at"`
 }
 
-// BillingOutboxEvent is a pending domain event that must be published to Kafka.
-// Written inside the same DB transaction as the subscription change; a background
-// poller picks it up and emits it, then marks it published (outbox pattern).
-type BillingOutboxEvent struct {
-	ID          uuid.UUID  `db:"id"`
-	EventType   string     `db:"event_type"`
-	Payload     []byte     `db:"payload"` // JSON
-	PublishedAt *time.Time `db:"published_at"`
-	CreatedAt   time.Time  `db:"created_at"`
+// Outbox events are modelled in pkg/outbox.Event. The billing_outbox table is
+// read and written via pkg/outbox.PostgresStore, keeping the schema reusable
+// across services without duplicating a per-service struct here.
+
+// BillingAnalytics aggregates billing KPIs shown on the admin dashboard.
+// MRR and ARR are expressed in the same whole-dollar units as SubscriptionTier.MonthlyPrice.
+type BillingAnalytics struct {
+	// MRR is monthly recurring revenue: sum of monthly_price across active subscriptions.
+	MRR float64
+	// ARR is annual recurring revenue: MRR * 12.
+	ARR float64
+	// ChurnRate is the fraction of subscriptions canceled in the last 30 days over the active count (0–1).
+	ChurnRate float64
+	// TierDistribution is the active subscriber count per tier.
+	TierDistribution []TierCount
+	// RevenueByTier is the MRR contribution per tier.
+	RevenueByTier []TierRevenue
+}
+
+// TierCount pairs a tier with the number of active subscribers on it.
+type TierCount struct {
+	TierID   uuid.UUID
+	TierName string
+	Count    int64
+}
+
+// TierRevenue pairs a tier with its MRR contribution.
+type TierRevenue struct {
+	TierID   uuid.UUID
+	TierName string
+	Revenue  float64
 }

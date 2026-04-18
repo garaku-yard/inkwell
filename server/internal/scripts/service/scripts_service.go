@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +15,8 @@ import (
 	"inkwell/server/internal/scripts/domain"
 	"inkwell/server/internal/scripts/repository"
 	"inkwell/server/pkg/events"
+	"inkwell/server/pkg/outbox"
+	"inkwell/server/pkg/quota"
 )
 
 // ScriptsService defines the business logic interface for the Scripts service
@@ -61,23 +66,49 @@ type ScriptsService interface {
 
 // scriptsService implements the ScriptsService interface
 type scriptsService struct {
+	db        *sql.DB
 	repo      *repository.Repository
+	outbox    outbox.Store
 	config    *config.Config
 	publisher events.Publisher
+	quota     quota.Client
 }
 
 // NewScriptsService creates a new ScriptsService.
-// publisher receives domain events; pass &events.NoopPublisher{} in tests.
-func NewScriptsService(repo *repository.Repository, cfg *config.Config, publisher events.Publisher) ScriptsService {
+//
+// The service commits every project mutation together with a matching outbox
+// event in a single database transaction so no event can be lost if the
+// process crashes. db opens transactions; outbox is the event store (typically
+// outbox.NewPostgresStore(db, "scripts_outbox")); publisher is the best-effort
+// Kafka emitter that the background poller falls back to for reliability;
+// quotaClient enforces per-tier limits (nil disables enforcement for local
+// dev without a running billing service).
+// In tests, pass &events.NoopPublisher{} and an in-memory Store.
+func NewScriptsService(db *sql.DB, repo *repository.Repository, store outbox.Store, cfg *config.Config, publisher events.Publisher, quotaClient quota.Client) ScriptsService {
 	return &scriptsService{
+		db:        db,
 		repo:      repo,
+		outbox:    store,
 		config:    cfg,
 		publisher: publisher,
+		quota:     quotaClient,
 	}
 }
 
-// CreateProject creates a new project
+// CreateProject creates a new project and durably enqueues a project.created
+// event in the same database transaction. The inline Publish call below is a
+// best-effort fast path; the background outbox poller handles reliability.
+//
+// Before creating the project the service enforces the user's projects quota
+// via the billing service. Quota enforcement is skipped when the service was
+// constructed with a nil quota client (local dev without billing running).
 func (s *scriptsService) CreateProject(ctx context.Context, title, description, category string, ownerID uuid.UUID) (*domain.Project, error) {
+	if s.quota != nil {
+		if err := quota.Require(ctx, s.quota, ownerID.String(), quota.MetricProjects, 1); err != nil {
+			return nil, err
+		}
+	}
+
 	if category == "" {
 		category = "screenplay"
 	}
@@ -92,15 +123,38 @@ func (s *scriptsService) CreateProject(ctx context.Context, title, description, 
 		UpdatedAt:   time.Now(),
 	}
 
-	if err := s.repo.Project.CreateProject(ctx, project); err != nil {
-		return nil, err
-	}
-
-	_ = s.publisher.Publish(ctx, events.EventTypeProjectCreated, map[string]string{
+	payload, err := json.Marshal(map[string]string{
 		"project_id": project.ID.String(),
 		"owner_id":   ownerID.String(),
 		"category":   category,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
+		if err := s.repo.Project.CreateProjectTx(ctx, tx, project); err != nil {
+			return err
+		}
+		return s.outbox.EnqueueTx(ctx, tx, outbox.Event{
+			Type:    events.EventTypeProjectCreated,
+			Payload: payload,
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	_ = s.publisher.Publish(ctx, events.EventTypeProjectCreated, payload)
+
+	// Record usage so the user's projects quota reflects the new project. Track
+	// failures are logged but do not fail the request — the project already exists
+	// and the usage total can be reconciled out of band if needed.
+	if s.quota != nil {
+		if err := s.quota.Track(ctx, ownerID.String(), quota.MetricProjects, 1); err != nil {
+			slog.Warn("quota: track projects failed", "user_id", ownerID, "error", err)
+		}
+	}
 
 	return project, nil
 }
@@ -188,9 +242,10 @@ func (s *scriptsService) ToggleProjectStar(ctx context.Context, projectID, userI
 	return project, nil
 }
 
-// DeleteProject soft deletes a project
+// DeleteProject soft-deletes a project and durably enqueues a project.deleted
+// event in the same transaction. The inline publish is best-effort; the
+// outbox poller guarantees the event eventually reaches Kafka.
 func (s *scriptsService) DeleteProject(ctx context.Context, projectID, userID uuid.UUID) error {
-	// Check authorization
 	isOwner, err := s.repo.Project.IsProjectOwner(ctx, projectID, userID)
 	if err != nil {
 		return err
@@ -199,14 +254,28 @@ func (s *scriptsService) DeleteProject(ctx context.Context, projectID, userID uu
 		return domain.ErrUnauthorizedAccess
 	}
 
-	if err := s.repo.Project.SoftDeleteProject(ctx, projectID); err != nil {
-		return err
-	}
-
-	_ = s.publisher.Publish(ctx, events.EventTypeProjectDeleted, map[string]string{
+	payload, err := json.Marshal(map[string]string{
 		"project_id": projectID.String(),
 		"user_id":    userID.String(),
 	})
+	if err != nil {
+		return err
+	}
+
+	err = outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
+		if err := s.repo.Project.SoftDeleteProjectTx(ctx, tx, projectID); err != nil {
+			return err
+		}
+		return s.outbox.EnqueueTx(ctx, tx, outbox.Event{
+			Type:    events.EventTypeProjectDeleted,
+			Payload: payload,
+		})
+	})
+	if err != nil {
+		return err
+	}
+
+	_ = s.publisher.Publish(ctx, events.EventTypeProjectDeleted, payload)
 
 	return nil
 }

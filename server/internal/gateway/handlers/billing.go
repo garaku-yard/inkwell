@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"inkwell/server/internal/gateway/grpcclient"
@@ -119,18 +120,53 @@ func (h *BillingHandler) GetTiers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tiers)
 }
 
-// GetAnalytics returns billing analytics. Currently returns zeroed metrics (MRR,
-// ARR, churn rate) until a payment processor is configured.
+// GetAnalytics returns billing KPIs computed by the billing service from live
+// subscription data: MRR (monthly recurring revenue, summed across active
+// subscriptions with yearly cycles amortised into a monthly equivalent), ARR
+// (MRR × 12), churn rate (cancellations in the last 30 days / active count),
+// and per-tier distribution + revenue. Falls back to a zeroed response if the
+// billing service is unreachable so the admin UI stays rendered.
 func (h *BillingHandler) GetAnalytics(w http.ResponseWriter, r *http.Request) {
-	analytics := map[string]interface{}{
-		"mrr":       0,
-		"arr":       0,
-		"churnRate": 0.0,
-		"tierDistribution": []interface{}{},
-		"revenueByTier":    []interface{}{},
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	resp, err := h.client.GetBillingAnalytics(ctx, &billingpb.GetBillingAnalyticsRequest{})
+	if err != nil {
+		log.Printf("GetAnalytics: billing service error: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"mrr":              0,
+			"arr":              0,
+			"churnRate":        0.0,
+			"tierDistribution": []interface{}{},
+			"revenueByTier":    []interface{}{},
+		})
+		return
 	}
+
+	type tierEntry struct {
+		TierID   string `json:"tierId"`
+		TierName string `json:"tierName"`
+		Count    int64  `json:"count,omitempty"`
+		Revenue  float64 `json:"revenue,omitempty"`
+	}
+	distribution := make([]tierEntry, 0, len(resp.TierDistribution))
+	for _, e := range resp.TierDistribution {
+		distribution = append(distribution, tierEntry{TierID: e.TierId, TierName: e.TierName, Count: e.Count})
+	}
+	revenue := make([]tierEntry, 0, len(resp.RevenueByTier))
+	for _, e := range resp.RevenueByTier {
+		revenue = append(revenue, tierEntry{TierID: e.TierId, TierName: e.TierName, Revenue: e.Revenue})
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(analytics)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"mrr":              resp.Mrr,
+		"arr":              resp.Arr,
+		"churnRate":        resp.ChurnRate,
+		"tierDistribution": distribution,
+		"revenueByTier":    revenue,
+	})
 }
 
 // GetGateways returns the list of configured payment gateways. Currently returns
@@ -149,14 +185,64 @@ func (h *BillingHandler) GetGateways(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(gateways)
 }
 
-// GetSubscriptions returns a paginated list of user subscriptions. Currently returns
-// an empty list until subscription management is fully implemented.
+// GetSubscriptions returns a paginated list of every subscription across all
+// users, for the admin subscriptions table. Pagination params (`page`, `limit`)
+// and `status` filter arrive as query strings; limit defaults to 50. Returns an
+// empty page if the billing service is unreachable so the admin UI stays rendered.
 func (h *BillingHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
-	result := map[string]interface{}{
-		"subscriptions": []interface{}{},
-		"total":         0,
-		"pages":         0,
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	q := r.URL.Query()
+	page := 1
+	limit := 50
+	if v := q.Get("page"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			page = n
+		}
 	}
+	if v := q.Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	offset := (page - 1) * limit
+
+	resp, err := h.client.ListAllSubscriptions(ctx, &billingpb.ListAllSubscriptionsRequest{
+		Offset:       int32(offset),
+		Limit:        int32(limit),
+		StatusFilter: q.Get("status"),
+	})
+	if err != nil {
+		log.Printf("GetSubscriptions: billing service error: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"subscriptions": []interface{}{},
+			"total":         0,
+			"pages":         0,
+		})
+		return
+	}
+
+	type subOut struct {
+		ID     string `json:"id"`
+		UserID string `json:"userId"`
+		PlanID string `json:"planId"`
+		Status string `json:"status"`
+	}
+	subs := make([]subOut, 0, len(resp.Subscriptions))
+	for _, s := range resp.Subscriptions {
+		subs = append(subs, subOut{ID: s.Id, UserID: s.UserId, PlanID: s.PlanId, Status: s.Status})
+	}
+	pages := int(resp.Total) / limit
+	if int(resp.Total)%limit != 0 {
+		pages++
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"subscriptions": subs,
+		"total":         resp.Total,
+		"pages":         pages,
+	})
 }

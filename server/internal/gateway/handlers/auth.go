@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/middleware"
 	identitypb "inkwell/server/pkg/grpc/identity"
@@ -124,9 +125,8 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID from context (set by auth middleware)
-	userID, ok := r.Context().Value("userID").(string)
-	if !ok || userID == "" {
+	userID, ok := contextx.UserIDFrom(r.Context())
+	if !ok {
 		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -182,8 +182,8 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, ok := r.Context().Value("userID").(string)
-	if !ok || userID == "" {
+	userID, ok := contextx.UserIDFrom(r.Context())
+	if !ok {
 		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

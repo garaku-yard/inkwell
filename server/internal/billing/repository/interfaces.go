@@ -3,6 +3,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
 
@@ -30,8 +31,14 @@ type BillingRepository interface {
 
 	// ── Subscriptions ──────────────────────────────────────────────────────────
 
-	// CreateSubscription inserts a new subscription record.
+	// CreateSubscription inserts a new subscription record outside any caller-managed
+	// transaction. Prefer CreateSubscriptionTx when the write must be atomic with an
+	// outbox enqueue.
 	CreateSubscription(ctx context.Context, sub *domain.UserSubscription) error
+	// CreateSubscriptionTx inserts a new subscription record inside the given
+	// transaction. The service layer uses this alongside outbox.Store.EnqueueTx so
+	// that the subscription row and the outbox event commit together.
+	CreateSubscriptionTx(ctx context.Context, tx *sql.Tx, sub *domain.UserSubscription) error
 	// GetSubscriptionByUserID returns the most recent subscription for a user.
 	// Returns ErrSubscriptionNotFound when no record exists.
 	GetSubscriptionByUserID(ctx context.Context, userID uuid.UUID) (*domain.UserSubscription, error)
@@ -39,16 +46,27 @@ type BillingRepository interface {
 	GetSubscriptionByID(ctx context.Context, id uuid.UUID) (*domain.UserSubscription, error)
 	// UpdateSubscription updates mutable fields on an existing subscription.
 	UpdateSubscription(ctx context.Context, sub *domain.UserSubscription) error
+	// UpdateSubscriptionTx is the transaction-scoped variant of UpdateSubscription,
+	// used by the service layer to pair the update with an outbox enqueue atomically.
+	UpdateSubscriptionTx(ctx context.Context, tx *sql.Tx, sub *domain.UserSubscription) error
 	// ListSubscriptions returns a paginated list of all subscriptions.
 	ListSubscriptions(ctx context.Context, offset, limit int, status string) ([]*domain.UserSubscription, int, error)
 
-	// ── Outbox ─────────────────────────────────────────────────────────────────
+	// ── Usage tracking ─────────────────────────────────────────────────────────
 
-	// CreateOutboxEvent inserts a pending domain event into the outbox table.
-	// Should be called within the same DB transaction as the triggering write.
-	CreateOutboxEvent(ctx context.Context, event *domain.BillingOutboxEvent) error
-	// ListUnpublishedOutboxEvents returns events not yet sent to Kafka.
-	ListUnpublishedOutboxEvents(ctx context.Context, limit int) ([]*domain.BillingOutboxEvent, error)
-	// MarkOutboxEventPublished stamps an event as delivered so it is not re-sent.
-	MarkOutboxEventPublished(ctx context.Context, id uuid.UUID) error
+	// TrackUsage atomically appends a usage event and upserts the aggregate total.
+	// Both writes happen in a single transaction so the log and aggregate agree.
+	TrackUsage(ctx context.Context, userID uuid.UUID, metric string, quantity int64) error
+	// GetUsageTotal returns the current aggregate usage for a user + metric.
+	// Returns 0 with no error when no events have been recorded yet.
+	GetUsageTotal(ctx context.Context, userID uuid.UUID, metric string) (int64, error)
+	// ListUserUsage returns all metrics for a user (used by the admin overview and
+	// by the GetUserUsage gRPC endpoint).
+	ListUserUsage(ctx context.Context, userID uuid.UUID) (map[string]int64, error)
+
+	// ── Analytics ──────────────────────────────────────────────────────────────
+
+	// GetAnalytics computes MRR, ARR, churn rate and per-tier breakdowns from
+	// the current subscription + tier data. Churn is measured over the last 30 days.
+	GetAnalytics(ctx context.Context) (*domain.BillingAnalytics, error)
 }

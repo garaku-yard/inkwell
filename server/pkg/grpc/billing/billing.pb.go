@@ -9,8 +9,8 @@ package billing
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	reflect "reflect"
 	common "inkwell/server/pkg/grpc/common"
+	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
 )
@@ -2037,6 +2037,357 @@ func (x *ProcessWebhookResponse) GetMessage() string {
 	return ""
 }
 
+// Admin analytics
+type GetBillingAnalyticsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBillingAnalyticsRequest) Reset() {
+	*x = GetBillingAnalyticsRequest{}
+	mi := &file_billing_billing_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBillingAnalyticsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBillingAnalyticsRequest) ProtoMessage() {}
+
+func (x *GetBillingAnalyticsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_billing_billing_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBillingAnalyticsRequest.ProtoReflect.Descriptor instead.
+func (*GetBillingAnalyticsRequest) Descriptor() ([]byte, []int) {
+	return file_billing_billing_proto_rawDescGZIP(), []int{33}
+}
+
+type TierDistributionEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TierId        string                 `protobuf:"bytes,1,opt,name=tier_id,json=tierId,proto3" json:"tier_id,omitempty"`
+	TierName      string                 `protobuf:"bytes,2,opt,name=tier_name,json=tierName,proto3" json:"tier_name,omitempty"`
+	Count         int64                  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TierDistributionEntry) Reset() {
+	*x = TierDistributionEntry{}
+	mi := &file_billing_billing_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TierDistributionEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TierDistributionEntry) ProtoMessage() {}
+
+func (x *TierDistributionEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_billing_billing_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TierDistributionEntry.ProtoReflect.Descriptor instead.
+func (*TierDistributionEntry) Descriptor() ([]byte, []int) {
+	return file_billing_billing_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *TierDistributionEntry) GetTierId() string {
+	if x != nil {
+		return x.TierId
+	}
+	return ""
+}
+
+func (x *TierDistributionEntry) GetTierName() string {
+	if x != nil {
+		return x.TierName
+	}
+	return ""
+}
+
+func (x *TierDistributionEntry) GetCount() int64 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+type RevenueByTierEntry struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	TierId   string                 `protobuf:"bytes,1,opt,name=tier_id,json=tierId,proto3" json:"tier_id,omitempty"`
+	TierName string                 `protobuf:"bytes,2,opt,name=tier_name,json=tierName,proto3" json:"tier_name,omitempty"`
+	// Revenue in whole-dollar units matching SubscriptionTier.MonthlyPrice.
+	Revenue       float64 `protobuf:"fixed64,3,opt,name=revenue,proto3" json:"revenue,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevenueByTierEntry) Reset() {
+	*x = RevenueByTierEntry{}
+	mi := &file_billing_billing_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevenueByTierEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevenueByTierEntry) ProtoMessage() {}
+
+func (x *RevenueByTierEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_billing_billing_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevenueByTierEntry.ProtoReflect.Descriptor instead.
+func (*RevenueByTierEntry) Descriptor() ([]byte, []int) {
+	return file_billing_billing_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *RevenueByTierEntry) GetTierId() string {
+	if x != nil {
+		return x.TierId
+	}
+	return ""
+}
+
+func (x *RevenueByTierEntry) GetTierName() string {
+	if x != nil {
+		return x.TierName
+	}
+	return ""
+}
+
+func (x *RevenueByTierEntry) GetRevenue() float64 {
+	if x != nil {
+		return x.Revenue
+	}
+	return 0
+}
+
+type GetBillingAnalyticsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Monthly recurring revenue: sum of monthly_price for active subscriptions.
+	Mrr float64 `protobuf:"fixed64,1,opt,name=mrr,proto3" json:"mrr,omitempty"`
+	// Annual recurring revenue: mrr * 12.
+	Arr float64 `protobuf:"fixed64,2,opt,name=arr,proto3" json:"arr,omitempty"`
+	// Fraction of subscriptions canceled in the last 30 days over active ones (0–1).
+	ChurnRate float64 `protobuf:"fixed64,3,opt,name=churn_rate,json=churnRate,proto3" json:"churn_rate,omitempty"`
+	// Count of active subscriptions per tier.
+	TierDistribution []*TierDistributionEntry `protobuf:"bytes,4,rep,name=tier_distribution,json=tierDistribution,proto3" json:"tier_distribution,omitempty"`
+	// Revenue contribution per tier.
+	RevenueByTier []*RevenueByTierEntry `protobuf:"bytes,5,rep,name=revenue_by_tier,json=revenueByTier,proto3" json:"revenue_by_tier,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBillingAnalyticsResponse) Reset() {
+	*x = GetBillingAnalyticsResponse{}
+	mi := &file_billing_billing_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBillingAnalyticsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBillingAnalyticsResponse) ProtoMessage() {}
+
+func (x *GetBillingAnalyticsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_billing_billing_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBillingAnalyticsResponse.ProtoReflect.Descriptor instead.
+func (*GetBillingAnalyticsResponse) Descriptor() ([]byte, []int) {
+	return file_billing_billing_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *GetBillingAnalyticsResponse) GetMrr() float64 {
+	if x != nil {
+		return x.Mrr
+	}
+	return 0
+}
+
+func (x *GetBillingAnalyticsResponse) GetArr() float64 {
+	if x != nil {
+		return x.Arr
+	}
+	return 0
+}
+
+func (x *GetBillingAnalyticsResponse) GetChurnRate() float64 {
+	if x != nil {
+		return x.ChurnRate
+	}
+	return 0
+}
+
+func (x *GetBillingAnalyticsResponse) GetTierDistribution() []*TierDistributionEntry {
+	if x != nil {
+		return x.TierDistribution
+	}
+	return nil
+}
+
+func (x *GetBillingAnalyticsResponse) GetRevenueByTier() []*RevenueByTierEntry {
+	if x != nil {
+		return x.RevenueByTier
+	}
+	return nil
+}
+
+type ListAllSubscriptionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Offset        int32                  `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	StatusFilter  string                 `protobuf:"bytes,3,opt,name=status_filter,json=statusFilter,proto3" json:"status_filter,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAllSubscriptionsRequest) Reset() {
+	*x = ListAllSubscriptionsRequest{}
+	mi := &file_billing_billing_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAllSubscriptionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAllSubscriptionsRequest) ProtoMessage() {}
+
+func (x *ListAllSubscriptionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_billing_billing_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAllSubscriptionsRequest.ProtoReflect.Descriptor instead.
+func (*ListAllSubscriptionsRequest) Descriptor() ([]byte, []int) {
+	return file_billing_billing_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *ListAllSubscriptionsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListAllSubscriptionsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListAllSubscriptionsRequest) GetStatusFilter() string {
+	if x != nil {
+		return x.StatusFilter
+	}
+	return ""
+}
+
+type ListAllSubscriptionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Subscriptions []*Subscription        `protobuf:"bytes,1,rep,name=subscriptions,proto3" json:"subscriptions,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAllSubscriptionsResponse) Reset() {
+	*x = ListAllSubscriptionsResponse{}
+	mi := &file_billing_billing_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAllSubscriptionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAllSubscriptionsResponse) ProtoMessage() {}
+
+func (x *ListAllSubscriptionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_billing_billing_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAllSubscriptionsResponse.ProtoReflect.Descriptor instead.
+func (*ListAllSubscriptionsResponse) Descriptor() ([]byte, []int) {
+	return file_billing_billing_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *ListAllSubscriptionsResponse) GetSubscriptions() []*Subscription {
+	if x != nil {
+		return x.Subscriptions
+	}
+	return nil
+}
+
+func (x *ListAllSubscriptionsResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
 var File_billing_billing_proto protoreflect.FileDescriptor
 
 const file_billing_billing_proto_rawDesc = "" +
@@ -2203,7 +2554,31 @@ const file_billing_billing_proto_rawDesc = "" +
 	"event_data\x18\x03 \x01(\fR\teventData\"L\n" +
 	"\x16ProcessWebhookResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\xb5\t\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x1c\n" +
+	"\x1aGetBillingAnalyticsRequest\"c\n" +
+	"\x15TierDistributionEntry\x12\x17\n" +
+	"\atier_id\x18\x01 \x01(\tR\x06tierId\x12\x1b\n" +
+	"\ttier_name\x18\x02 \x01(\tR\btierName\x12\x14\n" +
+	"\x05count\x18\x03 \x01(\x03R\x05count\"d\n" +
+	"\x12RevenueByTierEntry\x12\x17\n" +
+	"\atier_id\x18\x01 \x01(\tR\x06tierId\x12\x1b\n" +
+	"\ttier_name\x18\x02 \x01(\tR\btierName\x12\x18\n" +
+	"\arevenue\x18\x03 \x01(\x01R\arevenue\"\xf2\x01\n" +
+	"\x1bGetBillingAnalyticsResponse\x12\x10\n" +
+	"\x03mrr\x18\x01 \x01(\x01R\x03mrr\x12\x10\n" +
+	"\x03arr\x18\x02 \x01(\x01R\x03arr\x12\x1d\n" +
+	"\n" +
+	"churn_rate\x18\x03 \x01(\x01R\tchurnRate\x12K\n" +
+	"\x11tier_distribution\x18\x04 \x03(\v2\x1e.billing.TierDistributionEntryR\x10tierDistribution\x12C\n" +
+	"\x0frevenue_by_tier\x18\x05 \x03(\v2\x1b.billing.RevenueByTierEntryR\rrevenueByTier\"p\n" +
+	"\x1bListAllSubscriptionsRequest\x12\x16\n" +
+	"\x06offset\x18\x01 \x01(\x05R\x06offset\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12#\n" +
+	"\rstatus_filter\x18\x03 \x01(\tR\fstatusFilter\"q\n" +
+	"\x1cListAllSubscriptionsResponse\x12;\n" +
+	"\rsubscriptions\x18\x01 \x03(\v2\x15.billing.SubscriptionR\rsubscriptions\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total2\xfc\n" +
+	"\n" +
 	"\x0eBillingService\x12?\n" +
 	"\bGetPlans\x12\x18.billing.GetPlansRequest\x1a\x19.billing.GetPlansResponse\x12<\n" +
 	"\aGetPlan\x12\x17.billing.GetPlanRequest\x1a\x18.billing.GetPlanResponse\x12]\n" +
@@ -2220,7 +2595,9 @@ const file_billing_billing_proto_rawDesc = "" +
 	"\n" +
 	"TrackUsage\x12\x1a.billing.TrackUsageRequest\x1a\x1b.billing.TrackUsageResponse\x12K\n" +
 	"\fGetUserUsage\x12\x1c.billing.GetUserUsageRequest\x1a\x1d.billing.GetUserUsageResponse\x12Q\n" +
-	"\x0eProcessWebhook\x12\x1e.billing.ProcessWebhookRequest\x1a\x1f.billing.ProcessWebhookResponseB$Z\"inkwell/server/pkg/grpc/billingb\x06proto3"
+	"\x0eProcessWebhook\x12\x1e.billing.ProcessWebhookRequest\x1a\x1f.billing.ProcessWebhookResponse\x12`\n" +
+	"\x13GetBillingAnalytics\x12#.billing.GetBillingAnalyticsRequest\x1a$.billing.GetBillingAnalyticsResponse\x12c\n" +
+	"\x14ListAllSubscriptions\x12$.billing.ListAllSubscriptionsRequest\x1a%.billing.ListAllSubscriptionsResponseB!Z\x1finkwell/server/pkg/grpc/billingb\x06proto3"
 
 var (
 	file_billing_billing_proto_rawDescOnce sync.Once
@@ -2234,7 +2611,7 @@ func file_billing_billing_proto_rawDescGZIP() []byte {
 	return file_billing_billing_proto_rawDescData
 }
 
-var file_billing_billing_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_billing_billing_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_billing_billing_proto_goTypes = []any{
 	(*Plan)(nil),                          // 0: billing.Plan
 	(*Subscription)(nil),                  // 1: billing.Subscription
@@ -2269,25 +2646,31 @@ var file_billing_billing_proto_goTypes = []any{
 	(*GetUserUsageResponse)(nil),          // 30: billing.GetUserUsageResponse
 	(*ProcessWebhookRequest)(nil),         // 31: billing.ProcessWebhookRequest
 	(*ProcessWebhookResponse)(nil),        // 32: billing.ProcessWebhookResponse
-	(*common.Timestamp)(nil),              // 33: common.Timestamp
-	(*common.PaginationRequest)(nil),      // 34: common.PaginationRequest
-	(*common.PaginationResponse)(nil),     // 35: common.PaginationResponse
+	(*GetBillingAnalyticsRequest)(nil),    // 33: billing.GetBillingAnalyticsRequest
+	(*TierDistributionEntry)(nil),         // 34: billing.TierDistributionEntry
+	(*RevenueByTierEntry)(nil),            // 35: billing.RevenueByTierEntry
+	(*GetBillingAnalyticsResponse)(nil),   // 36: billing.GetBillingAnalyticsResponse
+	(*ListAllSubscriptionsRequest)(nil),   // 37: billing.ListAllSubscriptionsRequest
+	(*ListAllSubscriptionsResponse)(nil),  // 38: billing.ListAllSubscriptionsResponse
+	(*common.Timestamp)(nil),              // 39: common.Timestamp
+	(*common.PaginationRequest)(nil),      // 40: common.PaginationRequest
+	(*common.PaginationResponse)(nil),     // 41: common.PaginationResponse
 }
 var file_billing_billing_proto_depIdxs = []int32{
-	33, // 0: billing.Subscription.current_period_start:type_name -> common.Timestamp
-	33, // 1: billing.Subscription.current_period_end:type_name -> common.Timestamp
-	33, // 2: billing.Subscription.trial_end:type_name -> common.Timestamp
-	33, // 3: billing.Subscription.cancelled_at:type_name -> common.Timestamp
-	33, // 4: billing.Subscription.created_at:type_name -> common.Timestamp
-	33, // 5: billing.Subscription.updated_at:type_name -> common.Timestamp
-	33, // 6: billing.PaymentMethod.created_at:type_name -> common.Timestamp
-	33, // 7: billing.Invoice.invoice_date:type_name -> common.Timestamp
-	33, // 8: billing.Invoice.due_date:type_name -> common.Timestamp
-	33, // 9: billing.Invoice.paid_at:type_name -> common.Timestamp
-	33, // 10: billing.Invoice.created_at:type_name -> common.Timestamp
-	33, // 11: billing.Usage.period_start:type_name -> common.Timestamp
-	33, // 12: billing.Usage.period_end:type_name -> common.Timestamp
-	33, // 13: billing.Usage.created_at:type_name -> common.Timestamp
+	39, // 0: billing.Subscription.current_period_start:type_name -> common.Timestamp
+	39, // 1: billing.Subscription.current_period_end:type_name -> common.Timestamp
+	39, // 2: billing.Subscription.trial_end:type_name -> common.Timestamp
+	39, // 3: billing.Subscription.cancelled_at:type_name -> common.Timestamp
+	39, // 4: billing.Subscription.created_at:type_name -> common.Timestamp
+	39, // 5: billing.Subscription.updated_at:type_name -> common.Timestamp
+	39, // 6: billing.PaymentMethod.created_at:type_name -> common.Timestamp
+	39, // 7: billing.Invoice.invoice_date:type_name -> common.Timestamp
+	39, // 8: billing.Invoice.due_date:type_name -> common.Timestamp
+	39, // 9: billing.Invoice.paid_at:type_name -> common.Timestamp
+	39, // 10: billing.Invoice.created_at:type_name -> common.Timestamp
+	39, // 11: billing.Usage.period_start:type_name -> common.Timestamp
+	39, // 12: billing.Usage.period_end:type_name -> common.Timestamp
+	39, // 13: billing.Usage.created_at:type_name -> common.Timestamp
 	0,  // 14: billing.GetPlansResponse.plans:type_name -> billing.Plan
 	0,  // 15: billing.GetPlanResponse.plan:type_name -> billing.Plan
 	1,  // 16: billing.CreateSubscriptionResponse.subscription:type_name -> billing.Subscription
@@ -2297,47 +2680,54 @@ var file_billing_billing_proto_depIdxs = []int32{
 	1,  // 20: billing.CancelSubscriptionResponse.subscription:type_name -> billing.Subscription
 	2,  // 21: billing.AddPaymentMethodResponse.payment_method:type_name -> billing.PaymentMethod
 	2,  // 22: billing.GetUserPaymentMethodsResponse.payment_methods:type_name -> billing.PaymentMethod
-	34, // 23: billing.GetUserInvoicesRequest.pagination:type_name -> common.PaginationRequest
+	40, // 23: billing.GetUserInvoicesRequest.pagination:type_name -> common.PaginationRequest
 	3,  // 24: billing.GetUserInvoicesResponse.invoices:type_name -> billing.Invoice
-	35, // 25: billing.GetUserInvoicesResponse.pagination:type_name -> common.PaginationResponse
+	41, // 25: billing.GetUserInvoicesResponse.pagination:type_name -> common.PaginationResponse
 	3,  // 26: billing.GetInvoiceResponse.invoice:type_name -> billing.Invoice
-	33, // 27: billing.TrackUsageRequest.timestamp:type_name -> common.Timestamp
-	33, // 28: billing.GetUserUsageRequest.period_start:type_name -> common.Timestamp
-	33, // 29: billing.GetUserUsageRequest.period_end:type_name -> common.Timestamp
+	39, // 27: billing.TrackUsageRequest.timestamp:type_name -> common.Timestamp
+	39, // 28: billing.GetUserUsageRequest.period_start:type_name -> common.Timestamp
+	39, // 29: billing.GetUserUsageRequest.period_end:type_name -> common.Timestamp
 	4,  // 30: billing.GetUserUsageResponse.usage:type_name -> billing.Usage
-	5,  // 31: billing.BillingService.GetPlans:input_type -> billing.GetPlansRequest
-	7,  // 32: billing.BillingService.GetPlan:input_type -> billing.GetPlanRequest
-	9,  // 33: billing.BillingService.CreateSubscription:input_type -> billing.CreateSubscriptionRequest
-	11, // 34: billing.BillingService.GetUserSubscription:input_type -> billing.GetUserSubscriptionRequest
-	13, // 35: billing.BillingService.UpdateSubscription:input_type -> billing.UpdateSubscriptionRequest
-	15, // 36: billing.BillingService.CancelSubscription:input_type -> billing.CancelSubscriptionRequest
-	17, // 37: billing.BillingService.AddPaymentMethod:input_type -> billing.AddPaymentMethodRequest
-	19, // 38: billing.BillingService.GetUserPaymentMethods:input_type -> billing.GetUserPaymentMethodsRequest
-	21, // 39: billing.BillingService.DeletePaymentMethod:input_type -> billing.DeletePaymentMethodRequest
-	23, // 40: billing.BillingService.GetUserInvoices:input_type -> billing.GetUserInvoicesRequest
-	25, // 41: billing.BillingService.GetInvoice:input_type -> billing.GetInvoiceRequest
-	27, // 42: billing.BillingService.TrackUsage:input_type -> billing.TrackUsageRequest
-	29, // 43: billing.BillingService.GetUserUsage:input_type -> billing.GetUserUsageRequest
-	31, // 44: billing.BillingService.ProcessWebhook:input_type -> billing.ProcessWebhookRequest
-	6,  // 45: billing.BillingService.GetPlans:output_type -> billing.GetPlansResponse
-	8,  // 46: billing.BillingService.GetPlan:output_type -> billing.GetPlanResponse
-	10, // 47: billing.BillingService.CreateSubscription:output_type -> billing.CreateSubscriptionResponse
-	12, // 48: billing.BillingService.GetUserSubscription:output_type -> billing.GetUserSubscriptionResponse
-	14, // 49: billing.BillingService.UpdateSubscription:output_type -> billing.UpdateSubscriptionResponse
-	16, // 50: billing.BillingService.CancelSubscription:output_type -> billing.CancelSubscriptionResponse
-	18, // 51: billing.BillingService.AddPaymentMethod:output_type -> billing.AddPaymentMethodResponse
-	20, // 52: billing.BillingService.GetUserPaymentMethods:output_type -> billing.GetUserPaymentMethodsResponse
-	22, // 53: billing.BillingService.DeletePaymentMethod:output_type -> billing.DeletePaymentMethodResponse
-	24, // 54: billing.BillingService.GetUserInvoices:output_type -> billing.GetUserInvoicesResponse
-	26, // 55: billing.BillingService.GetInvoice:output_type -> billing.GetInvoiceResponse
-	28, // 56: billing.BillingService.TrackUsage:output_type -> billing.TrackUsageResponse
-	30, // 57: billing.BillingService.GetUserUsage:output_type -> billing.GetUserUsageResponse
-	32, // 58: billing.BillingService.ProcessWebhook:output_type -> billing.ProcessWebhookResponse
-	45, // [45:59] is the sub-list for method output_type
-	31, // [31:45] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	34, // 31: billing.GetBillingAnalyticsResponse.tier_distribution:type_name -> billing.TierDistributionEntry
+	35, // 32: billing.GetBillingAnalyticsResponse.revenue_by_tier:type_name -> billing.RevenueByTierEntry
+	1,  // 33: billing.ListAllSubscriptionsResponse.subscriptions:type_name -> billing.Subscription
+	5,  // 34: billing.BillingService.GetPlans:input_type -> billing.GetPlansRequest
+	7,  // 35: billing.BillingService.GetPlan:input_type -> billing.GetPlanRequest
+	9,  // 36: billing.BillingService.CreateSubscription:input_type -> billing.CreateSubscriptionRequest
+	11, // 37: billing.BillingService.GetUserSubscription:input_type -> billing.GetUserSubscriptionRequest
+	13, // 38: billing.BillingService.UpdateSubscription:input_type -> billing.UpdateSubscriptionRequest
+	15, // 39: billing.BillingService.CancelSubscription:input_type -> billing.CancelSubscriptionRequest
+	17, // 40: billing.BillingService.AddPaymentMethod:input_type -> billing.AddPaymentMethodRequest
+	19, // 41: billing.BillingService.GetUserPaymentMethods:input_type -> billing.GetUserPaymentMethodsRequest
+	21, // 42: billing.BillingService.DeletePaymentMethod:input_type -> billing.DeletePaymentMethodRequest
+	23, // 43: billing.BillingService.GetUserInvoices:input_type -> billing.GetUserInvoicesRequest
+	25, // 44: billing.BillingService.GetInvoice:input_type -> billing.GetInvoiceRequest
+	27, // 45: billing.BillingService.TrackUsage:input_type -> billing.TrackUsageRequest
+	29, // 46: billing.BillingService.GetUserUsage:input_type -> billing.GetUserUsageRequest
+	31, // 47: billing.BillingService.ProcessWebhook:input_type -> billing.ProcessWebhookRequest
+	33, // 48: billing.BillingService.GetBillingAnalytics:input_type -> billing.GetBillingAnalyticsRequest
+	37, // 49: billing.BillingService.ListAllSubscriptions:input_type -> billing.ListAllSubscriptionsRequest
+	6,  // 50: billing.BillingService.GetPlans:output_type -> billing.GetPlansResponse
+	8,  // 51: billing.BillingService.GetPlan:output_type -> billing.GetPlanResponse
+	10, // 52: billing.BillingService.CreateSubscription:output_type -> billing.CreateSubscriptionResponse
+	12, // 53: billing.BillingService.GetUserSubscription:output_type -> billing.GetUserSubscriptionResponse
+	14, // 54: billing.BillingService.UpdateSubscription:output_type -> billing.UpdateSubscriptionResponse
+	16, // 55: billing.BillingService.CancelSubscription:output_type -> billing.CancelSubscriptionResponse
+	18, // 56: billing.BillingService.AddPaymentMethod:output_type -> billing.AddPaymentMethodResponse
+	20, // 57: billing.BillingService.GetUserPaymentMethods:output_type -> billing.GetUserPaymentMethodsResponse
+	22, // 58: billing.BillingService.DeletePaymentMethod:output_type -> billing.DeletePaymentMethodResponse
+	24, // 59: billing.BillingService.GetUserInvoices:output_type -> billing.GetUserInvoicesResponse
+	26, // 60: billing.BillingService.GetInvoice:output_type -> billing.GetInvoiceResponse
+	28, // 61: billing.BillingService.TrackUsage:output_type -> billing.TrackUsageResponse
+	30, // 62: billing.BillingService.GetUserUsage:output_type -> billing.GetUserUsageResponse
+	32, // 63: billing.BillingService.ProcessWebhook:output_type -> billing.ProcessWebhookResponse
+	36, // 64: billing.BillingService.GetBillingAnalytics:output_type -> billing.GetBillingAnalyticsResponse
+	38, // 65: billing.BillingService.ListAllSubscriptions:output_type -> billing.ListAllSubscriptionsResponse
+	50, // [50:66] is the sub-list for method output_type
+	34, // [34:50] is the sub-list for method input_type
+	34, // [34:34] is the sub-list for extension type_name
+	34, // [34:34] is the sub-list for extension extendee
+	0,  // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_billing_billing_proto_init() }
@@ -2353,7 +2743,7 @@ func file_billing_billing_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_billing_billing_proto_rawDesc), len(file_billing_billing_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   33,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

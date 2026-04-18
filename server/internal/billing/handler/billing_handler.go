@@ -80,17 +80,106 @@ func (h *BillingHandler) CancelSubscription(ctx context.Context, req *billingpb.
 	return &billingpb.CancelSubscriptionResponse{}, nil
 }
 
-// TrackUsage is a no-op stub — usage tracking is not yet implemented.
+// TrackUsage records a usage increment for a user. Called by other services
+// (typically via the gateway's billing gRPC client) whenever a tracked action
+// succeeds — e.g. scripts service calls this after CreateProject to record a
+// +1 against the `projects` metric.
 func (h *BillingHandler) TrackUsage(ctx context.Context, req *billingpb.TrackUsageRequest) (*billingpb.TrackUsageResponse, error) {
-	slog.Info("TrackUsage called (no-op)", "user_id", req.UserId, "metric", req.MetricName)
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
+	}
+	if req.MetricName == "" {
+		return nil, status.Error(codes.InvalidArgument, "metric_name is required")
+	}
+	qty := req.Quantity
+	if qty == 0 {
+		qty = 1
+	}
+	if err := h.svc.TrackUsage(ctx, userID, req.MetricName, qty); err != nil {
+		slog.Warn("TrackUsage failed", "user_id", req.UserId, "metric", req.MetricName, "error", err)
+		return nil, handleError(err)
+	}
 	return &billingpb.TrackUsageResponse{Success: true}, nil
 }
 
-// GetUserUsage returns zeroes until usage tracking is implemented.
+// GetUserUsage returns the user's current usage totals keyed by metric. Each
+// entry carries the total quantity recorded to date; rate-limit windows are
+// enforced at the caller level against the user's subscription tier limits.
 func (h *BillingHandler) GetUserUsage(ctx context.Context, req *billingpb.GetUserUsageRequest) (*billingpb.GetUserUsageResponse, error) {
-	return &billingpb.GetUserUsageResponse{
-		Usage: []*billingpb.Usage{{UserId: req.UserId}},
-	}, nil
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
+	}
+	totals, err := h.svc.GetUserUsage(ctx, userID)
+	if err != nil {
+		return nil, handleError(err)
+	}
+
+	out := make([]*billingpb.Usage, 0, len(totals))
+	for metric, total := range totals {
+		if req.MetricName != "" && metric != req.MetricName {
+			continue
+		}
+		out = append(out, &billingpb.Usage{
+			UserId:     req.UserId,
+			MetricName: metric,
+			Quantity:   total,
+		})
+	}
+	return &billingpb.GetUserUsageResponse{Usage: out}, nil
+}
+
+// GetBillingAnalytics returns admin KPIs (MRR, ARR, churn, tier distribution)
+// computed from current subscription data. Authorization is enforced upstream
+// at the gateway via the adminAuth middleware.
+func (h *BillingHandler) GetBillingAnalytics(ctx context.Context, req *billingpb.GetBillingAnalyticsRequest) (*billingpb.GetBillingAnalyticsResponse, error) {
+	a, err := h.svc.GetAnalytics(ctx)
+	if err != nil {
+		return nil, handleError(err)
+	}
+
+	resp := &billingpb.GetBillingAnalyticsResponse{
+		Mrr:       a.MRR,
+		Arr:       a.ARR,
+		ChurnRate: a.ChurnRate,
+	}
+	for _, tc := range a.TierDistribution {
+		resp.TierDistribution = append(resp.TierDistribution, &billingpb.TierDistributionEntry{
+			TierId:   tc.TierID.String(),
+			TierName: tc.TierName,
+			Count:    tc.Count,
+		})
+	}
+	for _, tr := range a.RevenueByTier {
+		resp.RevenueByTier = append(resp.RevenueByTier, &billingpb.RevenueByTierEntry{
+			TierId:   tr.TierID.String(),
+			TierName: tr.TierName,
+			Revenue:  tr.Revenue,
+		})
+	}
+	return resp, nil
+}
+
+// ListAllSubscriptions returns every subscription across all users with optional
+// status filter and pagination. Used by the admin subscriptions table.
+func (h *BillingHandler) ListAllSubscriptions(ctx context.Context, req *billingpb.ListAllSubscriptionsRequest) (*billingpb.ListAllSubscriptionsResponse, error) {
+	offset := int(req.Offset)
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 50
+	}
+
+	subs, total, err := h.svc.ListAllSubscriptions(ctx, offset, limit, req.StatusFilter)
+	if err != nil {
+		return nil, handleError(err)
+	}
+
+	out := make([]*billingpb.Subscription, 0, len(subs))
+	for _, s := range subs {
+		out = append(out, subscriptionToProto(s))
+	}
+	return &billingpb.ListAllSubscriptionsResponse{Subscriptions: out, Total: int32(total)}, nil
 }
 
 // ─── Error mapping ────────────────────────────────────────────────────────────

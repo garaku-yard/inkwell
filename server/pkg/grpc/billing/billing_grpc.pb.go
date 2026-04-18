@@ -33,6 +33,8 @@ const (
 	BillingService_TrackUsage_FullMethodName            = "/billing.BillingService/TrackUsage"
 	BillingService_GetUserUsage_FullMethodName          = "/billing.BillingService/GetUserUsage"
 	BillingService_ProcessWebhook_FullMethodName        = "/billing.BillingService/ProcessWebhook"
+	BillingService_GetBillingAnalytics_FullMethodName   = "/billing.BillingService/GetBillingAnalytics"
+	BillingService_ListAllSubscriptions_FullMethodName  = "/billing.BillingService/ListAllSubscriptions"
 )
 
 // BillingServiceClient is the client API for BillingService service.
@@ -61,6 +63,11 @@ type BillingServiceClient interface {
 	GetUserUsage(ctx context.Context, in *GetUserUsageRequest, opts ...grpc.CallOption) (*GetUserUsageResponse, error)
 	// Webhook processing
 	ProcessWebhook(ctx context.Context, in *ProcessWebhookRequest, opts ...grpc.CallOption) (*ProcessWebhookResponse, error)
+	// Admin analytics — MRR, ARR, churn, tier distribution. Callers must have the
+	// admin role; enforcement lives in the gateway.
+	GetBillingAnalytics(ctx context.Context, in *GetBillingAnalyticsRequest, opts ...grpc.CallOption) (*GetBillingAnalyticsResponse, error)
+	// Admin listing of every subscription across all users.
+	ListAllSubscriptions(ctx context.Context, in *ListAllSubscriptionsRequest, opts ...grpc.CallOption) (*ListAllSubscriptionsResponse, error)
 }
 
 type billingServiceClient struct {
@@ -211,6 +218,26 @@ func (c *billingServiceClient) ProcessWebhook(ctx context.Context, in *ProcessWe
 	return out, nil
 }
 
+func (c *billingServiceClient) GetBillingAnalytics(ctx context.Context, in *GetBillingAnalyticsRequest, opts ...grpc.CallOption) (*GetBillingAnalyticsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBillingAnalyticsResponse)
+	err := c.cc.Invoke(ctx, BillingService_GetBillingAnalytics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *billingServiceClient) ListAllSubscriptions(ctx context.Context, in *ListAllSubscriptionsRequest, opts ...grpc.CallOption) (*ListAllSubscriptionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAllSubscriptionsResponse)
+	err := c.cc.Invoke(ctx, BillingService_ListAllSubscriptions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BillingServiceServer is the server API for BillingService service.
 // All implementations must embed UnimplementedBillingServiceServer
 // for forward compatibility.
@@ -237,6 +264,11 @@ type BillingServiceServer interface {
 	GetUserUsage(context.Context, *GetUserUsageRequest) (*GetUserUsageResponse, error)
 	// Webhook processing
 	ProcessWebhook(context.Context, *ProcessWebhookRequest) (*ProcessWebhookResponse, error)
+	// Admin analytics — MRR, ARR, churn, tier distribution. Callers must have the
+	// admin role; enforcement lives in the gateway.
+	GetBillingAnalytics(context.Context, *GetBillingAnalyticsRequest) (*GetBillingAnalyticsResponse, error)
+	// Admin listing of every subscription across all users.
+	ListAllSubscriptions(context.Context, *ListAllSubscriptionsRequest) (*ListAllSubscriptionsResponse, error)
 	mustEmbedUnimplementedBillingServiceServer()
 }
 
@@ -288,6 +320,12 @@ func (UnimplementedBillingServiceServer) GetUserUsage(context.Context, *GetUserU
 }
 func (UnimplementedBillingServiceServer) ProcessWebhook(context.Context, *ProcessWebhookRequest) (*ProcessWebhookResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ProcessWebhook not implemented")
+}
+func (UnimplementedBillingServiceServer) GetBillingAnalytics(context.Context, *GetBillingAnalyticsRequest) (*GetBillingAnalyticsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetBillingAnalytics not implemented")
+}
+func (UnimplementedBillingServiceServer) ListAllSubscriptions(context.Context, *ListAllSubscriptionsRequest) (*ListAllSubscriptionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAllSubscriptions not implemented")
 }
 func (UnimplementedBillingServiceServer) mustEmbedUnimplementedBillingServiceServer() {}
 func (UnimplementedBillingServiceServer) testEmbeddedByValue()                        {}
@@ -562,6 +600,42 @@ func _BillingService_ProcessWebhook_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BillingService_GetBillingAnalytics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBillingAnalyticsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).GetBillingAnalytics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_GetBillingAnalytics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).GetBillingAnalytics(ctx, req.(*GetBillingAnalyticsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BillingService_ListAllSubscriptions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAllSubscriptionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).ListAllSubscriptions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_ListAllSubscriptions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).ListAllSubscriptions(ctx, req.(*ListAllSubscriptionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BillingService_ServiceDesc is the grpc.ServiceDesc for BillingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -624,6 +698,14 @@ var BillingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ProcessWebhook",
 			Handler:    _BillingService_ProcessWebhook_Handler,
+		},
+		{
+			MethodName: "GetBillingAnalytics",
+			Handler:    _BillingService_GetBillingAnalytics_Handler,
+		},
+		{
+			MethodName: "ListAllSubscriptions",
+			Handler:    _BillingService_ListAllSubscriptions_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

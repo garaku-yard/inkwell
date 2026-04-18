@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"inkwell/server/internal/scripts/config"
 	"inkwell/server/internal/scripts/handler"
@@ -15,10 +16,16 @@ import (
 	"inkwell/server/internal/scripts/service"
 	"inkwell/server/pkg/database"
 	"inkwell/server/pkg/events"
+	billingpb "inkwell/server/pkg/grpc/billing"
 	scriptspb "inkwell/server/pkg/grpc/scripts"
+	"inkwell/server/pkg/outbox"
+	"inkwell/server/pkg/quota"
+	"inkwell/server/pkg/quota/billingadapter"
 
 	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -69,9 +76,32 @@ func main() {
 	}
 
 	repo := repository.NewRepository(db)
-	scriptsService := service.NewScriptsService(repo, cfg, publisher)
+	outboxStore := outbox.NewPostgresStore(db, "scripts_outbox")
+
+	// Billing client — used for quota enforcement (projects per tier) and usage
+	// reporting. Connection failures are logged and enforcement is disabled so
+	// the scripts service can boot even when billing is down.
+	var quotaClient quota.Client
+	billingAddr := cfg.BillingConfig.Host + ":" + cfg.BillingConfig.Port
+	billingConn, err := grpc.NewClient(billingAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		slog.Warn("billing client unavailable, quota enforcement disabled", "address", billingAddr, "error", err)
+	} else {
+		defer billingConn.Close()
+		quotaClient = billingadapter.New(billingpb.NewBillingServiceClient(billingConn))
+	}
+
+	scriptsService := service.NewScriptsService(db, repo, outboxStore, cfg, publisher, quotaClient)
 	beatBoardService := service.NewBeatBoardService(repo)
 	scriptsHandler := handler.NewScriptsHandler(scriptsService, beatBoardService)
+
+	// Outbox poller — flushes unpublished scripts events to Kafka every 10 s.
+	pollerCtx, cancelPoller := context.WithCancel(context.Background())
+	defer cancelPoller()
+	go outbox.
+		NewPoller(outboxStore, publisher, 10*time.Second, 50).
+		WithLogger(slog.Default().With("component", "scripts_outbox")).
+		Run(pollerCtx)
 
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),

@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"log/slog"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"inkwell/server/internal/billing/domain"
 	"inkwell/server/internal/billing/repository"
 	"inkwell/server/pkg/events"
+	"inkwell/server/pkg/outbox"
 )
 
 // BillingService defines the billing business-logic interface.
@@ -36,17 +38,37 @@ type BillingService interface {
 
 	// ListSubscriptions returns a paginated list of all subscriptions (admin).
 	ListSubscriptions(ctx context.Context, offset, limit int, status string) ([]*domain.UserSubscription, int, error)
+
+	// TrackUsage records a usage increment for a user. Called by other services
+	// (e.g. scripts) via the billing gRPC client whenever a tracked action succeeds.
+	TrackUsage(ctx context.Context, userID uuid.UUID, metric string, quantity int64) error
+	// GetUserUsage returns the aggregate usage totals for a user, keyed by metric.
+	GetUserUsage(ctx context.Context, userID uuid.UUID) (map[string]int64, error)
+
+	// GetAnalytics returns admin-facing KPIs (MRR, ARR, churn, tier distribution).
+	GetAnalytics(ctx context.Context) (*domain.BillingAnalytics, error)
+	// ListAllSubscriptions returns every subscription with optional status filter
+	// and pagination for the admin subscriptions table.
+	ListAllSubscriptions(ctx context.Context, offset, limit int, statusFilter string) ([]*domain.UserSubscription, int, error)
 }
 
 type billingService struct {
+	db        *sql.DB
 	repo      repository.BillingRepository
+	outbox    outbox.Store
 	publisher events.Publisher
 }
 
 // NewBillingService creates a BillingService.
-// publisher receives domain events; pass &events.NoopPublisher{} in tests.
-func NewBillingService(repo repository.BillingRepository, publisher events.Publisher) BillingService {
-	return &billingService{repo: repo, publisher: publisher}
+//
+// The service pairs every subscription mutation with an outbox enqueue inside a
+// single database transaction; db is used to open transactions and outbox is the
+// event store (typically outbox.NewPostgresStore(db, "billing_outbox")).
+// publisher is retained for fire-and-forget best-effort emission alongside the
+// durable outbox write; the background poller in cmd/billing handles reliability.
+// In tests, pass &events.NoopPublisher{} and an in-memory Store.
+func NewBillingService(db *sql.DB, repo repository.BillingRepository, outbox outbox.Store, publisher events.Publisher) BillingService {
+	return &billingService{db: db, repo: repo, outbox: outbox, publisher: publisher}
 }
 
 func (s *billingService) ListTiers(ctx context.Context) ([]*domain.SubscriptionTier, error) {
@@ -70,7 +92,9 @@ func (s *billingService) CreateSubscription(ctx context.Context, sub *domain.Use
 	sub.CreatedAt = time.Now()
 	sub.UpdatedAt = time.Now()
 
-	if err := s.repo.CreateSubscription(ctx, sub); err != nil {
+	if err := s.commitWithOutbox(ctx, sub, "created", func(tx *sql.Tx) error {
+		return s.repo.CreateSubscriptionTx(ctx, tx, sub)
+	}); err != nil {
 		return err
 	}
 
@@ -80,9 +104,13 @@ func (s *billingService) CreateSubscription(ctx context.Context, sub *domain.Use
 
 func (s *billingService) UpdateSubscription(ctx context.Context, sub *domain.UserSubscription) error {
 	sub.UpdatedAt = time.Now()
-	if err := s.repo.UpdateSubscription(ctx, sub); err != nil {
+
+	if err := s.commitWithOutbox(ctx, sub, "updated", func(tx *sql.Tx) error {
+		return s.repo.UpdateSubscriptionTx(ctx, tx, sub)
+	}); err != nil {
 		return err
 	}
+
 	s.publishBillingEvent(ctx, sub, "updated")
 	return nil
 }
@@ -95,29 +123,62 @@ func (s *billingService) CancelSubscription(ctx context.Context, subscriptionID 
 	now := time.Now()
 	sub.CancelAtPeriodEnd = true
 	sub.CanceledAt = &now
-	if err := s.repo.UpdateSubscription(ctx, sub); err != nil {
-		return err
-	}
 
-	// Write outbox event atomically — even if Kafka publish fails the event is
-	// persisted and the background poller will retry.
-	payload, _ := json.Marshal(map[string]string{
-		"subscription_id": sub.ID.String(),
-		"user_id":         sub.UserID.String(),
-		"action":          "canceled",
-	})
-	outboxEvent := &domain.BillingOutboxEvent{
-		ID:        uuid.New(),
-		EventType: events.EventTypeBillingUpdated,
-		Payload:   payload,
-		CreatedAt: time.Now(),
-	}
-	if err := s.repo.CreateOutboxEvent(ctx, outboxEvent); err != nil {
-		slog.Warn("failed to write billing outbox event", "error", err)
+	if err := s.commitWithOutbox(ctx, sub, "canceled", func(tx *sql.Tx) error {
+		return s.repo.UpdateSubscriptionTx(ctx, tx, sub)
+	}); err != nil {
+		return err
 	}
 
 	s.publishBillingEvent(ctx, sub, "canceled")
 	return nil
+}
+
+// TrackUsage records a usage increment against the user's running totals.
+// The write is atomic at the repository layer — the event log and aggregate
+// table update together — so downstream quota reads are always consistent.
+func (s *billingService) TrackUsage(ctx context.Context, userID uuid.UUID, metric string, quantity int64) error {
+	return s.repo.TrackUsage(ctx, userID, metric, quantity)
+}
+
+// GetUserUsage returns a map of metric-name → aggregate total for the user.
+func (s *billingService) GetUserUsage(ctx context.Context, userID uuid.UUID) (map[string]int64, error) {
+	return s.repo.ListUserUsage(ctx, userID)
+}
+
+// GetAnalytics computes the admin KPIs from the current subscription + tier state.
+func (s *billingService) GetAnalytics(ctx context.Context) (*domain.BillingAnalytics, error) {
+	return s.repo.GetAnalytics(ctx)
+}
+
+// ListAllSubscriptions delegates to the repository.
+func (s *billingService) ListAllSubscriptions(ctx context.Context, offset, limit int, statusFilter string) ([]*domain.UserSubscription, int, error) {
+	return s.repo.ListSubscriptions(ctx, offset, limit, statusFilter)
+}
+
+// commitWithOutbox runs the given mutation and an outbox enqueue inside one
+// transaction. Either both commit or neither does, guaranteeing that every
+// subscription change has a matching durable event for the poller to deliver.
+func (s *billingService) commitWithOutbox(ctx context.Context, sub *domain.UserSubscription, action string, mutate func(tx *sql.Tx) error) error {
+	payload, err := json.Marshal(map[string]string{
+		"subscription_id": sub.ID.String(),
+		"user_id":         sub.UserID.String(),
+		"status":          sub.Status,
+		"action":          action,
+	})
+	if err != nil {
+		return err
+	}
+
+	return outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
+		if err := mutate(tx); err != nil {
+			return err
+		}
+		return s.outbox.EnqueueTx(ctx, tx, outbox.Event{
+			Type:    events.EventTypeBillingUpdated,
+			Payload: payload,
+		})
+	})
 }
 
 func (s *billingService) ListSubscriptions(ctx context.Context, offset, limit int, status string) ([]*domain.UserSubscription, int, error) {
