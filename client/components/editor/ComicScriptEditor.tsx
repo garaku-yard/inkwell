@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Plus } from "lucide-react"
 import { useDebouncedCallback } from "use-debounce"
@@ -8,63 +8,48 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import {
-  getProjectScenes,
   createScene,
   updateSceneHeading,
   updateElementContent,
   createSceneElement,
-  type Scene,
   type ScriptElement,
   type FullProject,
 } from "@/services/project"
 
-// In comic scripts: Scene = Page, Elements = Panels + dialogue within panels
-type ComicElementType = "panel" | "caption" | "character" | "balloon" | "sfx" | "transition"
+// Element types follow standard Marvel/DC comic script conventions:
+// panel       — visual action description for a panel
+// character   — character name line (e.g. BATMAN or JOKER (off-panel))
+// balloon     — dialogue that follows a character line
+// caption     — narration caption box
+// sfx         — sound effect
+// transition  — page/scene transition (e.g. CUT TO—)
+type ComicElementType = "panel" | "character" | "balloon" | "caption" | "sfx" | "transition"
 
-const ELEMENT_LABELS: Record<ComicElementType, string> = {
-  panel: "Panel",
-  caption: "Caption",
-  character: "Character",
-  balloon: "Dialogue",
-  sfx: "SFX",
-  transition: "Transition",
-}
-
-const ELEMENT_STYLES: Record<ComicElementType, string> = {
-  panel: "font-bold text-sm uppercase tracking-wide text-primary border-l-2 border-primary pl-3 mt-4 mb-1",
-  caption: "text-sm italic text-muted-foreground pl-4 border-l border-border ml-4",
-  character: "font-bold text-xs uppercase tracking-widest text-center",
-  balloon: "text-sm pl-12 pr-12 text-center",
-  sfx: "font-black text-lg uppercase tracking-wider text-center text-orange-500",
-  transition: "text-xs uppercase tracking-widest text-right text-muted-foreground",
+const SMART_NEXT: Record<string, ComicElementType> = {
+  panel: "character",
+  character: "balloon",
+  balloon: "character",
+  caption: "caption",
+  sfx: "character",
+  transition: "panel",
 }
 
 interface ComicScriptEditorProps {
   projectData: FullProject
 }
 
+function panelCount(elements: ScriptElement[]): number {
+  return elements.filter(el => el.element_type === "panel").length
+}
+
 export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
   const router = useRouter()
   const { user } = useAuth()
-  const [pages, setPages] = useState<Scene[]>([])
-  const [activePageId, setActivePageId] = useState<string | null>(null)
-  const [elements, setElements] = useState<ScriptElement[]>([])
+  const [pages, setPages] = useState(() => projectData.scenes ?? [])
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
+  const pageRefs = useRef<Map<string, HTMLElement | null>>(new Map())
 
-  useEffect(() => {
-    if (!user?.id) return
-    getProjectScenes(projectData.id, user.id).then((data) => {
-      setPages(data)
-      if (data.length > 0) setActivePageId(data[0].id)
-    }).catch(console.error)
-  }, [projectData.id, user?.id])
-
-  useEffect(() => {
-    if (!activePageId) return
-    const pageElements = (projectData.scenes ?? [])
-      .find(s => s.id === activePageId)?.elements ?? []
-    setElements(pageElements)
-  }, [activePageId, projectData.scenes])
+  const totalPanels = pages.reduce((acc, p) => acc + panelCount(p.elements ?? []), 0)
 
   const debouncedSave = useDebouncedCallback(async (id: string, content: string, isScene: boolean) => {
     if (!user?.id) return
@@ -73,83 +58,122 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
       if (isScene) await updateSceneHeading(id, user.id, content)
       else await updateElementContent(id, user.id, content)
       setSaveStatus("saved")
-    } catch { setSaveStatus("unsaved") }
+    } catch {
+      setSaveStatus("unsaved")
+    }
   }, 1500)
 
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
     setSaveStatus("unsaved")
+    if (isScene) {
+      setPages(prev => prev.map(p => p.id === id ? { ...p, scene_heading: content } : p))
+    } else {
+      setPages(prev => prev.map(p => ({
+        ...p,
+        elements: (p.elements ?? []).map(el => el.id === id ? { ...el, content } : el),
+      })))
+    }
     debouncedSave(id, content, isScene)
   }, [debouncedSave])
 
   const handleAddPage = async () => {
     if (!user?.id) return
     const page = await createScene(projectData.id, user.id, {
-      scene_heading: `Page ${pages.length + 1}`,
+      scene_heading: "",
       content: "",
       order_index: pages.length,
     })
-    setPages(prev => [...prev, page])
-    setActivePageId(page.id)
+    setPages(prev => [...prev, { ...page, elements: [] }])
+    setTimeout(() => {
+      pageRefs.current.get(page.id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, 100)
   }
 
-  const handleAddElement = async (type: ComicElementType) => {
-    if (!activePageId || !user?.id) return
-    const panelCount = elements.filter(e => e.element_type === "panel").length
-    const defaultContent = type === "panel" ? `Panel ${panelCount + 1}: ` : ""
-    const el = await createSceneElement(projectData.id, activePageId, user.id, {
+  const insertElement = async (
+    pageId: string,
+    type: ComicElementType,
+    content: string,
+    afterIdx?: number,
+  ) => {
+    if (!user?.id) return null
+    const page = pages.find(p => p.id === pageId)
+    if (!page) return null
+    const insertAt = afterIdx !== undefined ? afterIdx + 1 : (page.elements?.length ?? 0)
+    const el = await createSceneElement(projectData.id, pageId, user.id, {
       element_type: type,
-      content: defaultContent,
-      order_index: elements.length,
+      content,
+      order_index: insertAt,
     })
-    setElements(prev => [...prev, el])
-    setTimeout(() => document.getElementById(`el-${el.id}`)?.focus(), 50)
+    setPages(prev => prev.map(p => {
+      if (p.id !== pageId) return p
+      const els = [...(p.elements ?? [])]
+      els.splice(insertAt, 0, el)
+      return { ...p, elements: els }
+    }))
+    return el
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, el: ScriptElement) => {
+  const handleAddElement = async (pageId: string, type: ComicElementType, afterIdx?: number) => {
+    const el = await insertElement(pageId, type, "", afterIdx)
+    if (el) setTimeout(() => document.getElementById(`el-${el.id}`)?.focus(), 50)
+  }
+
+  const handleAddPanel = async (pageId: string, afterIdx?: number) => {
+    const el = await insertElement(pageId, "panel", "", afterIdx)
+    if (el) setTimeout(() => document.getElementById(`el-${el.id}`)?.focus(), 50)
+  }
+
+  const handleKeyDown = async (
+    e: React.KeyboardEvent<HTMLDivElement>,
+    pageId: string,
+    el: ScriptElement,
+    elIdx: number,
+  ) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      // After a panel, default to caption; after character, add balloon
-      const nextType: ComicElementType =
-        el.element_type === "panel" ? "caption" :
-        el.element_type === "character" ? "balloon" :
-        el.element_type === "balloon" ? "character" : "caption"
-      handleAddElement(nextType)
+      const next = SMART_NEXT[el.element_type] ?? "caption"
+      await handleAddElement(pageId, next as ComicElementType, elIdx)
     }
   }
 
-  const panelCount = elements.filter(e => e.element_type === "panel").length
-
   return (
     <div className="flex h-screen bg-background">
-      {/* Page list */}
-      <aside className="w-48 border-r flex flex-col shrink-0">
+      {/* Pages sidebar */}
+      <aside className="w-52 border-r flex flex-col shrink-0 bg-sidebar">
         <div className="p-3 border-b">
           <span className="text-sm font-medium">Pages</span>
         </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {pages.map((page, i) => (
-            <button
-              key={page.id}
-              onClick={() => setActivePageId(page.id)}
-              className={cn(
-                "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
-                activePageId === page.id
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "hover:bg-muted text-muted-foreground"
-              )}
-            >
-              {page.scene_heading || `Page ${i + 1}`}
-            </button>
-          ))}
+        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+          {pages.map((page, i) => {
+            const pc = panelCount(page.elements ?? [])
+            return (
+              <button
+                key={page.id}
+                onClick={() => pageRefs.current.get(page.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="w-full text-left px-3 py-2 rounded-md text-sm transition-colors hover:bg-accent group"
+              >
+                <div className="flex items-baseline gap-1.5 min-w-0">
+                  <span className="text-xs text-muted-foreground/50 shrink-0">p{i + 1}</span>
+                  <span className="truncate text-muted-foreground group-hover:text-foreground transition-colors font-mono text-xs uppercase">
+                    {page.scene_heading || `Page ${i + 1}`}
+                  </span>
+                </div>
+                {pc > 0 && (
+                  <p className="text-xs text-muted-foreground/40 pl-5 mt-0.5">{pc} panel{pc !== 1 ? "s" : ""}</p>
+                )}
+              </button>
+            )
+          })}
         </div>
         <div className="p-2 border-t">
-          <Button variant="ghost" size="sm" className="w-full gap-2 justify-start" onClick={handleAddPage}>
-            <Plus className="h-3.5 w-3.5" /> Add page
+          <Button variant="ghost" size="sm" className="w-full gap-2 justify-start text-xs" onClick={handleAddPage}>
+            <Plus className="h-3.5 w-3.5" />
+            Add page
           </Button>
         </div>
       </aside>
 
-      {/* Editor */}
+      {/* Main editor */}
       <div className="flex flex-col flex-1 min-w-0">
         <header className="flex items-center justify-between px-6 py-3 border-b shrink-0">
           <div className="flex items-center gap-3">
@@ -157,70 +181,210 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-base font-semibold">{projectData.title}</h1>
+              <h1 className="text-base font-semibold leading-tight">{projectData.title}</h1>
               <p className="text-xs text-muted-foreground">Comic Script</p>
             </div>
           </div>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span>{panelCount} panels</span>
+            <span>{pages.length} pages · {totalPanels} panels</span>
             <span className={cn(
-              saveStatus === "saved" ? "text-green-600 dark:text-green-400" :
-              saveStatus === "saving" ? "text-yellow-600" : "text-muted-foreground"
+              saveStatus === "saved" && "text-green-600 dark:text-green-400",
+              saveStatus === "saving" && "text-yellow-600 dark:text-yellow-400",
             )}>
               {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving…" : "Unsaved"}
             </span>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-2xl mx-auto px-8 py-8">
-            {activePageId && (
-              <>
-                {/* Page heading */}
-                <div
-                  contentEditable
-                  suppressContentEditableWarning
-                  onInput={(e) => handleContentChange(activePageId, e.currentTarget.textContent ?? "", true)}
-                  className="text-lg font-black uppercase tracking-wide outline-none mb-6 pb-3 border-b-2 border-foreground empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/40"
-                  data-placeholder="PAGE ONE"
-                >
-                  {pages.find(p => p.id === activePageId)?.scene_heading}
-                </div>
+        {/* Script scroll area */}
+        <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
+          <div className="max-w-[680px] mx-auto px-10 py-12 font-mono">
+            {pages.length === 0 ? (
+              <div className="text-center text-muted-foreground text-sm py-24 space-y-4 font-sans">
+                <p>No pages yet.</p>
+                <Button variant="outline" size="sm" onClick={handleAddPage}>Add first page</Button>
+              </div>
+            ) : (
+              pages.map((page, pageIdx) => {
+                const elements = page.elements ?? []
+                const pc = panelCount(elements)
+                let panelNum = 0
 
-                {/* Elements */}
-                {elements.map((el) => (
+                return (
                   <div
-                    key={el.id}
-                    id={`el-${el.id}`}
-                    contentEditable={true}
-                    suppressContentEditableWarning
-                    onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
-                    onKeyDown={(e) => handleKeyDown(e, el)}
-                    className={cn(
-                      "outline-none min-h-[1.5rem] leading-relaxed py-0.5",
-                      ELEMENT_STYLES[el.element_type as ComicElementType] ?? "text-sm"
-                    )}
-                    data-element-type={el.element_type}
+                    key={page.id}
+                    ref={(el) => { pageRefs.current.set(page.id, el) }}
+                    className={cn("mb-16", pageIdx > 0 && "pt-12 border-t border-border/40")}
                   >
-                    {el.content}
-                  </div>
-                ))}
+                    {/* PAGE HEADER: PAGE X (N PANELS) */}
+                    <div className="mb-6">
+                      <div
+                        contentEditable
+                        suppressContentEditableWarning
+                        onInput={(e) => handleContentChange(page.id, e.currentTarget.textContent ?? "", true)}
+                        className="text-sm font-bold uppercase tracking-widest outline-none inline empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30"
+                        data-placeholder={`PAGE ${pageIdx + 1}`}
+                      >
+                        {page.scene_heading || ""}
+                      </div>
+                      {pc > 0 && (
+                        <span className="text-sm font-bold text-muted-foreground ml-2">
+                          ({pc} {pc === 1 ? "PANEL" : "PANELS"})
+                        </span>
+                      )}
+                    </div>
 
-                {/* Element toolbar */}
-                <div className="flex flex-wrap items-center gap-2 mt-8 pt-4 border-t">
-                  {(Object.keys(ELEMENT_LABELS) as ComicElementType[]).map(type => (
-                    <Button
-                      key={type}
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => handleAddElement(type)}
-                    >
-                      + {ELEMENT_LABELS[type]}
-                    </Button>
-                  ))}
-                </div>
-              </>
+                    {/* Script elements */}
+                    <div className="space-y-0">
+                      {elements.length === 0 ? (
+                        <div className="text-muted-foreground/40 text-sm italic font-sans">
+                          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 font-sans -ml-2" onClick={() => handleAddPanel(page.id)}>
+                            <Plus className="h-3 w-3" /> Add panel
+                          </Button>
+                        </div>
+                      ) : (
+                        elements.map((el, elIdx) => {
+                          if (el.element_type === "panel") {
+                            panelNum++
+                            return (
+                              <div key={el.id} className={cn("mt-6", elIdx === 0 && "mt-0")}>
+                                {/* PANEL N label */}
+                                <div className="text-xs font-bold uppercase tracking-widest text-primary mb-1 select-none">
+                                  Panel {panelNum}
+                                </div>
+                                {/* Action/description line */}
+                                <div
+                                  id={`el-${el.id}`}
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
+                                  className="outline-none text-sm leading-relaxed min-h-[1.4rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30 empty:before:not-italic"
+                                  data-placeholder="Panel description…"
+                                >
+                                  {el.content}
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          if (el.element_type === "character") {
+                            return (
+                              <div key={el.id} className="mt-4">
+                                <div
+                                  id={`el-${el.id}`}
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
+                                  className="outline-none text-sm font-bold uppercase tracking-wide min-h-[1.2rem] empty:before:content-['CHARACTER'] empty:before:text-muted-foreground/20"
+                                >
+                                  {el.content}
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          if (el.element_type === "balloon") {
+                            return (
+                              <div key={el.id} className="pl-4">
+                                <div
+                                  id={`el-${el.id}`}
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
+                                  className="outline-none text-sm leading-relaxed min-h-[1.4rem] empty:before:content-['Dialogue…'] empty:before:text-muted-foreground/25"
+                                >
+                                  {el.content}
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          if (el.element_type === "caption") {
+                            return (
+                              <div key={el.id} className="mt-3 pl-0 border-l-2 border-muted pl-3">
+                                <div className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-0.5 select-none">Caption</div>
+                                <div
+                                  id={`el-${el.id}`}
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
+                                  className="outline-none text-sm italic leading-relaxed min-h-[1.4rem] empty:before:content-['Caption\00a0text…'] empty:before:text-muted-foreground/25"
+                                >
+                                  {el.content}
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          if (el.element_type === "sfx") {
+                            return (
+                              <div key={el.id} className="mt-3">
+                                <div className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-0.5 select-none">SFX</div>
+                                <div
+                                  id={`el-${el.id}`}
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
+                                  className="outline-none text-base font-black uppercase tracking-wider min-h-[1.4rem] empty:before:content-['KRAKKK!!!'] empty:before:text-muted-foreground/20"
+                                >
+                                  {el.content}
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          if (el.element_type === "transition") {
+                            return (
+                              <div key={el.id} className="mt-4 text-right">
+                                <div
+                                  id={`el-${el.id}`}
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
+                                  className="outline-none text-xs uppercase tracking-widest text-muted-foreground min-h-[1.2rem] empty:before:content-['CUT\00a0TO—'] empty:before:text-muted-foreground/25"
+                                >
+                                  {el.content}
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          return null
+                        })
+                      )}
+                    </div>
+
+                    {/* Insert toolbar */}
+                    <div className="flex items-center gap-1 mt-8 flex-wrap opacity-0 hover:opacity-100 transition-opacity font-sans">
+                      <span className="text-xs text-muted-foreground/60 mr-1">Insert</span>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddPanel(page.id)}>
+                        Panel
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(page.id, "character")}>
+                        Character
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(page.id, "balloon")}>
+                        Dialogue
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(page.id, "caption")}>
+                        Caption
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(page.id, "sfx")}>
+                        SFX
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(page.id, "transition")}>
+                        Transition
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })
             )}
           </div>
         </div>
