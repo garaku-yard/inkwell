@@ -12,17 +12,20 @@ import (
 	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
 
-// WorkspaceHandler handles workspace and category HTTP endpoints.
+// WorkspaceHandler routes workspace and category HTTP requests to the workspace
+// gRPC service. URL parameters are extracted using chi's routing context.
 type WorkspaceHandler struct {
 	client workspacepb.WorkspaceServiceClient
 }
 
-// NewWorkspaceHandler creates a new WorkspaceHandler.
+// NewWorkspaceHandler creates a WorkspaceHandler using the workspace gRPC client
+// in the provided registry.
 func NewWorkspaceHandler(clients *grpcclient.Registry) *WorkspaceHandler {
 	return &WorkspaceHandler{client: clients.Workspace}
 }
 
-// GET /categories
+// ListCategories returns all available workspace content categories (e.g. "screenplay",
+// "prose", "lyrics"). Categories are global and not user-scoped.
 func (h *WorkspaceHandler) ListCategories(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.client.ListCategories(r.Context(), &workspacepb.ListCategoriesRequest{})
 	if err != nil {
@@ -33,7 +36,8 @@ func (h *WorkspaceHandler) ListCategories(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(resp.Categories)
 }
 
-// GET /workspaces
+// ListUserWorkspaces returns the authenticated user's personal and organisation
+// workspaces as two separate lists. Requires a userID from the request context.
 func (h *WorkspaceHandler) ListUserWorkspaces(w http.ResponseWriter, r *http.Request) {
 	userID := getUserIDFromContext(r)
 	if userID == "" {
@@ -52,7 +56,8 @@ func (h *WorkspaceHandler) ListUserWorkspaces(w http.ResponseWriter, r *http.Req
 	})
 }
 
-// POST /workspaces/personal
+// CreatePersonalWorkspaces provisions one personal workspace per category slug
+// provided. Typically called during onboarding to seed the user's initial workspace set.
 func (h *WorkspaceHandler) CreatePersonalWorkspaces(w http.ResponseWriter, r *http.Request) {
 	userID := getUserIDFromContext(r)
 	if userID == "" {
@@ -83,7 +88,8 @@ func (h *WorkspaceHandler) CreatePersonalWorkspaces(w http.ResponseWriter, r *ht
 	})
 }
 
-// POST /workspaces/org
+// CreateOrgWorkspace creates a new organisation workspace owned by the authenticated
+// user. The name field is required; description and category_slugs are optional.
 func (h *WorkspaceHandler) CreateOrgWorkspace(w http.ResponseWriter, r *http.Request) {
 	userID := getUserIDFromContext(r)
 	if userID == "" {
@@ -120,7 +126,8 @@ func (h *WorkspaceHandler) CreateOrgWorkspace(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(resp.Workspace)
 }
 
-// GET /workspaces/{workspaceId}
+// GetWorkspace returns a workspace by its ID, extracted from the "workspaceId"
+// chi URL parameter.
 func (h *WorkspaceHandler) GetWorkspace(w http.ResponseWriter, r *http.Request) {
 	workspaceID := chi.URLParam(r, "workspaceId")
 	resp, err := h.client.GetWorkspace(r.Context(), &workspacepb.GetWorkspaceRequest{WorkspaceId: workspaceID})
@@ -132,7 +139,8 @@ func (h *WorkspaceHandler) GetWorkspace(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(resp.Workspace)
 }
 
-// PATCH /workspaces/{workspaceId}
+// UpdateWorkspace applies partial updates to a workspace's name, description, or
+// avatar URL. The workspace ID is extracted from the "workspaceId" chi URL parameter.
 func (h *WorkspaceHandler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 	workspaceID := chi.URLParam(r, "workspaceId")
 
@@ -160,7 +168,8 @@ func (h *WorkspaceHandler) UpdateWorkspace(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(resp.Workspace)
 }
 
-// DELETE /workspaces/{workspaceId}
+// DeleteWorkspace permanently removes a workspace. Requires a userID from the
+// request context; the workspace service enforces that only the owner may delete.
 func (h *WorkspaceHandler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 	workspaceID := chi.URLParam(r, "workspaceId")
 	userID := getUserIDFromContext(r)
@@ -180,7 +189,8 @@ func (h *WorkspaceHandler) DeleteWorkspace(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// POST /workspaces/{workspaceId}/categories/{slug}
+// EnableCategory adds a content category to a workspace by slug, making it
+// available for organising projects within that workspace.
 func (h *WorkspaceHandler) EnableCategory(w http.ResponseWriter, r *http.Request) {
 	workspaceID := chi.URLParam(r, "workspaceId")
 	slug := chi.URLParam(r, "slug")
@@ -197,7 +207,7 @@ func (h *WorkspaceHandler) EnableCategory(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(resp.Workspace)
 }
 
-// DELETE /workspaces/{workspaceId}/categories/{slug}
+// DisableCategory removes a content category from a workspace by slug.
 func (h *WorkspaceHandler) DisableCategory(w http.ResponseWriter, r *http.Request) {
 	workspaceID := chi.URLParam(r, "workspaceId")
 	slug := chi.URLParam(r, "slug")
@@ -214,7 +224,7 @@ func (h *WorkspaceHandler) DisableCategory(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(resp.Workspace)
 }
 
-// GET /workspaces/{workspaceId}/members
+// ListMembers returns all current members of a workspace.
 func (h *WorkspaceHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 	workspaceID := chi.URLParam(r, "workspaceId")
 	resp, err := h.client.ListMembers(r.Context(), &workspacepb.ListMembersRequest{WorkspaceId: workspaceID})
@@ -226,7 +236,9 @@ func (h *WorkspaceHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp.Members)
 }
 
-// POST /workspaces/{workspaceId}/members/invite
+// InviteMember generates a workspace invitation token for the given email and role.
+// The token is returned to the caller and should be delivered to the invitee
+// out-of-band. Requires a userID from the request context as the inviter.
 func (h *WorkspaceHandler) InviteMember(w http.ResponseWriter, r *http.Request) {
 	workspaceID := chi.URLParam(r, "workspaceId")
 	invitedBy := getUserIDFromContext(r)
@@ -263,7 +275,8 @@ func (h *WorkspaceHandler) InviteMember(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(map[string]string{"invite_token": resp.InviteToken})
 }
 
-// POST /workspaces/invites/{token}/accept
+// AcceptInvite redeems an invitation token for the authenticated user, adding them
+// to the workspace. The token is extracted from the "token" chi URL parameter.
 func (h *WorkspaceHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	userID := getUserIDFromContext(r)
@@ -284,7 +297,7 @@ func (h *WorkspaceHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(resp.Workspace)
 }
 
-// POST /workspaces/invites/{token}/decline
+// DeclineInvite invalidates an invitation token without adding the user to the workspace.
 func (h *WorkspaceHandler) DeclineInvite(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 
@@ -297,7 +310,8 @@ func (h *WorkspaceHandler) DeclineInvite(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
 
-// PATCH /workspaces/{workspaceId}/members/{userId}/role
+// UpdateMemberRole changes the role of a workspace member identified by the
+// "userId" chi URL parameter.
 func (h *WorkspaceHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 	workspaceID := chi.URLParam(r, "workspaceId")
 	targetUserID := chi.URLParam(r, "userId")
@@ -323,7 +337,8 @@ func (h *WorkspaceHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Reque
 	json.NewEncoder(w).Encode(resp.Member)
 }
 
-// DELETE /workspaces/{workspaceId}/members/{userId}
+// RemoveMember removes a member from a workspace. The target user ID is extracted
+// from the "userId" chi URL parameter.
 func (h *WorkspaceHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	workspaceID := chi.URLParam(r, "workspaceId")
 	targetUserID := chi.URLParam(r, "userId")

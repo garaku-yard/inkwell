@@ -14,18 +14,24 @@ import (
 	"inkwell/server/pkg/grpc/common"
 )
 
+// CollaborationHandler implements the gRPC CollaborationServiceServer. It translates
+// proto messages to domain objects, delegates to CollaborationService, and converts
+// domain errors to gRPC status codes.
 type CollaborationHandler struct {
 	service *service.CollaborationService
 	collab_pb.UnimplementedCollaborationServiceServer
 }
 
+// NewCollaborationHandler creates a CollaborationHandler backed by the provided
+// CollaborationService.
 func NewCollaborationHandler(service *service.CollaborationService) *CollaborationHandler {
 	return &CollaborationHandler{
 		service: service,
 	}
 }
 
-// Helper functions
+// parseUUID parses s as a UUID. An empty string returns uuid.Nil without error,
+// which callers use as a sentinel for optional UUID fields.
 func parseUUID(s string) (uuid.UUID, error) {
 	if s == "" {
 		return uuid.UUID{}, nil
@@ -33,6 +39,8 @@ func parseUUID(s string) (uuid.UUID, error) {
 	return uuid.Parse(s)
 }
 
+// parseOptionalUUID parses s as a UUID pointer. An empty string returns (nil, nil),
+// making it safe for optional proto string fields.
 func parseOptionalUUID(s string) (*uuid.UUID, error) {
 	if s == "" {
 		return nil, nil
@@ -44,6 +52,8 @@ func parseOptionalUUID(s string) (*uuid.UUID, error) {
 	return &id, nil
 }
 
+// parseOptionalStringPtr parses a UUID from a string pointer. A nil or empty
+// pointer returns (nil, nil).
 func parseOptionalStringPtr(s *string) (*uuid.UUID, error) {
 	if s == nil || *s == "" {
 		return nil, nil
@@ -55,6 +65,8 @@ func parseOptionalStringPtr(s *string) (*uuid.UUID, error) {
 	return &id, nil
 }
 
+// parseOptionalInt32 converts a zero int32 to nil, mapping the proto default
+// value to the domain's "not provided" sentinel.
 func parseOptionalInt32(value int32) *int32 {
 	if value == 0 {
 		return nil
@@ -62,7 +74,9 @@ func parseOptionalInt32(value int32) *int32 {
 	return &value
 }
 
-// AddCollaborator adds a new collaborator to a project
+// AddCollaborator sends a project invitation by email address. Returns AlreadyExists
+// if a pending invitation or active collaborator record already exists for the given
+// email and project combination.
 func (h *CollaborationHandler) AddCollaborator(ctx context.Context, req *collab_pb.AddCollaboratorRequest) (*collab_pb.AddCollaboratorResponse, error) {
 	projectID, err := parseUUID(req.ProjectId)
 	if err != nil {
@@ -99,7 +113,9 @@ func (h *CollaborationHandler) AddCollaborator(ctx context.Context, req *collab_
 	}, nil
 }
 
-// AddCollaboratorDirect adds a collaborator directly by user ID (bypasses invitation system)
+// AddCollaboratorDirect registers a collaborator by user ID without the invitation flow.
+// Used internally by the scripts gateway handler immediately after project creation
+// to record the creator as the "owner" collaborator.
 func (h *CollaborationHandler) AddCollaboratorDirect(ctx context.Context, req *collab_pb.AddCollaboratorDirectRequest) (*collab_pb.AddCollaboratorDirectResponse, error) {
 	projectID, err := parseUUID(req.ProjectId)
 	if err != nil {
@@ -138,7 +154,8 @@ func (h *CollaborationHandler) AddCollaboratorDirect(ctx context.Context, req *c
 	}, nil
 }
 
-// GetProjectCollaborators retrieves all collaborators for a project
+// GetProjectCollaborators returns all collaborator records for a project, including
+// both active members and pending invitations.
 func (h *CollaborationHandler) GetProjectCollaborators(ctx context.Context, req *collab_pb.GetProjectCollaboratorsRequest) (*collab_pb.GetProjectCollaboratorsResponse, error) {
 	projectID, err := parseUUID(req.ProjectId)
 	if err != nil {
@@ -176,7 +193,8 @@ func (h *CollaborationHandler) GetProjectCollaborators(ctx context.Context, req 
 	}, nil
 }
 
-// UpdateCollaboratorRole updates a collaborator's role
+// UpdateCollaboratorRole changes a collaborator's role. It re-fetches the updated
+// record after applying the change to return the current state.
 func (h *CollaborationHandler) UpdateCollaboratorRole(ctx context.Context, req *collab_pb.UpdateCollaboratorRoleRequest) (*collab_pb.UpdateCollaboratorRoleResponse, error) {
 	collaboratorID, err := parseUUID(req.CollaboratorId)
 	if err != nil {
@@ -215,7 +233,7 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(ctx context.Context, req *
 	}, nil
 }
 
-// RemoveCollaborator removes a collaborator from a project
+// RemoveCollaborator removes a collaborator from a project.
 func (h *CollaborationHandler) RemoveCollaborator(ctx context.Context, req *collab_pb.RemoveCollaboratorRequest) (*collab_pb.RemoveCollaboratorResponse, error) {
 	collaboratorID, err := parseUUID(req.CollaboratorId)
 	if err != nil {
@@ -237,7 +255,9 @@ func (h *CollaborationHandler) RemoveCollaborator(ctx context.Context, req *coll
 	}, nil
 }
 
-// AddComment adds a comment to a project
+// AddComment attaches a comment to a project. Supports optional anchoring to a
+// specific scene or script element, line number, and character position. Supports
+// threaded replies via the optional parent_id field.
 func (h *CollaborationHandler) AddComment(ctx context.Context, req *collab_pb.AddCommentRequest) (*collab_pb.AddCommentResponse, error) {
 	projectID, err := parseUUID(req.ProjectId)
 	if err != nil {
@@ -306,7 +326,8 @@ func (h *CollaborationHandler) AddComment(ctx context.Context, req *collab_pb.Ad
 	}, nil
 }
 
-// GetComments retrieves comments for a screenplay
+// GetComments retrieves comments for a project. screenplay_id is treated as project_id
+// in the current data model. Returns up to 100 comments starting from offset 0.
 func (h *CollaborationHandler) GetComments(ctx context.Context, req *collab_pb.GetCommentsRequest) (*collab_pb.GetCommentsResponse, error) {
 	screenplayID, err := parseUUID(req.ScreenplayId)
 	if err != nil {
@@ -356,7 +377,9 @@ func (h *CollaborationHandler) GetComments(ctx context.Context, req *collab_pb.G
 	}, nil
 }
 
-// UpdateComment updates a comment
+// UpdateComment applies partial updates to a comment. If content is non-nil the
+// body text is replaced; if is_resolved is true the thread is marked resolved.
+// Both operations can be applied in a single call.
 func (h *CollaborationHandler) UpdateComment(ctx context.Context, req *collab_pb.UpdateCommentRequest) (*collab_pb.UpdateCommentResponse, error) {
 	commentID, err := parseUUID(req.CommentId)
 	if err != nil {
@@ -412,7 +435,7 @@ func (h *CollaborationHandler) UpdateComment(ctx context.Context, req *collab_pb
 	}, nil
 }
 
-// DeleteComment deletes a comment
+// DeleteComment permanently removes a comment by ID.
 func (h *CollaborationHandler) DeleteComment(ctx context.Context, req *collab_pb.DeleteCommentRequest) (*collab_pb.DeleteCommentResponse, error) {
 	commentID, err := parseUUID(req.CommentId)
 	if err != nil {
@@ -434,7 +457,8 @@ func (h *CollaborationHandler) DeleteComment(ctx context.Context, req *collab_pb
 	}, nil
 }
 
-// StartEditSession starts a new editing session
+// StartEditSession opens a collaborative editing session for a user on a specific
+// project and screenplay, recording the start time and marking the session active.
 func (h *CollaborationHandler) StartEditSession(ctx context.Context, req *collab_pb.StartEditSessionRequest) (*collab_pb.StartEditSessionResponse, error) {
 	projectID, err := parseUUID(req.ProjectId)
 	if err != nil {
@@ -475,7 +499,7 @@ func (h *CollaborationHandler) StartEditSession(ctx context.Context, req *collab
 	}, nil
 }
 
-// EndEditSession ends an editing session
+// EndEditSession closes an active editing session, marking it inactive.
 func (h *CollaborationHandler) EndEditSession(ctx context.Context, req *collab_pb.EndEditSessionRequest) (*collab_pb.EndEditSessionResponse, error) {
 	sessionID, err := parseUUID(req.SessionId)
 	if err != nil {
@@ -497,7 +521,8 @@ func (h *CollaborationHandler) EndEditSession(ctx context.Context, req *collab_p
 	}, nil
 }
 
-// SendEditOperation handles real-time edit operations
+// SendEditOperation is a stub for real-time operational transforms. Not yet
+// implemented; always returns success.
 func (h *CollaborationHandler) SendEditOperation(ctx context.Context, req *collab_pb.SendEditOperationRequest) (*collab_pb.SendEditOperationResponse, error) {
 	// This would be implemented for real-time collaboration
 	// For now, just return success
@@ -506,7 +531,7 @@ func (h *CollaborationHandler) SendEditOperation(ctx context.Context, req *colla
 	}, nil
 }
 
-// GetActiveSessions retrieves active editing sessions for a screenplay
+// GetActiveSessions returns all currently active editing sessions for a screenplay.
 func (h *CollaborationHandler) GetActiveSessions(ctx context.Context, req *collab_pb.GetActiveSessionsRequest) (*collab_pb.GetActiveSessionsResponse, error) {
 	screenplayID, err := parseUUID(req.ScreenplayId)
 	if err != nil {
@@ -542,7 +567,8 @@ func (h *CollaborationHandler) GetActiveSessions(ctx context.Context, req *colla
 	}, nil
 }
 
-// UpdatePresence updates a user's presence in a project
+// UpdatePresence records a user's current cursor position within a project,
+// keeping their online status and last-seen timestamp up to date.
 func (h *CollaborationHandler) UpdatePresence(ctx context.Context, req *collab_pb.UpdatePresenceRequest) (*collab_pb.UpdatePresenceResponse, error) {
 	userID, err := parseUUID(req.UserId)
 	if err != nil {
@@ -579,7 +605,9 @@ func (h *CollaborationHandler) UpdatePresence(ctx context.Context, req *collab_p
 	}, nil
 }
 
-// GetPresence retrieves user presence for a screenplay
+// GetPresence retrieves presence records for a screenplay. Note: the project ID is
+// currently derived from a placeholder uuid.New() call and does not reflect the actual
+// project; this method requires a proper screenplay-to-project lookup before production use.
 func (h *CollaborationHandler) GetPresence(ctx context.Context, req *collab_pb.GetPresenceRequest) (*collab_pb.GetPresenceResponse, error) {
 	_, err := parseUUID(req.ScreenplayId)
 	if err != nil {
@@ -620,7 +648,7 @@ func (h *CollaborationHandler) GetPresence(ctx context.Context, req *collab_pb.G
 	}, nil
 }
 
-// GetUserInvitations retrieves pending invitations for a user
+// GetUserInvitations returns all pending invitations for the given email address.
 func (h *CollaborationHandler) GetUserInvitations(ctx context.Context, req *collab_pb.GetUserInvitationsRequest) (*collab_pb.GetUserInvitationsResponse, error) {
 	if req.Email == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "email is required")
@@ -653,6 +681,8 @@ func (h *CollaborationHandler) GetUserInvitations(ctx context.Context, req *coll
 	}, nil
 }
 
+// GetUserCollaborations returns all active collaboration records for a user,
+// representing every project they have accepted membership in.
 func (h *CollaborationHandler) GetUserCollaborations(ctx context.Context, req *collab_pb.GetUserCollaborationsRequest) (*collab_pb.GetUserCollaborationsResponse, error) {
 	userID, err := parseUUID(req.UserId)
 	if err != nil {
@@ -686,7 +716,8 @@ func (h *CollaborationHandler) GetUserCollaborations(ctx context.Context, req *c
 	}, nil
 }
 
-// AcceptInvitation accepts a pending collaboration invitation
+// AcceptInvitation transitions a pending invitation to active, granting the user
+// collaborator access to the project.
 func (h *CollaborationHandler) AcceptInvitation(ctx context.Context, req *collab_pb.AcceptInvitationRequest) (*collab_pb.AcceptInvitationResponse, error) {
 	collaboratorID, err := parseUUID(req.CollaboratorId)
 	if err != nil {
@@ -719,7 +750,7 @@ func (h *CollaborationHandler) AcceptInvitation(ctx context.Context, req *collab
 	}, nil
 }
 
-// DeclineInvitation declines a pending collaboration invitation
+// DeclineInvitation rejects a pending invitation without granting project access.
 func (h *CollaborationHandler) DeclineInvitation(ctx context.Context, req *collab_pb.DeclineInvitationRequest) (*collab_pb.DeclineInvitationResponse, error) {
 	collaboratorID, err := parseUUID(req.CollaboratorId)
 	if err != nil {
@@ -741,7 +772,8 @@ func (h *CollaborationHandler) DeclineInvitation(ctx context.Context, req *colla
 	}, nil
 }
 
-// Helper functions for conversion
+// timestampPtrToCommon converts a *time.Time to the shared protobuf Timestamp type.
+// Returns nil for nil input.
 func timestampPtrToCommon(t *time.Time) *common.Timestamp {
 	if t == nil {
 		return nil
@@ -752,6 +784,8 @@ func timestampPtrToCommon(t *time.Time) *common.Timestamp {
 	}
 }
 
+// uuidPtrToString converts a *uuid.UUID to its string representation.
+// Returns "" for nil input.
 func uuidPtrToString(id *uuid.UUID) string {
 	if id == nil {
 		return ""
@@ -759,6 +793,7 @@ func uuidPtrToString(id *uuid.UUID) string {
 	return id.String()
 }
 
+// int32PtrToInt32 dereferences an int32 pointer, returning 0 for nil.
 func int32PtrToInt32(i *int32) int32 {
 	if i == nil {
 		return 0

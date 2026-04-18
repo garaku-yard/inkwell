@@ -14,13 +14,17 @@ import (
 	identitypb "inkwell/server/pkg/grpc/identity"
 )
 
-// AuthHandler handles authentication-related HTTP endpoints.
+// AuthHandler routes authentication HTTP requests to the identity gRPC service.
+// It holds a reference to the token blocklist so that Logout can immediately
+// invalidate a JWT without waiting for its natural expiry.
 type AuthHandler struct {
 	identityClient identitypb.IdentityServiceClient
 	blocklist      *middleware.TokenBlocklist
 }
 
-// NewAuthHandler creates a new AuthHandler. blocklist may be nil when Redis is unavailable.
+// NewAuthHandler creates an AuthHandler using the identity gRPC client in the
+// provided registry. blocklist may be nil when Redis is unavailable; in that
+// case Logout will still succeed but will not block the token.
 func NewAuthHandler(clients *grpcclient.Registry, blocklist *middleware.TokenBlocklist) *AuthHandler {
 	return &AuthHandler{
 		identityClient: clients.Identity,
@@ -28,18 +32,20 @@ func NewAuthHandler(clients *grpcclient.Registry, blocklist *middleware.TokenBlo
 	}
 }
 
-// LoginRequest matches the client's expected structure
+// LoginRequest carries the credentials a client submits to begin a session.
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-// LoginResponse matches the client's expected structure
+// LoginResponse carries the JWT access token issued after successful authentication.
 type LoginResponse struct {
 	Token string `json:"token"`
 }
 
-// RegisterRequest matches the client's expected structure
+// RegisterRequest holds the fields required to create a new user account.
+// All fields are mandatory; the identity service enforces uniqueness of both
+// email and username.
 type RegisterRequest struct {
 	Name     string `json:"name"`
 	LastName string `json:"lastName"`
@@ -48,7 +54,8 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
-// UserResponse matches the client's expected structure
+// UserResponse represents the user's public profile as returned by the gateway.
+// It is used after registration, login, and profile update operations.
 type UserResponse struct {
 	ID          string `json:"id"`
 	Username    string `json:"username"`
@@ -60,7 +67,9 @@ type UserResponse struct {
 	UpdatedAt   string `json:"updatedAt"`
 }
 
-// Login handles the login HTTP endpoint
+// Login authenticates a user with their email and password. It forwards the
+// credentials to the identity service and returns a JWT access token on success.
+// Returns 401 if the credentials are invalid or the identity service rejects them.
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -98,13 +107,17 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// UpdateProfileRequest matches the client's expected structure
+// UpdateProfileRequest carries the profile fields to update for the authenticated user.
+// Only non-empty fields are forwarded to the identity service; omitted fields are left unchanged.
 type UpdateProfileRequest struct {
 	Username string `json:"username,omitempty"`
 	Email    string `json:"email,omitempty"`
 }
 
-// UpdateProfile handles the PATCH /users/me endpoint
+// UpdateProfile applies a partial profile update for the authenticated user.
+// It requires a userID in the request context (set by the auth middleware) and
+// forwards only non-empty fields to the identity service. Returns 401 if the
+// context carries no userID.
 func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -159,7 +172,10 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// ChangePassword handles PATCH /users/me/password
+// ChangePassword updates the authenticated user's password after verifying the
+// current one. Requires a userID in the request context. Both currentPassword and
+// newPassword must be non-empty; returns 400 if either is missing or if the identity
+// service rejects the change (e.g. wrong current password).
 func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -205,7 +221,9 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
 
-// Register handles the register HTTP endpoint
+// Register creates a new user account by forwarding the request to the identity
+// service. On success it returns the new user's public profile. Returns 400 if
+// registration fails, for example when the email or username is already taken.
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)

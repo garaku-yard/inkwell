@@ -12,22 +12,30 @@ import (
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
 
-// FDX XML structure (simplified)
+// FDX represents the top-level structure of a Final Draft (.fdx) XML document.
 type FDX struct {
 	XMLName xml.Name `xml:"FinalDraft"`
 	Content Content  `xml:"Content"`
 }
 
+// Content holds the ordered list of paragraphs parsed from an FDX document.
 type Content struct {
 	Paragraphs []Paragraph `xml:"Paragraph"`
 }
 
+// Paragraph represents a single typed paragraph element within an FDX document.
+// The Type attribute maps to screenplay element types such as "Action" or "Character".
 type Paragraph struct {
 	Type string `xml:"Type,attr"`
 	Text string `xml:"Text"`
 }
 
-// ImportFDX handles POST /projects/import-fdx
+// ImportFDX parses an uploaded Final Draft (.fdx) file and imports it as a new
+// project. Accepts a multipart/form-data POST with a "file" field (max 10 MB),
+// a required "projectName" field, and an optional "projectType" field. Scene headings
+// (paragraphs whose text starts with "INT." or "EXT.", or whose type is SCENE_HEADING)
+// create new scenes; all other paragraphs become script elements within the current
+// scene. Requires a userID from the request context.
 func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -177,7 +185,8 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// mapFDXTypeToScriptElement maps Final Draft paragraph types to screenplay elements
+// mapFDXTypeToScriptElement converts a Final Draft paragraph type string to the
+// corresponding internal script element type. Unknown types default to ACTION.
 func mapFDXTypeToScriptElement(fdxType string) string {
 	switch strings.ToLower(fdxType) {
 	case "scene heading", "scene_heading":

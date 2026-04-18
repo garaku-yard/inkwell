@@ -11,17 +11,23 @@ import (
 	billingpb "inkwell/server/pkg/grpc/billing"
 )
 
-// BillingHandler handles admin billing HTTP endpoints
+// BillingHandler routes billing HTTP requests to the billing gRPC service.
+// It serves plan data from the billing service and admin analytics/gateway
+// endpoints, which currently return stub data until a payment processor is configured.
 type BillingHandler struct {
 	client billingpb.BillingServiceClient
 }
 
-// NewBillingHandler creates a new BillingHandler
+// NewBillingHandler creates a BillingHandler using the billing gRPC client in
+// the provided registry.
 func NewBillingHandler(clients *grpcclient.Registry) *BillingHandler {
 	return &BillingHandler{client: clients.Billing}
 }
 
-// GetTiers returns subscription tiers mapped from billing plans
+// GetTiers returns all subscription tiers fetched from the billing service, shaped
+// into the frontend's expected format. If the billing service is unreachable it
+// returns an empty list rather than an error so the UI degrades gracefully.
+// Yearly pricing applies a ~17% discount (10× the monthly price).
 func (h *BillingHandler) GetTiers(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -113,7 +119,8 @@ func (h *BillingHandler) GetTiers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tiers)
 }
 
-// GetAnalytics returns billing analytics — returns zeroes until a payment processor is configured
+// GetAnalytics returns billing analytics. Currently returns zeroed metrics (MRR,
+// ARR, churn rate) until a payment processor is configured.
 func (h *BillingHandler) GetAnalytics(w http.ResponseWriter, r *http.Request) {
 	analytics := map[string]interface{}{
 		"mrr":       0,
@@ -126,7 +133,8 @@ func (h *BillingHandler) GetAnalytics(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(analytics)
 }
 
-// GetGateways returns configured payment gateways
+// GetGateways returns the list of configured payment gateways. Currently returns
+// a single hardcoded Stripe entry in test mode until Stripe keys are configured.
 func (h *BillingHandler) GetGateways(w http.ResponseWriter, r *http.Request) {
 	gateways := []map[string]interface{}{
 		{
@@ -141,7 +149,8 @@ func (h *BillingHandler) GetGateways(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(gateways)
 }
 
-// GetSubscriptions returns user subscriptions list
+// GetSubscriptions returns a paginated list of user subscriptions. Currently returns
+// an empty list until subscription management is fully implemented.
 func (h *BillingHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 	result := map[string]interface{}{
 		"subscriptions": []interface{}{},

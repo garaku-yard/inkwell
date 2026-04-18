@@ -15,14 +15,18 @@ import (
 	"inkwell/server/pkg/grpc/scripts"
 )
 
-// CollaborationHandler handles HTTP requests for collaboration service
+// CollaborationHandler routes collaboration HTTP requests to the collab gRPC
+// service. It also reaches the identity service to resolve display names for
+// collaborators and comment authors, and the scripts service to look up project
+// titles when enriching invitation data.
 type CollaborationHandler struct {
 	client         collab.CollaborationServiceClient
 	identityClient identity.IdentityServiceClient
 	scriptsClient  scripts.ScriptsServiceClient
 }
 
-// NewCollaborationHandler creates a new collaboration handler
+// NewCollaborationHandler creates a CollaborationHandler using the gRPC clients
+// in the provided registry.
 func NewCollaborationHandler(clients *grpcclient.Registry) *CollaborationHandler {
 	return &CollaborationHandler{
 		client:         clients.Collab,
@@ -31,7 +35,10 @@ func NewCollaborationHandler(clients *grpcclient.Registry) *CollaborationHandler
 	}
 }
 
-// AddCollaborator handles adding a collaborator to a project
+// AddCollaborator sends a project invitation to a user identified by email address
+// or user tag. The role must be "editor" or "viewer"; the "owner" role cannot be
+// assigned through this endpoint. The input is resolved to a canonical email before
+// being forwarded to the collab service.
 func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -116,7 +123,10 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 	json.NewEncoder(w).Encode(response)
 }
 
-// GetProjectCollaborators handles getting collaborators for a project
+// GetProjectCollaborators returns all collaborators for a project, both active and
+// pending. Active records are enriched with user profile data from the identity
+// service; pending records show the inviter's name instead of the invited user,
+// whose account may not yet exist.
 func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -225,7 +235,10 @@ func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r 
 	json.NewEncoder(w).Encode(collaborators)
 }
 
-// AddComment handles adding a comment to a project
+// AddComment attaches a comment to a project or a specific scene/element within it.
+// Supports threaded replies via the optional parent_id field. Requires a userID from
+// the request context. The response includes the commenter's username, resolved from
+// the identity service.
 func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -310,7 +323,9 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(response)
 }
 
-// GetComments handles getting comments for a screenplay
+// GetComments returns all comments for a project, identified by screenplay_id.
+// Verifies the caller has access via resolveProjectAccess before fetching. Each
+// comment is enriched with the author's username from the identity service.
 func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -383,7 +398,8 @@ func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(comments)
 }
 
-// UpdatePresence handles updating user presence
+// UpdatePresence records the authenticated user's current cursor position within
+// a project. Used by real-time collaboration features to show active editors.
 func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -437,7 +453,10 @@ func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(response)
 }
 
-// Helper functions
+// getUserIDFromContext extracts the authenticated user's ID from the request context,
+// falling back to the X-User-ID header set by the auth middleware. Returns an empty
+// string if neither source yields a value, which callers should treat as an
+// unauthenticated request and respond with 401.
 func getUserIDFromContext(r *http.Request) string {
 	// First, try to get user ID from context (set by auth middleware)
 	if userID := r.Context().Value("userID"); userID != nil {
@@ -456,7 +475,8 @@ func getUserIDFromContext(r *http.Request) string {
 	return ""
 }
 
-// resolveEmailOrUserTag resolves either an email address or user tag (@username) to an email address
+// resolveEmailOrUserTag normalises an invitation target to an email address.
+// Accepts a plain email, an @username handle, or a username#tag discriminator.
 func (h *CollaborationHandler) resolveEmailOrUserTag(ctx context.Context, input string) (string, error) {
 	// If it's already an email (contains @), return as-is
 	if strings.Contains(input, "@") && !strings.HasPrefix(input, "@") {
@@ -478,7 +498,8 @@ func (h *CollaborationHandler) resolveEmailOrUserTag(ctx context.Context, input 
 	return h.getUserEmailByUsername(ctx, input)
 }
 
-// getUserEmailByUsername looks up a user's email by their username via identity service
+// getUserEmailByUsername looks up a user's email by username via the identity service.
+// Used when the invitation target is specified as a plain username without a tag.
 func (h *CollaborationHandler) getUserEmailByUsername(ctx context.Context, username string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -496,7 +517,8 @@ func (h *CollaborationHandler) getUserEmailByUsername(ctx context.Context, usern
 	return resp.User.Email, nil
 }
 
-// getUserEmailByUsernameAndTag looks up a user's email by their username and tag via identity service
+// getUserEmailByUsernameAndTag looks up a user's email by username and discriminator tag
+// via the identity service. Used when the invitation target is in username#tag format.
 func (h *CollaborationHandler) getUserEmailByUsernameAndTag(ctx context.Context, username, userTag string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -514,7 +536,10 @@ func (h *CollaborationHandler) getUserEmailByUsernameAndTag(ctx context.Context,
 	return resp.User.Email, nil
 }
 
-// GetUserInvitations handles getting pending invitations for a user
+// GetUserInvitations returns all pending project invitations for the authenticated
+// user. Because invitations are stored by email, the handler first resolves the
+// userID to an email via the identity service. Each invitation is enriched with the
+// inviter's display name and the project title from their respective services.
 func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -610,7 +635,9 @@ func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http
 	json.NewEncoder(w).Encode(invitations)
 }
 
-// AcceptInvitation handles accepting a collaboration invitation
+// AcceptInvitation marks a pending invitation as accepted, granting the authenticated
+// user active collaborator access to the project. Accepts either collaborator_id or
+// id in the request body for client compatibility.
 func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -677,7 +704,8 @@ func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.R
 	json.NewEncoder(w).Encode(response)
 }
 
-// DeclineInvitation handles declining a collaboration invitation
+// DeclineInvitation marks a pending invitation as declined without granting project
+// access. Accepts either collaborator_id or id in the request body for client compatibility.
 func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -732,7 +760,9 @@ func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.
 	json.NewEncoder(w).Encode(response)
 }
 
-// UpdateCollaboratorRole handles updating a collaborator's role
+// UpdateCollaboratorRole changes the role of an existing collaborator. The caller
+// must supply a valid role: OWNER, WRITER, EDITOR, or REVIEWER. The collaborator
+// ID is extracted from the URL path.
 func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -805,7 +835,8 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *
 	json.NewEncoder(w).Encode(response)
 }
 
-// RemoveCollaborator handles removing a collaborator from a project
+// RemoveCollaborator removes a collaborator from a project. The collaborator ID is
+// extracted from the URL path. Requires a userID from the request context.
 func (h *CollaborationHandler) RemoveCollaborator(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -850,7 +881,8 @@ func (h *CollaborationHandler) RemoveCollaborator(w http.ResponseWriter, r *http
 	json.NewEncoder(w).Encode(response)
 }
 
-// UpdateComment handles updating an existing comment
+// UpdateComment applies partial updates to an existing comment. Only non-nil fields
+// are forwarded: content replaces the body text, and is_resolved marks the thread resolved.
 func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -925,7 +957,7 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(comment)
 }
 
-// DeleteComment handles deleting an existing comment
+// DeleteComment removes a comment by ID. Requires a userID from the request context.
 func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)

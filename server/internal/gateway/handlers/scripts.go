@@ -16,13 +16,16 @@ import (
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
 
-// ScriptsHandler handles HTTP requests related to scripts and forwards them to Scripts service
+// ScriptsHandler routes project, scene, and element HTTP requests to the scripts
+// gRPC service. It also fans out to the collab service to enrich responses with
+// collaborator counts and to verify access for shared projects.
 type ScriptsHandler struct {
 	scriptsClient scriptspb.ScriptsServiceClient
 	collabClient  collab.CollaborationServiceClient
 }
 
-// NewScriptsHandler creates a new ScriptsHandler
+// NewScriptsHandler creates a ScriptsHandler using the gRPC clients in the
+// provided registry.
 func NewScriptsHandler(clients *grpcclient.Registry) *ScriptsHandler {
 	return &ScriptsHandler{
 		scriptsClient: clients.Scripts,
@@ -30,7 +33,10 @@ func NewScriptsHandler(clients *grpcclient.Registry) *ScriptsHandler {
 	}
 }
 
-// CreateProject creates a new screenplay project
+// CreateProject creates a new writing project and immediately registers its
+// creator as an "owner" collaborator in the collab service. If the collab
+// service call fails the project is still returned — the error is logged but
+// not surfaced to the client.
 func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -92,7 +98,9 @@ func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetProject retrieves a project by ID
+// GetProject fetches a single project by ID. It requires a userID from the
+// request context and calls resolveProjectAccess to verify the caller is either
+// the project owner or an active collaborator. Returns 403 if neither holds.
 func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -139,7 +147,8 @@ func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DeleteProject deletes a project
+// DeleteProject removes a project. It requires a userID from the request context
+// and delegates ownership enforcement to the scripts service.
 func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -178,7 +187,8 @@ func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ToggleProjectStar toggles the starred status of a project
+// ToggleProjectStar flips the starred state of a project for the authenticated
+// user. Requires a userID from the request context.
 func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -220,7 +230,10 @@ func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// GetUserProjects retrieves all projects for a user
+// GetUserProjects returns a paginated list of projects owned by the authenticated
+// user. Accepts optional ?page and ?limit query parameters (defaults: page=1,
+// limit=20). For each project it issues a parallel gRPC call to the collab service
+// to fetch the collaborator count, avoiding N+1 HTTP round-trips from the client.
 func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -311,7 +324,10 @@ func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// GetSharedProjects returns projects the user is a collaborator on (not owner)
+// GetSharedProjects returns projects where the authenticated user is an active
+// collaborator but not the owner. It queries the collab service for the user's
+// active collaborations, then fetches each project using an empty userID bypass —
+// ownership checks are skipped because collaborator membership is already confirmed.
 func (h *ScriptsHandler) GetSharedProjects(w http.ResponseWriter, r *http.Request) {
 	userID := getUserIDFromContext(r)
 	if userID == "" {
@@ -351,7 +367,7 @@ func (h *ScriptsHandler) GetSharedProjects(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// CreateScene handles scene creation requests
+// CreateScene adds a new scene to a project.
 func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ProjectID     string `json:"project_id"`
@@ -401,7 +417,8 @@ func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-// GetProjectScenes handles getting all scenes for a project
+// GetProjectScenes returns all scenes for a project. Requires a userID from the
+// request context and verifies access via resolveProjectAccess before fetching.
 func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("project_id")
 	// Get user ID from context (set by auth middleware)
@@ -448,7 +465,8 @@ func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(result)
 }
 
-// UpdateScene handles scene update requests
+// UpdateScene applies partial updates to a scene. Only non-nil fields in the
+// request body are forwarded to the scripts service.
 func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	// Extract scene ID from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/scenes/")
@@ -505,7 +523,7 @@ func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-// DeleteScene handles scene deletion requests
+// DeleteScene removes a scene by ID. Requires a userID from the request context.
 func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
 	// Extract scene ID from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/scenes/")
@@ -543,7 +561,8 @@ func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Scene deleted successfully"})
 }
 
-// CreateElement handles script element creation requests
+// CreateElement adds a new script element (e.g. dialogue, action, transition)
+// to a scene within a project.
 func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ProjectID   string            `json:"project_id"`
@@ -597,7 +616,8 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-// UpdateElement handles script element update requests
+// UpdateElement applies partial updates to a script element. At least one of
+// content or elementType must be provided in the request body.
 func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 	// Extract element ID from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/elements/")
@@ -665,7 +685,7 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-// DeleteElement handles script element deletion requests
+// DeleteElement removes a script element by ID. Requires a userID from the request context.
 func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
 	// Extract element ID from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/elements/")
@@ -703,7 +723,10 @@ func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Element deleted successfully"})
 }
 
-// GetSceneElements handles getting all elements for a scene
+// GetSceneElements returns all elements for a scene. If the initial request fails
+// due to an ownership mismatch it retries with an empty userID — a bypass sentinel
+// that skips the ownership check. This handles collaborator access where project
+// membership is already verified by the auth middleware.
 func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request) {
 	sceneID := r.URL.Query().Get("scene_id")
 	// Get user ID from context (set by auth middleware)
@@ -751,7 +774,7 @@ func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(result)
 }
 
-// Helper function to convert protobuf Project to JSON-friendly map
+// convertProjectFromProto converts a protobuf Project message to a JSON-serialisable map.
 func convertProjectFromProto(project *scriptspb.Project) map[string]interface{} {
 	result := map[string]interface{}{
 		"id":          project.Id,
@@ -769,7 +792,7 @@ func convertProjectFromProto(project *scriptspb.Project) map[string]interface{} 
 	return result
 }
 
-// Helper function to convert protobuf Scene to JSON-friendly map
+// convertSceneFromProto converts a protobuf Scene message to a JSON-serialisable map.
 func convertSceneFromProto(scene *scriptspb.Scene) map[string]interface{} {
 	result := map[string]interface{}{
 		"id":            scene.Id,
@@ -789,7 +812,8 @@ func convertSceneFromProto(scene *scriptspb.Scene) map[string]interface{} {
 	return result
 }
 
-// Helper function to convert protobuf Pagination to JSON-friendly map
+// convertPaginationFromProto converts a protobuf PaginationResponse to a JSON-serialisable
+// map. Returns sensible defaults when pagination is nil.
 func convertPaginationFromProto(pagination *common.PaginationResponse) map[string]interface{} {
 	if pagination == nil {
 		return map[string]interface{}{
@@ -808,7 +832,7 @@ func convertPaginationFromProto(pagination *common.PaginationResponse) map[strin
 	}
 }
 
-// Helper function to convert protobuf ScriptElement to JSON-friendly map
+// convertElementFromProto converts a protobuf ScriptElement message to a JSON-serialisable map.
 func convertElementFromProto(element *scriptspb.ScriptElement) map[string]interface{} {
 	result := map[string]interface{}{
 		"id":           element.Id,

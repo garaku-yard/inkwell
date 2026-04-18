@@ -14,20 +14,23 @@ import (
 	identitypb "inkwell/server/pkg/grpc/identity"
 )
 
-// IdentityHandler implements the gRPC Identity service
+// IdentityHandler implements the gRPC IdentityServiceServer. It translates
+// inbound proto messages to domain requests, delegates to the AuthService, and
+// maps domain errors back to precise gRPC status codes.
 type IdentityHandler struct {
 	identitypb.UnimplementedIdentityServiceServer
 	authService service.AuthService
 }
 
-// NewIdentityHandler creates a new IdentityHandler
+// NewIdentityHandler creates an IdentityHandler backed by the provided AuthService.
 func NewIdentityHandler(authService service.AuthService) *IdentityHandler {
 	return &IdentityHandler{
 		authService: authService,
 	}
 }
 
-// Register handles user registration
+// Register creates a new user account and returns the user's profile alongside an
+// access/refresh token pair. Returns AlreadyExists if the email or username is taken.
 func (h *IdentityHandler) Register(ctx context.Context, req *identitypb.RegisterRequest) (*identitypb.RegisterResponse, error) {
 	serviceReq := &service.RegisterRequest{
 		Email:     req.Email,
@@ -61,7 +64,9 @@ func (h *IdentityHandler) Register(ctx context.Context, req *identitypb.Register
 	}, nil
 }
 
-// Login handles user authentication
+// Login authenticates a user by email and password. On success it returns the
+// user's profile and a fresh access/refresh token pair. Returns Unauthenticated
+// if the credentials are invalid or the account is inactive.
 func (h *IdentityHandler) Login(ctx context.Context, req *identitypb.LoginRequest) (*identitypb.LoginResponse, error) {
 	serviceReq := &service.LoginRequest{
 		Email:    req.Email,
@@ -92,7 +97,8 @@ func (h *IdentityHandler) Login(ctx context.Context, req *identitypb.LoginReques
 	}, nil
 }
 
-// RefreshToken handles token refresh
+// RefreshToken exchanges a valid refresh token for a new access/refresh token pair.
+// Returns Unauthenticated if the token is expired or invalid.
 func (h *IdentityHandler) RefreshToken(ctx context.Context, req *identitypb.RefreshTokenRequest) (*identitypb.RefreshTokenResponse, error) {
 	tokens, err := h.authService.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {
@@ -105,7 +111,9 @@ func (h *IdentityHandler) RefreshToken(ctx context.Context, req *identitypb.Refr
 	}, nil
 }
 
-// ValidateToken handles token validation
+// ValidateToken checks whether an access token is currently valid. On failure it
+// returns Valid:false rather than a gRPC error, so callers can handle expired sessions
+// without treating them as hard failures.
 func (h *IdentityHandler) ValidateToken(ctx context.Context, req *identitypb.ValidateTokenRequest) (*identitypb.ValidateTokenResponse, error) {
 	userInfo, err := h.authService.ValidateToken(ctx, req.AccessToken)
 	if err != nil {
@@ -133,7 +141,8 @@ func (h *IdentityHandler) ValidateToken(ctx context.Context, req *identitypb.Val
 	}, nil
 }
 
-// GetUser handles getting user profile
+// GetUser retrieves a user's public profile by UUID. Returns InvalidArgument if
+// the ID cannot be parsed, or NotFound if no matching user exists.
 func (h *IdentityHandler) GetUser(ctx context.Context, req *identitypb.GetUserRequest) (*identitypb.GetUserResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
@@ -162,7 +171,9 @@ func (h *IdentityHandler) GetUser(ctx context.Context, req *identitypb.GetUserRe
 	}, nil
 }
 
-// GetUserByUsernameTag handles getting user by username and tag
+// GetUserByUsernameTag retrieves a user's profile by their username and discriminator
+// tag. Used by the collaboration handler to resolve @username mentions to email
+// addresses when sending project invitations.
 func (h *IdentityHandler) GetUserByUsernameTag(ctx context.Context, req *identitypb.GetUserByUsernameTagRequest) (*identitypb.GetUserResponse, error) {
 	userInfo, err := h.authService.GetUserByUsernameTag(ctx, req.Username, req.UserTag)
 	if err != nil {
@@ -186,11 +197,13 @@ func (h *IdentityHandler) GetUserByUsernameTag(ctx context.Context, req *identit
 	}, nil
 }
 
-// Placeholder implementations for required methods
+// GetUsers is not yet implemented and always returns codes.Unimplemented.
 func (h *IdentityHandler) GetUsers(ctx context.Context, req *identitypb.GetUsersRequest) (*identitypb.GetUsersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "GetUsers not implemented")
 }
 
+// UpdateUser applies a partial profile update. It forwards only the non-nil fields
+// to the auth service, then re-fetches the updated profile to return the current state.
 func (h *IdentityHandler) UpdateUser(ctx context.Context, req *identitypb.UpdateUserRequest) (*identitypb.UpdateUserResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
@@ -231,6 +244,9 @@ func (h *IdentityHandler) UpdateUser(ctx context.Context, req *identitypb.Update
 	}, nil
 }
 
+// ChangePassword updates a user's password after verifying the current one. Returns
+// Unauthenticated if the current password is wrong, or InvalidArgument if the user
+// ID cannot be parsed.
 func (h *IdentityHandler) ChangePassword(ctx context.Context, req *identitypb.ChangePasswordRequest) (*identitypb.ChangePasswordResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
@@ -249,10 +265,9 @@ func (h *IdentityHandler) ChangePassword(ctx context.Context, req *identitypb.Ch
 	return &identitypb.ChangePasswordResponse{Success: true}, nil
 }
 
-// Helper functions
-// handleError maps domain errors to gRPC status codes. It covers all sentinel
-// errors defined in the identity domain so callers receive precise status codes
-// rather than a blanket codes.Internal.
+// handleError maps domain sentinel errors to gRPC status codes. It covers all error
+// cases defined in the identity domain so callers receive precise codes rather than
+// a blanket codes.Internal.
 func (h *IdentityHandler) handleError(err error) error {
 	switch err {
 	case domain.ErrUserNotFound, domain.ErrSessionNotFound:
@@ -271,6 +286,8 @@ func (h *IdentityHandler) handleError(err error) error {
 	}
 }
 
+// stringPtr converts a non-empty string to a pointer. Returns nil for empty strings,
+// which the domain layer uses to distinguish "not provided" from an explicit empty value.
 func stringPtr(s string) *string {
 	if s == "" {
 		return nil
@@ -278,6 +295,7 @@ func stringPtr(s string) *string {
 	return &s
 }
 
+// stringValue dereferences a string pointer, returning "" for nil.
 func stringValue(s *string) string {
 	if s == nil {
 		return ""
@@ -285,6 +303,7 @@ func stringValue(s *string) string {
 	return *s
 }
 
+// timeToCommonTimestamp converts a time.Time value to the shared protobuf Timestamp type.
 func timeToCommonTimestamp(t time.Time) *common.Timestamp {
 	return &common.Timestamp{
 		Seconds: t.Unix(),

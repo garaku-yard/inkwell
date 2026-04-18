@@ -13,18 +13,35 @@ import {
 import { getPendingInvites } from "@/services/invites"
 import type { Workspace } from "@/services/workspace"
 
+/** Options passed to the `useProjects` hook by the dashboard page. */
 interface UseProjectsOptions {
-  userId: string | undefined
-  isAuthenticated: boolean
-  authLoading: boolean
-  activeFilter: string
-  searchQuery: string
-  activeWorkspace: Workspace | null
+  /** UUID of the authenticated user, or `undefined` while auth is loading. */
+  userId: string | undefined;
+  /** Whether the user has a valid, unexpired session. */
+  isAuthenticated: boolean;
+  /** `true` while the auth context is still resolving the initial session. */
+  authLoading: boolean;
+  /**
+   * Active sort/filter mode applied to the project list.
+   * Accepted values: `"lastUpdated"` | `"myProjects"` | `"collaborations"` | `"starred"`.
+   */
+  activeFilter: string;
+  /** Text the user has typed into the search box; filters projects by title. */
+  searchQuery: string;
+  /** The selected workspace; when set, only projects whose category matches a
+   *  workspace category slug are shown. `null` shows all projects. */
+  activeWorkspace: Workspace | null;
 }
 
 /**
- * Manages the project list for the dashboard: fetching, filtering, starring,
- * renaming, and deleting. Redirects to login when unauthenticated.
+ * Manages the project list for the dashboard. On mount it fetches the user's
+ * projects and pending invitation count in parallel. Exposes filtered/sorted
+ * views and handlers for starring, renaming, and deleting projects.
+ *
+ * Redirects to `/login` when `isAuthenticated` is `false` after auth resolves.
+ *
+ * @param options - User identity, auth state, active filter, and workspace context.
+ * @returns State values and action handlers consumed by the dashboard UI.
  */
 export function useProjects({
   userId,
@@ -98,10 +115,18 @@ export function useProjects({
     return result.filter((p) => p.title.toLowerCase().includes(searchQuery.toLowerCase()))
   }, [projects, activeFilter, searchQuery, userId, activeWorkspace])
 
+  /** Prepends a newly created project to the local list without a refetch. */
   const handleProjectCreated = (newProject: Project) => {
     setProjects((prev) => [newProject, ...prev])
   }
 
+  /**
+   * Toggles the star on a project and updates the local list optimistically.
+   * Stops the click event from bubbling to the project card's navigation handler.
+   *
+   * @param projectId - UUID of the project to star/unstar.
+   * @param e - Mouse event; `stopPropagation` is called to prevent card navigation.
+   */
   const handleStarProject = async (projectId: string, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -119,6 +144,13 @@ export function useProjects({
     }
   }
 
+  /**
+   * Permanently deletes a project and removes it from the local list.
+   * Sets `isDeleting` to `true` for the duration of the request.
+   *
+   * @param projectId - UUID of the project to delete.
+   * @param projectName - Display name used in the success/error toast message.
+   */
   const handleDeleteProject = async (projectId: string, projectName: string) => {
     if (!userId) return
     setIsDeleting(true)
@@ -133,6 +165,14 @@ export function useProjects({
     }
   }
 
+  /**
+   * Updates a project's title and description, then reflects the change in the
+   * local list. Sets `isRenaming` to `true` for the duration of the request.
+   *
+   * @param projectId - UUID of the project to rename.
+   * @param newName - New display title.
+   * @param newDescription - New description text.
+   */
   const handleRenameProject = async (projectId: string, newName: string, newDescription: string) => {
     if (!userId) return
     setIsRenaming(true)
@@ -147,6 +187,11 @@ export function useProjects({
     }
   }
 
+  /**
+   * Navigates to the editor page for a project.
+   *
+   * @param projectId - UUID of the project to open.
+   */
   const handleProjectClick = (projectId: string) => {
     router.push(`/projects/${projectId}/editor`)
   }

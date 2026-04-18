@@ -10,12 +10,15 @@ import (
 	"inkwell/server/internal/gateway/config"
 )
 
-// AIHandler handles AI-related requests
+// AIHandler proxies HTTP requests to the Python AI chat service. Rather than
+// implementing AI logic directly, the gateway forwards requests over plain HTTP
+// and streams responses back to the client.
 type AIHandler struct {
 	aiChatServiceURL string
 }
 
-// NewAIHandler creates a new AI handler
+// NewAIHandler creates an AIHandler that forwards requests to the AI chat
+// service address configured in cfg.
 func NewAIHandler(cfg *config.Config) (*AIHandler, error) {
 	aiChatServiceURL := fmt.Sprintf("http://%s:%s", cfg.AIChatService.Host, cfg.AIChatService.Port)
 
@@ -24,7 +27,8 @@ func NewAIHandler(cfg *config.Config) (*AIHandler, error) {
 	}, nil
 }
 
-// ChatRequest represents the request payload for AI chat
+// ChatRequest carries the conversation history and optional model preferences
+// for a single AI chat turn.
 type ChatRequest struct {
 	Messages []ChatMessage `json:"messages"`
 	Provider string        `json:"provider,omitempty"`
@@ -32,19 +36,24 @@ type ChatRequest struct {
 	Stream   bool          `json:"stream,omitempty"`
 }
 
-// ChatMessage represents a single chat message
+// ChatMessage represents a single turn in a conversation, identified by role
+// ("user", "assistant", or "system") and its text content.
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// ProvidersResponse represents the response from the providers endpoint
+// ProvidersResponse describes the AI providers available in the chat service
+// and their per-provider configuration.
 type ProvidersResponse struct {
 	Providers []string                          `json:"providers"`
 	Config    map[string]map[string]interface{} `json:"config"`
 }
 
-// Chat handles streaming chat completion requests
+// Chat proxies a streaming AI chat request to the Python AI service and streams
+// the NDJSON response back to the caller using chunked transfer encoding. CORS
+// preflight OPTIONS requests are handled inline. Returns 503 if the AI service
+// is unreachable.
 func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	// Handle preflight CORS requests
 	if r.Method == http.MethodOptions {
@@ -131,7 +140,9 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetProviders handles requests to get available AI providers
+// GetProviders proxies a request to the AI service's /providers endpoint and
+// returns the list of available AI providers (e.g. OpenAI, Anthropic) along
+// with their configuration.
 func (h *AIHandler) GetProviders(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -161,7 +172,8 @@ func (h *AIHandler) GetProviders(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
-// Health checks the health of the AI chat service
+// Health proxies a health check to the AI chat service and returns its status.
+// Returns 503 with a JSON error body if the AI service is unreachable.
 func (h *AIHandler) Health(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)

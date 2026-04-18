@@ -15,57 +15,100 @@ export type ProjectCategory =
   | "memoir"
   | "lyrics"
 
+/** A writing project. */
 export interface Project {
-  id: string
-  title: string
-  description: string
-  owner_id: string
-  category: ProjectCategory
-  status: string
-  is_starred: boolean
-  collaborator_count?: number
-  created_at: string
-  updated_at: string
+  /** UUID of the project. */
+  id: string;
+  /** Display title of the project. */
+  title: string;
+  /** Optional long-form description or logline. */
+  description: string;
+  /** UUID of the user who created the project. */
+  owner_id: string;
+  /** Content type that determines which editor is shown. */
+  category: ProjectCategory;
+  /** Workflow status (e.g. `"draft"`, `"in_progress"`, `"complete"`). */
+  status: string;
+  /** Whether the authenticated user has starred this project. */
+  is_starred: boolean;
+  /** Number of active and pending collaborators. Populated by the gateway fan-out. */
+  collaborator_count?: number;
+  /** ISO 8601 timestamp of project creation. */
+  created_at: string;
+  /** ISO 8601 timestamp of the most recent update. */
+  updated_at: string;
 }
 
+/** Payload for creating a new project. */
 export interface CreateProjectRequest {
-  title: string
-  description?: string
-  owner_id: string
-  category?: ProjectCategory
+  /** Title of the project (required). */
+  title: string;
+  /** Optional description or logline. */
+  description?: string;
+  /** UUID of the owning user. */
+  owner_id: string;
+  /** Content category; defaults to `"screenplay"` when omitted. */
+  category?: ProjectCategory;
 }
 
+/** Fields that may be changed when updating a project. */
 export interface UpdateProjectRequest {
-  title?: string
-  description?: string
-  status?: string
+  /** New project title. */
+  title?: string;
+  /** New description. */
+  description?: string;
+  /** New workflow status. */
+  status?: string;
 }
 
+/** A single typed line in a screenplay scene (action, dialogue, cue, etc.). */
 export interface ScriptElement {
-  id: string
-  project_id: string
-  scene_id?: string
-  element_type: string
-  content: string
-  character_id?: string
-  line_number: number
-  formatting: Record<string, string>
-  created_at: string
-  updated_at: string
-  comments?: Comment[]
+  /** UUID of the element. */
+  id: string;
+  /** UUID of the parent project. */
+  project_id: string;
+  /** UUID of the scene this element belongs to, if any. */
+  scene_id?: string;
+  /** Element type string (e.g. `"ACTION"`, `"CHARACTER"`, `"DIALOG"`). */
+  element_type: string;
+  /** Text content of the element. */
+  content: string;
+  /** UUID of the character associated with dialogue elements. */
+  character_id?: string;
+  /** 1-based line number within the scene. */
+  line_number: number;
+  /** Arbitrary formatting metadata (e.g. bold, italic spans). */
+  formatting: Record<string, string>;
+  /** ISO 8601 timestamp of element creation. */
+  created_at: string;
+  /** ISO 8601 timestamp of the most recent update. */
+  updated_at: string;
+  /** Comments attached to this element, if eagerly loaded. */
+  comments?: Comment[];
 }
 
+/** A scene within a project, containing an ordered list of script elements. */
 export interface Scene {
-  id: string
-  project_id: string
-  outline_unit_id?: string
-  scene_heading: string
-  content: string
-  order_index: number
-  elements?: ScriptElement[]
-  created_at: string
-  updated_at: string
-  comments?: Comment[]
+  /** UUID of the scene. */
+  id: string;
+  /** UUID of the parent project. */
+  project_id: string;
+  /** UUID of the beat-board outline unit this scene is linked to, if any. */
+  outline_unit_id?: string;
+  /** Slug line heading (e.g. `"INT. COFFEE SHOP - DAY"`). */
+  scene_heading: string;
+  /** Free-form scene notes or summary (separate from the element list). */
+  content: string;
+  /** 0-based position of this scene in the project's scene list. */
+  order_index: number;
+  /** Script elements belonging to this scene, if eagerly loaded. */
+  elements?: ScriptElement[];
+  /** ISO 8601 timestamp of scene creation. */
+  created_at: string;
+  /** ISO 8601 timestamp of the most recent update. */
+  updated_at: string;
+  /** Comments attached to this scene, if eagerly loaded. */
+  comments?: Comment[];
 }
 
 export interface Character {
@@ -120,32 +163,60 @@ export interface FullProject extends Project {
   outline_units?: OutlineUnit[]
 }
 
+/** A user who has been invited to or has joined a project. */
 export interface ProjectCollaborator {
-  id: string
-  name: string
-  email: string
-  usernameWithTag: string
-  avatar?: string
-  role: CollaboratorRole
-  status: "active" | "pending"
-  joinedAt: string
-  userId: string
+  /** UUID of the collaboration record. */
+  id: string;
+  /** Display name of the collaborator. */
+  name: string;
+  /** Email address of the collaborator. */
+  email: string;
+  /** Username combined with its discriminator tag (e.g. `"alice#1234"`). */
+  usernameWithTag: string;
+  /** Optional URL to the collaborator's avatar image. */
+  avatar?: string;
+  /** Access level granted to this collaborator. */
+  role: CollaboratorRole;
+  /** `"active"` once the invitation has been accepted; `"pending"` otherwise. */
+  status: "active" | "pending";
+  /** ISO 8601 timestamp of when the user accepted the invitation. */
+  joinedAt: string;
+  /** UUID of the collaborator's user account. */
+  userId: string;
 }
 
+/** An inline comment attached to a script element or scene. */
 export interface Comment {
-  id: string
-  userName: string
-  content: string
-  timestamp: string
-  isResolved: boolean
-  elementId?: string
-  isScene?: boolean
+  /** UUID of the comment. */
+  id: string;
+  /** Display name of the user who wrote the comment. */
+  userName: string;
+  /** Text body of the comment. */
+  content: string;
+  /** ISO 8601 timestamp of when the comment was created. */
+  timestamp: string;
+  /** Whether the comment thread has been marked resolved. */
+  isResolved: boolean;
+  /** UUID of the script element or scene this comment is attached to. */
+  elementId?: string;
+  /** `true` when `elementId` refers to a scene rather than a script element. */
+  isScene?: boolean;
 }
 
 // --- Service Functions ---
 
 /**
- * Creates a new project in the microservices backend.
+ * Creates a new writing project. The owner is automatically added as an active
+ * collaborator by the gateway after creation.
+ *
+ * @param projectData - Title, owner ID, and optional description and category.
+ * @returns A promise that resolves to the newly created project.
+ * @throws {Error} When required fields are missing or the user is not authenticated.
+ *
+ * @example
+ * ```ts
+ * const project = await createProject({ title: "My Screenplay", owner_id: userId, category: "screenplay" });
+ * ```
  */
 export const createProject = async (projectData: CreateProjectRequest): Promise<Project> => {
   const response = await apiClient<{ project: Project }>('projects', {
@@ -156,7 +227,13 @@ export const createProject = async (projectData: CreateProjectRequest): Promise<
 }
 
 /**
- * Fetches a single project by its ID.
+ * Fetches a single project by its UUID. The server enforces that `userId` is
+ * the project owner; collaborator access is handled separately via `getSharedProjects`.
+ *
+ * @param projectId - UUID of the project to retrieve.
+ * @param userId - UUID of the requesting user (used for ownership check).
+ * @returns A promise that resolves to the project.
+ * @throws {Error} When the project is not found or the user is not the owner.
  */
 export const getProjectById = async (projectId: string, userId: string): Promise<Project> => {
   const response = await apiClient<{ project: Project }>(`projects/${projectId}?user_id=${userId}`, {
@@ -166,14 +243,32 @@ export const getProjectById = async (projectId: string, userId: string): Promise
 }
 
 /**
- * Fetches all projects for the authenticated user, including collaborator count.
+ * Fetches projects where the authenticated user is an active collaborator but
+ * not the owner. The gateway skips the ownership check for these because
+ * collaborator membership has already been verified server-side.
+ *
+ * @returns A promise that resolves to the list of shared projects.
+ * @throws {Error} When the user is not authenticated.
  */
 export const getSharedProjects = async (): Promise<Project[]> => {
   const response = await apiClient<{ projects: Project[] }>(`projects/shared`, { method: 'GET' })
   return response.projects ?? []
 }
 
-/** Fetches all projects owned by the user, with collaborator counts. */
+/**
+ * Fetches all projects owned by the user, including their collaborator counts.
+ * The gateway resolves collaborator counts in parallel server-side to avoid
+ * N+1 round-trips from the client.
+ *
+ * @param userId - UUID of the project owner.
+ * @returns A promise that resolves to the project list and total count.
+ * @throws {Error} When the user is not authenticated.
+ *
+ * @example
+ * ```ts
+ * const { projects, total } = await getMyProjects(userId);
+ * ```
+ */
 export const getMyProjects = async (userId: string): Promise<{ projects: (Project & { collaborator_count?: number })[], total: number }> => {
   // collaborator_count is included in each project by the gateway (fetched in parallel server-side)
   const response = await apiClient<{ projects: (Project & { collaborator_count?: number })[], pagination?: { total_items: number } }>(`projects?user_id=${userId}`, {
@@ -186,7 +281,13 @@ export const getMyProjects = async (userId: string): Promise<{ projects: (Projec
 }
 
 /**
- * Updates an existing project.
+ * Applies partial updates to a project's title, description, or status.
+ *
+ * @param projectId - UUID of the project to update.
+ * @param userId - UUID of the requesting user (must be the project owner).
+ * @param projectData - Fields to update; omitted fields are left unchanged.
+ * @returns A promise that resolves to the updated project.
+ * @throws {Error} When the project is not found or the caller is not the owner.
  */
 export const updateProject = async (
   projectId: string,
@@ -200,7 +301,14 @@ export const updateProject = async (
   return response.project
 }
 
-/** Toggles the starred status of a project. */
+/**
+ * Toggles the starred status of a project for the given user. Returns the
+ * updated project so the caller can reflect the new state without a second fetch.
+ *
+ * @param projectId - UUID of the project.
+ * @param userId - UUID of the user toggling the star.
+ * @returns A promise that resolves to the project with the updated `is_starred` value.
+ */
 export const toggleProjectStar = async (projectId: string, userId: string): Promise<Project> => {
   const response = await apiClient<{ project: Project }>(`projects/${projectId}/star`, {
     method: 'PATCH',
@@ -210,7 +318,12 @@ export const toggleProjectStar = async (projectId: string, userId: string): Prom
 }
 
 /**
- * Deletes a project.
+ * Permanently deletes a project and all its scenes, elements, and collaborators.
+ *
+ * @param projectId - UUID of the project to delete.
+ * @param userId - UUID of the requesting user (must be the project owner).
+ * @returns A promise that resolves when the deletion is complete.
+ * @throws {Error} When the caller is not the project owner.
  */
 export const deleteProject = async (projectId: string, userId: string): Promise<void> => {
   return apiClient<void>(`projects/${projectId}`, {
@@ -219,7 +332,22 @@ export const deleteProject = async (projectId: string, userId: string): Promise<
   })
 }
 
-/** Fetches a project with all its scenes and elements in a single call. */
+/**
+ * Fetches a project together with all its scenes, script elements, and comments
+ * in a single logical call. Elements are fetched per-scene in parallel. If any
+ * scene's elements fail to load, that scene is returned with an empty element list
+ * and a console warning rather than rejecting the whole promise.
+ *
+ * @param projectId - UUID of the project to load.
+ * @param userId - UUID of the requesting user.
+ * @returns A promise that resolves to the project with nested scenes and elements.
+ *
+ * @example
+ * ```ts
+ * const project = await getFullProject(projectId, userId);
+ * project.scenes?.forEach(scene => console.log(scene.elements?.length));
+ * ```
+ */
 export const getFullProject = async (projectId: string, userId: string): Promise<FullProject> => {
   const projectResponse = await apiClient<{ project: Project }>(`projects/${projectId}?user_id=${userId}`, {
     method: 'GET',
@@ -259,6 +387,14 @@ export const getFullProject = async (projectId: string, userId: string): Promise
   }
 }
 
+/**
+ * Creates a new scene within a project.
+ *
+ * @param projectId - UUID of the parent project.
+ * @param userId - UUID of the requesting user (must have write access).
+ * @param sceneData - Scene heading and optional content, outline link, and position.
+ * @returns A promise that resolves to the newly created scene.
+ */
 export const createScene = async (
   projectId: string,
   userId: string,
@@ -280,6 +416,13 @@ export const createScene = async (
   return response.scene
 }
 
+/**
+ * Fetches all scenes for a project, ordered by `order_index`.
+ *
+ * @param projectId - UUID of the project.
+ * @param userId - UUID of the requesting user.
+ * @returns A promise that resolves to the ordered list of scenes.
+ */
 export const getProjectScenes = async (projectId: string, userId: string): Promise<Scene[]> => {
   const response = await apiClient<{ scenes: Scene[] }>(`scenes?project_id=${projectId}&user_id=${userId}`, {
     method: 'GET',
@@ -287,6 +430,14 @@ export const getProjectScenes = async (projectId: string, userId: string): Promi
   return response.scenes
 }
 
+/**
+ * Updates the slug-line heading of an existing scene.
+ *
+ * @param sceneId - UUID of the scene to update.
+ * @param userId - UUID of the requesting user (must have write access).
+ * @param sceneHeading - New heading text (e.g. `"EXT. PARK - NIGHT"`).
+ * @returns A promise that resolves to the updated scene.
+ */
 export const updateSceneHeading = async (
   sceneId: string,
   userId: string,
@@ -302,6 +453,15 @@ export const updateSceneHeading = async (
   return response.scene
 }
 
+/**
+ * Creates a single script element within a scene.
+ *
+ * @param projectId - UUID of the parent project.
+ * @param userId - UUID of the requesting user.
+ * @param elementData - Element type, content, scene ID, and optional character
+ *   link and formatting map.
+ * @returns A promise that resolves to the newly created script element.
+ */
 export const createElement = async (
   projectId: string,
   userId: string,
@@ -325,6 +485,15 @@ export const createElement = async (
   return response.element
 }
 
+/**
+ * Replaces the text content of a script element. Only the `content` field is
+ * updated; element type and position are unchanged.
+ *
+ * @param elementId - UUID of the element to update.
+ * @param userId - UUID of the requesting user.
+ * @param content - New text content.
+ * @returns A promise that resolves to the updated script element.
+ */
 export const updateElementContent = async (
   elementId: string,
   userId: string,
@@ -340,6 +509,13 @@ export const updateElementContent = async (
   return response.element
 }
 
+/**
+ * Fetches all script elements for a scene, ordered by `line_number`.
+ *
+ * @param sceneId - UUID of the scene.
+ * @param userId - UUID of the requesting user.
+ * @returns A promise that resolves to the ordered list of script elements.
+ */
 export const getSceneElements = async (sceneId: string, userId: string): Promise<ScriptElement[]> => {
   const response = await apiClient<{ elements: ScriptElement[] }>(`elements?scene_id=${sceneId}&user_id=${userId}`, {
     method: 'GET',
@@ -460,6 +636,24 @@ export const createSceneLegacy = (actId: string, sceneData: { setting: string })
   })
 }
 
+/**
+ * Invites a user to collaborate on a project by email address. The server sends
+ * an invitation; the collaborator's status is `"pending"` until they accept.
+ * Only `"editor"` and `"viewer"` roles may be granted — the `"owner"` role
+ * cannot be assigned through this endpoint.
+ *
+ * @param projectId - UUID of the project to invite the user to.
+ * @param email - Email address of the person to invite.
+ * @param role - Access level to grant (`"editor"` or `"viewer"`).
+ * @returns A promise that resolves to the new collaborator record.
+ * @throws {Error} When the email is already an active or pending collaborator.
+ *
+ * @example
+ * ```ts
+ * const collab = await addCollaborator(projectId, "bob@example.com", "editor");
+ * console.log(collab.status); // "pending"
+ * ```
+ */
 export const addCollaborator = async (
   projectId: string,
   email: string,
@@ -496,6 +690,14 @@ export const addCollaborator = async (
   }
 }
 
+/**
+ * Fetches all active and pending collaborators for a project. The gateway
+ * enriches each record with the user's display name and username tag by
+ * querying the identity service.
+ *
+ * @param projectId - UUID of the project.
+ * @returns A promise that resolves to the list of collaborator records.
+ */
 export const getProjectCollaborators = async (projectId: string): Promise<ProjectCollaborator[]> => {
   const collaborators = await apiClient<Array<{
     id: string
@@ -524,6 +726,13 @@ export const getProjectCollaborators = async (projectId: string): Promise<Projec
   }))
 }
 
+/**
+ * Changes the role of an existing project collaborator.
+ *
+ * @param collaboratorId - UUID of the collaboration record.
+ * @param role - New role to assign.
+ * @returns A promise that resolves to the updated collaborator record.
+ */
 export const updateCollaboratorRole = async (
   collaboratorId: string,
   role: CollaboratorRole
@@ -555,6 +764,12 @@ export const updateCollaboratorRole = async (
   }
 }
 
+/**
+ * Removes a collaborator from a project.
+ *
+ * @param collaboratorId - UUID of the collaboration record to remove.
+ * @returns A promise that resolves when the collaborator has been removed.
+ */
 export const removeCollaborator = async (
   collaboratorId: string
 ): Promise<void> => {
@@ -570,6 +785,24 @@ export const collaboratorRoleOptions = Object.entries(CollaboratorRoles).map(
   })
 )
 
+/**
+ * Posts a new comment on a script element or scene. `screenplay_id` maps to
+ * the project ID in the collab service schema.
+ *
+ * @param projectId - UUID of the project (used for access control).
+ * @param screenplayId - UUID passed as `screenplay_id` to the collab service.
+ * @param content - Text body of the comment.
+ * @param lineNumber - 1-based line number within the script where the comment anchors.
+ * @param scriptElementId - UUID of the script element being commented on, if any.
+ * @param sceneId - UUID of the scene being commented on, if any.
+ * @param parentId - UUID of a parent comment for threaded replies, if any.
+ * @returns A promise that resolves to the newly created comment.
+ *
+ * @example
+ * ```ts
+ * const comment = await addComment(projectId, projectId, "Great action line!", 42, elementId);
+ * ```
+ */
 export const addComment = async (
   projectId: string,
   screenplayId: string,
@@ -617,6 +850,14 @@ export const addComment = async (
   }
 }
 
+/**
+ * Fetches all comments for a project. The collab service uses `screenplay_id`
+ * as an alias for the project ID. Each comment is enriched with `elementId` and
+ * `isScene` so callers can attach it to the correct UI target.
+ *
+ * @param screenplayId - UUID of the project (passed as `screenplay_id`).
+ * @returns A promise that resolves to the list of comments.
+ */
 export const getComments = async (
   screenplayId: string
 ): Promise<Comment[]> => {
@@ -650,6 +891,15 @@ export const getComments = async (
   }))
 }
 
+/**
+ * Applies partial updates to a comment's text or resolved state. Only fields
+ * that are passed (non-`undefined`) are included in the PATCH body.
+ *
+ * @param commentId - UUID of the comment to update.
+ * @param content - New text content, if changing.
+ * @param isResolved - New resolved state, if changing.
+ * @returns A promise that resolves to the updated comment.
+ */
 export const updateComment = async (
   commentId: string,
   content?: string,
@@ -686,17 +936,41 @@ export const updateComment = async (
   }
 }
 
+/**
+ * Permanently deletes a comment.
+ *
+ * @param commentId - UUID of the comment to delete.
+ * @returns A promise that resolves when the deletion is complete.
+ */
 export const deleteComment = async (commentId: string): Promise<void> => {
   await apiClient(`comments/${commentId}`, {
     method: 'DELETE'
   })
 }
 
+/**
+ * Sets a comment's resolved state. Delegates to `updateComment` with only the
+ * `isResolved` field set.
+ *
+ * @param commentId - UUID of the comment to update.
+ * @param newResolvedState - `true` to mark resolved, `false` to reopen.
+ * @returns A promise that resolves to the updated comment.
+ */
 export const toggleCommentResolved = async (commentId: string, newResolvedState: boolean): Promise<Comment> => {
   return updateComment(commentId, undefined, newResolvedState)
 }
 
-// Generic element creator for non-screenplay editors (prose, poetry, comic, IF, TTRPG)
+/**
+ * Generic element creator used by non-screenplay editors (prose, poetry, comic
+ * script, interactive fiction, TTRPG). Delegates to `createElement` with
+ * `order_index` mapped to `line_number`.
+ *
+ * @param projectId - UUID of the parent project.
+ * @param sceneId - UUID of the scene to add the element to.
+ * @param userId - UUID of the requesting user.
+ * @param elementData - Element type, content, and optional insertion index.
+ * @returns A promise that resolves to the newly created script element.
+ */
 export const createSceneElement = async (
   projectId: string,
   sceneId: string,

@@ -14,19 +14,24 @@ import (
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
 
-// BeatBoardHandler implements beat board gRPC methods on ScriptsHandler
+// BeatBoardHandler implements the beat-board subset of the ScriptsService gRPC
+// interface. It handles beats (story cards on a free-form canvas), directional
+// connections between beats, swim-lane organisation, and outline items that place
+// beats on a timeline within a lane.
 type BeatBoardHandler struct {
 	service service.BeatBoardService
 }
 
-// NewBeatBoardHandler creates a new BeatBoardHandler
+// NewBeatBoardHandler creates a BeatBoardHandler backed by the provided service.
 func NewBeatBoardHandler(svc service.BeatBoardService) *BeatBoardHandler {
 	return &BeatBoardHandler{
 		service: svc,
 	}
 }
 
-// CreateBeat handles beat creation
+// CreateBeat adds a new beat card to a project's beat board. Position and size
+// values (PositionX, PositionY, Width, Height) are in pixels as set by the
+// canvas editor. Both project_id and user_id are required.
 func (h *BeatBoardHandler) CreateBeat(ctx context.Context, req *scriptspb.CreateBeatRequest) (*scriptspb.CreateBeatResponse, error) {
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
@@ -71,7 +76,8 @@ func (h *BeatBoardHandler) CreateBeat(ctx context.Context, req *scriptspb.Create
 	}, nil
 }
 
-// GetBeat retrieves a single beat
+// GetBeat retrieves a single beat by ID. The service enforces that the caller
+// has read access to the beat's parent project.
 func (h *BeatBoardHandler) GetBeat(ctx context.Context, req *scriptspb.GetBeatRequest) (*scriptspb.GetBeatResponse, error) {
 	if req.BeatId == "" {
 		return nil, status.Error(codes.InvalidArgument, "beat_id is required")
@@ -100,7 +106,9 @@ func (h *BeatBoardHandler) GetBeat(ctx context.Context, req *scriptspb.GetBeatRe
 	}, nil
 }
 
-// GetProjectBeatBoard retrieves all beat board data for a project
+// GetProjectBeatBoard returns all beat-board data for a project in a single
+// response: beats, connections, lanes, and outline items. This is the primary
+// load call for the beat-board editor.
 func (h *BeatBoardHandler) GetProjectBeatBoard(ctx context.Context, req *scriptspb.GetProjectBeatBoardRequest) (*scriptspb.GetProjectBeatBoardResponse, error) {
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
@@ -129,7 +137,9 @@ func (h *BeatBoardHandler) GetProjectBeatBoard(ctx context.Context, req *scripts
 	}, nil
 }
 
-// UpdateBeat updates a beat
+// UpdateBeat applies a partial update to a beat. Only non-nil optional fields
+// are forwarded to the service; omitted fields are left unchanged. Position and
+// size fields are in pixels.
 func (h *BeatBoardHandler) UpdateBeat(ctx context.Context, req *scriptspb.UpdateBeatRequest) (*scriptspb.UpdateBeatResponse, error) {
 	if req.BeatId == "" {
 		return nil, status.Error(codes.InvalidArgument, "beat_id is required")
@@ -199,7 +209,8 @@ func (h *BeatBoardHandler) UpdateBeat(ctx context.Context, req *scriptspb.Update
 	}, nil
 }
 
-// DeleteBeat deletes a beat
+// DeleteBeat permanently removes a beat. Any connections referencing this beat
+// should be removed by the service layer before returning success.
 func (h *BeatBoardHandler) DeleteBeat(ctx context.Context, req *scriptspb.DeleteBeatRequest) (*scriptspb.DeleteBeatResponse, error) {
 	if req.BeatId == "" {
 		return nil, status.Error(codes.InvalidArgument, "beat_id is required")
@@ -225,7 +236,9 @@ func (h *BeatBoardHandler) DeleteBeat(ctx context.Context, req *scriptspb.Delete
 	return &scriptspb.DeleteBeatResponse{Success: true}, nil
 }
 
-// CreateConnection creates a connection between beats
+// CreateConnection creates a directional edge between two beats on the canvas.
+// from_side and to_side indicate which side of each beat card the edge attaches to
+// (e.g. "left", "right", "top", "bottom").
 func (h *BeatBoardHandler) CreateConnection(ctx context.Context, req *scriptspb.CreateConnectionRequest) (*scriptspb.CreateConnectionResponse, error) {
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
@@ -271,7 +284,7 @@ func (h *BeatBoardHandler) CreateConnection(ctx context.Context, req *scriptspb.
 	}, nil
 }
 
-// DeleteConnection deletes a connection
+// DeleteConnection removes a directional edge between two beats.
 func (h *BeatBoardHandler) DeleteConnection(ctx context.Context, req *scriptspb.DeleteConnectionRequest) (*scriptspb.DeleteConnectionResponse, error) {
 	if req.ConnectionId == "" {
 		return nil, status.Error(codes.InvalidArgument, "connection_id is required")
@@ -297,7 +310,8 @@ func (h *BeatBoardHandler) DeleteConnection(ctx context.Context, req *scriptspb.
 	return &scriptspb.DeleteConnectionResponse{Success: true}, nil
 }
 
-// CreateLane creates a new lane
+// CreateLane adds a new swim lane to the beat-board timeline. Lanes group beats
+// by story thread, character arc, or any other authorial dimension.
 func (h *BeatBoardHandler) CreateLane(ctx context.Context, req *scriptspb.CreateLaneRequest) (*scriptspb.CreateLaneResponse, error) {
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
@@ -332,7 +346,7 @@ func (h *BeatBoardHandler) CreateLane(ctx context.Context, req *scriptspb.Create
 	}, nil
 }
 
-// GetProjectLanes retrieves all lanes for a project
+// GetProjectLanes returns all swim lanes for a project, ordered by their position.
 func (h *BeatBoardHandler) GetProjectLanes(ctx context.Context, req *scriptspb.GetProjectLanesRequest) (*scriptspb.GetProjectLanesResponse, error) {
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
@@ -366,7 +380,8 @@ func (h *BeatBoardHandler) GetProjectLanes(ctx context.Context, req *scriptspb.G
 	}, nil
 }
 
-// UpdateLane updates a lane
+// UpdateLane applies a partial update to a lane. Only non-nil optional fields
+// (Name, Color, Order) are forwarded; omitted fields are left unchanged.
 func (h *BeatBoardHandler) UpdateLane(ctx context.Context, req *scriptspb.UpdateLaneRequest) (*scriptspb.UpdateLaneResponse, error) {
 	if req.LaneId == "" {
 		return nil, status.Error(codes.InvalidArgument, "lane_id is required")
@@ -406,7 +421,8 @@ func (h *BeatBoardHandler) UpdateLane(ctx context.Context, req *scriptspb.Update
 	}, nil
 }
 
-// UpdateLaneOrder updates the order of lanes
+// UpdateLaneOrder reorders all lanes for a project in a single atomic call.
+// lane_ids must contain all lane IDs for the project in the desired order.
 func (h *BeatBoardHandler) UpdateLaneOrder(ctx context.Context, req *scriptspb.UpdateLaneOrderRequest) (*scriptspb.UpdateLaneOrderResponse, error) {
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
@@ -441,7 +457,7 @@ func (h *BeatBoardHandler) UpdateLaneOrder(ctx context.Context, req *scriptspb.U
 	return &scriptspb.UpdateLaneOrderResponse{Success: true}, nil
 }
 
-// DeleteLane deletes a lane
+// DeleteLane permanently removes a swim lane from the beat board.
 func (h *BeatBoardHandler) DeleteLane(ctx context.Context, req *scriptspb.DeleteLaneRequest) (*scriptspb.DeleteLaneResponse, error) {
 	if req.LaneId == "" {
 		return nil, status.Error(codes.InvalidArgument, "lane_id is required")
@@ -467,7 +483,9 @@ func (h *BeatBoardHandler) DeleteLane(ctx context.Context, req *scriptspb.Delete
 	return &scriptspb.DeleteLaneResponse{Success: true}, nil
 }
 
-// CreateOutlineItem creates a new outline item
+// CreateOutlineItem places a beat on a lane at a specific position in the
+// timeline. timeline_position is a fractional value (0.0–1.0) representing
+// left-to-right placement within the lane; width is in the same unit.
 func (h *BeatBoardHandler) CreateOutlineItem(ctx context.Context, req *scriptspb.CreateOutlineItemRequest) (*scriptspb.CreateOutlineItemResponse, error) {
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
@@ -514,7 +532,8 @@ func (h *BeatBoardHandler) CreateOutlineItem(ctx context.Context, req *scriptspb
 	}, nil
 }
 
-// UpdateOutlineItem updates an outline item
+// UpdateOutlineItem applies a partial update to an outline item. Non-nil fields
+// (BeatId, LaneId, Order, TimelinePosition, Width) are forwarded to the service.
 func (h *BeatBoardHandler) UpdateOutlineItem(ctx context.Context, req *scriptspb.UpdateOutlineItemRequest) (*scriptspb.UpdateOutlineItemResponse, error) {
 	if req.OutlineItemId == "" {
 		return nil, status.Error(codes.InvalidArgument, "outline_item_id is required")
@@ -568,7 +587,8 @@ func (h *BeatBoardHandler) UpdateOutlineItem(ctx context.Context, req *scriptspb
 	}, nil
 }
 
-// DeleteOutlineItem deletes an outline item
+// DeleteOutlineItem removes a beat's placement from its lane on the timeline.
+// The beat itself is not deleted.
 func (h *BeatBoardHandler) DeleteOutlineItem(ctx context.Context, req *scriptspb.DeleteOutlineItemRequest) (*scriptspb.DeleteOutlineItemResponse, error) {
 	if req.OutlineItemId == "" {
 		return nil, status.Error(codes.InvalidArgument, "outline_item_id is required")
@@ -594,7 +614,9 @@ func (h *BeatBoardHandler) DeleteOutlineItem(ctx context.Context, req *scriptspb
 	return &scriptspb.DeleteOutlineItemResponse{Success: true}, nil
 }
 
-// Converter functions for beat board entities
+// convertBeatToProto maps a domain Beat to the scripts proto Beat message.
+// PositionX, PositionY, Width, and Height are stored as int32 in the domain
+// but emitted as float64 in the proto to match the canvas editor's coordinate system.
 func convertBeatToProto(beat *domain.Beat) *scriptspb.Beat {
 	return &scriptspb.Beat{
 		Id:           beat.ID.String(),
@@ -617,6 +639,7 @@ func convertBeatToProto(beat *domain.Beat) *scriptspb.Beat {
 	}
 }
 
+// convertConnectionToProto maps a domain Connection to the scripts proto Connection message.
 func convertConnectionToProto(conn *domain.Connection) *scriptspb.Connection {
 	return &scriptspb.Connection{
 		Id:         conn.ID.String(),
@@ -629,6 +652,7 @@ func convertConnectionToProto(conn *domain.Connection) *scriptspb.Connection {
 	}
 }
 
+// convertLaneToProto maps a domain Lane to the scripts proto Lane message.
 func convertLaneToProto(lane *domain.Lane) *scriptspb.Lane {
 	return &scriptspb.Lane{
 		Id:        lane.ID.String(),
@@ -641,6 +665,7 @@ func convertLaneToProto(lane *domain.Lane) *scriptspb.Lane {
 	}
 }
 
+// convertOutlineItemToProto maps a domain OutlineItem to the scripts proto OutlineItem message.
 func convertOutlineItemToProto(item *domain.OutlineItem) *scriptspb.OutlineItem {
 	return &scriptspb.OutlineItem{
 		Id:               item.ID.String(),
@@ -655,6 +680,8 @@ func convertOutlineItemToProto(item *domain.OutlineItem) *scriptspb.OutlineItem 
 	}
 }
 
+// convertBeatBoardToProto maps a domain BeatBoardData aggregate (beats, connections,
+// lanes, and outline items) to the scripts proto BeatBoardData message.
 func convertBeatBoardToProto(bb *domain.BeatBoardData) *scriptspb.BeatBoardData {
 	protoBeats := make([]*scriptspb.Beat, len(bb.Beats))
 	for i, beat := range bb.Beats {
@@ -684,7 +711,7 @@ func convertBeatBoardToProto(bb *domain.BeatBoardData) *scriptspb.BeatBoardData 
 	}
 }
 
-// convertTimestampToProto converts a time.Time to protobuf Timestamp
+// convertTimestampToProto converts a time.Time to the shared protobuf Timestamp type.
 func convertTimestampToProto(t time.Time) *common.Timestamp {
 	return &common.Timestamp{
 		Seconds: t.Unix(),

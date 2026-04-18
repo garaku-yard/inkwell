@@ -111,6 +111,10 @@ func handleError(err error) error {
 
 // ─── Proto converters ─────────────────────────────────────────────────────────
 
+// tierToPlan converts a domain SubscriptionTier to the Plan proto. Monthly price
+// is converted from a float (dollars) to integer cents. Limits and feature flags
+// are read from the generic JSONB maps stored on the tier; missing keys are left
+// at their proto zero values rather than failing.
 func tierToPlan(t *domain.SubscriptionTier) *billingpb.Plan {
 	p := &billingpb.Plan{
 		Id:          t.ID.String(),
@@ -134,6 +138,9 @@ func tierToPlan(t *domain.SubscriptionTier) *billingpb.Plan {
 	return p
 }
 
+// subscriptionToProto converts a domain UserSubscription to the billing proto
+// Subscription message. Only the core identity fields are mapped; billing-cycle
+// dates and payment-method details are not yet included.
 func subscriptionToProto(s *domain.UserSubscription) *billingpb.Subscription {
 	return &billingpb.Subscription{
 		Id:     s.ID.String(),

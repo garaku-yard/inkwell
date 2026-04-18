@@ -13,14 +13,19 @@ import (
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
 
-// ScriptsHandler implements the ScriptsService gRPC service
+// ScriptsHandler implements the ScriptsService gRPC service. It translates
+// inbound proto messages to domain types, delegates to ScriptsService for
+// project/scene/element operations, and forwards beat-board calls to an
+// embedded BeatBoardHandler to keep that surface area self-contained.
 type ScriptsHandler struct {
 	scriptspb.UnimplementedScriptsServiceServer
 	service          service.ScriptsService
 	beatBoardHandler *BeatBoardHandler
 }
 
-// NewScriptsHandler creates a new ScriptsHandler instance
+// NewScriptsHandler creates a ScriptsHandler backed by the provided services.
+// Beat-board RPCs are handled by a dedicated BeatBoardHandler that is
+// constructed here and held privately.
 func NewScriptsHandler(svc service.ScriptsService, beatBoardSvc service.BeatBoardService) *ScriptsHandler {
 	return &ScriptsHandler{
 		service:          svc,
@@ -28,7 +33,10 @@ func NewScriptsHandler(svc service.ScriptsService, beatBoardSvc service.BeatBoar
 	}
 }
 
-// Project management methods
+// CreateProject creates a new writing project owned by the user identified by
+// req.OwnerId. Both title and owner_id are required; missing either returns
+// codes.InvalidArgument. The project is created with default status and the
+// category field is stored as-is (e.g. "screenplay", "prose").
 func (h *ScriptsHandler) CreateProject(ctx context.Context, req *scriptspb.CreateProjectRequest) (*scriptspb.CreateProjectResponse, error) {
 	// Validate input
 	if req.Title == "" {
@@ -56,6 +64,10 @@ func (h *ScriptsHandler) CreateProject(ctx context.Context, req *scriptspb.Creat
 	}, nil
 }
 
+// GetProject retrieves a single project by ID. When req.UserId is non-empty the
+// service enforces ownership; passing an empty user_id bypasses the ownership
+// check and is used by the gateway after it has already confirmed collaborator
+// access via the collab service.
 func (h *ScriptsHandler) GetProject(ctx context.Context, req *scriptspb.GetProjectRequest) (*scriptspb.GetProjectResponse, error) {
 	// Validate input
 	if req.ProjectId == "" {
@@ -89,10 +101,14 @@ func (h *ScriptsHandler) GetProject(ctx context.Context, req *scriptspb.GetProje
 	}, nil
 }
 
+// UpdateProject is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) UpdateProject(ctx context.Context, req *scriptspb.UpdateProjectRequest) (*scriptspb.UpdateProjectResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateProject not implemented")
 }
 
+// ToggleProjectStar flips the starred state on a project for the given user.
+// It returns the updated project so the caller can reflect the new state
+// without a second round-trip.
 func (h *ScriptsHandler) ToggleProjectStar(ctx context.Context, req *scriptspb.ToggleProjectStarRequest) (*scriptspb.ToggleProjectStarResponse, error) {
 	// Validate input
 	if req.ProjectId == "" || req.UserId == "" {
@@ -122,6 +138,8 @@ func (h *ScriptsHandler) ToggleProjectStar(ctx context.Context, req *scriptspb.T
 	}, nil
 }
 
+// DeleteProject permanently removes a project. Both project_id and user_id are
+// required; the service enforces that only the project owner may delete it.
 func (h *ScriptsHandler) DeleteProject(ctx context.Context, req *scriptspb.DeleteProjectRequest) (*scriptspb.DeleteProjectResponse, error) {
 	// Validate input
 	if req.ProjectId == "" {
@@ -153,6 +171,9 @@ func (h *ScriptsHandler) DeleteProject(ctx context.Context, req *scriptspb.Delet
 	}, nil
 }
 
+// GetUserProjects returns a paginated list of projects owned by the given user.
+// Pagination defaults to page 1, limit 20 if the Pagination field is nil or
+// zero. Total pages are calculated with ceiling division and are at least 1.
 func (h *ScriptsHandler) GetUserProjects(ctx context.Context, req *scriptspb.GetUserProjectsRequest) (*scriptspb.GetUserProjectsResponse, error) {
 	// Validate input
 	if req.UserId == "" {
@@ -210,24 +231,30 @@ func (h *ScriptsHandler) GetUserProjects(ctx context.Context, req *scriptspb.Get
 	}, nil
 }
 
-// Outline unit management methods
+// CreateOutlineUnit is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) CreateOutlineUnit(ctx context.Context, req *scriptspb.CreateOutlineUnitRequest) (*scriptspb.CreateOutlineUnitResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateOutlineUnit not implemented")
 }
 
+// GetProjectOutline is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) GetProjectOutline(ctx context.Context, req *scriptspb.GetProjectOutlineRequest) (*scriptspb.GetProjectOutlineResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProjectOutline not implemented")
 }
 
+// UpdateOutlineUnit is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) UpdateOutlineUnit(ctx context.Context, req *scriptspb.UpdateOutlineUnitRequest) (*scriptspb.UpdateOutlineUnitResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateOutlineUnit not implemented")
 }
 
+// DeleteOutlineUnit is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) DeleteOutlineUnit(ctx context.Context, req *scriptspb.DeleteOutlineUnitRequest) (*scriptspb.DeleteOutlineUnitResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteOutlineUnit not implemented")
 }
 
-// Scene management methods
+// CreateScene adds a new scene to an existing project. project_id and user_id
+// are required; the service enforces that the caller owns or has write access to
+// the project. outline_unit_id is optional and links the scene to a beat-board
+// outline unit when provided.
 func (h *ScriptsHandler) CreateScene(ctx context.Context, req *scriptspb.CreateSceneRequest) (*scriptspb.CreateSceneResponse, error) {
 	// Validate request
 	if req.ProjectId == "" || req.UserId == "" {
@@ -293,6 +320,9 @@ func (h *ScriptsHandler) CreateScene(ctx context.Context, req *scriptspb.CreateS
 	}, nil
 }
 
+// GetProjectScenes returns all scenes for a project, ordered by their index.
+// Passing an empty user_id bypasses the ownership check; the gateway does this
+// when collaborator access has already been confirmed by the collab service.
 func (h *ScriptsHandler) GetProjectScenes(ctx context.Context, req *scriptspb.GetProjectScenesRequest) (*scriptspb.GetProjectScenesResponse, error) {
 	// Parse project ID
 	projectID, err := uuid.Parse(req.ProjectId)
@@ -326,6 +356,9 @@ func (h *ScriptsHandler) GetProjectScenes(ctx context.Context, req *scriptspb.Ge
 	}, nil
 }
 
+// UpdateScene applies a partial update to a scene. Only the non-nil optional
+// fields (SceneHeading, Content, OrderIndex) are forwarded to the service; omitted
+// fields are left unchanged.
 func (h *ScriptsHandler) UpdateScene(ctx context.Context, req *scriptspb.UpdateSceneRequest) (*scriptspb.UpdateSceneResponse, error) {
 	// Parse scene ID
 	sceneID, err := uuid.Parse(req.SceneId)
@@ -367,6 +400,8 @@ func (h *ScriptsHandler) UpdateScene(ctx context.Context, req *scriptspb.UpdateS
 	}, nil
 }
 
+// DeleteScene permanently removes a scene and its elements. The service enforces
+// that only a user with write access to the project may delete its scenes.
 func (h *ScriptsHandler) DeleteScene(ctx context.Context, req *scriptspb.DeleteSceneRequest) (*scriptspb.DeleteSceneResponse, error) {
 	// Parse scene ID
 	sceneID, err := uuid.Parse(req.SceneId)
@@ -391,41 +426,48 @@ func (h *ScriptsHandler) DeleteScene(ctx context.Context, req *scriptspb.DeleteS
 	}, nil
 }
 
-// Character management methods
+// CreateCharacter is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) CreateCharacter(ctx context.Context, req *scriptspb.CreateCharacterRequest) (*scriptspb.CreateCharacterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateCharacter not implemented")
 }
 
+// GetProjectCharacters is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) GetProjectCharacters(ctx context.Context, req *scriptspb.GetProjectCharactersRequest) (*scriptspb.GetProjectCharactersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProjectCharacters not implemented")
 }
 
+// UpdateCharacter is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) UpdateCharacter(ctx context.Context, req *scriptspb.UpdateCharacterRequest) (*scriptspb.UpdateCharacterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateCharacter not implemented")
 }
 
-// Location management methods
+// CreateLocation is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) CreateLocation(ctx context.Context, req *scriptspb.CreateLocationRequest) (*scriptspb.CreateLocationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateLocation not implemented")
 }
 
+// GetProjectLocations is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) GetProjectLocations(ctx context.Context, req *scriptspb.GetProjectLocationsRequest) (*scriptspb.GetProjectLocationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProjectLocations not implemented")
 }
 
-// Script element management methods
+// CreateScriptElement is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) CreateScriptElement(ctx context.Context, req *scriptspb.CreateScriptElementRequest) (*scriptspb.CreateScriptElementResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateScriptElement not implemented")
 }
 
+// GetProjectScriptElements is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) GetProjectScriptElements(ctx context.Context, req *scriptspb.GetProjectScriptElementsRequest) (*scriptspb.GetProjectScriptElementsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProjectScriptElements not implemented")
 }
 
+// UpdateScriptElement is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) UpdateScriptElement(ctx context.Context, req *scriptspb.UpdateScriptElementRequest) (*scriptspb.UpdateScriptElementResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateScriptElement not implemented")
 }
 
+// DeleteScriptElement removes a single script element by ID. The service enforces
+// that the caller has write access to the element's parent project.
 func (h *ScriptsHandler) DeleteScriptElement(ctx context.Context, req *scriptspb.DeleteScriptElementRequest) (*scriptspb.DeleteScriptElementResponse, error) {
 	// Parse UUIDs
 	elementID, err := uuid.Parse(req.ScriptElementId)
@@ -449,10 +491,14 @@ func (h *ScriptsHandler) DeleteScriptElement(ctx context.Context, req *scriptspb
 	}, nil
 }
 
+// BulkUpdateScriptElements is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) BulkUpdateScriptElements(ctx context.Context, req *scriptspb.BulkUpdateScriptElementsRequest) (*scriptspb.BulkUpdateScriptElementsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BulkUpdateScriptElements not implemented")
 }
 
+// BatchCreateElements creates multiple script elements in a single call. It is
+// used by the FDX import flow to persist all elements for a scene at once,
+// avoiding individual round-trips per element. At least one element is required.
 func (h *ScriptsHandler) BatchCreateElements(ctx context.Context, req *scriptspb.BatchCreateElementsRequest) (*scriptspb.BatchCreateElementsResponse, error) {
 	// Validate input
 	if req.ProjectId == "" {
@@ -521,7 +567,7 @@ func (h *ScriptsHandler) BatchCreateElements(ctx context.Context, req *scriptspb
 	}, nil
 }
 
-// Helper functions
+// convertProjectToProto maps a domain Project to the scripts proto Project message.
 func convertProjectToProto(project *domain.Project) *scriptspb.Project {
 	return &scriptspb.Project{
 		Id:          project.ID.String(),
@@ -542,8 +588,7 @@ func convertProjectToProto(project *domain.Project) *scriptspb.Project {
 	}
 }
 
-// Helper function to convert service errors to gRPC errors
-// handleServiceError maps domain errors to the appropriate gRPC status codes so callers
+// handleServiceError maps domain DomainError codes to gRPC status codes so callers
 // receive meaningful error types rather than a blanket codes.Internal.
 func handleServiceError(err error) error {
 	if de, ok := err.(*domain.DomainError); ok {
@@ -562,7 +607,9 @@ func handleServiceError(err error) error {
 	return status.Errorf(codes.Internal, "internal server error: %v", err)
 }
 
-// CreateElement implements the CreateElement RPC method
+// CreateElement adds a single typed script element (action, dialogue, character
+// cue, etc.) to a scene. character_id is optional and associates dialogue with a
+// known character in the project's character roster.
 func (h *ScriptsHandler) CreateElement(ctx context.Context, req *scriptspb.CreateElementRequest) (*scriptspb.CreateElementResponse, error) {
 	// Parse project ID
 	projectID, err := uuid.Parse(req.ProjectId)
@@ -617,7 +664,8 @@ func (h *ScriptsHandler) CreateElement(ctx context.Context, req *scriptspb.Creat
 	}, nil
 }
 
-// UpdateElement implements the UpdateElement RPC method
+// UpdateElement replaces the text content of a script element. Only the content
+// field is mutable through this RPC; type and position changes are not supported.
 func (h *ScriptsHandler) UpdateElement(ctx context.Context, req *scriptspb.UpdateElementRequest) (*scriptspb.UpdateElementResponse, error) {
 	// Parse element ID
 	elementID, err := uuid.Parse(req.ElementId)
@@ -645,7 +693,9 @@ func (h *ScriptsHandler) UpdateElement(ctx context.Context, req *scriptspb.Updat
 	}, nil
 }
 
-// GetSceneElements implements the GetSceneElements RPC method
+// GetSceneElements returns all script elements belonging to a scene, ordered by
+// line number. Passing an empty user_id bypasses the ownership check; the gateway
+// does this when collaborator access has already been confirmed by the collab service.
 func (h *ScriptsHandler) GetSceneElements(ctx context.Context, req *scriptspb.GetSceneElementsRequest) (*scriptspb.GetSceneElementsResponse, error) {
 	// Parse scene ID
 	sceneID, err := uuid.Parse(req.SceneId)
@@ -679,7 +729,8 @@ func (h *ScriptsHandler) GetSceneElements(ctx context.Context, req *scriptspb.Ge
 	}, nil
 }
 
-// Helper function to convert domain ScriptElement to protobuf
+// convertElementToProto maps a domain ScriptElement to the scripts proto
+// ScriptElement message. scene_id and character_id are only set when non-nil.
 func convertElementToProto(element *domain.ScriptElement) *scriptspb.ScriptElement {
 	protoElement := &scriptspb.ScriptElement{
 		Id:         element.ID.String(),
@@ -709,7 +760,8 @@ func convertElementToProto(element *domain.ScriptElement) *scriptspb.ScriptEleme
 	return protoElement
 }
 
-// Helper function to convert domain Scene to protobuf
+// convertSceneToProto maps a domain Scene to the scripts proto Scene message.
+// outline_unit_id is only set when the scene is linked to a beat-board outline unit.
 func convertSceneToProto(scene *domain.Scene) *scriptspb.Scene {
 	pbScene := &scriptspb.Scene{
 		Id:           scene.ID.String(),
@@ -735,63 +787,80 @@ func convertSceneToProto(scene *domain.Scene) *scriptspb.Scene {
 	return pbScene
 }
 
-// Beat Board delegation methods
+// The following methods satisfy the ScriptsService gRPC interface for beat-board
+// RPCs. Each call is forwarded directly to the embedded BeatBoardHandler.
+
+// CreateBeat delegates to BeatBoardHandler.CreateBeat.
 func (h *ScriptsHandler) CreateBeat(ctx context.Context, req *scriptspb.CreateBeatRequest) (*scriptspb.CreateBeatResponse, error) {
 	return h.beatBoardHandler.CreateBeat(ctx, req)
 }
 
+// GetBeat delegates to BeatBoardHandler.GetBeat.
 func (h *ScriptsHandler) GetBeat(ctx context.Context, req *scriptspb.GetBeatRequest) (*scriptspb.GetBeatResponse, error) {
 	return h.beatBoardHandler.GetBeat(ctx, req)
 }
 
+// GetProjectBeatBoard delegates to BeatBoardHandler.GetProjectBeatBoard.
 func (h *ScriptsHandler) GetProjectBeatBoard(ctx context.Context, req *scriptspb.GetProjectBeatBoardRequest) (*scriptspb.GetProjectBeatBoardResponse, error) {
 	return h.beatBoardHandler.GetProjectBeatBoard(ctx, req)
 }
 
+// UpdateBeat delegates to BeatBoardHandler.UpdateBeat.
 func (h *ScriptsHandler) UpdateBeat(ctx context.Context, req *scriptspb.UpdateBeatRequest) (*scriptspb.UpdateBeatResponse, error) {
 	return h.beatBoardHandler.UpdateBeat(ctx, req)
 }
 
+// DeleteBeat delegates to BeatBoardHandler.DeleteBeat.
 func (h *ScriptsHandler) DeleteBeat(ctx context.Context, req *scriptspb.DeleteBeatRequest) (*scriptspb.DeleteBeatResponse, error) {
 	return h.beatBoardHandler.DeleteBeat(ctx, req)
 }
 
+// CreateConnection delegates to BeatBoardHandler.CreateConnection.
 func (h *ScriptsHandler) CreateConnection(ctx context.Context, req *scriptspb.CreateConnectionRequest) (*scriptspb.CreateConnectionResponse, error) {
 	return h.beatBoardHandler.CreateConnection(ctx, req)
 }
 
+// DeleteConnection delegates to BeatBoardHandler.DeleteConnection.
 func (h *ScriptsHandler) DeleteConnection(ctx context.Context, req *scriptspb.DeleteConnectionRequest) (*scriptspb.DeleteConnectionResponse, error) {
 	return h.beatBoardHandler.DeleteConnection(ctx, req)
 }
 
+// CreateLane delegates to BeatBoardHandler.CreateLane.
 func (h *ScriptsHandler) CreateLane(ctx context.Context, req *scriptspb.CreateLaneRequest) (*scriptspb.CreateLaneResponse, error) {
 	return h.beatBoardHandler.CreateLane(ctx, req)
 }
 
+// GetProjectLanes delegates to BeatBoardHandler.GetProjectLanes.
 func (h *ScriptsHandler) GetProjectLanes(ctx context.Context, req *scriptspb.GetProjectLanesRequest) (*scriptspb.GetProjectLanesResponse, error) {
 	return h.beatBoardHandler.GetProjectLanes(ctx, req)
 }
 
+// UpdateLane delegates to BeatBoardHandler.UpdateLane.
 func (h *ScriptsHandler) UpdateLane(ctx context.Context, req *scriptspb.UpdateLaneRequest) (*scriptspb.UpdateLaneResponse, error) {
 	return h.beatBoardHandler.UpdateLane(ctx, req)
 }
 
+// UpdateLaneOrder delegates to BeatBoardHandler.UpdateLaneOrder.
 func (h *ScriptsHandler) UpdateLaneOrder(ctx context.Context, req *scriptspb.UpdateLaneOrderRequest) (*scriptspb.UpdateLaneOrderResponse, error) {
 	return h.beatBoardHandler.UpdateLaneOrder(ctx, req)
 }
 
+// DeleteLane delegates to BeatBoardHandler.DeleteLane.
 func (h *ScriptsHandler) DeleteLane(ctx context.Context, req *scriptspb.DeleteLaneRequest) (*scriptspb.DeleteLaneResponse, error) {
 	return h.beatBoardHandler.DeleteLane(ctx, req)
 }
 
+// CreateOutlineItem delegates to BeatBoardHandler.CreateOutlineItem.
 func (h *ScriptsHandler) CreateOutlineItem(ctx context.Context, req *scriptspb.CreateOutlineItemRequest) (*scriptspb.CreateOutlineItemResponse, error) {
 	return h.beatBoardHandler.CreateOutlineItem(ctx, req)
 }
 
+// UpdateOutlineItem delegates to BeatBoardHandler.UpdateOutlineItem.
 func (h *ScriptsHandler) UpdateOutlineItem(ctx context.Context, req *scriptspb.UpdateOutlineItemRequest) (*scriptspb.UpdateOutlineItemResponse, error) {
 	return h.beatBoardHandler.UpdateOutlineItem(ctx, req)
 }
 
+// DeleteOutlineItem delegates to BeatBoardHandler.DeleteOutlineItem.
 func (h *ScriptsHandler) DeleteOutlineItem(ctx context.Context, req *scriptspb.DeleteOutlineItemRequest) (*scriptspb.DeleteOutlineItemResponse, error) {
 	return h.beatBoardHandler.DeleteOutlineItem(ctx, req)
 }
