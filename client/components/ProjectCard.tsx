@@ -110,20 +110,24 @@ export function ProjectCard({
                 onClick={(e) => { e.stopPropagation(); onManageCollaborators(project.id, project.title) }}
               >
                 <Users className="mr-2 h-4 w-4" />
-                Manage Collaborators
+                {isOwner ? "Manage Collaborators" : "View Collaborators"}
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={(e) => { e.stopPropagation(); onRename(project.id, project.title, project.description || "") }}
-              >
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={(e) => { e.stopPropagation(); onDelete(project.id, project.title) }}
-                className="text-destructive focus:text-destructive"
-              >
-                Delete
-              </DropdownMenuItem>
+              {isOwner && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={(e) => { e.stopPropagation(); onRename(project.id, project.title, project.description || "") }}
+                  >
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => { e.stopPropagation(); onDelete(project.id, project.title) }}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    Delete
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -143,15 +147,17 @@ export function ProjectCard({
             </div>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={(e) => { e.stopPropagation(); onManageCollaborators(project.id, project.title) }}
-            title="Add Collaborator"
-          >
-            <UserPlus className="h-3.5 w-3.5 text-muted-foreground hover:text-primary transition-colors" />
-          </Button>
+          {isOwner && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => { e.stopPropagation(); onManageCollaborators(project.id, project.title) }}
+              title="Add Collaborator"
+            >
+              <UserPlus className="h-3.5 w-3.5 text-muted-foreground hover:text-primary transition-colors" />
+            </Button>
+          )}
 
           <Button
             variant="ghost"
