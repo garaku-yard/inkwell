@@ -18,12 +18,24 @@ const formatRelativeTime = (dateString: string) => {
   const date = new Date(dateString)
   const now = new Date()
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-
   if (diffInSeconds < 60) return "Just now"
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`
   return date.toLocaleDateString()
 }
+
+const CATEGORY_META: Record<string, { label: string; accent: string }> = {
+  screenplay:          { label: "Screenplay",         accent: "bg-amber-400" },
+  novel:               { label: "Novel",              accent: "bg-emerald-500" },
+  poetry:              { label: "Poetry",             accent: "bg-violet-500" },
+  lyrics:              { label: "Lyrics",             accent: "bg-rose-400" },
+  comic:               { label: "Comic",              accent: "bg-orange-400" },
+  interactive_fiction: { label: "Interactive Fiction",accent: "bg-cyan-500" },
+  ttrpg:               { label: "TTRPG",              accent: "bg-red-500" },
+  vault:               { label: "Vault",              accent: "bg-slate-400" },
+}
+
+const DEFAULT_META = { label: "Project", accent: "bg-primary" }
 
 interface ProjectCardProps {
   project: Project & { collaborator_count?: number }
@@ -44,31 +56,50 @@ export function ProjectCard({
   onRename,
   onClick,
 }: ProjectCardProps) {
+  const meta = CATEGORY_META[project.category] ?? DEFAULT_META
+  const isOwner = project.owner_id === userId
+
   return (
     <Card
-      className="overflow-hidden hover:shadow-xl hover:scale-105 transition-all duration-300 ease-in-out transform cursor-pointer flex flex-col"
+      className="group overflow-hidden cursor-pointer flex flex-col transition-shadow duration-200 hover:shadow-md"
       onClick={() => onClick(project.id)}
     >
+      {/* Category accent strip */}
+      <div className={cn("h-1 w-full shrink-0", meta.accent)} />
+
       <CardContent className="p-4 flex-grow">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-0.5">
-              <h3 className="font-semibold text-lg hover:text-primary">{project.title}</h3>
-              {project.owner_id !== userId && (
-                <Badge variant="secondary" className="text-xs shrink-0 flex items-center gap-1">
-                  <Users className="h-3 w-3" />
+            {/* Category + shared badges */}
+            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                {meta.label}
+              </span>
+              {!isOwner && (
+                <Badge variant="secondary" className="text-xs h-4 px-1.5 flex items-center gap-1">
+                  <Users className="h-2.5 w-2.5" />
                   Shared
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">{project.description}</p>
+
+            <h3 className="font-semibold text-base leading-snug truncate group-hover:text-primary transition-colors">
+              {project.title}
+            </h3>
+
+            {project.description && (
+              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                {project.description}
+              </p>
+            )}
           </div>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="h-4 w-4" />
@@ -76,28 +107,19 @@ export function ProjectCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onManageCollaborators(project.id, project.title)
-                }}
+                onClick={(e) => { e.stopPropagation(); onManageCollaborators(project.id, project.title) }}
               >
                 <Users className="mr-2 h-4 w-4" />
                 Manage Collaborators
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRename(project.id, project.title, project.description || "")
-                }}
+                onClick={(e) => { e.stopPropagation(); onRename(project.id, project.title, project.description || "") }}
               >
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onDelete(project.id, project.title)
-                }}
+                onClick={(e) => { e.stopPropagation(); onDelete(project.id, project.title) }}
                 className="text-destructive focus:text-destructive"
               >
                 Delete
@@ -106,48 +128,44 @@ export function ProjectCard({
           </DropdownMenu>
         </div>
       </CardContent>
-      <CardFooter className="p-4 pt-0 flex justify-between items-center text-sm text-muted-foreground">
-        <div className="flex items-center">
-          <Clock className="h-3.5 w-3.5 mr-1" />
+
+      <CardFooter className="px-4 pb-3 pt-0 flex justify-between items-center">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Clock className="h-3 w-3" />
           {formatRelativeTime(project.updated_at)}
         </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={(e) => {
-              e.stopPropagation()
-              onManageCollaborators(project.id, project.title)
-            }}
-            title="Add Collaborator"
-          >
-            <UserPlus className="h-4 w-4 text-muted-foreground hover:text-primary" />
-          </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={(e) => {
-              e.stopPropagation()
-              onStar(project.id, e)
-            }}
-          >
-            <Star
-              className={cn(
-                "h-4 w-4 hover:text-yellow-400 transition-colors",
-                project.is_starred ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground",
-              )}
-            />
-          </Button>
-
+        <div className="flex items-center gap-1">
           {project.collaborator_count !== undefined && project.collaborator_count > 1 && (
-            <div className="flex items-center text-muted-foreground">
-              <Users className="h-3.5 w-3.5 mr-1" />
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mr-1">
+              <Users className="h-3 w-3" />
               {project.collaborator_count}
             </div>
           )}
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={(e) => { e.stopPropagation(); onManageCollaborators(project.id, project.title) }}
+            title="Add Collaborator"
+          >
+            <UserPlus className="h-3.5 w-3.5 text-muted-foreground hover:text-primary transition-colors" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={(e) => { e.stopPropagation(); onStar(project.id, e) }}
+          >
+            <Star
+              className={cn(
+                "h-3.5 w-3.5 transition-colors",
+                project.is_starred ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground hover:text-yellow-400",
+              )}
+            />
+          </Button>
         </div>
       </CardFooter>
     </Card>

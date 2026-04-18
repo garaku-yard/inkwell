@@ -120,14 +120,14 @@ export const EditorPane = React.memo(
     }))
 
     return (
-      <div ref={parentRef} className="flex-1 overflow-auto p-8 bg-gray-100 dark:bg-black">
+      <div ref={parentRef} className="flex-1 overflow-auto p-8 bg-secondary dark:bg-background">
         {/* Multiple US Letter pages (standard screenplay format) */}
         <div ref={pagesContainerRef} className="mx-auto space-y-8">
           {pages.length === 0 ? (
             // Empty state - show a placeholder page that allows double-enter to create a scene
             <div
               ref={scriptContainerRef}
-              className="bg-white dark:bg-gray-900 shadow-2xl relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
+              className="bg-card dark:bg-card shadow-lg relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
               style={{
                 width: '8.5in',
                 height: '11in',
@@ -137,7 +137,7 @@ export const EditorPane = React.memo(
                 paddingRight: '1in'
               }}
             >
-              <div className="absolute text-xs text-gray-400 pointer-events-none" style={{ top: '0.5in', right: '1in' }}>
+              <div className="absolute text-xs text-muted-foreground pointer-events-none" style={{ top: '0.5in', right: '1in' }}>
                 Page 1
               </div>
               <div
@@ -147,8 +147,8 @@ export const EditorPane = React.memo(
                 tabIndex={0}
                 onKeyDown={handleEmptyEditorKeyDown}
               >
-                <div className="text-gray-400 text-sm text-center">
-                  <p className="mb-2">Press <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded border">Enter</kbd> twice to create a new scene</p>
+                <div className="text-muted-foreground text-sm text-center">
+                  <p className="mb-2">Press <kbd className="px-2 py-1 bg-muted rounded border">Enter</kbd> twice to create a new scene</p>
                   <p>or use the "New Scene" button in the toolbar</p>
                 </div>
               </div>
@@ -159,7 +159,7 @@ export const EditorPane = React.memo(
               key={pageIndex}
               id={`page-${pageIndex}`}
               ref={pageIndex === 0 ? scriptContainerRef : undefined}
-              className="bg-white dark:bg-gray-900 shadow-2xl relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
+              className="bg-card dark:bg-card shadow-lg relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
               style={{
                 width: '8.5in',
                 height: '11in',
@@ -169,7 +169,7 @@ export const EditorPane = React.memo(
                 paddingRight: '1in'
               }}
             >
-              <div className="absolute text-xs text-gray-400 pointer-events-none" style={{ top: '0.5in', right: '1in' }}>
+              <div className="absolute text-xs text-muted-foreground pointer-events-none" style={{ top: '0.5in', right: '1in' }}>
                 Page {pageIndex + 1}
               </div>
 
@@ -209,7 +209,7 @@ export const EditorPane = React.memo(
               </div>
 
               {pageIndex < pages.length - 1 && (
-                <div className="absolute bottom-0 left-0 w-full h-px bg-gray-300 dark:bg-gray-600" />
+                <div className="absolute bottom-0 left-0 w-full h-px bg-border" />
               )}
             </div>
           ))
