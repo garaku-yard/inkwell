@@ -4,11 +4,11 @@ import (
 	"log/slog"
 	"net/http"
 
-	"scriptlith/server/internal/gateway/config"
-	"scriptlith/server/internal/gateway/grpcclient"
-	"scriptlith/server/internal/gateway/handlers"
-	"scriptlith/server/internal/gateway/middleware"
-	redisPkg "scriptlith/server/pkg/redis"
+	"inkwell/server/internal/gateway/config"
+	"inkwell/server/internal/gateway/grpcclient"
+	"inkwell/server/internal/gateway/handlers"
+	"inkwell/server/internal/gateway/middleware"
+	redisPkg "inkwell/server/pkg/redis"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"

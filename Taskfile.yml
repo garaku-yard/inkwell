@@ -516,7 +516,7 @@ tasks:
   setup:
     desc: Initial setup for new developers
     cmds:
-      - 'echo "🚀 Setting up Scriptlith development environment..."'
+      - 'echo "🚀 Setting up Inkwell development environment..."'
       - task: install
       - 'echo "✅ Dependencies installed!"'
       - task: tools:install

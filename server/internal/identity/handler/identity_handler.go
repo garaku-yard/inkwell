@@ -8,10 +8,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"scriptlith/server/internal/identity/domain"
-	"scriptlith/server/internal/identity/service"
-	"scriptlith/server/pkg/grpc/common"
-	identitypb "scriptlith/server/pkg/grpc/identity"
+	"inkwell/server/internal/identity/domain"
+	"inkwell/server/internal/identity/service"
+	"inkwell/server/pkg/grpc/common"
+	identitypb "inkwell/server/pkg/grpc/identity"
 )
 
 // IdentityHandler implements the gRPC Identity service

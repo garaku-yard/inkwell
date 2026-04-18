@@ -8,8 +8,8 @@ import (
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 
-	"scriptlith/server/internal/gateway/grpcclient"
-	workspacepb "scriptlith/server/pkg/grpc/workspace"
+	"inkwell/server/internal/gateway/grpcclient"
+	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
 
 // WorkspaceHandler handles workspace and category HTTP endpoints.

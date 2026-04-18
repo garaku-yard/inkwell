@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"scriptlith/server/internal/workspace/domain"
-	"scriptlith/server/internal/workspace/repository"
+	"inkwell/server/internal/workspace/domain"
+	"inkwell/server/internal/workspace/repository"
 )
 
 type WorkspaceService interface {

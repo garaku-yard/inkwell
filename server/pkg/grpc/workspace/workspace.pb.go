@@ -10,7 +10,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	common "scriptlith/server/pkg/grpc/common"
+	common "inkwell/server/pkg/grpc/common"
 	sync "sync"
 	unsafe "unsafe"
 )
@@ -2019,7 +2019,7 @@ const file_workspace_workspace_proto_rawDesc = "" +
 	"\vListMembers\x12\x1d.workspace.ListMembersRequest\x1a\x1e.workspace.ListMembersResponse\x12O\n" +
 	"\fInviteMember\x12\x1e.workspace.InviteMemberRequest\x1a\x1f.workspace.InviteMemberResponse\x12O\n" +
 	"\fAcceptInvite\x12\x1e.workspace.AcceptInviteRequest\x1a\x1f.workspace.AcceptInviteResponse\x12R\n" +
-	"\rDeclineInvite\x12\x1f.workspace.DeclineInviteRequest\x1a .workspace.DeclineInviteResponseB&Z$scriptlith/server/pkg/grpc/workspaceb\x06proto3"
+	"\rDeclineInvite\x12\x1f.workspace.DeclineInviteRequest\x1a .workspace.DeclineInviteResponseB&Z$inkwell/server/pkg/grpc/workspaceb\x06proto3"
 
 var (
 	file_workspace_workspace_proto_rawDescOnce sync.Once

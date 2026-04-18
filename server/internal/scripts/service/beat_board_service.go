@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"scriptlith/server/internal/scripts/domain"
-	"scriptlith/server/internal/scripts/repository"
+	"inkwell/server/internal/scripts/domain"
+	"inkwell/server/internal/scripts/repository"
 
 	"github.com/google/uuid"
 )

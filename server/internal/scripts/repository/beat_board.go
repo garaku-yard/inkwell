@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"scriptlith/server/internal/scripts/domain"
+	"inkwell/server/internal/scripts/domain"
 
 	"github.com/google/uuid"
 )

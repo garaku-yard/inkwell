@@ -7,10 +7,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"scriptlith/server/internal/scripts/domain"
-	"scriptlith/server/internal/scripts/service"
-	"scriptlith/server/pkg/grpc/common"
-	scriptspb "scriptlith/server/pkg/grpc/scripts"
+	"inkwell/server/internal/scripts/domain"
+	"inkwell/server/internal/scripts/service"
+	"inkwell/server/pkg/grpc/common"
+	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
 
 // ScriptsHandler implements the ScriptsService gRPC service

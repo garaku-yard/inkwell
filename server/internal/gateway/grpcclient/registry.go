@@ -11,12 +11,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"scriptlith/server/internal/gateway/config"
-	billingpb "scriptlith/server/pkg/grpc/billing"
-	"scriptlith/server/pkg/grpc/collab"
-	"scriptlith/server/pkg/grpc/identity"
-	scriptspb "scriptlith/server/pkg/grpc/scripts"
-	workspacepb "scriptlith/server/pkg/grpc/workspace"
+	"inkwell/server/internal/gateway/config"
+	billingpb "inkwell/server/pkg/grpc/billing"
+	"inkwell/server/pkg/grpc/collab"
+	"inkwell/server/pkg/grpc/identity"
+	scriptspb "inkwell/server/pkg/grpc/scripts"
+	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
 
 // Registry holds one gRPC client per downstream service.

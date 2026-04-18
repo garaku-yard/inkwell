@@ -32,7 +32,7 @@ func NewConfigFromEnv(prefix string) *Config {
 		Port:            getEnvOrDefault(prefix+"DB_PORT", "5432"),
 		User:            getEnvOrDefault(prefix+"DB_USER", "postgres"),
 		Password:        getEnvOrDefault(prefix+"DB_PASSWORD", ""),
-		Name:            getEnvOrDefault(prefix+"DB_NAME", "scriptlith"),
+		Name:            getEnvOrDefault(prefix+"DB_NAME", "inkwell"),
 		SSLMode:         getEnvOrDefault(prefix+"DB_SSLMODE", "disable"),
 		MaxOpenConns:    25,
 		MaxIdleConns:    10,

@@ -12,7 +12,7 @@ import asyncio
 # Load environment variables
 load_dotenv()
 
-app = FastAPI(title="ScriptLith AI Chat Service", version="1.0.0")
+app = FastAPI(title="Inkwell AI Chat Service", version="1.0.0")
 
 # Add CORS middleware
 app.add_middleware(
@@ -226,7 +226,7 @@ ai_service = AIService()
 
 @app.get("/")
 async def root():
-    return {"message": "ScriptLith AI Chat Service", "version": "1.0.0"}
+    return {"message": "Inkwell AI Chat Service", "version": "1.0.0"}
 
 @app.get("/health")
 async def health():

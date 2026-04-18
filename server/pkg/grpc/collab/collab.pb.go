@@ -10,7 +10,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	common "scriptlith/server/pkg/grpc/common"
+	common "inkwell/server/pkg/grpc/common"
 	sync "sync"
 	unsafe "unsafe"
 )
@@ -2822,7 +2822,7 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\x10AcceptInvitation\x12\x1f.collab.AcceptInvitationRequest\x1a .collab.AcceptInvitationResponse\x12X\n" +
 	"\x11DeclineInvitation\x12 .collab.DeclineInvitationRequest\x1a!.collab.DeclineInvitationResponse\x12^\n" +
 	"\x13RespondToInvitation\x12\".collab.RespondToInvitationRequest\x1a#.collab.RespondToInvitationResponse\x12d\n" +
-	"\x15GetUserCollaborations\x12$.collab.GetUserCollaborationsRequest\x1a%.collab.GetUserCollaborationsResponseB#Z!scriptlith/server/pkg/grpc/collabb\x06proto3"
+	"\x15GetUserCollaborations\x12$.collab.GetUserCollaborationsRequest\x1a%.collab.GetUserCollaborationsResponseB#Z!inkwell/server/pkg/grpc/collabb\x06proto3"
 
 var (
 	file_collab_collab_proto_rawDescOnce sync.Once

@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"scriptlith/server/internal/gateway/grpcclient"
-	"scriptlith/server/pkg/grpc/collab"
-	"scriptlith/server/pkg/grpc/common"
-	scriptspb "scriptlith/server/pkg/grpc/scripts"
+	"inkwell/server/internal/gateway/grpcclient"
+	"inkwell/server/pkg/grpc/collab"
+	"inkwell/server/pkg/grpc/common"
+	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
 
 // ScriptsHandler handles HTTP requests related to scripts and forwards them to Scripts service

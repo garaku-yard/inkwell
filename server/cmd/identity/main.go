@@ -14,13 +14,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	"scriptlith/server/internal/identity/config"
-	"scriptlith/server/internal/identity/handler"
-	"scriptlith/server/internal/identity/repository"
-	"scriptlith/server/internal/identity/service"
-	"scriptlith/server/pkg/database"
-	"scriptlith/server/pkg/events"
-	identitypb "scriptlith/server/pkg/grpc/identity"
+	"inkwell/server/internal/identity/config"
+	"inkwell/server/internal/identity/handler"
+	"inkwell/server/internal/identity/repository"
+	"inkwell/server/internal/identity/service"
+	"inkwell/server/pkg/database"
+	"inkwell/server/pkg/events"
+	identitypb "inkwell/server/pkg/grpc/identity"
 )
 
 func main() {

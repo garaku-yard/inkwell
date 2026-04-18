@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"scriptlith/server/internal/billing/domain"
+	"inkwell/server/internal/billing/domain"
 )
 
 type postgresRepository struct {

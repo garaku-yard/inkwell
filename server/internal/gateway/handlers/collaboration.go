@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"scriptlith/server/internal/gateway/grpcclient"
-	"scriptlith/server/pkg/grpc/collab"
-	"scriptlith/server/pkg/grpc/identity"
-	"scriptlith/server/pkg/grpc/scripts"
+	"inkwell/server/internal/gateway/grpcclient"
+	"inkwell/server/pkg/grpc/collab"
+	"inkwell/server/pkg/grpc/identity"
+	"inkwell/server/pkg/grpc/scripts"
 )
 
 // CollaborationHandler handles HTTP requests for collaboration service

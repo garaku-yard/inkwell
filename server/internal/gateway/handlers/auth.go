@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"scriptlith/server/internal/gateway/grpcclient"
-	"scriptlith/server/internal/gateway/middleware"
-	identitypb "scriptlith/server/pkg/grpc/identity"
+	"inkwell/server/internal/gateway/grpcclient"
+	"inkwell/server/internal/gateway/middleware"
+	identitypb "inkwell/server/pkg/grpc/identity"
 )
 
 // AuthHandler handles authentication-related HTTP endpoints.

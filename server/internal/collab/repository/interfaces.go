@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"scriptlith/server/internal/collab/domain"
+	"inkwell/server/internal/collab/domain"
 
 	"github.com/google/uuid"
 )

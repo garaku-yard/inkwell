@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"scriptlith/server/internal/gateway/grpcclient"
-	billingpb "scriptlith/server/pkg/grpc/billing"
+	"inkwell/server/internal/gateway/grpcclient"
+	billingpb "inkwell/server/pkg/grpc/billing"
 )
 
 // BillingHandler handles admin billing HTTP endpoints

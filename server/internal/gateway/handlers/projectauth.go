@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"scriptlith/server/pkg/grpc/collab"
-	scriptspb "scriptlith/server/pkg/grpc/scripts"
+	"inkwell/server/pkg/grpc/collab"
+	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
 
 // errProjectUnauthorized is returned when a user has neither owner nor collaborator access.

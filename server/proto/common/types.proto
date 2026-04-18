@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package common;
 
-option go_package = "scriptlith/server/pkg/grpc/common";
+option go_package = "inkwell/server/pkg/grpc/common";
 
 // Common timestamp message
 message Timestamp {

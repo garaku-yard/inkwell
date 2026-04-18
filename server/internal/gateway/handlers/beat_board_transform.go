@@ -3,8 +3,8 @@ package handlers
 import (
 	"time"
 
-	"scriptlith/server/pkg/grpc/common"
-	scriptspb "scriptlith/server/pkg/grpc/scripts"
+	"inkwell/server/pkg/grpc/common"
+	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
 
 // BeatResponse transforms a protobuf Beat to frontend-friendly JSON structure

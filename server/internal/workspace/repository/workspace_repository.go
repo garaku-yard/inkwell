@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"scriptlith/server/internal/workspace/domain"
+	"inkwell/server/internal/workspace/domain"
 )
 
 type WorkspaceRepository interface {

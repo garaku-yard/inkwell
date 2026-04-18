@@ -1,4 +1,4 @@
-module scriptlith/server
+module inkwell/server
 
 go 1.24.0
 

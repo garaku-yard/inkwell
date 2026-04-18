@@ -8,9 +8,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"scriptlith/server/internal/billing/domain"
-	"scriptlith/server/internal/billing/service"
-	billingpb "scriptlith/server/pkg/grpc/billing"
+	"inkwell/server/internal/billing/domain"
+	"inkwell/server/internal/billing/service"
+	billingpb "inkwell/server/pkg/grpc/billing"
 
 	"github.com/google/uuid"
 )

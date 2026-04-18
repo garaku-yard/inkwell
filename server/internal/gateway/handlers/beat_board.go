@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	scriptspb "scriptlith/server/pkg/grpc/scripts"
+	scriptspb "inkwell/server/pkg/grpc/scripts"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"scriptlith/server/internal/collab/domain"
+	"inkwell/server/internal/collab/domain"
 
 	"github.com/google/uuid"
 )

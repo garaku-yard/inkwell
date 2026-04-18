@@ -1,4 +1,4 @@
-# ScriptLith AI Chat Service
+# Inkwell AI Chat Service
 
 A FastAPI-based microservice that provides AI chat functionality with support for multiple providers:
 

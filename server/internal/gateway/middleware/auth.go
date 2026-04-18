@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"scriptlith/server/pkg/grpc/identity"
+	"inkwell/server/pkg/grpc/identity"
 )
 
 // AuthMiddleware validates JWT tokens on every protected request and rejects

@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
-	"scriptlith/server/internal/identity/domain"
+	"inkwell/server/internal/identity/domain"
 )
 
 // UserRepository defines the interface for user data access

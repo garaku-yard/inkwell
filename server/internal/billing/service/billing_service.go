@@ -1,4 +1,4 @@
-// Package service implements the billing business logic for Scriptlith.
+// Package service implements the billing business logic for Inkwell.
 package service
 
 import (
@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"scriptlith/server/internal/billing/domain"
-	"scriptlith/server/internal/billing/repository"
-	"scriptlith/server/pkg/events"
+	"inkwell/server/internal/billing/domain"
+	"inkwell/server/internal/billing/repository"
+	"inkwell/server/pkg/events"
 )
 
 // BillingService defines the billing business-logic interface.

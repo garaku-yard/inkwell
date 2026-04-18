@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	redisPkg "scriptlith/server/pkg/redis"
+	redisPkg "inkwell/server/pkg/redis"
 )
 
 const blocklistKeyPrefix = "blocklist:token:"

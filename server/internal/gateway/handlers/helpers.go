@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"scriptlith/server/pkg/grpc/common"
+	"inkwell/server/pkg/grpc/common"
 )
 
 // writeError writes a JSON error response: {"error": "message"}.

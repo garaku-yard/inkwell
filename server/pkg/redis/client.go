@@ -9,7 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Client wraps a Redis connection and exposes the operations used by Scriptlith services.
+// Client wraps a Redis connection and exposes the operations used by Inkwell services.
 type Client struct {
 	rdb *redis.Client
 }

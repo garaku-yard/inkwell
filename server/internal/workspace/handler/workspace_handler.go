@@ -7,9 +7,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"scriptlith/server/internal/workspace/domain"
-	"scriptlith/server/internal/workspace/service"
-	workspacepb "scriptlith/server/pkg/grpc/workspace"
+	"inkwell/server/internal/workspace/domain"
+	"inkwell/server/internal/workspace/service"
+	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
 
 type WorkspaceHandler struct {

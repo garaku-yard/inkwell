@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"scriptlith/server/internal/gateway/config"
+	"inkwell/server/internal/gateway/config"
 )
 
 // AIHandler handles AI-related requests

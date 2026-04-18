@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"scriptlith/server/internal/billing/domain"
+	"inkwell/server/internal/billing/domain"
 )
 
 // BillingRepository is the single data-access interface for the Billing service.

@@ -1,4 +1,4 @@
-# Scriptlith - Collaborative Screenplay Writing Platform
+# Inkwell - Collaborative Screenplay Writing Platform
 
 A modern, microservices-based screenplay writing and collaboration platform built with Go, Next.js, and PostgreSQL.
 
@@ -52,7 +52,7 @@ A modern, microservices-based screenplay writing and collaboration platform buil
 
 ### Network Architecture
 
-All services communicate on the `scriptlith-network` bridge network:
+All services communicate on the `inkwell-network` bridge network:
 
 - Frontend → API Gateway (HTTP REST)
 - API Gateway → Microservices (gRPC)
@@ -116,8 +116,8 @@ All services communicate on the `scriptlith-network` bridge network:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/l1roii/scriptlith.git
-cd scriptlith
+git clone https://github.com/l1roii/inkwell.git
+cd inkwell
 
 # 2. Copy environment variables
 cp .env.example .env
@@ -589,7 +589,7 @@ task fresh
 ## 📁 Project Structure
 
 ```
-scriptlith/
+inkwell/
 ├── client/                      # Next.js frontend
 │   ├── app/                     # App Router pages
 │   │   ├── (private)/          # Protected routes

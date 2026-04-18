@@ -14,12 +14,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	"scriptlith/server/internal/workspace/config"
-	"scriptlith/server/internal/workspace/handler"
-	"scriptlith/server/internal/workspace/repository"
-	"scriptlith/server/internal/workspace/service"
-	"scriptlith/server/pkg/database"
-	workspacepb "scriptlith/server/pkg/grpc/workspace"
+	"inkwell/server/internal/workspace/config"
+	"inkwell/server/internal/workspace/handler"
+	"inkwell/server/internal/workspace/repository"
+	"inkwell/server/internal/workspace/service"
+	"inkwell/server/pkg/database"
+	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
 
 func main() {

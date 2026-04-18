@@ -46,7 +46,7 @@ type IdentityConfig struct {
 // KafkaConfig holds Kafka connection settings
 type KafkaConfig struct {
 	Brokers       []string `env:"KAFKA_BROKERS" default:"localhost:9092"`
-	TopicPrefix   string   `env:"KAFKA_TOPIC_PREFIX" default:"scriptlith"`
+	TopicPrefix   string   `env:"KAFKA_TOPIC_PREFIX" default:"inkwell"`
 	ConsumerGroup string   `env:"KAFKA_CONSUMER_GROUP" default:"scripts-service"`
 }
 
@@ -54,7 +54,7 @@ type KafkaConfig struct {
 type StorageConfig struct {
 	Type       string `env:"STORAGE_TYPE" default:"local"` // "local", "s3", "gcs"
 	LocalPath  string `env:"STORAGE_LOCAL_PATH" default:"./uploads"`
-	BucketName string `env:"STORAGE_BUCKET_NAME" default:"scriptlith-files"`
+	BucketName string `env:"STORAGE_BUCKET_NAME" default:"inkwell-files"`
 }
 
 // Load loads configuration from environment variables with defaults
@@ -78,13 +78,13 @@ func Load() (*Config, error) {
 		},
 		KafkaConfig: KafkaConfig{
 			Brokers:       []string{getEnvOrDefault("KAFKA_BROKERS", "localhost:9092")},
-			TopicPrefix:   getEnvOrDefault("KAFKA_TOPIC_PREFIX", "scriptlith"),
+			TopicPrefix:   getEnvOrDefault("KAFKA_TOPIC_PREFIX", "inkwell"),
 			ConsumerGroup: getEnvOrDefault("KAFKA_CONSUMER_GROUP", "scripts-service"),
 		},
 		StorageConfig: StorageConfig{
 			Type:       getEnvOrDefault("STORAGE_TYPE", "local"),
 			LocalPath:  getEnvOrDefault("STORAGE_LOCAL_PATH", "./uploads"),
-			BucketName: getEnvOrDefault("STORAGE_BUCKET_NAME", "scriptlith-files"),
+			BucketName: getEnvOrDefault("STORAGE_BUCKET_NAME", "inkwell-files"),
 		},
 	}
 

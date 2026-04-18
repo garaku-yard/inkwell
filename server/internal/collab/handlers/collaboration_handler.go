@@ -8,10 +8,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"scriptlith/server/internal/collab/domain"
-	"scriptlith/server/internal/collab/service"
-	collab_pb "scriptlith/server/pkg/grpc/collab"
-	"scriptlith/server/pkg/grpc/common"
+	"inkwell/server/internal/collab/domain"
+	"inkwell/server/internal/collab/service"
+	collab_pb "inkwell/server/pkg/grpc/collab"
+	"inkwell/server/pkg/grpc/common"
 )
 
 type CollaborationHandler struct {

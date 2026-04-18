@@ -1,5 +1,5 @@
 // Package events defines the event publishing interface and shared event types used
-// across Scriptlith microservices. Service layers depend on Publisher, never on a
+// across Inkwell microservices. Service layers depend on Publisher, never on a
 // concrete transport, so tests can use NoopPublisher without a running Kafka broker.
 package events
 

@@ -46,7 +46,7 @@ type JWTConfig struct {
 	RefreshTokenSecret string        `env:"JWT_REFRESH_SECRET" default:"dev-refresh-secret"`
 	AccessTokenExpiry  time.Duration `env:"JWT_ACCESS_EXPIRY" default:"24h"`
 	RefreshTokenExpiry time.Duration `env:"JWT_REFRESH_EXPIRY" default:"168h"` // 7 days
-	Issuer             string        `env:"JWT_ISSUER" default:"scriptlith-identity"`
+	Issuer             string        `env:"JWT_ISSUER" default:"inkwell-identity"`
 }
 
 // KafkaConfig holds Kafka connection settings
@@ -61,7 +61,7 @@ type EmailConfig struct {
 	SMTPPort     int    `env:"SMTP_PORT" default:"587"`
 	SMTPUsername string `env:"SMTP_USERNAME" default:""`
 	SMTPPassword string `env:"SMTP_PASSWORD" default:""`
-	FromEmail    string `env:"FROM_EMAIL" default:"noreply@scriptlith.com"`
+	FromEmail    string `env:"FROM_EMAIL" default:"noreply@inkwell.com"`
 }
 
 // SecurityConfig holds security-related settings
@@ -95,7 +95,7 @@ func Load() (*Config, error) {
 			RefreshTokenSecret: getEnvOrDefault("JWT_REFRESH_SECRET", "dev-refresh-secret"),
 			AccessTokenExpiry:  getEnvDurationOrDefault("JWT_ACCESS_EXPIRY", 24*time.Hour),
 			RefreshTokenExpiry: getEnvDurationOrDefault("JWT_REFRESH_EXPIRY", 168*time.Hour), // 7 days
-			Issuer:             getEnvOrDefault("JWT_ISSUER", "scriptlith-identity"),
+			Issuer:             getEnvOrDefault("JWT_ISSUER", "inkwell-identity"),
 		},
 
 		KafkaConfig: KafkaConfig{
@@ -108,7 +108,7 @@ func Load() (*Config, error) {
 			SMTPPort:     getEnvIntOrDefault("SMTP_PORT", 587),
 			SMTPUsername: getEnvOrDefault("SMTP_USERNAME", ""),
 			SMTPPassword: getEnvOrDefault("SMTP_PASSWORD", ""),
-			FromEmail:    getEnvOrDefault("FROM_EMAIL", "noreply@scriptlith.com"),
+			FromEmail:    getEnvOrDefault("FROM_EMAIL", "noreply@inkwell.com"),
 		},
 
 		SecurityConfig: SecurityConfig{

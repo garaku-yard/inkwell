@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# ScriptLith AI Chat Service Startup Script
+# Inkwell AI Chat Service Startup Script
 
-echo "Starting ScriptLith AI Chat Service..."
+echo "Starting Inkwell AI Chat Service..."
 
 # Check if virtual environment exists, create if not
 if [ ! -d "venv" ]; then

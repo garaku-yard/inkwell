@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	redisPkg "scriptlith/server/pkg/redis"
+	redisPkg "inkwell/server/pkg/redis"
 )
 
 // RateLimiter enforces a fixed-window request limit per IP address using Redis counters.

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package ai;
 
-option go_package = "scriptlith/server/pkg/grpc/ai";
+option go_package = "inkwell/server/pkg/grpc/ai";
 
 import "common/types.proto";
 

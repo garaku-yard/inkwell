@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"scriptlith/server/internal/scripts/config"
-	"scriptlith/server/internal/scripts/domain"
-	"scriptlith/server/internal/scripts/repository"
-	"scriptlith/server/pkg/events"
+	"inkwell/server/internal/scripts/config"
+	"inkwell/server/internal/scripts/domain"
+	"inkwell/server/internal/scripts/repository"
+	"inkwell/server/pkg/events"
 )
 
 // ScriptsService defines the business logic interface for the Scripts service

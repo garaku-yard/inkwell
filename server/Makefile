@@ -1,10 +1,10 @@
-# Scriptlith Microservices Makefile
+# Inkwell Microservices Makefile
 .PHONY: proto proto-clean build build-all run-dev stop-dev clean test migrate-up migrate-down
 
 # Variables
 PROTO_DIR = proto
 PROTO_OUT_DIR = pkg/grpc
-GO_MODULE = scriptlith/server
+GO_MODULE = inkwell/server
 
 # Default target
 all: proto build-all
@@ -41,32 +41,32 @@ proto-deps:
 # Build all services
 build-all: proto
 	@echo "Building all services..."
-	@go build -o bin/scriptlith-gateway ./cmd/gateway
-	@go build -o bin/scriptlith-identity ./cmd/identity
-	@go build -o bin/scriptlith-scripts ./cmd/scripts
-	@go build -o bin/scriptlith-collab ./cmd/collab
-	@go build -o bin/scriptlith-billing ./cmd/billing
-	@go build -o bin/scriptlith-workspace ./cmd/workspace
+	@go build -o bin/inkwell-gateway ./cmd/gateway
+	@go build -o bin/inkwell-identity ./cmd/identity
+	@go build -o bin/inkwell-scripts ./cmd/scripts
+	@go build -o bin/inkwell-collab ./cmd/collab
+	@go build -o bin/inkwell-billing ./cmd/billing
+	@go build -o bin/inkwell-workspace ./cmd/workspace
 	@echo "✅ All services built successfully"
 
 # Build specific service
 build-gateway: proto
-	@go build -o bin/scriptlith-gateway ./cmd/gateway
+	@go build -o bin/inkwell-gateway ./cmd/gateway
 
 build-identity: proto
-	@go build -o bin/scriptlith-identity ./cmd/identity
+	@go build -o bin/inkwell-identity ./cmd/identity
 
 build-scripts: proto
-	@go build -o bin/scriptlith-scripts ./cmd/scripts
+	@go build -o bin/inkwell-scripts ./cmd/scripts
 
 build-collab: proto
-	@go build -o bin/scriptlith-collab ./cmd/collab
+	@go build -o bin/inkwell-collab ./cmd/collab
 
 build-billing: proto
-	@go build -o bin/scriptlith-billing ./cmd/billing
+	@go build -o bin/inkwell-billing ./cmd/billing
 
 build-workspace: proto
-	@go build -o bin/scriptlith-workspace ./cmd/workspace
+	@go build -o bin/inkwell-workspace ./cmd/workspace
 
 # Development environment
 run-dev:
@@ -176,7 +176,7 @@ dev-setup: proto-deps deps proto
 
 # Help
 help:
-	@echo "Scriptlith Microservices Development Commands:"
+	@echo "Inkwell Microservices Development Commands:"
 	@echo ""
 	@echo "🏗️  Building:"
 	@echo "  make build-all        Build all services"

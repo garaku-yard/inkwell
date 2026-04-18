@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"time"
 
-	"scriptlith/server/internal/collab/domain"
-	"scriptlith/server/internal/collab/repository"
-	"scriptlith/server/pkg/events"
+	"inkwell/server/internal/collab/domain"
+	"inkwell/server/internal/collab/repository"
+	"inkwell/server/pkg/events"
 
 	"github.com/google/uuid"
 )

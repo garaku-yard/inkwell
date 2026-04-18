@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"scriptlith/server/internal/gateway/config"
-	"scriptlith/server/internal/gateway/router"
+	"inkwell/server/internal/gateway/config"
+	"inkwell/server/internal/gateway/router"
 
 	"github.com/joho/godotenv"
 )

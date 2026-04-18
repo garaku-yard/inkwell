@@ -1,4 +1,4 @@
-# Contributing to Scriptlith
+# Contributing to Inkwell
 
 Thank you for your interest in contributing! This guide explains how the project is structured, how to run it locally, and how to add a new microservice.
 

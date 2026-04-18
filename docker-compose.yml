@@ -2,7 +2,7 @@ services:
   # ===== Databases =====
   postgres-identity:
     image: postgres:15-alpine
-    container_name: scriptlith-identity-db
+    container_name: inkwell-identity-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: identity_db
@@ -18,11 +18,11 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   postgres-scripts:
     image: postgres:15-alpine
-    container_name: scriptlith-scripts-db
+    container_name: inkwell-scripts-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: scripts_db
@@ -38,11 +38,11 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   postgres-collab:
     image: postgres:15-alpine
-    container_name: scriptlith-collab-db
+    container_name: inkwell-collab-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: collab_db
@@ -58,11 +58,11 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   postgres-billing:
     image: postgres:15-alpine
-    container_name: scriptlith-billing-db
+    container_name: inkwell-billing-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: billing_db
@@ -78,12 +78,12 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   # ===== Redis Cache =====
   redis:
     image: redis:7-alpine
-    container_name: scriptlith-redis
+    container_name: inkwell-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -96,12 +96,12 @@ services:
       timeout: 3s
       retries: 5
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   # ===== Message Queue =====
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
-    container_name: scriptlith-zookeeper
+    container_name: inkwell-zookeeper
     restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_CLIENT_PORT:-2181}
@@ -112,11 +112,11 @@ services:
       - zookeeper_data:/var/lib/zookeeper/data
       - zookeeper_logs:/var/lib/zookeeper/log
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: scriptlith-kafka
+    container_name: inkwell-kafka
     restart: unless-stopped
     depends_on:
       - zookeeper
@@ -139,14 +139,14 @@ services:
       timeout: 10s
       retries: 5
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   # ===== Microservices =====
   identity-service:
     build:
       context: ./server
       dockerfile: cmd/identity/Dockerfile
-    container_name: scriptlith-identity-service
+    container_name: inkwell-identity-service
     restart: unless-stopped
     ports:
       - "50051:50051"
@@ -167,13 +167,13 @@ services:
       kafka:
         condition: service_healthy
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   scripts-service:
     build:
       context: ./server
       dockerfile: cmd/scripts/Dockerfile
-    container_name: scriptlith-scripts-service
+    container_name: inkwell-scripts-service
     restart: unless-stopped
     ports:
       - "50052:50052"
@@ -196,13 +196,13 @@ services:
       identity-service:
         condition: service_started
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   collab-service:
     build:
       context: ./server
       dockerfile: cmd/collab/Dockerfile
-    container_name: scriptlith-collab-service
+    container_name: inkwell-collab-service
     restart: unless-stopped
     ports:
       - "50053:50053"
@@ -228,13 +228,13 @@ services:
       scripts-service:
         condition: service_started
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   billing-service:
     build:
       context: ./server
       dockerfile: cmd/billing/Dockerfile
-    container_name: scriptlith-billing-service
+    container_name: inkwell-billing-service
     restart: unless-stopped
     ports:
       - "50054:50054"
@@ -259,11 +259,11 @@ services:
       identity-service:
         condition: service_started
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   postgres-workspace:
     image: postgres:15-alpine
-    container_name: scriptlith-workspace-db
+    container_name: inkwell-workspace-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: workspace_db
@@ -279,13 +279,13 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   workspace-service:
     build:
       context: ./server
       dockerfile: cmd/workspace/Dockerfile
-    container_name: scriptlith-workspace-service
+    container_name: inkwell-workspace-service
     restart: unless-stopped
     ports:
       - "50056:50056"
@@ -302,13 +302,13 @@ services:
       postgres-workspace:
         condition: service_healthy
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   ai-service:
     build:
       context: ./server/services/ai
       dockerfile: Dockerfile
-    container_name: scriptlith-ai-service
+    container_name: inkwell-ai-service
     restart: unless-stopped
     ports:
       - "50055:50051"
@@ -320,13 +320,13 @@ services:
       kafka:
         condition: service_healthy
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   api-gateway:
     build:
       context: ./server
       dockerfile: cmd/gateway/Dockerfile
-    container_name: scriptlith-api-gateway
+    container_name: inkwell-api-gateway
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -359,14 +359,14 @@ services:
       - ai-service
       - workspace-service
     networks:
-      - scriptlith-network
+      - inkwell-network
 
   # ===== Frontend =====
   client:
     build:
       context: ./client
       dockerfile: Dockerfile
-    container_name: scriptlith-client
+    container_name: inkwell-client
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -376,7 +376,7 @@ services:
     depends_on:
       - api-gateway
     networks:
-      - scriptlith-network
+      - inkwell-network
 
 # ===== Volumes =====
 volumes:
@@ -401,5 +401,5 @@ volumes:
 
 # ===== Networks =====
 networks:
-  scriptlith-network:
+  inkwell-network:
     driver: bridge
