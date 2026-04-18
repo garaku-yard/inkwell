@@ -1,3 +1,4 @@
+/** Beat-board service — lanes, beats, connections, and outline items. */
 import { apiClient } from "@/lib/api";
 
 

@@ -114,8 +114,8 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
       onOpenChange(false)
       router.push(`/projects/${newProject.id}/editor`)
 
-    } catch (err: any) {
-      setError(err.message || "An unknown error occurred.")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred.")
     } finally {
       setIsLoading(false)
     }

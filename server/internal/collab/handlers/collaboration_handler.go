@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"scriptlith/server/internal/collab/domain"
 	"scriptlith/server/internal/collab/service"
 	collab_pb "scriptlith/server/pkg/grpc/collab"
 	"scriptlith/server/pkg/grpc/common"
@@ -76,6 +77,9 @@ func (h *CollaborationHandler) AddCollaborator(ctx context.Context, req *collab_
 	// Use the new email-based collaborator addition
 	collaborator, err := h.service.AddCollaboratorByEmail(ctx, projectID, req.Email, inviterID, req.Role)
 	if err != nil {
+		if err == domain.ErrInvitationExists || err == domain.ErrCollaboratorExists {
+			return nil, status.Errorf(codes.AlreadyExists, "%v", err)
+		}
 		return nil, status.Errorf(codes.Internal, "failed to add collaborator: %v", err)
 	}
 
@@ -646,6 +650,94 @@ func (h *CollaborationHandler) GetUserInvitations(ctx context.Context, req *coll
 
 	return &collab_pb.GetUserInvitationsResponse{
 		Invitations: pbInvitations,
+	}, nil
+}
+
+func (h *CollaborationHandler) GetUserCollaborations(ctx context.Context, req *collab_pb.GetUserCollaborationsRequest) (*collab_pb.GetUserCollaborationsResponse, error) {
+	userID, err := parseUUID(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+
+	collaborations, err := h.service.GetUserCollaborations(ctx, userID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get user collaborations: %v", err)
+	}
+
+	pbCollabs := make([]*collab_pb.Collaborator, len(collaborations))
+	for i, c := range collaborations {
+		pbCollabs[i] = &collab_pb.Collaborator{
+			Id:        c.ID.String(),
+			ProjectId: c.ProjectID.String(),
+			UserId:    c.UserID.String(),
+			Role:      c.Role,
+			Status:    c.Status,
+			InvitedBy: c.InvitedBy.String(),
+			InvitedAt: &common.Timestamp{
+				Seconds: c.InvitedAt.Unix(),
+				Nanos:   int32(c.InvitedAt.Nanosecond()),
+			},
+			JoinedAt: timestampPtrToCommon(c.JoinedAt),
+		}
+	}
+
+	return &collab_pb.GetUserCollaborationsResponse{
+		Collaborations: pbCollabs,
+	}, nil
+}
+
+// AcceptInvitation accepts a pending collaboration invitation
+func (h *CollaborationHandler) AcceptInvitation(ctx context.Context, req *collab_pb.AcceptInvitationRequest) (*collab_pb.AcceptInvitationResponse, error) {
+	collaboratorID, err := parseUUID(req.CollaboratorId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid collaborator ID: %v", err)
+	}
+
+	userID, err := parseUUID(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	}
+
+	collaborator, err := h.service.AcceptInvitation(ctx, userID, collaboratorID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to accept invitation: %v", err)
+	}
+
+	return &collab_pb.AcceptInvitationResponse{
+		Collaborator: &collab_pb.Collaborator{
+			Id:        collaborator.ID.String(),
+			ProjectId: collaborator.ProjectID.String(),
+			UserId:    collaborator.UserID.String(),
+			Role:      collaborator.Role,
+			Status:    collaborator.Status,
+			InvitedAt: &common.Timestamp{
+				Seconds: collaborator.InvitedAt.Unix(),
+				Nanos:   int32(collaborator.InvitedAt.Nanosecond()),
+			},
+			JoinedAt: timestampPtrToCommon(collaborator.JoinedAt),
+		},
+	}, nil
+}
+
+// DeclineInvitation declines a pending collaboration invitation
+func (h *CollaborationHandler) DeclineInvitation(ctx context.Context, req *collab_pb.DeclineInvitationRequest) (*collab_pb.DeclineInvitationResponse, error) {
+	collaboratorID, err := parseUUID(req.CollaboratorId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid collaborator ID: %v", err)
+	}
+
+	userID, err := parseUUID(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	}
+
+	err = h.service.DeclineInvitation(ctx, userID, collaboratorID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to decline invitation: %v", err)
+	}
+
+	return &collab_pb.DeclineInvitationResponse{
+		Success: true,
 	}, nil
 }
 

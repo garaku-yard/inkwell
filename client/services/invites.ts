@@ -1,3 +1,4 @@
+/** Invites service — fetch, accept, and decline project collaboration invitations. */
 import { apiClient } from "@/lib/api";
 
 export interface Invitation {

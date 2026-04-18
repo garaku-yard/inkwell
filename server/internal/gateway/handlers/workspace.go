@@ -5,32 +5,28 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	grpcstatus "google.golang.org/grpc/status"
 
-	"scriptlith/server/internal/gateway/config"
+	"scriptlith/server/internal/gateway/grpcclient"
 	workspacepb "scriptlith/server/pkg/grpc/workspace"
 )
 
+// WorkspaceHandler handles workspace and category HTTP endpoints.
 type WorkspaceHandler struct {
 	client workspacepb.WorkspaceServiceClient
 }
 
-func NewWorkspaceHandler(cfg *config.Config) (*WorkspaceHandler, error) {
-	conn, err := grpc.NewClient(cfg.WorkspaceService.URL(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return nil, err
-	}
-	return &WorkspaceHandler{client: workspacepb.NewWorkspaceServiceClient(conn)}, nil
+// NewWorkspaceHandler creates a new WorkspaceHandler.
+func NewWorkspaceHandler(clients *grpcclient.Registry) *WorkspaceHandler {
+	return &WorkspaceHandler{client: clients.Workspace}
 }
 
 // GET /categories
 func (h *WorkspaceHandler) ListCategories(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.client.ListCategories(r.Context(), &workspacepb.ListCategoriesRequest{})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -41,12 +37,12 @@ func (h *WorkspaceHandler) ListCategories(w http.ResponseWriter, r *http.Request
 func (h *WorkspaceHandler) ListUserWorkspaces(w http.ResponseWriter, r *http.Request) {
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	resp, err := h.client.ListUserWorkspaces(r.Context(), &workspacepb.ListUserWorkspacesRequest{UserId: userID})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -60,7 +56,7 @@ func (h *WorkspaceHandler) ListUserWorkspaces(w http.ResponseWriter, r *http.Req
 func (h *WorkspaceHandler) CreatePersonalWorkspaces(w http.ResponseWriter, r *http.Request) {
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -68,7 +64,7 @@ func (h *WorkspaceHandler) CreatePersonalWorkspaces(w http.ResponseWriter, r *ht
 		CategorySlugs []string `json:"category_slugs"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
@@ -77,7 +73,7 @@ func (h *WorkspaceHandler) CreatePersonalWorkspaces(w http.ResponseWriter, r *ht
 		CategorySlugs: body.CategorySlugs,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -91,7 +87,7 @@ func (h *WorkspaceHandler) CreatePersonalWorkspaces(w http.ResponseWriter, r *ht
 func (h *WorkspaceHandler) CreateOrgWorkspace(w http.ResponseWriter, r *http.Request) {
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -101,11 +97,11 @@ func (h *WorkspaceHandler) CreateOrgWorkspace(w http.ResponseWriter, r *http.Req
 		CategorySlugs []string `json:"category_slugs"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 	if body.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+		writeError(w, "name is required", http.StatusBadRequest)
 		return
 	}
 
@@ -116,7 +112,7 @@ func (h *WorkspaceHandler) CreateOrgWorkspace(w http.ResponseWriter, r *http.Req
 		CategorySlugs: body.CategorySlugs,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -129,7 +125,7 @@ func (h *WorkspaceHandler) GetWorkspace(w http.ResponseWriter, r *http.Request) 
 	workspaceID := chi.URLParam(r, "workspaceId")
 	resp, err := h.client.GetWorkspace(r.Context(), &workspacepb.GetWorkspaceRequest{WorkspaceId: workspaceID})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -146,7 +142,7 @@ func (h *WorkspaceHandler) UpdateWorkspace(w http.ResponseWriter, r *http.Reques
 		AvatarURL   string `json:"avatar_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
@@ -157,7 +153,7 @@ func (h *WorkspaceHandler) UpdateWorkspace(w http.ResponseWriter, r *http.Reques
 		AvatarUrl:   body.AvatarURL,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -169,7 +165,7 @@ func (h *WorkspaceHandler) DeleteWorkspace(w http.ResponseWriter, r *http.Reques
 	workspaceID := chi.URLParam(r, "workspaceId")
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -178,7 +174,7 @@ func (h *WorkspaceHandler) DeleteWorkspace(w http.ResponseWriter, r *http.Reques
 		UserId:      userID,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -194,7 +190,7 @@ func (h *WorkspaceHandler) EnableCategory(w http.ResponseWriter, r *http.Request
 		CategorySlug: slug,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -211,7 +207,7 @@ func (h *WorkspaceHandler) DisableCategory(w http.ResponseWriter, r *http.Reques
 		CategorySlug: slug,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -223,7 +219,7 @@ func (h *WorkspaceHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 	workspaceID := chi.URLParam(r, "workspaceId")
 	resp, err := h.client.ListMembers(r.Context(), &workspacepb.ListMembersRequest{WorkspaceId: workspaceID})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -235,7 +231,7 @@ func (h *WorkspaceHandler) InviteMember(w http.ResponseWriter, r *http.Request) 
 	workspaceID := chi.URLParam(r, "workspaceId")
 	invitedBy := getUserIDFromContext(r)
 	if invitedBy == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -244,11 +240,11 @@ func (h *WorkspaceHandler) InviteMember(w http.ResponseWriter, r *http.Request) 
 		Role  string `json:"role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 	if body.Email == "" || body.Role == "" {
-		http.Error(w, "email and role are required", http.StatusBadRequest)
+		writeError(w, "email and role are required", http.StatusBadRequest)
 		return
 	}
 
@@ -259,7 +255,7 @@ func (h *WorkspaceHandler) InviteMember(w http.ResponseWriter, r *http.Request) 
 		InvitedBy:   invitedBy,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -272,7 +268,7 @@ func (h *WorkspaceHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) 
 	token := chi.URLParam(r, "token")
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -281,7 +277,7 @@ func (h *WorkspaceHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) 
 		UserId: userID,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -294,7 +290,7 @@ func (h *WorkspaceHandler) DeclineInvite(w http.ResponseWriter, r *http.Request)
 
 	_, err := h.client.DeclineInvite(r.Context(), &workspacepb.DeclineInviteRequest{Token: token})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -310,7 +306,7 @@ func (h *WorkspaceHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Reque
 		Role string `json:"role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
@@ -320,7 +316,7 @@ func (h *WorkspaceHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Reque
 		Role:        body.Role,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -337,7 +333,7 @@ func (h *WorkspaceHandler) RemoveMember(w http.ResponseWriter, r *http.Request) 
 		UserId:      targetUserID,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), grpcCodeToHTTP(err))
+		writeError(w, err.Error(), grpcCodeToHTTP(err))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

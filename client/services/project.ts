@@ -1,3 +1,7 @@
+/**
+ * Project service — CRUD for projects, scenes, script elements, characters,
+ * locations, beats, and collaborators.
+ */
 import { apiClient } from "@/lib/api"
 import { type CollaboratorRole, CollaboratorRoles } from "@/models/constants/collaboratorRoles"
 
@@ -164,30 +168,20 @@ export const getProjectById = async (projectId: string, userId: string): Promise
 /**
  * Fetches all projects for the authenticated user, including collaborator count.
  */
+export const getSharedProjects = async (): Promise<Project[]> => {
+  const response = await apiClient<{ projects: Project[] }>(`projects/shared`, { method: 'GET' })
+  return response.projects ?? []
+}
+
+/** Fetches all projects owned by the user, with collaborator counts. */
 export const getMyProjects = async (userId: string): Promise<{ projects: (Project & { collaborator_count?: number })[], total: number }> => {
-  const response = await apiClient<{ projects: Project[], total: number }>(`projects?user_id=${userId}`, {
+  // collaborator_count is included in each project by the gateway (fetched in parallel server-side)
+  const response = await apiClient<{ projects: (Project & { collaborator_count?: number })[], pagination?: { total_items: number } }>(`projects?user_id=${userId}`, {
     method: 'GET',
   })
-
-  // Fetch collaborator count for each project
-  const projectsWithCounts = await Promise.all(
-    response.projects.map(async (project) => {
-      try {
-        const collaborators = await getProjectCollaborators(project.id)
-        return {
-          ...project,
-          collaborator_count: collaborators.length
-        }
-      } catch (error) {
-        // If we can't fetch collaborators, just return the project without count
-        return project
-      }
-    })
-  )
-
   return {
-    projects: projectsWithCounts,
-    total: response.total
+    projects: response.projects,
+    total: response.pagination?.total_items ?? response.projects.length
   }
 }
 
@@ -206,6 +200,7 @@ export const updateProject = async (
   return response.project
 }
 
+/** Toggles the starred status of a project. */
 export const toggleProjectStar = async (projectId: string, userId: string): Promise<Project> => {
   const response = await apiClient<{ project: Project }>(`projects/${projectId}/star`, {
     method: 'PATCH',
@@ -224,6 +219,7 @@ export const deleteProject = async (projectId: string, userId: string): Promise<
   })
 }
 
+/** Fetches a project with all its scenes and elements in a single call. */
 export const getFullProject = async (projectId: string, userId: string): Promise<FullProject> => {
   const projectResponse = await apiClient<{ project: Project }>(`projects/${projectId}?user_id=${userId}`, {
     method: 'GET',
@@ -505,6 +501,9 @@ export const getProjectCollaborators = async (projectId: string): Promise<Projec
     id: string
     project_id: string
     user_id: string
+    name?: string
+    email?: string
+    username_with_tag?: string
     role: string
     status: string
     invited_at: string
@@ -515,9 +514,9 @@ export const getProjectCollaborators = async (projectId: string): Promise<Projec
 
   return collaborators.map(collab => ({
     id: collab.id,
-    name: `User ${collab.user_id.slice(0, 8)}`,
-    email: `user-${collab.user_id.slice(0, 8)}@example.com`,
-    usernameWithTag: `user-${collab.user_id.slice(0, 8)}`,
+    email: (collab.email || '').trim() || `user-${collab.user_id.slice(0, 8)}@example.com`,
+    name: (collab.name || '').trim() || (collab.email ? collab.email.split('@')[0] : `User ${collab.user_id.slice(0, 8)}`),
+    usernameWithTag: (collab.username_with_tag || '').trim() || (collab.email ? collab.email.split('@')[0] : `user-${collab.user_id.slice(0, 8)}`),
     role: collab.role as CollaboratorRole,
     status: collab.status === 'active' ? 'active' : 'pending',
     joinedAt: collab.joined_at || collab.invited_at,
@@ -656,7 +655,7 @@ export const updateComment = async (
   content?: string,
   isResolved?: boolean
 ): Promise<Comment> => {
-  const body: any = {}
+  const body: { content?: string; is_resolved?: boolean } = {}
   if (content !== undefined) body.content = content
   if (isResolved !== undefined) body.is_resolved = isResolved
 

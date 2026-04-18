@@ -2,41 +2,38 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
+	"strings"
+	"syscall"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+
 	"scriptlith/server/internal/identity/config"
 	"scriptlith/server/internal/identity/handler"
 	"scriptlith/server/internal/identity/repository"
 	"scriptlith/server/internal/identity/service"
 	"scriptlith/server/pkg/database"
-	"syscall"
-
-	"github.com/joho/godotenv"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
-
+	"scriptlith/server/pkg/events"
 	identitypb "scriptlith/server/pkg/grpc/identity"
 )
 
 func main() {
-	ctx := context.Background()
-
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: Could not load .env file: %v", err)
+		slog.Warn("could not load .env file", "error", err)
 	}
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		slog.Error("failed to load configuration", "error", err)
+		os.Exit(1)
 	}
 
-	log.Printf("Database config: Host=%s, Port=%s, User=%s, Database=%s",
-		cfg.DatabaseConfig.Host, cfg.DatabaseConfig.Port,
-		cfg.DatabaseConfig.User, cfg.DatabaseConfig.Name)
-
-	// Connect using standard database/sql for migrations
 	dbConfig := &database.Config{
 		Host:            cfg.DatabaseConfig.Host,
 		Port:            cfg.DatabaseConfig.Port,
@@ -51,25 +48,32 @@ func main() {
 
 	db, err := database.Connect(dbConfig)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
-	// Run migrations
-	migrationsPath := "internal/identity/migrations"
-	log.Printf("Running migrations from: %s", migrationsPath)
-
-	if err := database.RunMigrations(db, migrationsPath); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+	if err := database.RunMigrations(db, "internal/identity/migrations"); err != nil {
+		slog.Error("failed to run migrations", "error", err)
+		os.Exit(1)
 	}
-	log.Println("Database migrations completed successfully")
+	slog.Info("database migrations completed")
 
-	// Create repositories (still using database/sql for now)
-	// TODO: Refactor repositories to use sqlc-generated queries
+	// Event publisher — Kafka in production, noop when brokers are not configured.
+	var publisher events.Publisher
+	if b := os.Getenv("KAFKA_BROKERS"); b != "" && strings.TrimSpace(b) != "" {
+		brokers := strings.Split(b, ",")
+		slog.Info("kafka publisher enabled", "brokers", b)
+		kp := events.NewKafkaPublisher(brokers)
+		publisher = kp
+		defer kp.Close()
+	} else {
+		slog.Warn("kafka brokers not configured, using noop publisher")
+		publisher = &events.NoopPublisher{}
+	}
+
 	userRepo := repository.NewUserRepository(db)
-
-	authService := service.NewAuthService(userRepo, cfg)
-
+	authService := service.NewAuthService(userRepo, cfg, publisher)
 	identityHandler := handler.NewIdentityHandler(authService)
 
 	grpcServer := grpc.NewServer(
@@ -77,18 +81,19 @@ func main() {
 	)
 
 	identitypb.RegisterIdentityServiceServer(grpcServer, identityHandler)
-
 	reflection.Register(grpcServer)
 
 	listener, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 	if err != nil {
-		log.Fatalf("Failed to listen on port %s: %v", cfg.GRPCPort, err)
+		slog.Error("failed to listen", "port", cfg.GRPCPort, "error", err)
+		os.Exit(1)
 	}
 
 	go func() {
-		log.Printf("Identity service starting on port %s", cfg.GRPCPort)
+		slog.Info("identity service starting", "port", cfg.GRPCPort)
 		if err := grpcServer.Serve(listener); err != nil {
-			log.Fatalf("Failed to serve gRPC server: %v", err)
+			slog.Error("grpc server failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -96,19 +101,16 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down Identity service...")
-	_ = ctx // suppress unused variable warning
+	slog.Info("shutting down identity service")
 	grpcServer.GracefulStop()
-	log.Println("Identity service stopped")
+	slog.Info("identity service stopped")
 }
 
-func loggingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	log.Printf("gRPC method: %s", info.FullMethod)
-
-	resp, err := handler(ctx, req)
+func loggingInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, h grpc.UnaryHandler) (any, error) {
+	slog.Info("grpc call", "method", info.FullMethod)
+	resp, err := h(ctx, req)
 	if err != nil {
-		log.Printf("gRPC method: %s, error: %v", info.FullMethod, err)
+		slog.Error("grpc call failed", "method", info.FullMethod, "error", err)
 	}
-
 	return resp, err
 }

@@ -16,6 +16,7 @@ type CollaborationRepository interface {
 	GetProjectCollaborators(ctx context.Context, projectID uuid.UUID) ([]*domain.Collaborator, error)
 	GetUserInvitations(ctx context.Context, userID uuid.UUID) ([]*domain.Collaborator, error)
 	GetUserInvitationsByEmail(ctx context.Context, email string) ([]*domain.Collaborator, error)
+	GetUserActiveCollaborations(ctx context.Context, userID uuid.UUID) ([]*domain.Collaborator, error)
 	UpdateCollaboratorStatus(ctx context.Context, id uuid.UUID, status string) error
 	UpdateCollaboratorRole(ctx context.Context, id uuid.UUID, role string) error
 	DeleteCollaborator(ctx context.Context, id uuid.UUID) error
@@ -24,6 +25,10 @@ type CollaborationRepository interface {
 
 	// Invitation operations
 	CreateInvitation(ctx context.Context, invitation *domain.Invitation) error
+	GetInvitationByID(ctx context.Context, id uuid.UUID) (*domain.Invitation, error)
+	GetPendingInvitationByEmailAndProject(ctx context.Context, email string, projectID uuid.UUID) (*domain.Invitation, error)
+	AcceptInvitationByID(ctx context.Context, invitationID uuid.UUID, userID uuid.UUID) (*domain.Collaborator, error)
+	DeclineInvitationByID(ctx context.Context, invitationID uuid.UUID) error
 
 	// Comment operations
 	CreateComment(ctx context.Context, comment *domain.Comment) error

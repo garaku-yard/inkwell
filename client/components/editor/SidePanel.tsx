@@ -81,7 +81,7 @@ export const SidePanel = React.memo(
       }
 
       const getElementTypeColor = (elementType: ScriptElement["element_type"]) => {
-        return (SCRIPT_ELEMENT_CONFIG[elementType as keyof typeof SCRIPT_ELEMENT_CONFIG] as any)?.badgeColor || "bg-gray-100 text-gray-700 border-gray-200"
+        return SCRIPT_ELEMENT_CONFIG[elementType as keyof typeof SCRIPT_ELEMENT_CONFIG]?.badgeColor || "bg-gray-100 text-gray-700 border-gray-200"
       }
 
       const getCommentCount = (elementId: string) => {

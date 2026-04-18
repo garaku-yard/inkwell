@@ -283,7 +283,7 @@ export function TierEditorDialog({ open, onOpenChange, tier, onSave }: TierEdito
 
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
-              <Select value={status} onValueChange={(v: any) => setStatus(v)}>
+              <Select value={status} onValueChange={(v) => setStatus(v as "active" | "inactive" | "archived")}>
                 <SelectTrigger id="status">
                   <SelectValue />
                 </SelectTrigger>
@@ -472,7 +472,7 @@ export function TierEditorDialog({ open, onOpenChange, tier, onSave }: TierEdito
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="limitType">Limit Type</Label>
-                <Select value={limitType} onValueChange={(v: any) => setLimitType(v)}>
+                <Select value={limitType} onValueChange={(v) => setLimitType(v as "soft" | "hard")}>
                   <SelectTrigger id="limitType">
                     <SelectValue />
                   </SelectTrigger>
@@ -485,7 +485,7 @@ export function TierEditorDialog({ open, onOpenChange, tier, onSave }: TierEdito
 
               <div className="space-y-2">
                 <Label htmlFor="overageHandling">Overage Handling</Label>
-                <Select value={overageHandling} onValueChange={(v: any) => setOverageHandling(v)}>
+                <Select value={overageHandling} onValueChange={(v) => setOverageHandling(v as "block" | "throttle" | "charge")}>
                   <SelectTrigger id="overageHandling">
                     <SelectValue />
                   </SelectTrigger>

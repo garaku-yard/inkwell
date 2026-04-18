@@ -6,8 +6,8 @@ export const CollaboratorRoles = {
 
 export type CollaboratorRole = keyof typeof CollaboratorRoles
 
-export const collaboratorRoleOptions = Object.entries(CollaboratorRoles).map(([key, label]) => ({
-  value: key,
-  label,
-}))
+// owner is excluded from invite options — ownership cannot be transferred via invitation
+export const collaboratorRoleOptions = Object.entries(CollaboratorRoles)
+  .filter(([key]) => key !== "owner")
+  .map(([key, label]) => ({ value: key, label }))
 

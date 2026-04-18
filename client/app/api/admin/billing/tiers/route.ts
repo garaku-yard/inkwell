@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/adminAuth";
 
 // Mock data for tiers (will be replaced with database calls)
 let tiers = [
@@ -62,7 +63,8 @@ let tiers = [
 
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Verify admin role from session/JWT
+    const authError = requireAdmin(request);
+    if (authError) return authError;
     
     return NextResponse.json(tiers);
   } catch (error) {
@@ -75,7 +77,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // TODO: Verify admin role from session/JWT
+    const authError = requireAdmin(request);
+    if (authError) return authError;
     
     const body = await request.json();
     
@@ -98,7 +101,8 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    // TODO: Verify admin role from session/JWT
+    const authError = requireAdmin(request);
+    if (authError) return authError;
     
     const body = await request.json();
     const { id, ...updates } = body;
@@ -121,7 +125,8 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    // TODO: Verify admin role from session/JWT
+    const authError = requireAdmin(request);
+    if (authError) return authError;
     
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

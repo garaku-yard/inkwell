@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -20,7 +19,7 @@ import (
 // CreateBeat handles POST /projects/{projectID}/beat-board/beats
 func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -52,7 +51,7 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Printf("CreateBeat: Error decoding request body: %v", err)
-		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		writeError(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -72,7 +71,7 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp, err := h.scriptsClient.CreateBeat(context.Background(), &scriptspb.CreateBeatRequest{
+	resp, err := h.scriptsClient.CreateBeat(r.Context(), &scriptspb.CreateBeatRequest{
 		ProjectId:    projectID,
 		UserId:       userID,
 		Title:        req.Title,
@@ -103,14 +102,14 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 // GetProjectBeatBoard handles GET /projects/{projectID}/beat-board
 func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	userID := getUserIDFromContext(r)
 	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board")
 
-	resp, err := h.scriptsClient.GetProjectBeatBoard(context.Background(), &scriptspb.GetProjectBeatBoardRequest{
+	resp, err := h.scriptsClient.GetProjectBeatBoard(r.Context(), &scriptspb.GetProjectBeatBoardRequest{
 		ProjectId: projectID,
 		UserId:    userID,
 	})
@@ -127,7 +126,7 @@ func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Requ
 // UpdateBeat handles PUT/PATCH /beats/{beatID}
 func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -155,7 +154,7 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -210,7 +209,7 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 		grpcReq.ImageUrl = req.ImageUrl
 	}
 
-	resp, err := h.scriptsClient.UpdateBeat(context.Background(), grpcReq)
+	resp, err := h.scriptsClient.UpdateBeat(r.Context(), grpcReq)
 	if err != nil {
 		handleGRPCError(w, err)
 		return
@@ -225,7 +224,7 @@ func (h *ScriptsHandler) GetBeat(w http.ResponseWriter, r *http.Request) {
 	userID := getUserIDFromContext(r)
 	beatID := chi.URLParam(r, "beatId")
 
-	resp, err := h.scriptsClient.GetBeat(context.Background(), &scriptspb.GetBeatRequest{
+	resp, err := h.scriptsClient.GetBeat(r.Context(), &scriptspb.GetBeatRequest{
 		BeatId: beatID,
 		UserId: userID,
 	})
@@ -242,14 +241,14 @@ func (h *ScriptsHandler) GetBeat(w http.ResponseWriter, r *http.Request) {
 // DeleteBeat handles DELETE /beats/{beatID}
 func (h *ScriptsHandler) DeleteBeat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	userID := getUserIDFromContext(r)
 	beatID := getIDFromPath(r.URL.Path, "/beats/")
 
-	_, err := h.scriptsClient.DeleteBeat(context.Background(), &scriptspb.DeleteBeatRequest{
+	_, err := h.scriptsClient.DeleteBeat(r.Context(), &scriptspb.DeleteBeatRequest{
 		BeatId: beatID,
 		UserId: userID,
 	})
@@ -265,7 +264,7 @@ func (h *ScriptsHandler) DeleteBeat(w http.ResponseWriter, r *http.Request) {
 // CreateConnection handles POST /projects/{projectID}/beat-board/connections
 func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -280,11 +279,11 @@ func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	resp, err := h.scriptsClient.CreateConnection(context.Background(), &scriptspb.CreateConnectionRequest{
+	resp, err := h.scriptsClient.CreateConnection(r.Context(), &scriptspb.CreateConnectionRequest{
 		ProjectId:  projectID,
 		UserId:     userID,
 		FromBeatId: req.FromBeatID,
@@ -306,14 +305,14 @@ func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request
 // DeleteConnection handles DELETE /connections/{connectionID}
 func (h *ScriptsHandler) DeleteConnection(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	userID := getUserIDFromContext(r)
 	connectionID := getIDFromPath(r.URL.Path, "/connections/")
 
-	_, err := h.scriptsClient.DeleteConnection(context.Background(), &scriptspb.DeleteConnectionRequest{
+	_, err := h.scriptsClient.DeleteConnection(r.Context(), &scriptspb.DeleteConnectionRequest{
 		ConnectionId: connectionID,
 		UserId:       userID,
 	})
@@ -329,7 +328,7 @@ func (h *ScriptsHandler) DeleteConnection(w http.ResponseWriter, r *http.Request
 // CreateLane handles POST /projects/{projectID}/beat-board/lanes
 func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -343,11 +342,11 @@ func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	resp, err := h.scriptsClient.CreateLane(context.Background(), &scriptspb.CreateLaneRequest{
+	resp, err := h.scriptsClient.CreateLane(r.Context(), &scriptspb.CreateLaneRequest{
 		ProjectId: projectID,
 		UserId:    userID,
 		Name:      req.Name,
@@ -368,14 +367,14 @@ func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
 // GetProjectLanes handles GET /projects/{projectID}/beat-board/lanes
 func (h *ScriptsHandler) GetProjectLanes(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	userID := getUserIDFromContext(r)
 	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes")
 
-	resp, err := h.scriptsClient.GetProjectLanes(context.Background(), &scriptspb.GetProjectLanesRequest{
+	resp, err := h.scriptsClient.GetProjectLanes(r.Context(), &scriptspb.GetProjectLanesRequest{
 		ProjectId: projectID,
 		UserId:    userID,
 	})
@@ -399,7 +398,7 @@ func (h *ScriptsHandler) GetProjectLanes(w http.ResponseWriter, r *http.Request)
 // UpdateLane handles PUT /lanes/{laneID}
 func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -413,7 +412,7 @@ func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -432,7 +431,7 @@ func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 		grpcReq.Order = req.Order
 	}
 
-	resp, err := h.scriptsClient.UpdateLane(context.Background(), grpcReq)
+	resp, err := h.scriptsClient.UpdateLane(r.Context(), grpcReq)
 	if err != nil {
 		handleGRPCError(w, err)
 		return
@@ -445,7 +444,7 @@ func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 // UpdateLaneOrder handles PUT /projects/{projectID}/beat-board/lanes/order
 func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -458,7 +457,7 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -467,7 +466,7 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 		laneIds = req.OrderedIDs
 	}
 
-	_, err := h.scriptsClient.UpdateLaneOrder(context.Background(), &scriptspb.UpdateLaneOrderRequest{
+	_, err := h.scriptsClient.UpdateLaneOrder(r.Context(), &scriptspb.UpdateLaneOrderRequest{
 		ProjectId: projectID,
 		UserId:    userID,
 		LaneIds:   laneIds,
@@ -484,14 +483,14 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 // DeleteLane handles DELETE /lanes/{laneID}
 func (h *ScriptsHandler) DeleteLane(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	userID := getUserIDFromContext(r)
 	laneID := getIDFromPath(r.URL.Path, "/lanes/")
 
-	_, err := h.scriptsClient.DeleteLane(context.Background(), &scriptspb.DeleteLaneRequest{
+	_, err := h.scriptsClient.DeleteLane(r.Context(), &scriptspb.DeleteLaneRequest{
 		LaneId: laneID,
 		UserId: userID,
 	})
@@ -507,7 +506,7 @@ func (h *ScriptsHandler) DeleteLane(w http.ResponseWriter, r *http.Request) {
 // CreateOutlineItem handles POST /projects/{projectID}/beat-board/outline-items
 func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -523,11 +522,11 @@ func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	resp, err := h.scriptsClient.CreateOutlineItem(context.Background(), &scriptspb.CreateOutlineItemRequest{
+	resp, err := h.scriptsClient.CreateOutlineItem(r.Context(), &scriptspb.CreateOutlineItemRequest{
 		ProjectId:        projectID,
 		UserId:           userID,
 		BeatId:           req.BeatID,
@@ -550,7 +549,7 @@ func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Reques
 // UpdateOutlineItem handles PUT /outline-items/{outlineItemID}
 func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -566,7 +565,7 @@ func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -591,7 +590,7 @@ func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Reques
 		grpcReq.Width = req.Width
 	}
 
-	resp, err := h.scriptsClient.UpdateOutlineItem(context.Background(), grpcReq)
+	resp, err := h.scriptsClient.UpdateOutlineItem(r.Context(), grpcReq)
 	if err != nil {
 		handleGRPCError(w, err)
 		return
@@ -604,14 +603,14 @@ func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Reques
 // DeleteOutlineItem handles DELETE /outline-items/{outlineItemID}
 func (h *ScriptsHandler) DeleteOutlineItem(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	userID := getUserIDFromContext(r)
 	outlineItemID := getIDFromPath(r.URL.Path, "/outline-items/")
 
-	_, err := h.scriptsClient.DeleteOutlineItem(context.Background(), &scriptspb.DeleteOutlineItemRequest{
+	_, err := h.scriptsClient.DeleteOutlineItem(r.Context(), &scriptspb.DeleteOutlineItemRequest{
 		OutlineItemId: outlineItemID,
 		UserId:        userID,
 	})
@@ -649,7 +648,7 @@ func getIDFromPath(path, prefix string) string {
 
 // handleGRPCError converts gRPC errors to HTTP responses
 func handleGRPCError(w http.ResponseWriter, err error) {
-	http.Error(w, "Failed to process request: "+err.Error(), http.StatusInternalServerError)
+	writeError(w, "Failed to process request: "+err.Error(), http.StatusInternalServerError)
 }
 
 // UploadBeatImage handles POST /beats/upload-image
@@ -657,7 +656,7 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 	log.Printf("UploadBeatImage: Request received")
 
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -668,7 +667,7 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 	// Parse the multipart form with 10MB max memory
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		log.Printf("UploadBeatImage: Error parsing form: %v", err)
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		writeError(w, "Failed to parse form", http.StatusBadRequest)
 		return
 	}
 	log.Printf("UploadBeatImage: Form parsed")
@@ -676,7 +675,7 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 	file, header, err := r.FormFile("image")
 	if err != nil {
 		log.Printf("UploadBeatImage: Error getting file: %v", err)
-		http.Error(w, "No image provided", http.StatusBadRequest)
+		writeError(w, "No image provided", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
@@ -699,7 +698,7 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 	log.Printf("UploadBeatImage: Creating directory: %s", uploadsDir)
 	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
 		log.Printf("UploadBeatImage: Error creating uploads directory: %v", err)
-		http.Error(w, "Failed to save image", http.StatusInternalServerError)
+		writeError(w, "Failed to save image", http.StatusInternalServerError)
 		return
 	}
 
@@ -712,7 +711,7 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 	dst, err := os.Create(filePath)
 	if err != nil {
 		log.Printf("UploadBeatImage: Error creating file: %v", err)
-		http.Error(w, "Failed to save image", http.StatusInternalServerError)
+		writeError(w, "Failed to save image", http.StatusInternalServerError)
 		return
 	}
 	defer dst.Close()
@@ -720,7 +719,7 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 	// Copy uploaded file to disk
 	if _, err := dst.ReadFrom(file); err != nil {
 		log.Printf("UploadBeatImage: Error copying file: %v", err)
-		http.Error(w, "Failed to save image", http.StatusInternalServerError)
+		writeError(w, "Failed to save image", http.StatusInternalServerError)
 		return
 	}
 

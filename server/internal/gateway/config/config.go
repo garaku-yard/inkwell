@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// Config holds all configuration for the API Gateway
+// Config holds all configuration for the API Gateway.
 type Config struct {
 	// Server configuration
 	Port        string `env:"GATEWAY_PORT" default:"8080"`
@@ -27,6 +27,19 @@ type Config struct {
 
 	// JWT configuration (for token validation)
 	JWTSecret string `env:"JWT_SECRET" default:"dev-gateway-secret"`
+
+	// Redis configuration — used for JWT blocklist and rate limiting
+	Redis RedisConfig
+
+	// Rate limiting — requests per minute per IP (0 = disabled)
+	RateLimitRPM int `env:"RATE_LIMIT_RPM" default:"120"`
+}
+
+// RedisConfig holds Redis connection settings for the gateway.
+type RedisConfig struct {
+	Host     string `env:"REDIS_HOST" default:"localhost"`
+	Port     string `env:"REDIS_PORT" default:"6379"`
+	Password string `env:"REDIS_PASSWORD" default:""`
 }
 
 // ServiceConfig holds configuration for a microservice
@@ -55,6 +68,10 @@ func (c *Config) CollaborationServiceURL() string {
 
 func (c *Config) BillingServiceURL() string {
 	return c.BillingService.URL()
+}
+
+func (c *Config) WorkspaceServiceURL() string {
+	return c.WorkspaceService.URL()
 }
 
 // Load loads configuration from environment variables
@@ -94,6 +111,12 @@ func Load() (*Config, error) {
 			Host: getEnvOrDefault("WORKSPACE_SERVICE_HOST", "localhost"),
 			Port: getEnvOrDefault("WORKSPACE_SERVICE_PORT", "50056"),
 		},
+		Redis: RedisConfig{
+			Host:     getEnvOrDefault("REDIS_HOST", "localhost"),
+			Port:     getEnvOrDefault("REDIS_PORT", "6379"),
+			Password: getEnvOrDefault("REDIS_PASSWORD", ""),
+		},
+		RateLimitRPM: getEnvIntOrDefault("RATE_LIMIT_RPM", 120),
 	}
 
 	// Parse allowed origins
@@ -107,6 +130,16 @@ func Load() (*Config, error) {
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvIntOrDefault(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		var n int
+		if _, err := fmt.Sscanf(value, "%d", &n); err == nil {
+			return n
+		}
 	}
 	return defaultValue
 }

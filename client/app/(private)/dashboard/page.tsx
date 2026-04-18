@@ -1,128 +1,75 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { jwtDecode } from "jwt-decode"
+import { useState } from "react"
 import {
   FileText,
   Plus,
   Search,
-  Users,
-  Clock,
   Star,
-  MoreHorizontal,
-  UserIcon,
-  LogOut,
   Loader2,
   AlertCircle,
-  Inbox,
-  UserPlus,
   ArrowDownUp,
   Folder,
   Briefcase,
   FilePlus2Icon,
-  Moon,
-  Sun,
-  Settings
 } from "lucide-react"
 import { useAuth } from "@/lib/AuthContext"
-import { useTheme } from "@/lib/ThemeContext"
 import { useWorkspace } from "@/lib/WorkspaceContext"
+import { useProjects } from "@/hooks/useProjects"
+import { AppHeader } from "@/components/AppHeader"
+import { ProjectCard } from "@/components/ProjectCard"
 import { WorkspaceSwitcher } from "@/components/workspace/WorkspaceSwitcher"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { toast } from "@/hooks/use-toast"
 import { NewProjectDialog } from "./new-project-dialog"
 import { CollaboratorsDialog } from "./collaborators-dialog"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { RenameProjectDialog } from "@/components/rename-project-dialog"
-import { getPendingInvites } from "@/services/invites"
-import { deleteProject, getMyProjects, updateProject, toggleProjectStar, type Project } from "@/services/project"
-import { cn } from "@/lib/utils"
-
-const formatRelativeTime = (dateString: string) => {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-  if (diffInSeconds < 60) return "Just now"
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`
-  return date.toLocaleDateString()
-}
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 
 export default function DashboardPage() {
-  const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false)
-  const [collaboratorsDialog, setCollaboratorsDialog] = useState<{
-    open: boolean
-    projectId: string
-    projectName: string
-  }>({
-    open: false,
-    projectId: "",
-    projectName: "",
-  })
-  const [deleteDialog, setDeleteDialog] = useState<{
-    open: boolean
-    projectId: string
-    projectName: string
-  }>({
-    open: false,
-    projectId: "",
-    projectName: "",
-  })
-  const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
-  const { isAuthenticated, isLoading: authLoading, logout, user } = useAuth()
-  const { theme, toggleTheme } = useTheme()
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth()
   const { needsOnboarding, activeWorkspace } = useWorkspace()
   const userId = user?.id
-  const [projects, setProjects] = useState<(Project & { collaborator_count?: number })[]>([])
-  const [renameDialog, setRenameDialog] = useState<{
-    open: boolean
-    projectId: string
-    projectName: string
-    projectDescription: string
-  }>({
+
+  const [searchQuery, setSearchQuery] = useState("")
+  const [activeFilter, setActiveFilter] = useState("lastUpdated")
+
+  const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false)
+  const [collaboratorsDialog, setCollaboratorsDialog] = useState({
+    open: false,
+    projectId: "",
+    projectName: "",
+  })
+  const [deleteDialog, setDeleteDialog] = useState({
+    open: false,
+    projectId: "",
+    projectName: "",
+  })
+  const [renameDialog, setRenameDialog] = useState({
     open: false,
     projectId: "",
     projectName: "",
     projectDescription: "",
   })
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [inviteCount, setInviteCount] = useState(0)
-  const [activeFilter, setActiveFilter] = useState("lastUpdated")
 
-  const getUserTag = () => {
-    try {
-      const token = localStorage.getItem("authToken")
-      if (token) {
-        const decoded: any = jwtDecode(token)
-        return decoded.tag || decoded.user_tag || ""
-      }
-    } catch (error) {
-      console.error("Error decoding token:", error)
-    }
-    return ""
-  }
-
-  const userTag = getUserTag()
+  const {
+    filteredProjects,
+    isLoading,
+    isDeleting,
+    isRenaming,
+    error,
+    inviteCount,
+    handleProjectCreated,
+    handleStarProject,
+    handleDeleteProject,
+    handleRenameProject,
+    handleProjectClick,
+  } = useProjects({ userId, isAuthenticated, authLoading, activeFilter, searchQuery, activeWorkspace })
 
   useEffect(() => {
     if (!authLoading && isAuthenticated && needsOnboarding) {
@@ -130,464 +77,117 @@ export default function DashboardPage() {
     }
   }, [authLoading, isAuthenticated, needsOnboarding, router])
 
-  useEffect(() => {
-    if (authLoading) {
-      return;
-    }
-
-    if (isAuthenticated && userId) {
-      setIsLoading(true)
-      const fetchDashboardData = async () => {
-        try {
-          const [projectsResponse, fetchedInvites] = await Promise.all([
-            getMyProjects(userId),
-            getPendingInvites().catch(err => {
-              console.warn('Invites service not available:', err.message)
-              return []
-            }),
-          ])
-          setProjects(projectsResponse.projects)
-          setInviteCount(fetchedInvites.length)
-        } catch (err: any) {
-          console.error('Dashboard fetch error:', err)
-          setError(`Failed to fetch dashboard data: ${err.message || err}`)
-        } finally {
-          setIsLoading(false)
-        }
-      }
-      fetchDashboardData()
-    } else {
-      setIsLoading(false)
-    }
-  }, [isAuthenticated, userId, authLoading])
-
-  const handleProjectCreated = (newProject: Project) => {
-    setProjects((prevProjects) => [newProject, ...prevProjects])
-  }
-
-  const handleStarProject = async (projectId: string, e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-
-    if (!userId) {
-      console.error('❌ No userId available')
-      return
-    }
-
-    try {
-      const updatedProject = await toggleProjectStar(projectId, userId)
-      setProjects(prev => prev.map(p => p.id === projectId ? { ...p, is_starred: updatedProject.is_starred } : p))
-      toast({
-        title: updatedProject.is_starred ? "Project starred" : "Star removed",
-        description: updatedProject.is_starred ? "Added to starred projects" : "Removed from starred projects",
-      })
-    } catch (error) {
-      console.error("Failed to toggle star", error)
-      toast({
-        title: "Error",
-        description: "Could not update project. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
-
   const handleManageCollaborators = (projectId: string, projectTitle: string) => {
-    setCollaboratorsDialog({
-      open: true,
-      projectId,
-      projectName: projectTitle,
-    })
+    setCollaboratorsDialog({ open: true, projectId, projectName: projectTitle })
   }
 
-  const handleDeleteProjectClick = (projectId: string, projectTitle: string) => {
-    setDeleteDialog({
-      open: true,
-      projectId,
-      projectName: projectTitle,
-    })
+  const handleDeleteClick = (projectId: string, projectTitle: string) => {
+    setDeleteDialog({ open: true, projectId, projectName: projectTitle })
   }
 
-  const handleDeleteProject = async () => {
-    if (!deleteDialog.projectId) return
-
-    setIsDeleting(true)
-    try {
-      await deleteProject(deleteDialog.projectId, userId!)
-      setProjects((prev) => prev.filter((p) => p.id !== deleteDialog.projectId))
-      setDeleteDialog({ open: false, projectId: "", projectName: "" })
-      toast({
-        title: "Project deleted",
-        description: `"${deleteDialog.projectName}" has been permanently deleted.`,
-      })
-    } catch (error) {
-      console.error("Failed to delete project", error)
-      toast({
-        title: "Error",
-        description: "Could not delete project. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsDeleting(false)
-    }
-  }
-
-  const handleRenameProjectClick = (projectId: string, projectTitle: string, projectDescription: string) => {
-    setRenameDialog({
-      open: true,
-      projectId,
-      projectName: projectTitle,
-      projectDescription,
-    })
-  }
-
-  const handleRenameProject = async (newName: string, newDescription: string) => {
-    if (!renameDialog.projectId) return
-
-    setIsRenaming(true)
-    try {
-      const updatedData = await updateProject(renameDialog.projectId, userId!, {
-        title: newName,
-        description: newDescription,
-      })
-      setProjects((prev) => prev.map((p) => (p.id === renameDialog.projectId ? updatedData : p)))
-      setRenameDialog({ open: false, projectId: "", projectName: "", projectDescription: "" })
-      toast({
-        title: "Project updated",
-        description: `"${newName}" has been successfully updated.`,
-      })
-    } catch (error) {
-      console.error("Failed to rename project", error)
-      toast({
-        title: "Error",
-        description: "Could not update project. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsRenaming(false)
-    }
-  }
-
-  const filteredProjects = useMemo(() => {
-    // Filter by active workspace categories first
-    const workspaceSlugs = activeWorkspace?.categories?.map(c => c.slug) ?? []
-    let processedProjects = workspaceSlugs.length > 0
-      ? projects.filter(p => workspaceSlugs.includes(p.category))
-      : projects
-
-    switch (activeFilter) {
-      case "lastUpdated":
-        processedProjects.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-        break
-      case "myProjects":
-        processedProjects = processedProjects.filter((p) => p.owner_id === userId)
-        break
-      case "collaborations":
-        processedProjects = processedProjects.filter((p) => p.owner_id !== userId)
-        break
-      case "starred":
-        processedProjects = processedProjects.filter((p) => p.is_starred)
-        break
-      default:
-        break
-    }
-
-    if (!searchQuery) {
-      return processedProjects
-    }
-
-    return processedProjects.filter((project) =>
-      project.title.toLowerCase().includes(searchQuery.toLowerCase()),
-    )
-  }, [projects, activeFilter, searchQuery, userId, activeWorkspace])
-
-  const handleProjectClick = (projectId: string) => {
-    router.push(`/projects/${projectId}/editor`)
+  const handleRenameClick = (projectId: string, projectTitle: string, projectDescription: string) => {
+    setRenameDialog({ open: true, projectId, projectName: projectTitle, projectDescription })
   }
 
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
-      <header className="border-b bg-background">
-        <div className="container mx-auto flex items-center justify-between py-4 px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground text-background font-serif font-bold text-lg select-none">
-              I
-            </div>
-            <h1 className="text-xl font-bold">Inkwell</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            {isAuthenticated ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <UserIcon className="h-5 w-5" />
-                    {inviteCount > 0 && (
-                      <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-teal-500 ring-2 ring-white" />
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        {user?.username && userTag ? `${user.username}#${userTag}` : user?.username || 'User'}
-                      </p>
-                      <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <Link href="/invites" passHref>
-                    <DropdownMenuItem>
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center">
-                          <Inbox className="mr-2 h-4 w-4" />
-                          <span>Inbox</span>
-                        </div>
-                        {inviteCount > 0 && (
-                          <Badge className="h-5 bg-teal-100 text-teal-800 dark:bg-teal-800 dark:text-teal-100">
-                            {inviteCount}
-                          </Badge>
-                        )}
-                      </div>
-                    </DropdownMenuItem>
-                  </Link>
-                  <DropdownMenuItem onClick={toggleTheme}>
-                    {theme === "light" ? (
-                      <Moon className="mr-2 h-4 w-4" />
-                    ) : (
-                      <Sun className="mr-2 h-4 w-4" />
-                    )}
-                    <span>{theme === "light" ? "Dark mode" : "Light mode"}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/settings" className="cursor-pointer">
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>Settings</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  {/* {user?.role === "admin" && ( */}
-                  <DropdownMenuItem asChild>
-                    <Link href="/admin/billing" className="cursor-pointer">
-                      <Briefcase className="mr-2 h-4 w-4" />
-                      <span>Admin Billing</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  {/* )} */}
-                  <DropdownMenuItem onClick={logout}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Log out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <>
-                <Link href="/login">
-                  <Button variant="outline" size="sm">
-                    Log In
-                  </Button>
-                </Link>
-                <Link href="/register">
-                  <Button size="sm">Sign Up</Button>
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+      <AppHeader inviteCount={inviteCount} />
 
-      {/* Body: sidebar + content */}
       <div className="flex flex-1 overflow-hidden">
         <WorkspaceSwitcher />
 
-      {/* Main Content */}
-      <main className="flex-grow flex flex-col items-center py-6 overflow-y-auto">
-        <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold">My Projects</h2>
-
-            <div className="flex items-center gap-2">
-              <Button onClick={() => setIsNewProjectDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                New Project
-              </Button>
-              <Button>
-                <FilePlus2Icon className="h-4 w-4 mr-2" />
-                Import
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-4 mb-6 w-full">
-            <div className="relative w-full sm:max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search projects..."
-                className="pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+        <main className="flex-grow flex flex-col items-center py-6 overflow-y-auto">
+          <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-3xl font-bold">My Projects</h2>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => setIsNewProjectDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Project
+                </Button>
+                <Button>
+                  <FilePlus2Icon className="h-4 w-4 mr-2" />
+                  Import
+                </Button>
+              </div>
             </div>
 
-            <Tabs value={activeFilter} onValueChange={setActiveFilter} className="w-full sm:w-auto">
-              <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4">
-                <TabsTrigger value="lastUpdated" className="w-full sm:w-auto gap-1">
-                  <ArrowDownUp className="h-4 w-4" />
-                  Recent
-                </TabsTrigger>
-                <TabsTrigger value="myProjects" className="w-full sm:w-auto gap-1">
-                  <Folder className="h-4 w-4" />
-                  My Projects
-                </TabsTrigger>
-                <TabsTrigger value="collaborations" className="w-full sm:w-auto gap-1">
-                  <Briefcase className="h-4 w-4" />
-                  Collaborations
-                </TabsTrigger>
-                <TabsTrigger value="starred" className="w-full sm:w-auto gap-1">
-                  <Star className="h-4 w-4" />
-                  Starred
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-
-          {isLoading ? (
-            <div className="text-center py-12 w-full flex justify-center items-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : error ? (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : (
-            <>
-              {/* Projects Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
-                {filteredProjects.map((project) => (
-                  <Card
-                    key={project.id}
-                    className="overflow-hidden hover:shadow-xl hover:scale-105 transition-all duration-300 ease-in-out transform cursor-pointer flex flex-col"
-                    onClick={() => handleProjectClick(project.id)}
-                  >
-                    <CardContent className="p-4 flex-grow">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="font-semibold text-lg hover:text-primary">{project.title}</h3>
-                          <p className="text-sm text-muted-foreground">{project.description}</p>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleManageCollaborators(project.id, project.title)
-                              }}
-                            >
-                              <Users className="mr-2 h-4 w-4" />
-                              Manage Collaborators
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleRenameProjectClick(project.id, project.title, project.description || "")
-                              }}
-                            >
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDeleteProjectClick(project.id, project.title)
-                              }}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="p-4 pt-0 flex justify-between items-center text-sm text-muted-foreground">
-                      <div className="flex items-center">
-                        <Clock className="h-3.5 w-3.5 mr-1" />
-                        {formatRelativeTime(project.updated_at)}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {/* Quick Add Collaborator Button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleManageCollaborators(project.id, project.title)
-                          }}
-                          title="Add Collaborator"
-                        >
-                          <UserPlus className="h-4 w-4 text-muted-foreground hover:text-primary" />
-                        </Button>
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleStarProject(project.id, e)
-                          }}
-                        >
-                          <Star
-                            className={cn(
-                              "h-4 w-4 hover:text-yellow-400 transition-colors",
-                              project.is_starred
-                                ? "fill-yellow-400 text-yellow-400"
-                                : "text-muted-foreground",
-                            )}
-                          />
-                        </Button>
-
-                        {project.collaborator_count !== undefined && project.collaborator_count > 1 && (
-                          <div className="flex items-center text-muted-foreground">
-                            <Users className="h-3.5 w-3.5 mr-1" />
-                            {project.collaborator_count}
-                          </div>
-                        )}
-                      </div>
-                    </CardFooter>
-                  </Card>
-                ))}
+            <div className="flex flex-col sm:flex-row items-center gap-4 mb-6 w-full">
+              <div className="relative w-full sm:max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search projects..."
+                  className="pl-8"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
 
-              {filteredProjects.length === 0 && !isLoading && (
-                <div className="text-center py-12 w-full">
-                  <FileText className="h-12 w-12 mx-auto text-muted-foreground/50" />
-                  <h3 className="mt-4 text-lg font-medium">No projects found</h3>
-                  <p className="text-muted-foreground mt-2">
-                    {searchQuery
-                      ? "Try a different search term"
-                      : `No ${activeWorkspace?.name ?? "projects"} yet. Create your first project to get started.`}
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </main>
+              <Tabs value={activeFilter} onValueChange={setActiveFilter} className="w-full sm:w-auto">
+                <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4">
+                  <TabsTrigger value="lastUpdated" className="w-full sm:w-auto gap-1">
+                    <ArrowDownUp className="h-4 w-4" />
+                    Recent
+                  </TabsTrigger>
+                  <TabsTrigger value="myProjects" className="w-full sm:w-auto gap-1">
+                    <Folder className="h-4 w-4" />
+                    My Projects
+                  </TabsTrigger>
+                  <TabsTrigger value="collaborations" className="w-full sm:w-auto gap-1">
+                    <Briefcase className="h-4 w-4" />
+                    Collaborations
+                  </TabsTrigger>
+                  <TabsTrigger value="starred" className="w-full sm:w-auto gap-1">
+                    <Star className="h-4 w-4" />
+                    Starred
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
 
-      </div>{/* end body flex */}
+            {isLoading ? (
+              <div className="text-center py-12 w-full flex justify-center items-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : error ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+                  {filteredProjects.map((project) => (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      userId={userId ?? ""}
+                      onStar={handleStarProject}
+                      onManageCollaborators={handleManageCollaborators}
+                      onDelete={handleDeleteClick}
+                      onRename={handleRenameClick}
+                      onClick={handleProjectClick}
+                    />
+                  ))}
+                </div>
+
+                {filteredProjects.length === 0 && (
+                  <div className="text-center py-12 w-full">
+                    <FileText className="h-12 w-12 mx-auto text-muted-foreground/50" />
+                    <h3 className="mt-4 text-lg font-medium">No projects found</h3>
+                    <p className="text-muted-foreground mt-2">
+                      {searchQuery
+                        ? "Try a different search term"
+                        : `No ${activeWorkspace?.name ?? "projects"} yet. Create your first project to get started.`}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </main>
+      </div>
 
       <NewProjectDialog
         open={isNewProjectDialogOpen}
@@ -605,17 +205,25 @@ export default function DashboardPage() {
       <DeleteProjectDialog
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog((prev) => ({ ...prev, open }))}
-        onConfirm={handleDeleteProject}
+        onConfirm={() => {
+          handleDeleteProject(deleteDialog.projectId, deleteDialog.projectName).then(() => {
+            setDeleteDialog({ open: false, projectId: "", projectName: "" })
+          })
+        }}
         projectName={deleteDialog.projectName}
         isDeleting={isDeleting}
       />
 
       <RenameProjectDialog
-        open={renameDialog?.open ?? false}
+        open={renameDialog.open}
         onOpenChange={(open) => setRenameDialog((prev) => ({ ...prev, open }))}
-        onConfirm={handleRenameProject}
-        projectName={renameDialog?.projectName ?? ""}
-        projectDescription={renameDialog?.projectDescription ?? ""}
+        onConfirm={(newName, newDescription) => {
+          handleRenameProject(renameDialog.projectId, newName, newDescription).then(() => {
+            setRenameDialog({ open: false, projectId: "", projectName: "", projectDescription: "" })
+          })
+        }}
+        projectName={renameDialog.projectName}
+        projectDescription={renameDialog.projectDescription}
         isRenaming={isRenaming}
       />
     </div>

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -198,9 +197,12 @@ func (h *IdentityHandler) UpdateUser(ctx context.Context, req *identitypb.Update
 		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
 	}
 
-	serviceReq := &service.UpdateProfileRequest{
-		Email:    req.Email,
-		Username: req.Username,
+	serviceReq := &service.UpdateProfileRequest{}
+	if req.Email != nil {
+		serviceReq.Email = *req.Email
+	}
+	if req.Username != nil {
+		serviceReq.Username = *req.Username
 	}
 
 	if err := h.authService.UpdateUserProfile(ctx, userID, serviceReq); err != nil {
@@ -248,20 +250,24 @@ func (h *IdentityHandler) ChangePassword(ctx context.Context, req *identitypb.Ch
 }
 
 // Helper functions
+// handleError maps domain errors to gRPC status codes. It covers all sentinel
+// errors defined in the identity domain so callers receive precise status codes
+// rather than a blanket codes.Internal.
 func (h *IdentityHandler) handleError(err error) error {
 	switch err {
-	case domain.ErrUserNotFound:
-		return status.Error(codes.NotFound, "user not found")
-	case domain.ErrEmailExists:
-		return status.Error(codes.AlreadyExists, "email already exists")
-	case domain.ErrUsernameExists:
-		return status.Error(codes.AlreadyExists, "username already exists")
-	case domain.ErrInvalidCredentials:
-		return status.Error(codes.Unauthenticated, "invalid credentials")
-	case domain.ErrInvalidToken:
-		return status.Error(codes.Unauthenticated, "invalid token")
+	case domain.ErrUserNotFound, domain.ErrSessionNotFound:
+		return status.Error(codes.NotFound, err.Error())
+	case domain.ErrEmailExists, domain.ErrUsernameExists, domain.ErrUserAlreadyExists:
+		return status.Error(codes.AlreadyExists, err.Error())
+	case domain.ErrInvalidCredentials, domain.ErrInvalidToken,
+		domain.ErrInvalidRefreshToken, domain.ErrTokenExpired, domain.ErrSessionExpired:
+		return status.Error(codes.Unauthenticated, err.Error())
+	case domain.ErrUserNotActive, domain.ErrEmailNotVerified:
+		return status.Error(codes.PermissionDenied, err.Error())
+	case domain.ErrWeakPassword, domain.ErrInvalidEmail, domain.ErrInvalidUsername:
+		return status.Error(codes.InvalidArgument, err.Error())
 	default:
-		return status.Error(codes.Internal, fmt.Sprintf("internal server error: %v", err))
+		return status.Errorf(codes.Internal, "internal server error: %v", err)
 	}
 }
 

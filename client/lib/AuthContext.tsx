@@ -19,7 +19,6 @@ interface DecodedToken {
   iat: number;
   nbf?: number;
   iss?: string;
-  [key: string]: any;
 }
 
 interface AuthContextType {
@@ -31,6 +30,7 @@ interface AuthContextType {
     id: string;
     email: string;
     username: string;
+    tag: string;
     role: string;
   } | null;
   updateUser: (updates: Partial<{ email: string; username: string }>) => void;
@@ -50,6 +50,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     id: string;
     email: string;
     username: string;
+    tag: string;
     role: string;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -96,6 +97,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             id: decodedToken.sub,
             email: decodedToken.email || decodedToken.eml || '',
             username: decodedToken.username || decodedToken.usn || '',
+            tag: decodedToken.tag || decodedToken.user_tag || '',
             role: decodedToken.role || 'user',
           });
           setSessionModalType(null);
@@ -183,6 +185,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               id: decodedToken.sub,
               email: decodedToken.email || decodedToken.eml || '',
               username: decodedToken.username || decodedToken.usn || '',
+              tag: decodedToken.tag || decodedToken.user_tag || '',
               role: decodedToken.role || 'user',
             });
           } else {
@@ -249,6 +252,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             id: decodedToken.sub,
             email: decodedToken.email || decodedToken.eml || '',
             username: decodedToken.username || decodedToken.usn || '',
+            tag: decodedToken.tag || decodedToken.user_tag || '',
             role: decodedToken.role || 'user',
           });
           setSessionModalType(null);

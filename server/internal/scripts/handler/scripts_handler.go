@@ -61,19 +61,20 @@ func (h *ScriptsHandler) GetProject(ctx context.Context, req *scriptspb.GetProje
 	if req.ProjectId == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "project_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "user_id is required")
-	}
 
-	// Parse IDs
 	projectID, err := uuid.Parse(req.ProjectId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — if empty, the service skips the owner check (collaborator access
+	// is already verified by the gateway before making this call)
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	// Get project via service
@@ -144,7 +145,7 @@ func (h *ScriptsHandler) DeleteProject(ctx context.Context, req *scriptspb.Delet
 	// Delete the project
 	err = h.service.DeleteProject(ctx, projectID, userID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to delete project: %v", err)
+		return nil, handleServiceError(err)
 	}
 
 	return &scriptspb.DeleteProjectResponse{
@@ -263,7 +264,7 @@ func (h *ScriptsHandler) CreateScene(ctx context.Context, req *scriptspb.CreateS
 	// Call service
 	createdScene, err := h.service.CreateScene(ctx, projectID, userID, scene)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create scene: %v", err)
+		return nil, handleServiceError(err)
 	}
 
 	// Convert to protobuf
@@ -299,10 +300,13 @@ func (h *ScriptsHandler) GetProjectScenes(ctx context.Context, req *scriptspb.Ge
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project ID: %v", err)
 	}
 
-	// Parse user ID
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	// userID is optional — empty means collaborator access already verified by gateway
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+		}
 	}
 
 	// Get scenes from service
@@ -437,7 +441,7 @@ func (h *ScriptsHandler) DeleteScriptElement(ctx context.Context, req *scriptspb
 	// Call service to delete script element
 	err = h.service.DeleteScriptElement(ctx, elementID, userID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to delete script element: %v", err)
+		return nil, handleServiceError(err)
 	}
 
 	return &scriptspb.DeleteScriptElementResponse{
@@ -539,19 +543,23 @@ func convertProjectToProto(project *domain.Project) *scriptspb.Project {
 }
 
 // Helper function to convert service errors to gRPC errors
+// handleServiceError maps domain errors to the appropriate gRPC status codes so callers
+// receive meaningful error types rather than a blanket codes.Internal.
 func handleServiceError(err error) error {
-	switch err {
-	case domain.ErrProjectNotFound:
-		return status.Errorf(codes.NotFound, "project not found")
-	case domain.ErrProjectExists:
-		return status.Errorf(codes.AlreadyExists, "project already exists")
-	case domain.ErrUnauthorizedAccess:
-		return status.Errorf(codes.PermissionDenied, "unauthorized access to project")
-	case domain.ErrInvalidProjectData:
-		return status.Errorf(codes.InvalidArgument, "invalid project data")
-	default:
-		return status.Errorf(codes.Internal, "internal server error: %v", err)
+	if de, ok := err.(*domain.DomainError); ok {
+		switch de.Code {
+		case "PROJECT_NOT_FOUND", "SCENE_NOT_FOUND", "SCRIPT_ELEMENT_NOT_FOUND",
+			"CHARACTER_NOT_FOUND", "LOCATION_NOT_FOUND", "OUTLINE_UNIT_NOT_FOUND":
+			return status.Error(codes.NotFound, de.Error())
+		case "PROJECT_EXISTS":
+			return status.Error(codes.AlreadyExists, de.Error())
+		case "UNAUTHORIZED_ACCESS":
+			return status.Error(codes.PermissionDenied, de.Error())
+		case "INVALID_PROJECT_DATA":
+			return status.Error(codes.InvalidArgument, de.Error())
+		}
 	}
+	return status.Errorf(codes.Internal, "internal server error: %v", err)
 }
 
 // CreateElement implements the CreateElement RPC method
@@ -645,10 +653,13 @@ func (h *ScriptsHandler) GetSceneElements(ctx context.Context, req *scriptspb.Ge
 		return nil, status.Errorf(codes.InvalidArgument, "invalid scene ID: %v", err)
 	}
 
-	// Parse user ID
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	// userID is optional — empty means collaborator access already verified by gateway
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+		}
 	}
 
 	// Get elements through service

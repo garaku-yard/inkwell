@@ -27,7 +27,7 @@ export function SubscriptionsOverview() {
   const loadSubscriptions = async () => {
     try {
       setIsLoading(true)
-      const filters: any = { page, limit: 20 }
+      const filters: { page: number; limit: number; status?: string } = { page, limit: 20 }
       if (statusFilter !== "all") filters.status = statusFilter
       
       const data = await getUserSubscriptions(filters)

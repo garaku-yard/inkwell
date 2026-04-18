@@ -64,7 +64,7 @@ export function RenameProjectDialog({
     dynamicOptions.unshift({ value: projectDescription, label: projectDescription })
   }
 
-  const handleSubmit = (e: any) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newName.trim()) return
     onConfirm(newName.trim(), getDescriptionLabel(newDescription))

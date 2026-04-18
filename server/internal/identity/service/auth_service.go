@@ -14,6 +14,7 @@ import (
 	"scriptlith/server/internal/identity/config"
 	"scriptlith/server/internal/identity/domain"
 	"scriptlith/server/internal/identity/repository"
+	"scriptlith/server/pkg/events"
 )
 
 // AuthService defines the interface for authentication business logic
@@ -122,15 +123,18 @@ type TokenClaims struct {
 
 // authService implements AuthService interface
 type authService struct {
-	userRepo repository.UserRepository
-	config   *config.Config
+	userRepo  repository.UserRepository
+	config    *config.Config
+	publisher events.Publisher
 }
 
-// NewAuthService creates a new AuthService instance
-func NewAuthService(userRepo repository.UserRepository, config *config.Config) AuthService {
+// NewAuthService creates a new AuthService.
+// publisher receives domain events; pass &events.NoopPublisher{} in tests.
+func NewAuthService(userRepo repository.UserRepository, config *config.Config, publisher events.Publisher) AuthService {
 	return &authService{
-		userRepo: userRepo,
-		config:   config,
+		userRepo:  userRepo,
+		config:    config,
+		publisher: publisher,
 	}
 }
 
@@ -199,6 +203,12 @@ func (s *authService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 	if err := s.userRepo.CreateUser(ctx, user); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
+
+	_ = s.publisher.Publish(ctx, events.EventTypeUserCreated, map[string]string{
+		"user_id":  user.ID.String(),
+		"email":    user.Email,
+		"username": user.Username,
+	})
 
 	// Create session and tokens
 	tokenPair, session, err := s.createUserSession(ctx, user)

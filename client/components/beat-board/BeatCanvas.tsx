@@ -18,7 +18,7 @@ interface BeatCanvasProps {
   onDragStartOnBeat: (e: React.DragEvent, beatId: string) => void;
   onDragEndOnBeat: () => void;
   onResizeMouseDown: (e: React.MouseEvent, beatId: string) => void;
-  handleFieldChange: (beatId: string, field: keyof Beat, value: any) => void;
+  handleFieldChange: (beatId: string, field: keyof Beat, value: Beat[keyof Beat]) => void;
   handleDoubleClick: (beatId: string, field: keyof Beat) => void;
   handleFieldBlur: () => void;
   setColorPickerOpen: (id: string | null) => void;

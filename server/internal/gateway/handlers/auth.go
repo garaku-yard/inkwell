@@ -4,36 +4,28 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-
-	"scriptlith/server/internal/gateway/config"
+	"scriptlith/server/internal/gateway/grpcclient"
+	"scriptlith/server/internal/gateway/middleware"
 	identitypb "scriptlith/server/pkg/grpc/identity"
 )
 
-// AuthHandler handles authentication-related HTTP endpoints
+// AuthHandler handles authentication-related HTTP endpoints.
 type AuthHandler struct {
-	config         *config.Config
 	identityClient identitypb.IdentityServiceClient
+	blocklist      *middleware.TokenBlocklist
 }
 
-// NewAuthHandler creates a new AuthHandler
-func NewAuthHandler(cfg *config.Config) (*AuthHandler, error) {
-	// Connect to Identity service
-	serviceURL := cfg.IdentityService.Host + ":" + cfg.IdentityService.Port
-	conn, err := grpc.NewClient(serviceURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return nil, err
-	}
-
+// NewAuthHandler creates a new AuthHandler. blocklist may be nil when Redis is unavailable.
+func NewAuthHandler(clients *grpcclient.Registry, blocklist *middleware.TokenBlocklist) *AuthHandler {
 	return &AuthHandler{
-		config:         cfg,
-		identityClient: identitypb.NewIdentityServiceClient(conn),
-	}, nil
+		identityClient: clients.Identity,
+		blocklist:      blocklist,
+	}
 }
 
 // LoginRequest matches the client's expected structure
@@ -71,18 +63,18 @@ type UserResponse struct {
 // Login handles the login HTTP endpoint
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	// Call Identity service
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	grpcReq := &identitypb.LoginRequest{
@@ -93,7 +85,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	grpcResp, err := h.identityClient.Login(ctx, grpcReq)
 	if err != nil {
 		// Map gRPC errors to HTTP errors
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		writeError(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
@@ -115,24 +107,24 @@ type UpdateProfileRequest struct {
 // UpdateProfile handles the PATCH /users/me endpoint
 func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
 	userID, ok := r.Context().Value("userID").(string)
 	if !ok || userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	var req UpdateProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	grpcReq := &identitypb.UpdateUserRequest{
@@ -147,8 +139,8 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	grpcResp, err := h.identityClient.UpdateUser(ctx, grpcReq)
 	if err != nil {
-		log.Printf("UpdateProfile gRPC error: %v", err)
-		http.Error(w, "Failed to update profile", http.StatusInternalServerError)
+		slog.Error("UpdateProfile gRPC error", "error", err)
+		writeError(w, "Failed to update profile", http.StatusInternalServerError)
 		return
 	}
 
@@ -170,13 +162,13 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 // ChangePassword handles PATCH /users/me/password
 func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	userID, ok := r.Context().Value("userID").(string)
 	if !ok || userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -185,16 +177,17 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		NewPassword     string `json:"newPassword"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.CurrentPassword == "" || req.NewPassword == "" {
-		http.Error(w, "currentPassword and newPassword are required", http.StatusBadRequest)
+		writeError(w, "currentPassword and newPassword are required", http.StatusBadRequest)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	_, err := h.identityClient.ChangePassword(ctx, &identitypb.ChangePasswordRequest{
@@ -203,8 +196,8 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		NewPassword:     req.NewPassword,
 	})
 	if err != nil {
-		log.Printf("ChangePassword gRPC error: %v", err)
-		http.Error(w, "Failed to change password", http.StatusBadRequest)
+		slog.Error("ChangePassword gRPC error", "error", err)
+		writeError(w, "Failed to change password", http.StatusBadRequest)
 		return
 	}
 
@@ -215,21 +208,21 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 // Register handles the register HTTP endpoint
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("Failed to decode register request: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		slog.Warn("failed to decode register request", "error", err)
+		writeError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("Register request received - Email: %s, Username: %s", req.Email, req.Username)
+	slog.Info("register request received", "email", req.Email, "username", req.Username)
 
 	// Call Identity service
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	grpcReq := &identitypb.RegisterRequest{
@@ -242,25 +235,42 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	grpcResp, err := h.identityClient.Register(ctx, grpcReq)
 	if err != nil {
-		// Log the actual error for debugging
-		log.Printf("Registration failed - gRPC error: %v", err)
-		// Map gRPC errors to HTTP errors
-		http.Error(w, fmt.Sprintf("Registration failed: %v", err), http.StatusBadRequest)
+		slog.Error("registration failed", "error", err)
+		writeError(w, fmt.Sprintf("Registration failed: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	// Convert gRPC response to HTTP response
 	resp := UserResponse{
 		ID:          grpcResp.User.Id,
 		Username:    grpcResp.User.Username,
-		UsernameTag: grpcResp.User.Username, // Simplified for now
+		UsernameTag: grpcResp.User.Username,
 		Name:        grpcResp.User.FirstName,
 		LastName:    grpcResp.User.LastName,
 		Email:       grpcResp.User.Email,
-		CreatedAt:   time.Now().Format(time.RFC3339), // Simplified for now
-		UpdatedAt:   time.Now().Format(time.RFC3339), // Simplified for now
+		CreatedAt:   time.Now().Format(time.RFC3339),
+		UpdatedAt:   time.Now().Format(time.RFC3339),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// Logout revokes the caller's JWT by adding it to the Redis blocklist so it cannot
+// be reused even if it hasn't expired yet. Responds 200 regardless of whether the
+// blocklist write succeeds so the client always clears its local token.
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader != "" && h.blocklist != nil {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			token := parts[1]
+			// Block for 24 h — generous TTL; the token's own exp claim is the real ceiling.
+			if err := h.blocklist.Block(r.Context(), token, 24*time.Hour); err != nil {
+				slog.Warn("failed to add token to blocklist", "error", err)
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }

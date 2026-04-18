@@ -2,24 +2,28 @@ package service
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"scriptlith/server/internal/collab/domain"
 	"scriptlith/server/internal/collab/repository"
+	"scriptlith/server/pkg/events"
 
 	"github.com/google/uuid"
 )
 
-// CollaborationService handles business logic for collaboration
+// CollaborationService handles business logic for collaboration.
 type CollaborationService struct {
-	repo repository.CollaborationRepository
+	repo      repository.CollaborationRepository
+	publisher events.Publisher
 }
 
-// NewCollaborationService creates a new collaboration service
-func NewCollaborationService(repo repository.CollaborationRepository) *CollaborationService {
+// NewCollaborationService creates a CollaborationService.
+// publisher is used to emit domain events; pass events.NoopPublisher{} in tests.
+func NewCollaborationService(repo repository.CollaborationRepository, publisher events.Publisher) *CollaborationService {
 	return &CollaborationService{
-		repo: repo,
+		repo:      repo,
+		publisher: publisher,
 	}
 }
 
@@ -61,7 +65,7 @@ func (s *CollaborationService) CheckPermission(ctx context.Context, userID, proj
 		// The gateway should have already verified project access
 		// So if we get here and they're not a collaborator, allow it
 		// (This handles the case where project owners haven't been added as collaborators)
-		log.Printf("CheckPermission: User %s not found as collaborator for project %s, assuming verified by gateway", userID, projectID)
+		slog.Debug("CheckPermission: user not found as collaborator, assuming verified by gateway", "user_id", userID, "project_id", projectID)
 		return nil
 	}
 
@@ -126,6 +130,13 @@ func (s *CollaborationService) AddCollaborator(ctx context.Context, projectID, u
 		return nil, err
 	}
 
+	_ = s.publisher.Publish(ctx, events.EventTypeCollabAdded, map[string]string{
+		"project_id": projectID.String(),
+		"user_id":    userID.String(),
+		"role":       role,
+		"invited_by": invitedBy.String(),
+	})
+
 	return collaborator, nil
 }
 
@@ -136,8 +147,10 @@ func (s *CollaborationService) AddCollaboratorByEmail(ctx context.Context, proje
 		return nil, err
 	}
 
-	// TODO: Check if email already has a pending invitation for this project
-	// For now, we'll create the invitation directly
+	// Check if email already has a pending invitation for this project
+	if _, err := s.repo.GetPendingInvitationByEmailAndProject(ctx, email, projectID); err == nil {
+		return nil, domain.ErrInvitationExists
+	}
 
 	// Create invitation record in collaboration_invitations table
 	invitation := &domain.Invitation{
@@ -419,53 +432,16 @@ func (s *CollaborationService) GetUserInvitations(ctx context.Context, email str
 	return collaborators, nil
 }
 
-func (s *CollaborationService) AcceptInvitation(ctx context.Context, userID, collaboratorID uuid.UUID) (*domain.Collaborator, error) {
-	// Get the collaborator record
-	collaborator, err := s.repo.GetCollaboratorByID(ctx, collaboratorID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Verify this invitation is for the requesting user and is pending
-	if collaborator.UserID != userID {
-		return nil, domain.ErrUnauthorized
-	}
-
-	if collaborator.Status != "pending" {
-		return nil, domain.NewDomainError("invitation is not pending", "INVALID_INVITATION_STATUS")
-	}
-
-	// Update status to active and set joined_at timestamp
-	now := time.Now()
-	collaborator.Status = "active"
-	collaborator.JoinedAt = &now
-
-	// Update the collaborator in the repository
-	if err := s.repo.UpdateCollaboratorStatus(ctx, collaboratorID, "active"); err != nil {
-		return nil, err
-	}
-
-	return collaborator, nil
+func (s *CollaborationService) GetUserCollaborations(ctx context.Context, userID uuid.UUID) ([]*domain.Collaborator, error) {
+	return s.repo.GetUserActiveCollaborations(ctx, userID)
 }
 
-func (s *CollaborationService) DeclineInvitation(ctx context.Context, userID, collaboratorID uuid.UUID) error {
-	// Get the collaborator record
-	collaborator, err := s.repo.GetCollaboratorByID(ctx, collaboratorID)
-	if err != nil {
-		return err
-	}
+func (s *CollaborationService) AcceptInvitation(ctx context.Context, userID, invitationID uuid.UUID) (*domain.Collaborator, error) {
+	return s.repo.AcceptInvitationByID(ctx, invitationID, userID)
+}
 
-	// Verify this invitation is for the requesting user and is pending
-	if collaborator.UserID != userID {
-		return domain.ErrUnauthorized
-	}
-
-	if collaborator.Status != "pending" {
-		return domain.NewDomainError("invitation is not pending", "INVALID_INVITATION_STATUS")
-	}
-
-	// Delete the collaborator record (declined invitations are removed)
-	return s.repo.DeleteCollaborator(ctx, collaboratorID)
+func (s *CollaborationService) DeclineInvitation(ctx context.Context, userID, invitationID uuid.UUID) error {
+	return s.repo.DeclineInvitationByID(ctx, invitationID)
 }
 
 // RespondToInvitation handles accepting or declining an invitation by project ID

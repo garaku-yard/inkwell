@@ -7,10 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-
-	"scriptlith/server/internal/gateway/config"
+	"scriptlith/server/internal/gateway/grpcclient"
 	billingpb "scriptlith/server/pkg/grpc/billing"
 )
 
@@ -20,19 +17,13 @@ type BillingHandler struct {
 }
 
 // NewBillingHandler creates a new BillingHandler
-func NewBillingHandler(cfg *config.Config) (*BillingHandler, error) {
-	conn, err := grpc.NewClient(cfg.BillingServiceURL(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return nil, err
-	}
-	return &BillingHandler{
-		client: billingpb.NewBillingServiceClient(conn),
-	}, nil
+func NewBillingHandler(clients *grpcclient.Registry) *BillingHandler {
+	return &BillingHandler{client: clients.Billing}
 }
 
 // GetTiers returns subscription tiers mapped from billing plans
 func (h *BillingHandler) GetTiers(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
 	resp, err := h.client.GetPlans(ctx, &billingpb.GetPlansRequest{})

@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -55,14 +56,14 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	// Read and parse request body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		writeError(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
@@ -70,7 +71,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	// Forward the request to the AI chat service
 	req, err := http.NewRequest(http.MethodPost, h.aiChatServiceURL+"/chat", strings.NewReader(string(body)))
 	if err != nil {
-		http.Error(w, "Failed to create request", http.StatusInternalServerError)
+		writeError(w, "Failed to create request", http.StatusInternalServerError)
 		return
 	}
 
@@ -88,7 +89,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		http.Error(w, "Failed to connect to AI service", http.StatusServiceUnavailable)
+		writeError(w, "Failed to connect to AI service", http.StatusServiceUnavailable)
 		return
 	}
 	defer resp.Body.Close()
@@ -108,7 +109,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	// Check if response supports flushing
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		writeError(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
 	}
 
@@ -124,7 +125,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			fmt.Printf("Error streaming AI response: %v\n", err)
+			log.Printf("error streaming AI response: %v", err)
 			break
 		}
 	}
@@ -133,14 +134,14 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 // GetProviders handles requests to get available AI providers
 func (h *AIHandler) GetProviders(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	// Make request to AI chat service
 	resp, err := http.Get(h.aiChatServiceURL + "/providers")
 	if err != nil {
-		http.Error(w, "Failed to connect to AI service", http.StatusServiceUnavailable)
+		writeError(w, "Failed to connect to AI service", http.StatusServiceUnavailable)
 		return
 	}
 	defer resp.Body.Close()
@@ -148,7 +149,7 @@ func (h *AIHandler) GetProviders(w http.ResponseWriter, r *http.Request) {
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		http.Error(w, "Failed to read AI service response", http.StatusInternalServerError)
+		writeError(w, "Failed to read AI service response", http.StatusInternalServerError)
 		return
 	}
 
@@ -163,7 +164,7 @@ func (h *AIHandler) GetProviders(w http.ResponseWriter, r *http.Request) {
 // Health checks the health of the AI chat service
 func (h *AIHandler) Health(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 

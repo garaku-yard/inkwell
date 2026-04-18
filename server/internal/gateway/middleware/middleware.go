@@ -1,28 +1,32 @@
 package middleware
 
 import (
-	"log"
+	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
-// CORS middleware to handle cross-origin requests
+// correlationIDKey is the context key for the request correlation ID.
+type correlationIDKey struct{}
+
+// CORS sets permissive cross-origin headers and handles preflight requests.
 func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 
-			// Check if origin is in allowed list or allow localhost in development
 			allowed := false
-			for _, allowedOrigin := range allowedOrigins {
-				if origin == allowedOrigin {
+			for _, o := range allowedOrigins {
+				if origin == o {
 					allowed = true
 					break
 				}
 			}
-
-			// For development, also allow localhost on any port
+			// Allow any localhost port in development.
 			if !allowed && strings.Contains(origin, "localhost") {
 				allowed = true
 			}
@@ -31,14 +35,14 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 				if origin != "" {
 					w.Header().Set("Access-Control-Allow-Origin", origin)
 				} else {
-					// Allow any origin if no Origin header (useful for tools like curl)
 					w.Header().Set("Access-Control-Allow-Origin", "*")
 				}
 			}
 
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-User-ID")
-			w.Header().Set("Access-Control-Allow-Credentials", "true") // Handle preflight requests
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+
 			if r.Method == "OPTIONS" {
 				w.WriteHeader(http.StatusOK)
 				return
@@ -49,21 +53,44 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 	}
 }
 
-// Logging middleware
-func Logging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
+// RequestLogger returns a middleware that logs every request with structured fields
+// including a correlation ID that can be used to trace a single request through logs.
+func RequestLogger() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			correlationID := uuid.New().String()
 
-		// Create a response writer wrapper to capture status code
-		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+			// Attach correlation ID to context so handlers can log it.
+			ctx := context.WithValue(r.Context(), correlationIDKey{}, correlationID)
+			r = r.WithContext(ctx)
+			w.Header().Set("X-Correlation-ID", correlationID)
 
-		next.ServeHTTP(wrapped, r)
+			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+			next.ServeHTTP(wrapped, r)
 
-		log.Printf("%s %s %d %v", r.Method, r.URL.Path, wrapped.statusCode, time.Since(start))
-	})
+			slog.Info("http request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", wrapped.statusCode,
+				"duration_ms", time.Since(start).Milliseconds(),
+				"correlation_id", correlationID,
+				"ip", realIP(r),
+			)
+		})
+	}
 }
 
-// responseWriter wrapper to capture status code
+// CorrelationID retrieves the correlation ID injected by RequestLogger from the context.
+// Returns an empty string if the middleware was not applied.
+func CorrelationID(ctx context.Context) string {
+	if id, ok := ctx.Value(correlationIDKey{}).(string); ok {
+		return id
+	}
+	return ""
+}
+
+// responseWriter wraps http.ResponseWriter to capture the status code for logging.
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -72,18 +99,4 @@ type responseWriter struct {
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
-}
-
-// Recovery middleware to handle panics
-func Recovery(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Printf("Panic recovered: %v", err)
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			}
-		}()
-
-		next.ServeHTTP(w, r)
-	})
 }

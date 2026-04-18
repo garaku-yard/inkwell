@@ -2,14 +2,14 @@ import { Clapperboard, BookOpen, MessageSquare, Feather, GitBranch, Dices, User,
 import type { LucideIcon } from "lucide-react"
 
 export const CATEGORY_COLORS: Record<string, { bg: string; ring: string }> = {
-  screenplay:          { bg: "#1e1b4b", ring: "#818cf8" },
-  novel:               { bg: "#1c1007", ring: "#fb923c" },
-  comic_script:        { bg: "#1a1200", ring: "#facc15" },
-  poetry:              { bg: "#1e0a2e", ring: "#c084fc" },
-  interactive_fiction: { bg: "#031a1f", ring: "#22d3ee" },
-  tabletop_rpg:        { bg: "#1f0505", ring: "#f87171" },
-  memoir:              { bg: "#071811", ring: "#4ade80" },
-  lyrics:              { bg: "#1f0718", ring: "#f472b6" },
+  screenplay:          { bg: "#1e1b4b", ring: "#6b6fc4" },
+  novel:               { bg: "#1c1007", ring: "#c47a45" },
+  comic_script:        { bg: "#1a1200", ring: "#b09a35" },
+  poetry:              { bg: "#1e0a2e", ring: "#9d6bbf" },
+  interactive_fiction: { bg: "#031a1f", ring: "#2ea0b0" },
+  tabletop_rpg:        { bg: "#1f0505", ring: "#bf5555" },
+  memoir:              { bg: "#071811", ring: "#3d9966" },
+  lyrics:              { bg: "#1f0718", ring: "#bf5590" },
 }
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {

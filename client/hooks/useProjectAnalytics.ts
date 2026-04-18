@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/AuthContext"
 import { getFullProject, type FullProject } from "@/services/project"
 import { computeAnalytics, type ScriptAnalytics } from "@/lib/analytics"
 
+/** Loads a project and computes its screenplay analytics (word count, scene breakdown, etc.). */
 export function useProjectAnalytics() {
   const searchParams = useSearchParams()
   const { user } = useAuth()

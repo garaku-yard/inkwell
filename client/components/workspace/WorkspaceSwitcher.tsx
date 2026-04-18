@@ -1,15 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Settings2 } from "lucide-react"
+import { Plus, Settings2, Users, Building2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useWorkspace } from "@/lib/WorkspaceContext"
+import { useAuth } from "@/lib/AuthContext"
 import { AddWorkspaceDialog } from "./AddWorkspaceDialog"
 import { CreateOrgWorkspaceDialog } from "./CreateOrgWorkspaceDialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Workspace } from "@/services/workspace"
-import { CategoryIcon, CATEGORY_COLORS } from "./CategoryIcon"
+import { CategoryIcon } from "./CategoryIcon"
 
 function workspaceInitials(name: string): string {
   return name
@@ -23,15 +24,17 @@ function workspaceInitials(name: string): string {
 function WorkspaceIcon({
   workspace,
   isActive,
+  isInvited,
+  isOrg,
   onClick,
 }: {
   workspace: Workspace
   isActive: boolean
+  isInvited?: boolean
+  isOrg?: boolean
   onClick: () => void
 }) {
   const primarySlug = workspace.categories?.[0]?.slug ?? ""
-  const categoryColor = CATEGORY_COLORS[primarySlug]
-  const ringColor = categoryColor?.ring ?? "#6366f1"
 
   return (
     <Tooltip>
@@ -41,11 +44,10 @@ function WorkspaceIcon({
           className={cn(
             "relative flex h-10 w-10 items-center justify-center rounded-[14px] text-sm font-bold transition-all duration-150 select-none border",
             "hover:rounded-[10px]",
-            isActive ? "rounded-[10px] border-transparent" : "border-black dark:border-black"
+            isActive
+              ? "rounded-[10px] border-transparent ring-2 ring-foreground ring-offset-2 ring-offset-background"
+              : "border-border"
           )}
-          style={isActive ? {
-            boxShadow: `0 0 0 2.5px ${ringColor}, 0 0 0 4px var(--background, #fff)`,
-          } : {}}
           aria-label={workspace.name}
         >
           {workspace.avatar_url ? (
@@ -63,18 +65,23 @@ function WorkspaceIcon({
             </span>
           )}
           {isActive && (
-            <span
-              className="absolute -left-3 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full"
-              style={{ backgroundColor: ringColor }}
-            />
+            <span className="absolute -left-3 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-foreground" />
+          )}
+          {/* Badge for invited/member workspaces */}
+          {isInvited && (
+            <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-background border border-border shadow-sm">
+              <Users className="h-2.5 w-2.5 text-muted-foreground" />
+            </span>
           )}
         </button>
       </TooltipTrigger>
       <TooltipContent side="right" className="font-medium">
         <p>{workspace.name}</p>
-        {workspace.type === "org" && (
+        {isInvited ? (
+          <p className="text-xs text-muted-foreground">Member (invited)</p>
+        ) : workspace.type === "org" ? (
           <p className="text-xs text-muted-foreground">Organization</p>
-        )}
+        ) : null}
       </TooltipContent>
     </Tooltip>
   )
@@ -82,12 +89,17 @@ function WorkspaceIcon({
 
 export function WorkspaceSwitcher() {
   const { workspaces, activeWorkspace, setActiveWorkspace, isLoading } = useWorkspace()
+  const { user } = useAuth()
   const router = useRouter()
   const [addOpen, setAddOpen] = useState(false)
   const [createOrgOpen, setCreateOrgOpen] = useState(false)
 
   const allPersonal = workspaces.personal ?? []
   const allOrg = workspaces.org ?? []
+
+  // Split org workspaces into owned vs invited (member)
+  const ownedOrgs = allOrg.filter((ws) => ws.owner_id === user?.id)
+  const invitedOrgs = allOrg.filter((ws) => ws.owner_id !== user?.id)
 
   return (
     <>
@@ -109,17 +121,33 @@ export function WorkspaceSwitcher() {
               />
             ))}
 
-            {/* Divider between personal and org */}
-            {allPersonal.length > 0 && allOrg.length > 0 && (
+            {/* Divider between personal and owned orgs */}
+            {allPersonal.length > 0 && (ownedOrgs.length > 0 || invitedOrgs.length > 0) && (
               <div className="my-1 h-px w-8 bg-border" />
             )}
 
-            {/* Org workspaces */}
-            {allOrg.map((ws) => (
+            {/* Owned org workspaces */}
+            {ownedOrgs.map((ws) => (
               <WorkspaceIcon
                 key={ws.id}
                 workspace={ws}
                 isActive={activeWorkspace?.id === ws.id}
+                onClick={() => setActiveWorkspace(ws)}
+              />
+            ))}
+
+            {/* Divider between owned orgs and invited orgs */}
+            {ownedOrgs.length > 0 && invitedOrgs.length > 0 && (
+              <div className="my-1 h-px w-8 bg-border" />
+            )}
+
+            {/* Invited org workspaces */}
+            {invitedOrgs.map((ws) => (
+              <WorkspaceIcon
+                key={ws.id}
+                workspace={ws}
+                isActive={activeWorkspace?.id === ws.id}
+                isInvited
                 onClick={() => setActiveWorkspace(ws)}
               />
             ))}
@@ -128,6 +156,25 @@ export function WorkspaceSwitcher() {
 
         {/* Spacer pushes the buttons to the bottom */}
         <div className="flex-1" />
+
+        {/* Shared with me */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => router.push("/shared")}
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-[14px] border border-border",
+                "text-muted-foreground transition-all duration-150 hover:rounded-[10px] hover:border-primary hover:text-primary"
+              )}
+              aria-label="Shared with me"
+            >
+              <Users className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>Shared with me</p>
+          </TooltipContent>
+        </Tooltip>
 
         {/* Add workspace */}
         <Tooltip>

@@ -80,7 +80,7 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
     try {
       const projectCollaborators = await getProjectCollaborators(projectId)
       setCollaborators(projectCollaborators)
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError("Failed to load collaborators")
       console.error("Error fetching collaborators:", err)
     } finally {
@@ -116,8 +116,8 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
       setInviteRole("editor")
       await fetchCollaborators()
       setTimeout(() => setSuccessMessage(null), 3000)
-    } catch (err: any) {
-      setError(err.message || "Failed to invite collaborator")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to invite collaborator")
     } finally {
       setIsInviting(false)
     }
@@ -129,7 +129,7 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
       setCollaborators((prev) =>
         prev.map((collab) => (collab.id === collaboratorId ? { ...collab, role: newRole } : collab)),
       )
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError("Failed to update collaborator role")
       console.error("Error updating role:", err)
     }
@@ -139,7 +139,7 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
     try {
       await removeCollaborator(collaboratorId)
       setCollaborators((prev) => prev.filter((c) => c.id !== collaboratorId))
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError("Failed to remove collaborator")
       console.error("Error removing collaborator:", err)
     }

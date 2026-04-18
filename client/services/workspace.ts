@@ -1,3 +1,4 @@
+/** Workspace service — workspace and category management API calls. */
 import { apiClient } from "@/lib/api"
 
 export interface Category {

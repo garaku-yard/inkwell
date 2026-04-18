@@ -1,5 +1,6 @@
+/** Admin-billing service — tier management, gateway config, subscription listings, and analytics. */
 import { apiClient } from "@/lib/api"
-import type { 
+import type {
   SubscriptionTier, 
   PaymentGateway, 
   GatewayConfig, 

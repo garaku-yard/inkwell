@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/adminAuth";
 
 // Mock analytics data
 const analytics = {
@@ -19,7 +20,8 @@ const analytics = {
 
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Verify admin role from session/JWT
+    const authError = requireAdmin(request);
+    if (authError) return authError;
     
     return NextResponse.json(analytics);
   } catch (error) {

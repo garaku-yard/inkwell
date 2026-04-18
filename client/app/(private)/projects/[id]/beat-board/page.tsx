@@ -260,7 +260,7 @@ export default function BeatBoardPage() {
     }).catch(err => console.error("Failed to delete beat", err));
   };
 
-  const handleFieldChange = (beatId: string, field: keyof Beat, value: any) => {
+  const handleFieldChange = (beatId: string, field: keyof Beat, value: Beat[keyof Beat]) => {
     setBeats(prevBeats => {
       const updatedBeats = prevBeats.map(beat => {
         if (beat.id !== beatId) return beat;
@@ -268,10 +268,10 @@ export default function BeatBoardPage() {
         let updatedBeat = { ...beat, [field]: value };
 
         // Ensure endPage is never less than startPage
-        if (field === 'startPage' && updatedBeat.endPage && value > updatedBeat.endPage) {
-          updatedBeat.endPage = value;
-        } else if (field === 'endPage' && updatedBeat.startPage && value < updatedBeat.startPage) {
-          updatedBeat.startPage = value;
+        if (field === 'startPage' && updatedBeat.endPage && (value as number) > updatedBeat.endPage) {
+          updatedBeat.endPage = value as number;
+        } else if (field === 'endPage' && updatedBeat.startPage && (value as number) < updatedBeat.startPage) {
+          updatedBeat.startPage = value as number;
         }
 
         return updatedBeat;
@@ -304,10 +304,10 @@ export default function BeatBoardPage() {
     if (validatedBeat) {
       let updateData: Partial<Beat> = { [field]: value };
 
-      if (field === 'startPage' && validatedBeat.endPage && value > validatedBeat.endPage) {
-        updateData.endPage = value;
-      } else if (field === 'endPage' && validatedBeat.startPage && value < validatedBeat.startPage) {
-        updateData.startPage = value;
+      if (field === 'startPage' && validatedBeat.endPage && (value as number) > validatedBeat.endPage) {
+        updateData.endPage = value as number;
+      } else if (field === 'endPage' && validatedBeat.startPage && (value as number) < validatedBeat.startPage) {
+        updateData.startPage = value as number;
       }
 
       debouncedUpdateBeat(beatId, updateData);

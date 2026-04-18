@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/adminAuth";
 
 // Mock data for subscriptions
 const subscriptions = [
@@ -54,7 +55,8 @@ const subscriptions = [
 
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Verify admin role from session/JWT
+    const authError = requireAdmin(request);
+    if (authError) return authError;
     
     const { searchParams } = new URL(request.url);
     const tierFilter = searchParams.get("tier");
@@ -81,7 +83,8 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    // TODO: Verify admin role from session/JWT
+    const authError = requireAdmin(request);
+    if (authError) return authError;
     
     const body = await request.json();
     const { id, action } = body;

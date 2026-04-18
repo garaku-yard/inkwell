@@ -38,6 +38,7 @@ export const SCRIPT_ELEMENT_CONFIG = {
   SCENE_HEADING: {
     tooltip: "Scene",
     toolbarColor: "hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-900/30 dark:hover:text-green-400",
+    badgeColor: "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800",
     icon: Image,
     editorClasses: "uppercase font-bold max-w-full",
   },

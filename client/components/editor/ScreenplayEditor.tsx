@@ -196,10 +196,10 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
         const newScenes = prevProject.scenes.map((scene: Scene) => ({
           ...scene,
-          comments: (scene as any).comments?.map((c: Comment) => (c.id === commentId ? updatedComment : c)),
+          comments: scene.comments?.map((c: Comment) => (c.id === commentId ? updatedComment : c)),
           elements: scene.elements?.map((el: ScriptElement) => ({
             ...el,
-            comments: (el as any).comments?.map((c: Comment) => (c.id === commentId ? updatedComment : c)),
+            comments: el.comments?.map((c: Comment) => (c.id === commentId ? updatedComment : c)),
           })),
         }))
 
@@ -219,10 +219,10 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
         const newScenes = prevProject.scenes.map((scene: Scene) => ({
           ...scene,
-          comments: (scene as any).comments?.filter((c: Comment) => c.id !== commentId),
+          comments: scene.comments?.filter((c: Comment) => c.id !== commentId),
           elements: scene.elements?.map((el: ScriptElement) => ({
             ...el,
-            comments: (el as any).comments?.filter((c: Comment) => c.id !== commentId),
+            comments: el.comments?.filter((c: Comment) => c.id !== commentId),
           })),
         }))
 
@@ -248,7 +248,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             if (isScene && scene.id === elementId) {
               return {
                 ...scene,
-                comments: (scene as any).comments?.map((c: Comment) =>
+                comments: scene.comments?.map((c: Comment) =>
                   c.id === commentId ? updatedComment : c,
                 ),
               }
@@ -259,7 +259,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
                 el.id === elementId
                   ? {
                     ...el,
-                    comments: (el as any).comments?.map((c: Comment) =>
+                    comments: el.comments?.map((c: Comment) =>
                       c.id === commentId ? updatedComment : c,
                     ),
                   }

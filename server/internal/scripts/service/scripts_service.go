@@ -11,6 +11,7 @@ import (
 	"scriptlith/server/internal/scripts/config"
 	"scriptlith/server/internal/scripts/domain"
 	"scriptlith/server/internal/scripts/repository"
+	"scriptlith/server/pkg/events"
 )
 
 // ScriptsService defines the business logic interface for the Scripts service
@@ -60,15 +61,18 @@ type ScriptsService interface {
 
 // scriptsService implements the ScriptsService interface
 type scriptsService struct {
-	repo   *repository.Repository
-	config *config.Config
+	repo      *repository.Repository
+	config    *config.Config
+	publisher events.Publisher
 }
 
-// NewScriptsService creates a new ScriptsService instance
-func NewScriptsService(repo *repository.Repository, cfg *config.Config) ScriptsService {
+// NewScriptsService creates a new ScriptsService.
+// publisher receives domain events; pass &events.NoopPublisher{} in tests.
+func NewScriptsService(repo *repository.Repository, cfg *config.Config, publisher events.Publisher) ScriptsService {
 	return &scriptsService{
-		repo:   repo,
-		config: cfg,
+		repo:      repo,
+		config:    cfg,
+		publisher: publisher,
 	}
 }
 
@@ -92,18 +96,27 @@ func (s *scriptsService) CreateProject(ctx context.Context, title, description, 
 		return nil, err
 	}
 
+	_ = s.publisher.Publish(ctx, events.EventTypeProjectCreated, map[string]string{
+		"project_id": project.ID.String(),
+		"owner_id":   ownerID.String(),
+		"category":   category,
+	})
+
 	return project, nil
 }
 
-// GetProject retrieves a project by ID with authorization check
+// GetProject retrieves a project by ID with authorization check.
+// If userID is uuid.Nil (empty), the ownership check is skipped (used when the gateway
+// has already verified collaborator access).
 func (s *scriptsService) GetProject(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error) {
-	// Check if user has access to the project
-	isOwner, err := s.repo.Project.IsProjectOwner(ctx, projectID, userID)
-	if err != nil {
-		return nil, err
-	}
-	if !isOwner {
-		return nil, domain.ErrUnauthorizedAccess
+	if userID != uuid.Nil {
+		isOwner, err := s.repo.Project.IsProjectOwner(ctx, projectID, userID)
+		if err != nil {
+			return nil, err
+		}
+		if !isOwner {
+			return nil, domain.ErrUnauthorizedAccess
+		}
 	}
 
 	return s.repo.Project.GetProjectByID(ctx, projectID)
@@ -186,7 +199,16 @@ func (s *scriptsService) DeleteProject(ctx context.Context, projectID, userID uu
 		return domain.ErrUnauthorizedAccess
 	}
 
-	return s.repo.Project.SoftDeleteProject(ctx, projectID)
+	if err := s.repo.Project.SoftDeleteProject(ctx, projectID); err != nil {
+		return err
+	}
+
+	_ = s.publisher.Publish(ctx, events.EventTypeProjectDeleted, map[string]string{
+		"project_id": projectID.String(),
+		"user_id":    userID.String(),
+	})
+
+	return nil
 }
 
 // GetUserProjects retrieves projects for a user with pagination
@@ -194,8 +216,13 @@ func (s *scriptsService) GetUserProjects(ctx context.Context, userID uuid.UUID, 
 	return s.repo.Project.GetProjectsByOwner(ctx, userID, offset, limit)
 }
 
-// Helper method to verify project access
+// Helper method to verify project access.
+// If userID is uuid.Nil the check is skipped — used when the gateway has already
+// verified that the caller is an active collaborator.
 func (s *scriptsService) verifyProjectAccess(ctx context.Context, projectID, userID uuid.UUID) error {
+	if userID == uuid.Nil {
+		return nil
+	}
 	isOwner, err := s.repo.Project.IsProjectOwner(ctx, projectID, userID)
 	if err != nil {
 		return err

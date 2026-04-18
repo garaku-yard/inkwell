@@ -6,9 +6,16 @@ import (
 	"time"
 )
 
+// Config holds all configuration for the Collaboration service.
 type Config struct {
 	GRPCPort       string
 	DatabaseConfig DatabaseConfig
+	KafkaConfig    KafkaConfig
+}
+
+// KafkaConfig holds Kafka broker settings for event publishing.
+type KafkaConfig struct {
+	Brokers []string
 }
 
 type DatabaseConfig struct {
@@ -28,8 +35,17 @@ func Load() (*Config, error) {
 	maxIdleConns, _ := strconv.Atoi(getEnvOrDefault("COLLAB_DB_MAX_IDLE_CONNS", "10"))
 	connMaxLifetime, _ := time.ParseDuration(getEnvOrDefault("COLLAB_DB_CONN_MAX_LIFETIME", "1h"))
 
+	kafkaBrokers := getEnvOrDefault("KAFKA_BROKERS", "")
+	brokers := []string{}
+	if kafkaBrokers != "" {
+		brokers = []string{kafkaBrokers}
+	}
+
 	return &Config{
 		GRPCPort: getEnvOrDefault("COLLAB_GRPC_PORT", "50053"),
+		KafkaConfig: KafkaConfig{
+			Brokers: brokers,
+		},
 		DatabaseConfig: DatabaseConfig{
 			Host:            getEnvOrDefault("COLLAB_DB_HOST", "localhost"),
 			Port:            getEnvOrDefault("COLLAB_DB_PORT", "5432"),

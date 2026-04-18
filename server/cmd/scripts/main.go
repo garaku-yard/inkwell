@@ -2,35 +2,37 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
+	"strings"
+	"syscall"
+
 	"scriptlith/server/internal/scripts/config"
 	"scriptlith/server/internal/scripts/handler"
 	"scriptlith/server/internal/scripts/repository"
 	"scriptlith/server/internal/scripts/service"
 	"scriptlith/server/pkg/database"
-	"syscall"
+	"scriptlith/server/pkg/events"
+	scriptspb "scriptlith/server/pkg/grpc/scripts"
 
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-
-	scriptspb "scriptlith/server/pkg/grpc/scripts"
 )
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: Could not load .env file: %v", err)
+		slog.Warn("could not load .env file", "error", err)
 	}
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		slog.Error("failed to load configuration", "error", err)
+		os.Exit(1)
 	}
 
-	// Database configuration
 	dbConfig := &database.Config{
 		Host:            cfg.DatabaseConfig.Host,
 		Port:            cfg.DatabaseConfig.Port,
@@ -43,29 +45,32 @@ func main() {
 		ConnMaxLifetime: cfg.DatabaseConfig.ConnMaxLifetime,
 	}
 
-	// Connect to database
 	db, err := database.Connect(dbConfig)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
-	// Run migrations
-	migrationsPath := "internal/scripts/migrations"
-	log.Printf("Running migrations from: %s", migrationsPath)
-
-	if err := database.RunMigrations(db, migrationsPath); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+	if err := database.RunMigrations(db, "internal/scripts/migrations"); err != nil {
+		slog.Error("failed to run migrations", "error", err)
+		os.Exit(1)
 	}
-	log.Println("Database migrations completed successfully")
+	slog.Info("database migrations completed")
 
-	// Create repositories (still using database/sql for now)
-	// TODO: Refactor repositories to use sqlc queries
+	// Event publisher — Kafka in production, noop when brokers are not configured.
+	var publisher events.Publisher
+	if len(cfg.KafkaConfig.Brokers) > 0 && cfg.KafkaConfig.Brokers[0] != "" {
+		slog.Info("kafka publisher enabled", "brokers", strings.Join(cfg.KafkaConfig.Brokers, ","))
+		publisher = events.NewKafkaPublisher(cfg.KafkaConfig.Brokers)
+	} else {
+		slog.Warn("kafka brokers not configured, using noop event publisher")
+		publisher = &events.NoopPublisher{}
+	}
+
 	repo := repository.NewRepository(db)
-
-	scriptsService := service.NewScriptsService(repo, cfg)
+	scriptsService := service.NewScriptsService(repo, cfg, publisher)
 	beatBoardService := service.NewBeatBoardService(repo)
-
 	scriptsHandler := handler.NewScriptsHandler(scriptsService, beatBoardService)
 
 	grpcServer := grpc.NewServer(
@@ -73,18 +78,19 @@ func main() {
 	)
 
 	scriptspb.RegisterScriptsServiceServer(grpcServer, scriptsHandler)
-
 	reflection.Register(grpcServer)
 
 	listener, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 	if err != nil {
-		log.Fatalf("Failed to listen on port %s: %v", cfg.GRPCPort, err)
+		slog.Error("failed to listen", "port", cfg.GRPCPort, "error", err)
+		os.Exit(1)
 	}
 
 	go func() {
-		log.Printf("Scripts service starting on port %s", cfg.GRPCPort)
+		slog.Info("scripts service starting", "port", cfg.GRPCPort)
 		if err := grpcServer.Serve(listener); err != nil {
-			log.Fatalf("Failed to serve gRPC server: %v", err)
+			slog.Error("grpc server failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -92,18 +98,16 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down Scripts service...")
+	slog.Info("shutting down scripts service")
 	grpcServer.GracefulStop()
-	log.Println("Scripts service stopped")
+	slog.Info("scripts service stopped")
 }
 
-func loggingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	log.Printf("gRPC method: %s", info.FullMethod)
-
+func loggingInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	slog.Info("grpc call", "method", info.FullMethod)
 	resp, err := handler(ctx, req)
 	if err != nil {
-		log.Printf("gRPC method: %s, error: %v", info.FullMethod, err)
+		slog.Error("grpc call failed", "method", info.FullMethod, "error", err)
 	}
-
 	return resp, err
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/adminAuth";
 
 // Mock data for gateways
 let gateways = [
@@ -45,7 +46,8 @@ let gateways = [
 
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Verify admin role from session/JWT
+    const authError = requireAdmin(request);
+    if (authError) return authError;
     
     return NextResponse.json(gateways);
   } catch (error) {
@@ -58,7 +60,8 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    // TODO: Verify admin role from session/JWT
+    const authError = requireAdmin(request);
+    if (authError) return authError;
     
     const body = await request.json();
     const { id, ...updates } = body;

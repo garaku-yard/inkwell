@@ -16,7 +16,8 @@ import { getBillingAnalytics } from "@/services/admin-billing"
 export default function AdminBillingPage() {
   const { user } = useAuth()
   const router = useRouter()
-  const [analytics, setAnalytics] = useState<any>(null)
+  type BillingAnalytics = Awaited<ReturnType<typeof getBillingAnalytics>>
+  const [analytics, setAnalytics] = useState<BillingAnalytics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -100,7 +101,7 @@ export default function AdminBillingPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {analytics.tierDistribution.reduce((sum: number, t: any) => sum + t.count, 0)}
+                  {analytics.tierDistribution.reduce((sum, t) => sum + t.count, 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">Across all tiers</p>
               </CardContent>

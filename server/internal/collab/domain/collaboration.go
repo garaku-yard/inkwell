@@ -86,6 +86,8 @@ type UserPresence struct {
 var (
 	ErrCollaboratorNotFound = NewDomainError("collaborator not found", "COLLABORATOR_NOT_FOUND")
 	ErrCollaboratorExists   = NewDomainError("collaborator already exists", "COLLABORATOR_EXISTS")
+	ErrInvitationNotFound   = NewDomainError("invitation not found", "INVITATION_NOT_FOUND")
+	ErrInvitationExists     = NewDomainError("invitation already exists", "INVITATION_EXISTS")
 	ErrUnauthorized         = NewDomainError("unauthorized", "UNAUTHORIZED")
 	ErrCommentNotFound      = NewDomainError("comment not found", "COMMENT_NOT_FOUND")
 	ErrEditSessionNotFound  = NewDomainError("edit session not found", "EDIT_SESSION_NOT_FOUND")

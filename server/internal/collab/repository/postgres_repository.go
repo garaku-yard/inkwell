@@ -238,6 +238,42 @@ func (r *PostgresCollaborationRepository) GetUserInvitationsByEmail(ctx context.
 	return collaborators, nil
 }
 
+// GetUserActiveCollaborations returns all projects where the user is an active collaborator (not owner)
+func (r *PostgresCollaborationRepository) GetUserActiveCollaborations(ctx context.Context, userID uuid.UUID) ([]*domain.Collaborator, error) {
+	query := `
+		SELECT collaborator_id, project_id, user_id, role, status, invited_by, invited_at, joined_at
+		FROM collaborators
+		WHERE user_id = $1 AND status = 'active' AND role != 'owner'
+		ORDER BY joined_at DESC`
+
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var collaborators []*domain.Collaborator
+	for rows.Next() {
+		c := &domain.Collaborator{}
+		err := rows.Scan(
+			&c.ID,
+			&c.ProjectID,
+			&c.UserID,
+			&c.Role,
+			&c.Status,
+			&c.InvitedBy,
+			&c.InvitedAt,
+			&c.JoinedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		collaborators = append(collaborators, c)
+	}
+
+	return collaborators, nil
+}
+
 // CreateInvitation creates a new invitation in the invitations table
 func (r *PostgresCollaborationRepository) CreateInvitation(ctx context.Context, invitation *domain.Invitation) error {
 	query := `
@@ -254,6 +290,91 @@ func (r *PostgresCollaborationRepository) CreateInvitation(ctx context.Context, 
 		invitation.ExpiresAt,
 		invitation.CreatedAt,
 	)
+	return err
+}
+
+// GetInvitationByID fetches an invitation from the invitations table by its ID
+func (r *PostgresCollaborationRepository) GetInvitationByID(ctx context.Context, id uuid.UUID) (*domain.Invitation, error) {
+	query := `
+		SELECT invitation_id, project_id, inviter_id, email, role, token, expires_at, accepted, accepted_at, created_at
+		FROM invitations
+		WHERE invitation_id = $1`
+
+	var inv domain.Invitation
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&inv.ID, &inv.ProjectID, &inv.InviterID, &inv.Email,
+		&inv.Role, &inv.Token, &inv.ExpiresAt, &inv.Accepted, &inv.AcceptedAt, &inv.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &inv, nil
+}
+
+// GetPendingInvitationByEmailAndProject returns a non-accepted invitation for the given email+project pair, if one exists.
+func (r *PostgresCollaborationRepository) GetPendingInvitationByEmailAndProject(ctx context.Context, email string, projectID uuid.UUID) (*domain.Invitation, error) {
+	query := `
+		SELECT invitation_id, project_id, inviter_id, email, role, token, expires_at, accepted, accepted_at, created_at
+		FROM invitations
+		WHERE email = $1 AND project_id = $2 AND accepted = false`
+
+	var inv domain.Invitation
+	err := r.db.QueryRowContext(ctx, query, email, projectID).Scan(
+		&inv.ID, &inv.ProjectID, &inv.InviterID, &inv.Email,
+		&inv.Role, &inv.Token, &inv.ExpiresAt, &inv.Accepted, &inv.AcceptedAt, &inv.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, domain.ErrInvitationNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &inv, nil
+}
+
+// AcceptInvitationByID marks the invitation as accepted and creates a collaborator record
+func (r *PostgresCollaborationRepository) AcceptInvitationByID(ctx context.Context, invitationID uuid.UUID, userID uuid.UUID) (*domain.Collaborator, error) {
+	inv, err := r.GetInvitationByID(ctx, invitationID)
+	if err != nil {
+		return nil, fmt.Errorf("invitation not found: %w", err)
+	}
+
+	now := time.Now()
+
+	// Insert into collaborators table
+	collaboratorID := uuid.New()
+	insertQuery := `
+		INSERT INTO collaborators (collaborator_id, project_id, user_id, role, status, invited_by, invited_at, joined_at)
+		VALUES ($1, $2, $3, $4, 'active', $5, $6, $7)`
+	_, err = r.db.ExecContext(ctx, insertQuery,
+		collaboratorID, inv.ProjectID, userID, inv.Role, inv.InviterID, inv.CreatedAt, now,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create collaborator: %w", err)
+	}
+
+	// Mark invitation as accepted
+	updateQuery := `UPDATE invitations SET accepted = true, accepted_at = $1 WHERE invitation_id = $2`
+	_, err = r.db.ExecContext(ctx, updateQuery, now, invitationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mark invitation accepted: %w", err)
+	}
+
+	return &domain.Collaborator{
+		ID:        collaboratorID,
+		ProjectID: inv.ProjectID,
+		UserID:    userID,
+		Role:      inv.Role,
+		Status:    "active",
+		InvitedBy: inv.InviterID,
+		InvitedAt: inv.CreatedAt,
+		JoinedAt:  &now,
+	}, nil
+}
+
+// DeclineInvitationByID deletes an invitation (declined invitations are removed)
+func (r *PostgresCollaborationRepository) DeclineInvitationByID(ctx context.Context, invitationID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM invitations WHERE invitation_id = $1`, invitationID)
 	return err
 }
 

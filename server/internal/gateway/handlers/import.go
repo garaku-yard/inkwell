@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -31,7 +30,7 @@ type Paragraph struct {
 // ImportFDX handles POST /projects/import-fdx
 func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -40,7 +39,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form (10MB limit)
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		log.Printf("ImportFDX: Error parsing form: %v", err)
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		writeError(w, "Failed to parse form", http.StatusBadRequest)
 		return
 	}
 
@@ -48,7 +47,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		log.Printf("ImportFDX: Error getting file: %v", err)
-		http.Error(w, "No file provided", http.StatusBadRequest)
+		writeError(w, "No file provided", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
@@ -60,7 +59,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	projectType := r.FormValue("projectType")
 
 	if projectName == "" {
-		http.Error(w, "Project name is required", http.StatusBadRequest)
+		writeError(w, "Project name is required", http.StatusBadRequest)
 		return
 	}
 
@@ -68,7 +67,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	fdxData, err := io.ReadAll(file)
 	if err != nil {
 		log.Printf("ImportFDX: Error reading file: %v", err)
-		http.Error(w, "Failed to read file", http.StatusInternalServerError)
+		writeError(w, "Failed to read file", http.StatusInternalServerError)
 		return
 	}
 
@@ -76,14 +75,14 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	var fdx FDX
 	if err := xml.Unmarshal(fdxData, &fdx); err != nil {
 		log.Printf("ImportFDX: Error parsing FDX: %v", err)
-		http.Error(w, "Invalid FDX file format", http.StatusBadRequest)
+		writeError(w, "Invalid FDX file format", http.StatusBadRequest)
 		return
 	}
 
 	log.Printf("ImportFDX: Parsed %d paragraphs", len(fdx.Content.Paragraphs))
 
 	// Create project
-	createProjectResp, err := h.scriptsClient.CreateProject(context.Background(), &scriptspb.CreateProjectRequest{
+	createProjectResp, err := h.scriptsClient.CreateProject(r.Context(), &scriptspb.CreateProjectRequest{
 		OwnerId:     userID,
 		Title:       projectName,
 		Description: fmt.Sprintf("Imported from %s (%s)", header.Filename, projectType),
@@ -110,7 +109,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 		if paraType == "SCENE_HEADING" || strings.HasPrefix(strings.ToUpper(para.Text), "INT.") || strings.HasPrefix(strings.ToUpper(para.Text), "EXT.") {
 			// Save previous scene elements if any
 			if currentScene != nil && len(sceneElements) > 0 {
-				_, err := h.scriptsClient.BatchCreateElements(context.Background(), &scriptspb.BatchCreateElementsRequest{
+				_, err := h.scriptsClient.BatchCreateElements(r.Context(), &scriptspb.BatchCreateElementsRequest{
 					ProjectId: projectID,
 					UserId:    userID,
 					Elements:  sceneElements,
@@ -122,7 +121,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Create new scene
-			sceneResp, err := h.scriptsClient.CreateScene(context.Background(), &scriptspb.CreateSceneRequest{
+			sceneResp, err := h.scriptsClient.CreateScene(r.Context(), &scriptspb.CreateSceneRequest{
 				ProjectId:    projectID,
 				UserId:       userID,
 				SceneHeading: para.Text,
@@ -131,7 +130,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 			})
 			if err != nil {
 				log.Printf("ImportFDX: Error creating scene: %v", err)
-				http.Error(w, "Failed to import scenes", http.StatusInternalServerError)
+				writeError(w, "Failed to import scenes", http.StatusInternalServerError)
 				return
 			}
 			currentScene = sceneResp.Scene
@@ -151,7 +150,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 
 	// Save final scene elements if any
 	if currentScene != nil && len(sceneElements) > 0 {
-		_, err := h.scriptsClient.BatchCreateElements(context.Background(), &scriptspb.BatchCreateElementsRequest{
+		_, err := h.scriptsClient.BatchCreateElements(r.Context(), &scriptspb.BatchCreateElementsRequest{
 			ProjectId: projectID,
 			UserId:    userID,
 			Elements:  sceneElements,

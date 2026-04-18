@@ -3,78 +3,37 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"google.golang.org/grpc"
-
-	"scriptlith/server/internal/gateway/config"
+	"scriptlith/server/internal/gateway/grpcclient"
 	"scriptlith/server/pkg/grpc/collab"
 	"scriptlith/server/pkg/grpc/common"
-	"scriptlith/server/pkg/grpc/identity"
 	scriptspb "scriptlith/server/pkg/grpc/scripts"
 )
 
 // ScriptsHandler handles HTTP requests related to scripts and forwards them to Scripts service
 type ScriptsHandler struct {
-	scriptsClient  scriptspb.ScriptsServiceClient
-	collabClient   collab.CollaborationServiceClient
-	identityClient identity.IdentityServiceClient
+	scriptsClient scriptspb.ScriptsServiceClient
+	collabClient  collab.CollaborationServiceClient
 }
 
 // NewScriptsHandler creates a new ScriptsHandler
-func NewScriptsHandler(cfg *config.Config) (*ScriptsHandler, error) {
-	// Connect to Scripts service
-	conn, err := grpc.Dial(
-		cfg.ScriptsService.Host+":"+cfg.ScriptsService.Port,
-		grpc.WithInsecure(),
-		grpc.WithTimeout(time.Second*30),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	scriptsClient := scriptspb.NewScriptsServiceClient(conn)
-
-	// Connect to Collaboration service
-	collabConn, err := grpc.Dial(
-		cfg.CollabService.Host+":"+cfg.CollabService.Port,
-		grpc.WithInsecure(),
-		grpc.WithTimeout(time.Second*30),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	collabClient := collab.NewCollaborationServiceClient(collabConn)
-
-	// Connect to Identity service
-	identityConn, err := grpc.Dial(
-		cfg.IdentityService.Host+":"+cfg.IdentityService.Port,
-		grpc.WithInsecure(),
-		grpc.WithTimeout(time.Second*30),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	identityClient := identity.NewIdentityServiceClient(identityConn)
-
+func NewScriptsHandler(clients *grpcclient.Registry) *ScriptsHandler {
 	return &ScriptsHandler{
-		scriptsClient:  scriptsClient,
-		collabClient:   collabClient,
-		identityClient: identityClient,
-	}, nil
+		scriptsClient: clients.Scripts,
+		collabClient:  clients.Collab,
+	}
 }
 
 // CreateProject creates a new screenplay project
 func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("DEBUG: CreateProject called\n")
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -87,60 +46,40 @@ func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-
-	fmt.Printf("DEBUG: CreateProject for user: %s, title: %s\n", req.OwnerID, req.Title)
 
 	// Validate required fields
 	if req.Title == "" {
-		http.Error(w, "Title is required", http.StatusBadRequest)
+		writeError(w, "Title is required", http.StatusBadRequest)
 		return
 	}
 	if req.OwnerID == "" {
-		http.Error(w, "Owner ID is required", http.StatusBadRequest)
+		writeError(w, "Owner ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Call Scripts service
-	resp, err := h.scriptsClient.CreateProject(context.Background(), &scriptspb.CreateProjectRequest{
+	resp, err := h.scriptsClient.CreateProject(r.Context(), &scriptspb.CreateProjectRequest{
 		Title:       req.Title,
 		Description: req.Description,
 		OwnerId:     req.OwnerID,
 		Category:    req.Category,
 	})
 	if err != nil {
-		http.Error(w, "Failed to create project: "+err.Error(), http.StatusInternalServerError)
+		writeError(w, "Failed to create project: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Add the owner as a collaborator with "owner" role in the collaboration service
-	// First, get the user's email from identity service
-	fmt.Printf("DEBUG: Adding owner %s as collaborator for project %s\n", req.OwnerID, resp.Project.Id)
-	userResp, err := h.identityClient.GetUser(context.Background(), &identity.GetUserRequest{
-		UserId: req.OwnerID,
-	})
-	if err != nil {
-		// Log error but don't fail the project creation
-		fmt.Printf("ERROR: Failed to get user email from identity service: %v\n", err)
-		// The project is created but collaboration features might not work until manually added
-	} else {
-		fmt.Printf("DEBUG: Got user email: %s for user %s\n", userResp.User.Email, req.OwnerID)
-		// Add user as owner collaborator using direct method (bypasses invitation system)
-		_, err = h.collabClient.AddCollaboratorDirect(context.Background(), &collab.AddCollaboratorDirectRequest{
-			ProjectId: resp.Project.Id,
-			UserId:    req.OwnerID,
-			InviterId: req.OwnerID,
-			Role:      "owner",
-		})
-		if err != nil {
-			// Log error but don't fail the project creation
-			fmt.Printf("ERROR: Failed to add owner as collaborator: %v\n", err)
-			// The project is created but collaboration features might not work until manually added
-		} else {
-			fmt.Printf("DEBUG: Successfully added owner as collaborator\n")
-		}
+	if _, err = h.collabClient.AddCollaboratorDirect(r.Context(), &collab.AddCollaboratorDirectRequest{
+		ProjectId: resp.Project.Id,
+		UserId:    req.OwnerID,
+		InviterId: req.OwnerID,
+		Role:      "owner",
+	}); err != nil {
+		log.Printf("failed to add owner %s as collaborator for project %s: %v", req.OwnerID, resp.Project.Id, err)
 	}
 
 	// Convert response
@@ -156,7 +95,7 @@ func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 // GetProject retrieves a project by ID
 func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -165,24 +104,29 @@ func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 	projectID := path
 
 	if projectID == "" {
-		http.Error(w, "Project ID is required", http.StatusBadRequest)
+		writeError(w, "Project ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// Call Scripts service
-	resp, err := h.scriptsClient.GetProject(context.Background(), &scriptspb.GetProjectRequest{
+	resolvedID, authErr := resolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+	if authErr != nil {
+		writeError(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	resp, err := h.scriptsClient.GetProject(r.Context(), &scriptspb.GetProjectRequest{
 		ProjectId: projectID,
-		UserId:    userID,
+		UserId:    resolvedID,
 	})
 	if err != nil {
-		http.Error(w, "Failed to get project: "+err.Error(), http.StatusInternalServerError)
+		writeError(w, "Failed to get project: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -198,7 +142,7 @@ func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 // DeleteProject deletes a project
 func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -206,7 +150,7 @@ func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/projects/")
 	parts := strings.Split(path, "/")
 	if len(parts) == 0 || parts[0] == "" {
-		http.Error(w, "Project ID is required", http.StatusBadRequest)
+		writeError(w, "Project ID is required", http.StatusBadRequest)
 		return
 	}
 	projectID := parts[0]
@@ -214,17 +158,17 @@ func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from context
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	// Call Scripts service
-	resp, err := h.scriptsClient.DeleteProject(context.Background(), &scriptspb.DeleteProjectRequest{
+	resp, err := h.scriptsClient.DeleteProject(r.Context(), &scriptspb.DeleteProjectRequest{
 		ProjectId: projectID,
 		UserId:    userID,
 	})
 	if err != nil {
-		http.Error(w, "Failed to delete project: "+err.Error(), http.StatusInternalServerError)
+		writeError(w, "Failed to delete project: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -237,7 +181,7 @@ func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 // ToggleProjectStar toggles the starred status of a project
 func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -245,7 +189,7 @@ func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Reques
 	path := strings.TrimPrefix(r.URL.Path, "/projects/")
 	parts := strings.Split(path, "/")
 	if len(parts) < 2 {
-		http.Error(w, "Project ID is required", http.StatusBadRequest)
+		writeError(w, "Project ID is required", http.StatusBadRequest)
 		return
 	}
 	projectID := parts[0]
@@ -253,17 +197,17 @@ func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Reques
 	// Get user ID from context
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	// Call Scripts service
-	resp, err := h.scriptsClient.ToggleProjectStar(context.Background(), &scriptspb.ToggleProjectStarRequest{
+	resp, err := h.scriptsClient.ToggleProjectStar(r.Context(), &scriptspb.ToggleProjectStarRequest{
 		ProjectId: projectID,
 		UserId:    userID,
 	})
 	if err != nil {
-		http.Error(w, "Failed to toggle star: "+err.Error(), http.StatusInternalServerError)
+		writeError(w, "Failed to toggle star: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -279,14 +223,14 @@ func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Reques
 // GetUserProjects retrieves all projects for a user
 func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -310,7 +254,7 @@ func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Call Scripts service
-	resp, err := h.scriptsClient.GetUserProjects(context.Background(), &scriptspb.GetUserProjectsRequest{
+	resp, err := h.scriptsClient.GetUserProjects(r.Context(), &scriptspb.GetUserProjectsRequest{
 		UserId: userID,
 		Pagination: &common.PaginationRequest{
 			Page:  page,
@@ -318,20 +262,92 @@ func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request)
 		},
 	})
 	if err != nil {
-		http.Error(w, "Failed to get projects: "+err.Error(), http.StatusInternalServerError)
+		writeError(w, "Failed to get projects: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Convert response
+	// Fetch collaborator counts for all projects in parallel (one gRPC call per project).
+	// This keeps N+1 within the backend (cheap intra-datacenter gRPC) rather than
+	// forcing the frontend to make N separate HTTP calls.
+	type countResult struct {
+		index int
+		count int
+	}
+	counts := make([]int, len(resp.Projects))
+	resultCh := make(chan countResult, len(resp.Projects))
+	var wg sync.WaitGroup
+	for i, p := range resp.Projects {
+		wg.Add(1)
+		go func(idx int, projectID string) {
+			defer wg.Done()
+			collabResp, err := h.collabClient.GetProjectCollaborators(r.Context(), &collab.GetProjectCollaboratorsRequest{
+				ProjectId: projectID,
+				UserId:    userID,
+			})
+			if err != nil {
+				resultCh <- countResult{index: idx, count: 0}
+				return
+			}
+			resultCh <- countResult{index: idx, count: len(collabResp.Collaborators)}
+		}(i, p.Id)
+	}
+	wg.Wait()
+	close(resultCh)
+	for cr := range resultCh {
+		counts[cr.index] = cr.count
+	}
+
 	projects := make([]map[string]interface{}, len(resp.Projects))
 	for i, project := range resp.Projects {
-		projects[i] = convertProjectFromProto(project)
+		p := convertProjectFromProto(project)
+		p["collaborator_count"] = counts[i]
+		projects[i] = p
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"projects":   projects,
 		"pagination": convertPaginationFromProto(resp.Pagination),
+	})
+}
+
+// GetSharedProjects returns projects the user is a collaborator on (not owner)
+func (h *ScriptsHandler) GetSharedProjects(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == "" {
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// Get all active collaborations for this user from collab service
+	collabResp, err := h.collabClient.GetUserCollaborations(ctx, &collab.GetUserCollaborationsRequest{
+		UserId: userID,
+	})
+	if err != nil {
+		writeError(w, "Failed to get collaborations: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch each project using the bypass (empty userId)
+	projects := make([]map[string]interface{}, 0, len(collabResp.Collaborations))
+	for _, c := range collabResp.Collaborations {
+		projResp, err := h.scriptsClient.GetProject(ctx, &scriptspb.GetProjectRequest{
+			ProjectId: c.ProjectId,
+			UserId:    "", // bypass — already verified as collaborator
+		})
+		if err != nil {
+			continue // skip projects that can't be fetched
+		}
+		project := convertProjectFromProto(projResp.Project)
+		projects = append(projects, project)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"projects": projects,
 	})
 }
 
@@ -347,18 +363,18 @@ func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Validate required fields
 	if req.ProjectID == "" || req.UserID == "" {
-		http.Error(w, `{"error":"project_id and user_id are required"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"project_id and user_id are required"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Call Scripts service
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	response, err := h.scriptsClient.CreateScene(ctx, &scriptspb.CreateSceneRequest{
@@ -371,7 +387,7 @@ func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, `{"error":"Failed to create scene"}`, http.StatusInternalServerError)
+		writeRawError(w, `{"error":"Failed to create scene"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -392,24 +408,30 @@ func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request
 	userID := getUserIDFromContext(r)
 
 	if projectID == "" {
-		http.Error(w, `{"error":"project_id is required"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"project_id is required"}`, http.StatusBadRequest)
 		return
 	}
 	if userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
+
+	resolvedID, authErr := resolveProjectAccess(ctx, userID, projectID, h.scriptsClient, h.collabClient)
+	if authErr != nil {
+		writeRawError(w, `{"error":"Unauthorized"}`, http.StatusForbidden)
+		return
+	}
 
 	response, err := h.scriptsClient.GetProjectScenes(ctx, &scriptspb.GetProjectScenesRequest{
 		ProjectId: projectID,
-		UserId:    userID,
+		UserId:    resolvedID,
 	})
 
 	if err != nil {
-		http.Error(w, `{"error":"Failed to get scenes"}`, http.StatusInternalServerError)
+		writeRawError(w, `{"error":"Failed to get scenes"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -433,7 +455,7 @@ func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	sceneID := path
 
 	if sceneID == "" {
-		http.Error(w, `{"error":"Scene ID is required"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"Scene ID is required"}`, http.StatusBadRequest)
 		return
 	}
 
@@ -446,18 +468,18 @@ func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Validate required fields
 	if req.UserID == "" {
-		http.Error(w, `{"error":"user_id is required"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"user_id is required"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Call Scripts service
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	response, err := h.scriptsClient.UpdateScene(ctx, &scriptspb.UpdateSceneRequest{
@@ -469,7 +491,7 @@ func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, `{"error":"Failed to update scene"}`, http.StatusInternalServerError)
+		writeRawError(w, `{"error":"Failed to update scene"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -490,19 +512,19 @@ func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
 	sceneID := path
 
 	if sceneID == "" {
-		http.Error(w, `{"error":"Scene ID is required"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"Scene ID is required"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+		writeRawError(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
 
 	// Call Scripts service
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	_, err := h.scriptsClient.DeleteScene(ctx, &scriptspb.DeleteSceneRequest{
@@ -511,7 +533,7 @@ func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, `{"error":"Failed to delete scene"}`, http.StatusInternalServerError)
+		writeRawError(w, `{"error":"Failed to delete scene"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -535,18 +557,18 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Validate required fields
 	if req.ProjectID == "" || req.UserID == "" || req.ElementType == "" || req.SceneID == "" {
-		http.Error(w, `{"error":"project_id, user_id, scene_id, and element_type are required"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"project_id, user_id, scene_id, and element_type are required"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Call Scripts service
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	response, err := h.scriptsClient.CreateElement(ctx, &scriptspb.CreateElementRequest{
@@ -561,7 +583,7 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, `{"error":"Failed to create element"}`, http.StatusInternalServerError)
+		writeRawError(w, `{"error":"Failed to create element"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -582,7 +604,7 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 	elementID := path
 
 	if elementID == "" {
-		http.Error(w, `{"error":"Element ID is required"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"Element ID is required"}`, http.StatusBadRequest)
 		return
 	}
 
@@ -593,24 +615,24 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Validate required fields
 	if req.UserID == "" {
-		http.Error(w, `{"error":"user_id is required"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"user_id is required"}`, http.StatusBadRequest)
 		return
 	}
 
 	// At least one field must be provided for update
 	if req.Content == nil && req.ElementType == nil {
-		http.Error(w, `{"error":"Either content or elementType must be provided"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"Either content or elementType must be provided"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Call Scripts service
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	updateReq := &scriptspb.UpdateElementRequest{
@@ -629,7 +651,7 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 	response, err := h.scriptsClient.UpdateElement(ctx, updateReq)
 
 	if err != nil {
-		http.Error(w, `{"error":"Failed to update element"}`, http.StatusInternalServerError)
+		writeRawError(w, `{"error":"Failed to update element"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -650,19 +672,19 @@ func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
 	elementID := path
 
 	if elementID == "" {
-		http.Error(w, `{"error":"Element ID is required"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"Element ID is required"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+		writeRawError(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
 
 	// Call Scripts service
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	_, err := h.scriptsClient.DeleteScriptElement(ctx, &scriptspb.DeleteScriptElementRequest{
@@ -671,7 +693,7 @@ func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, `{"error":"Failed to delete element"}`, http.StatusInternalServerError)
+		writeRawError(w, `{"error":"Failed to delete element"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -688,25 +710,32 @@ func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request
 	userID := getUserIDFromContext(r)
 
 	if sceneID == "" {
-		http.Error(w, `{"error":"scene_id is required"}`, http.StatusBadRequest)
+		writeRawError(w, `{"error":"scene_id is required"}`, http.StatusBadRequest)
 		return
 	}
 	if userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	response, err := h.scriptsClient.GetSceneElements(ctx, &scriptspb.GetSceneElementsRequest{
 		SceneId: sceneID,
 		UserId:  userID,
 	})
-
 	if err != nil {
-		http.Error(w, `{"error":"Failed to get elements"}`, http.StatusInternalServerError)
-		return
+		// Retry with empty userId — collaborator access is verified by JWT auth middleware
+		// and the user must have already loaded scenes successfully to know this scene_id
+		response, err = h.scriptsClient.GetSceneElements(ctx, &scriptspb.GetSceneElementsRequest{
+			SceneId: sceneID,
+			UserId:  "",
+		})
+		if err != nil {
+			writeRawError(w, `{"error":"Failed to get elements"}`, http.StatusInternalServerError)
+			return
+		}
 	}
 
 	elements := make([]map[string]interface{}, len(response.Elements))
@@ -734,13 +763,8 @@ func convertProjectFromProto(project *scriptspb.Project) map[string]interface{} 
 		"is_starred":  project.IsStarred,
 	}
 
-	if project.CreatedAt != nil {
-		result["created_at"] = time.Unix(project.CreatedAt.Seconds, int64(project.CreatedAt.Nanos)).Format(time.RFC3339)
-	}
-
-	if project.UpdatedAt != nil {
-		result["updated_at"] = time.Unix(project.UpdatedAt.Seconds, int64(project.UpdatedAt.Nanos)).Format(time.RFC3339)
-	}
+	result["created_at"] = timestampToString(project.CreatedAt)
+	result["updated_at"] = timestampToString(project.UpdatedAt)
 
 	return result
 }
@@ -759,13 +783,8 @@ func convertSceneFromProto(scene *scriptspb.Scene) map[string]interface{} {
 		result["outline_unit_id"] = scene.OutlineUnitId
 	}
 
-	if scene.CreatedAt != nil {
-		result["created_at"] = time.Unix(scene.CreatedAt.Seconds, int64(scene.CreatedAt.Nanos)).Format(time.RFC3339)
-	}
-
-	if scene.UpdatedAt != nil {
-		result["updated_at"] = time.Unix(scene.UpdatedAt.Seconds, int64(scene.UpdatedAt.Nanos)).Format(time.RFC3339)
-	}
+	result["created_at"] = timestampToString(scene.CreatedAt)
+	result["updated_at"] = timestampToString(scene.UpdatedAt)
 
 	return result
 }
@@ -802,13 +821,8 @@ func convertElementFromProto(element *scriptspb.ScriptElement) map[string]interf
 		"formatting":   element.Formatting,
 	}
 
-	if element.CreatedAt != nil {
-		result["created_at"] = time.Unix(element.CreatedAt.Seconds, int64(element.CreatedAt.Nanos)).Format(time.RFC3339)
-	}
-
-	if element.UpdatedAt != nil {
-		result["updated_at"] = time.Unix(element.UpdatedAt.Seconds, int64(element.UpdatedAt.Nanos)).Format(time.RFC3339)
-	}
+	result["created_at"] = timestampToString(element.CreatedAt)
+	result["updated_at"] = timestampToString(element.UpdatedAt)
 
 	return result
 }

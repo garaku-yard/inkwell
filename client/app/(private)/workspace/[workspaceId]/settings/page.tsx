@@ -104,7 +104,7 @@ export default function WorkspaceSettingsPage() {
     setMembersLoading(true)
     try {
       const list = await listMembers(workspaceId)
-      setMembers(list)
+      setMembers(list ?? [])
     } catch {
       toast({ title: "Failed to load members", variant: "destructive" })
     } finally {

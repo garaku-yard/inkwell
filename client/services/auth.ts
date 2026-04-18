@@ -1,3 +1,4 @@
+/** Auth service — login and registration API calls. */
 import { apiClient } from "@/lib/api";
 import { LoginRequest } from "../app/(public)/login/page";
 
@@ -24,6 +25,7 @@ interface UserResponse {
   updatedAt: string;
 }
 
+/** Authenticate with email and password. Returns a JWT on success. */
 export const loginUser = (credentials: LoginRequest): Promise<LoginResponse> => {
   return apiClient<LoginResponse>("login", {
     method: "POST",
@@ -31,6 +33,7 @@ export const loginUser = (credentials: LoginRequest): Promise<LoginResponse> => 
   });
 };
 
+/** Create a new user account. */
 export const registerUser = (userData: RegisterRequest): Promise<UserResponse> => {
   return apiClient<UserResponse>("register", {
     method: "POST",
