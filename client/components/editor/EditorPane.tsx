@@ -122,7 +122,7 @@ export const EditorPane = React.memo(
     return (
       <div ref={parentRef} className="flex-1 overflow-auto p-8 bg-secondary dark:bg-background">
         {/* Multiple US Letter pages (standard screenplay format) */}
-        <div ref={pagesContainerRef} className="mx-auto space-y-8">
+        <div ref={pagesContainerRef} className="inkwell-editor-content mx-auto space-y-8">
           {pages.length === 0 ? (
             // Empty state - show a placeholder page that allows double-enter to create a scene
             <div

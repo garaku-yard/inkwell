@@ -2,11 +2,16 @@
 
 import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, ChevronRight, ChevronDown, Table, Pencil, Dice6 } from "lucide-react"
+import { ArrowLeft, Plus, ChevronRight, ChevronDown, Table, Pencil, Dice6, Bot, Download } from "lucide-react"
 import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { AIChatPanel } from "./AIChatPanel"
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import {
   createScene,
   updateSceneHeading,
@@ -61,6 +66,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const { user } = useAuth()
   const [sections, setSections] = useState(() => projectData.scenes ?? [])
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [tableMode, setTableMode] = useState<Record<string, "edit" | "preview">>({})
   const sectionRefs = useRef<Map<string, HTMLElement | null>>(new Map())
@@ -430,11 +436,32 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
             )}>
               {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving…" : "Unsaved"}
             </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
+                  <Download className="h-3.5 w-3.5" />
+                  Export
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportProjectToText({ ...projectData, scenes: sections })}>
+                  Export as Plain Text (.txt)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportProjectToMarkdown({ ...projectData, scenes: sections })}>
+                  Export as Markdown (.md)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsAIChatOpen(o => !o)} title="Writing Buddy">
+              <Bot className="h-4 w-4" />
+            </Button>
           </div>
         </header>
 
+        <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
-          <div className="max-w-[720px] mx-auto px-10 py-12">
+          <div className="inkwell-editor-content max-w-[720px] mx-auto px-10 py-12">
             {sections.length === 0 ? (
               <div className="text-center text-muted-foreground text-sm py-24 space-y-4">
                 <p>No sections yet.</p>
@@ -504,6 +531,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
               })
             )}
           </div>
+        </div>
+        <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} />
         </div>
       </div>
     </div>

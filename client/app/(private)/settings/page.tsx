@@ -44,7 +44,7 @@ export default function SettingsPage() {
       case "privacy":
         return <PrivacySection />
       case "appearance":
-        return <AppearanceSection userRole={user?.role} />
+        return <AppearanceSection />
       case "notifications":
         return <NotificationsSection />
       case "data":

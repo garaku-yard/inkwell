@@ -2,12 +2,17 @@
 
 import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Bot, Download, ChevronDown } from "lucide-react"
 import { PassageGraph } from "./PassageGraph"
 import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { AIChatPanel } from "./AIChatPanel"
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { exportProjectToText } from "@/lib/export/text-export"
 import {
   createScene,
   updateSceneHeading,
@@ -54,6 +59,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"write" | "graph">("write")
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const activePassage = passages.find(p => p.id === activePassageId) ?? null
@@ -235,6 +241,23 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               )}>
                 {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving…" : "Unsaved"}
               </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
+                    <Download className="h-3.5 w-3.5" />
+                    Export
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => exportProjectToText({ ...projectData, scenes: passages })}>
+                    Export as Plain Text (.txt)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsAIChatOpen(o => !o)} title="Writing Buddy">
+                <Bot className="h-4 w-4" />
+              </Button>
             </div>
             {/* View toggle */}
             <div className="flex items-center rounded-md border overflow-hidden text-xs">
@@ -260,6 +283,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           </div>
         </header>
 
+        <div className="flex flex-1 overflow-hidden">
         {/* Graph view */}
         {view === "graph" && (
           <div className="flex-1 overflow-hidden">
@@ -282,7 +306,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                 </Button>
               </div>
             ) : (
-              <div className="max-w-[660px] mx-auto px-8 py-10">
+              <div className="inkwell-editor-content max-w-[660px] mx-auto px-8 py-10">
                 {/* Passage title */}
                 <div className="mb-1">
                   {passages.findIndex(p => p.id === activePassageId) === 0 && (
@@ -484,6 +508,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             )}
           </div>
         )}
+        <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} />
+        </div>
       </div>
     </div>
   )

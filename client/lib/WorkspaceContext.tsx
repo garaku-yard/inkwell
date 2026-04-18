@@ -5,11 +5,34 @@ import { useAuth } from "@/lib/AuthContext"
 import { listUserWorkspaces, type Workspace, type WorkspacesResponse } from "@/services/workspace"
 
 const ACTIVE_WORKSPACE_KEY = "activeWorkspaceId"
+const WORKSPACE_ORDER_KEY = "inkwell:workspace-order"
+
+interface WorkspaceOrder {
+  personal: string[]
+  org: string[]
+}
+
+function loadOrder(): WorkspaceOrder {
+  try {
+    const raw = localStorage.getItem(WORKSPACE_ORDER_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return { personal: [], org: [] }
+}
+
+function applyOrder<T extends { id: string }>(items: T[], orderedIds: string[]): T[] {
+  if (!orderedIds.length) return items
+  const map = new Map(items.map(w => [w.id, w]))
+  const ordered = orderedIds.flatMap(id => (map.has(id) ? [map.get(id)!] : []))
+  const rest = items.filter(w => !orderedIds.includes(w.id))
+  return [...ordered, ...rest]
+}
 
 interface WorkspaceContextType {
   workspaces: WorkspacesResponse
   activeWorkspace: Workspace | null
   setActiveWorkspace: (workspace: Workspace) => void
+  reorderWorkspaces: (personal: Workspace[], org: Workspace[]) => void
   isLoading: boolean
   needsOnboarding: boolean
   refetch: () => void
@@ -21,6 +44,7 @@ const WorkspaceContext = createContext<WorkspaceContextType>({
   workspaces: defaultWorkspaces,
   activeWorkspace: null,
   setActiveWorkspace: () => {},
+  reorderWorkspaces: () => {},
   isLoading: true,
   needsOnboarding: false,
   refetch: () => {},
@@ -40,14 +64,25 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(ACTIVE_WORKSPACE_KEY, workspace.id)
   }, [])
 
+  const reorderWorkspaces = useCallback((personal: Workspace[], org: Workspace[]) => {
+    const next: WorkspacesResponse = { personal, org }
+    setWorkspaces(next)
+    const order: WorkspaceOrder = {
+      personal: personal.map(w => w.id),
+      org: org.map(w => w.id),
+    }
+    localStorage.setItem(WORKSPACE_ORDER_KEY, JSON.stringify(order))
+  }, [])
+
   const fetchWorkspaces = useCallback(async () => {
     if (!isAuthenticated) return
     setIsLoading(true)
     try {
       const data = await listUserWorkspaces()
+      const order = loadOrder()
       const normalized: WorkspacesResponse = {
-        personal: data.personal ?? [],
-        org: data.org ?? [],
+        personal: applyOrder(data.personal ?? [], order.personal),
+        org: applyOrder(data.org ?? [], order.org),
       }
       setWorkspaces(normalized)
 
@@ -86,6 +121,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         workspaces,
         activeWorkspace,
         setActiveWorkspace,
+        reorderWorkspaces,
         isLoading,
         needsOnboarding,
         refetch: fetchWorkspaces,

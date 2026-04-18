@@ -17,19 +17,32 @@ interface Message {
   timestamp: Date
 }
 
+const WELCOME: Record<string, string> = {
+  screenplay:           "Ask me anything about your script — scenes, dialogue, structure.",
+  novel:                "Ask me anything about your novel — characters, plot, prose.",
+  memoir:               "Ask me anything about your memoir — voice, structure, memory.",
+  poetry:               "Ask me anything about your poem — form, imagery, rhythm.",
+  lyrics:               "Ask me anything about your song — lyrics, rhyme, hook.",
+  comic:                "Ask me anything about your comic — panels, dialogue, pacing.",
+  interactive_fiction:  "Ask me anything about your story — branches, choices, world.",
+  ttrpg:                "Ask me anything about your game — rules, lore, encounters.",
+}
+
 interface AIChatPanelProps {
   isOpen: boolean
   onClose: () => void
+  category?: string
   currentScene?: string
   currentElement?: string
 }
 
-export const AIChatPanel = React.memo(({ isOpen, onClose }: AIChatPanelProps) => {
+export const AIChatPanel = React.memo(({ isOpen, onClose, category }: AIChatPanelProps) => {
+  const welcome = WELCOME[category ?? ""] ?? "Ask me anything about your writing."
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       type: "ai",
-      content: "Hi! I'm your AI writing assistant. Ask me anything about your script.",
+      content: `Hi! I'm your Writing Buddy. ${welcome}`,
       timestamp: new Date(),
     },
   ])

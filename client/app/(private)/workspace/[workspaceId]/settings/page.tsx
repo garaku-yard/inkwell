@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Settings2, Users, Tag, Trash2, Loader2, UserPlus, MoreHorizontal, Check, X } from "lucide-react"
+import { ArrowLeft, Settings2, Users, Tag, Trash2, Loader2, UserPlus, MoreHorizontal, Check, X, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,6 +35,10 @@ import {
 } from "@/services/workspace"
 import { CategoryIcon, CATEGORY_COLORS } from "@/components/workspace/CategoryIcon"
 import { cn } from "@/lib/utils"
+
+function workspaceInitials(name: string): string {
+  return name.split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase()
+}
 
 type Section = "general" | "members" | "categories"
 
@@ -71,6 +75,8 @@ export default function WorkspaceSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
 
   // Members
   const [members, setMembers] = useState<WorkspaceMember[]>([])
@@ -136,6 +142,43 @@ export default function WorkspaceSettingsPage() {
       toast({ title: "Failed to save changes", variant: "destructive" })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAvatarUploading(true)
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const updated = await updateWorkspace(workspaceId, { avatar_url: dataUrl })
+      setWorkspace(updated)
+      refetch()
+      toast({ title: "Avatar updated" })
+    } catch {
+      toast({ title: "Failed to upload avatar", variant: "destructive" })
+    } finally {
+      setAvatarUploading(false)
+      if (avatarInputRef.current) avatarInputRef.current.value = ""
+    }
+  }
+
+  const handleRemoveAvatar = async () => {
+    setAvatarUploading(true)
+    try {
+      const updated = await updateWorkspace(workspaceId, { avatar_url: "" })
+      setWorkspace(updated)
+      refetch()
+      toast({ title: "Avatar removed" })
+    } catch {
+      toast({ title: "Failed to remove avatar", variant: "destructive" })
+    } finally {
+      setAvatarUploading(false)
     }
   }
 
@@ -266,7 +309,60 @@ export default function WorkspaceSettingsPage() {
               </div>
 
               <Card>
-                <CardContent className="pt-6 space-y-4">
+                <CardContent className="pt-6 space-y-6">
+                  {/* Avatar */}
+                  <div className="flex items-center gap-5">
+                    <div className="relative">
+                      {workspace?.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={workspace.avatar_url}
+                          alt={workspace.name}
+                          className="h-16 w-16 rounded-[18px] object-cover border border-border"
+                        />
+                      ) : (
+                        <div className="h-16 w-16 rounded-[18px] bg-muted flex items-center justify-center border border-border text-lg font-bold text-muted-foreground">
+                          {workspaceInitials(name || workspace?.name || "?")}
+                        </div>
+                      )}
+                      {avatarUploading && (
+                        <div className="absolute inset-0 rounded-[18px] bg-background/70 flex items-center justify-center">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleAvatarChange}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        disabled={avatarUploading}
+                        onClick={() => avatarInputRef.current?.click()}
+                      >
+                        <Camera className="h-3.5 w-3.5" />
+                        {workspace?.avatar_url ? "Change photo" : "Upload photo"}
+                      </Button>
+                      {workspace?.avatar_url && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground text-xs"
+                          disabled={avatarUploading}
+                          onClick={handleRemoveAvatar}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="space-y-1.5">
                     <Label htmlFor="ws-name">Name</Label>
                     <Input

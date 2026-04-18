@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
 import { type Beat } from "@/services/beat"
 import { type OutlineItem, type Lane } from "@/services/beat-board"
+import { type CategoryStructure } from "@/lib/helpers/category-structure"
 
 export interface ScriptMarker {
   name: string;
@@ -33,6 +34,7 @@ interface StoryLanesProps {
   scriptMarkers: ScriptMarker[];
   totalPages?: number;
   onItemHover?: (beatId: string | null) => void;
+  structure?: CategoryStructure;
 }
 
 export function StoryLanes({
@@ -40,7 +42,7 @@ export function StoryLanes({
   beats, outlineItems, hoveredLane, draggedLaneItem, setHoveredLane,
   handleDropOnTimeline, handleLaneDragStart, setDraggedLaneItem,
   onUpdateOutlineItem, onDeleteOutlineItem, totalPages = 120, scriptMarkers,
-  onAddLane, onItemHover
+  onAddLane, onItemHover, structure
 }: StoryLanesProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
@@ -137,7 +139,7 @@ export function StoryLanes({
       <div className="px-6 py-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Ruler className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Story Structure</h3>
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">{structure?.structureLabel ?? "Story Structure"}</h3>
           <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">{outlineItems.length} items</span>
           <Button variant="ghost" size="sm" className="h-6 p-1" onClick={onAddLane}>
             <Plus className="h-4 w-4" />
@@ -234,9 +236,10 @@ export function StoryLanes({
                       const beat = beats.find(b => b.id === item.beatId); if (!beat) return null;
                       const position = item.timelinePosition || 0; const width = item.width || getPagePosition(5);
                       const isInteracting = resizingItem?.itemId === item.id || slidingItem?.itemId === item.id;
+                      const abbr = structure?.unitAbbr ?? "Pg."
                       const displayPages = beat.startPage && beat.endPage
-                        ? (beat.startPage === beat.endPage ? `Pg. ${beat.startPage}` : `Pg. ${beat.startPage}-${beat.endPage}`)
-                        : (beat.sceneNumbers || "No pages");
+                        ? (beat.startPage === beat.endPage ? `${abbr} ${beat.startPage}` : `${abbr} ${beat.startPage}–${beat.endPage}`)
+                        : (beat.sceneNumbers || `No ${structure?.unitLabelPlural ?? "pages"}`);
                       return (
                         <div
                           key={item.id}

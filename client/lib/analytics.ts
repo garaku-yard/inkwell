@@ -37,6 +37,11 @@ export interface ScriptAnalytics {
   scenes: SceneStats[]
   pacingData: Array<{ scene: number; words: number; name: string }>
   conflictData: Array<{ scene: number; intensity: number; name: string }>
+  // Generic fields for all categories
+  elementsByType: Record<string, number>
+  avgWordsPerScene: number
+  longestSceneWords: number
+  longestSceneHeading: string
 }
 
 function countWords(text: string): number {
@@ -68,6 +73,12 @@ function parseSceneHeading(heading: string): { intOrExt: string; location: strin
 export function computeAnalytics(project: FullProject): ScriptAnalytics {
   const scenes = project.scenes || []
   const allElements = scenes.flatMap(s => s.elements || [])
+
+  // Generic: element counts by type
+  const elementsByType: Record<string, number> = {}
+  for (const el of allElements) {
+    elementsByType[el.element_type] = (elementsByType[el.element_type] ?? 0) + 1
+  }
 
   const dialogueElements = allElements.filter(e => e.element_type === "dialogue")
   const actionElements = allElements.filter(e => e.element_type === "action")
@@ -168,6 +179,10 @@ export function computeAnalytics(project: FullProject): ScriptAnalytics {
     name: s.location || s.heading,
   }))
 
+  const longestScene = sceneStats.reduce<SceneStats | null>(
+    (best, s) => (!best || s.wordCount > best.wordCount ? s : best), null
+  )
+
   return {
     projectTitle: project.title,
     category: project.category,
@@ -182,5 +197,9 @@ export function computeAnalytics(project: FullProject): ScriptAnalytics {
     scenes: sceneStats,
     pacingData,
     conflictData,
+    elementsByType,
+    avgWordsPerScene: scenes.length > 0 ? Math.round(totalWords / scenes.length) : 0,
+    longestSceneWords: longestScene?.wordCount ?? 0,
+    longestSceneHeading: longestScene?.heading ?? "",
   }
 }

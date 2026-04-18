@@ -44,6 +44,9 @@
 }
 
 :root {
+  --inkwell-editor-font: 'Courier New', Courier, monospace;
+  --inkwell-ui-font: Inter, system-ui, sans-serif;
+  --inkwell-editor-lh: 1.6;
   --radius: 0.625rem;
   /* Milky cream surfaces — all share hue 90 (warm yellow-green) */
   --background: oklch(0.972 0.006 95);       /* warm milky canvas */
@@ -158,5 +161,16 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     line-height: 1.5;
+  }
+
+  /* Editor content area — inherits user font/line-height preferences */
+  .inkwell-editor-content {
+    font-family: var(--inkwell-editor-font);
+    line-height: var(--inkwell-editor-lh);
+  }
+
+  /* UI font applied to body when preference is set */
+  body {
+    font-family: var(--inkwell-ui-font);
   }
 }

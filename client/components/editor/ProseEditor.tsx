@@ -2,11 +2,16 @@
 
 import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, BookOpen } from "lucide-react"
+import { ArrowLeft, Plus, BookOpen, Bot, Download, ChevronDown } from "lucide-react"
 import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { AIChatPanel } from "./AIChatPanel"
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import {
   createScene,
   updateSceneHeading,
@@ -31,6 +36,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const { user } = useAuth()
   const [scenes, setScenes] = useState(() => projectData.scenes ?? [])
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const chapterRefs = useRef<Map<string, HTMLElement | null>>(new Map())
 
   const totalWords = scenes.reduce((acc, scene) => {
@@ -173,12 +179,33 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
             )}>
               {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving…" : "Unsaved"}
             </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
+                  <Download className="h-3.5 w-3.5" />
+                  Export
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportProjectToText({ ...projectData, scenes })}>
+                  Export as Plain Text (.txt)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportProjectToMarkdown({ ...projectData, scenes })}>
+                  Export as Markdown (.md)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsAIChatOpen(o => !o)} title="Writing Buddy">
+              <Bot className="h-4 w-4" />
+            </Button>
           </div>
         </header>
 
+        <div className="flex flex-1 overflow-hidden">
         {/* Manuscript scroll area */}
         <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
-          <div className="max-w-[680px] mx-auto px-10 py-16">
+          <div className="inkwell-editor-content max-w-[680px] mx-auto px-10 py-16">
             {scenes.length === 0 ? (
               <div className="text-center text-muted-foreground text-sm py-24 space-y-4">
                 <p>No chapters yet.</p>
@@ -291,6 +318,8 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
               ))
             )}
           </div>
+        </div>
+        <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} />
         </div>
       </div>
     </div>

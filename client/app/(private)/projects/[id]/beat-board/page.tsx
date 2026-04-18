@@ -14,6 +14,7 @@ import { getBeatBoardForProject, createBeat, deleteBeat, updateBeat, createConne
 import { type Lane, type OutlineItem, updateLane, updateLaneOrder, createOutlineItem, updateOutlineItem, createLane } from "@/services/beat-board";
 import { getProjectById, type FullProject } from "@/services/project"
 import { useAuth } from "@/lib/AuthContext"
+import { getCategoryStructure } from "@/lib/helpers/category-structure"
 
 export type ConnectionSide = "top" | "right" | "bottom" | "left";
 
@@ -73,21 +74,18 @@ export default function BeatBoardPage() {
     fetchData();
   }, [projectId]);
 
-  const scriptMarkers = useMemo((): ScriptMarker[] => {
-    const actMarkers: ScriptMarker[] = [
-      { name: 'Act 1: Setup', page: 1, color: "#10b981" },
-      { name: 'Act 2: Confrontation', page: 30, color: "#8b5cf6" },
-      { name: 'Act 3: Resolution', page: 90, color: "#ef4444" },
-    ]
-    return actMarkers;
-  }, [project]);
+  const structure = useMemo(() => getCategoryStructure(project?.category), [project?.category]);
+
+  const scriptMarkers = useMemo((): ScriptMarker[] =>
+    structure.sections.map(s => ({ name: s.name, page: s.unit, color: s.color })),
+  [structure]);
 
   const debouncedUpdateBeat = useDebouncedCallback((beatId: string, data: Partial<Beat>) => { updateBeat(beatId, data) }, 800);
   const debouncedUpdateOutlineItem = useDebouncedCallback((itemId: string, data: Partial<OutlineItem>) => { updateOutlineItem(itemId, data) }, 500);
 
   const snapToGrid = (value: number) => Math.round(value / 20) * 20;
 
-  const TOTAL_PAGES = 120; // TODO: Get from actual script length
+  const TOTAL_PAGES = structure.totalUnits;
   const getPageFromPosition = (position: number) => Math.max(1, Math.round((position / 100) * TOTAL_PAGES));
   const getPositionFromPage = (page: number) => ((page - 1) / TOTAL_PAGES) * 100;
   const getWidthFromPages = (startPage: number, endPage: number) => ((endPage - startPage + 1) / TOTAL_PAGES) * 100;
@@ -560,7 +558,7 @@ export default function BeatBoardPage() {
           handleLaneDragStart={(_e, itemId) => setDraggedLaneItem(itemId)}
           setDraggedLaneItem={setDraggedLaneItem}
           onUpdateOutlineItem={handleUpdateOutlineItem} scriptMarkers={scriptMarkers}
-          totalPages={TOTAL_PAGES}
+          totalPages={TOTAL_PAGES} structure={structure}
         />
       </div>
       <BeatCanvas
