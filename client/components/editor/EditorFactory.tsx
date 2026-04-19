@@ -6,6 +6,7 @@ import { PoetryEditor } from "./PoetryEditor"
 import { ComicScriptEditor } from "./ComicScriptEditor"
 import { InteractiveFictionEditor } from "./InteractiveFictionEditor"
 import { TabletopRPGEditor } from "./TabletopRPGEditor"
+import { VaultEditor } from "./VaultEditor"
 import type { FullProject } from "@/services/project"
 
 interface EditorFactoryProps {
@@ -26,6 +27,8 @@ export function EditorFactory({ projectData }: EditorFactoryProps) {
       return <InteractiveFictionEditor projectData={projectData} />
     case "tabletop_rpg":
       return <TabletopRPGEditor projectData={projectData} />
+    case "vault":
+      return <VaultEditor projectData={projectData} />
     case "screenplay":
     default:
       return <ScreenplayEditor projectData={projectData} />

@@ -317,6 +317,60 @@ export interface SettingsStorage {
   clearCache(): Promise<void>
 }
 
+// ─── Vault (Obsidian-style markdown, files-on-disk) ──────────────────────
+
+/** A single markdown note inside a vault project. Notes are real `.md`
+ *  files on the user's disk; the vault storage layer reads them on demand
+ *  rather than caching the full text. */
+export interface VaultNote {
+  /** Filename including `.md` extension — unique within a vault. */
+  filename: string
+  /** Absolute path to the note on disk. */
+  path: string
+  /** Filename without extension, used as the display title. */
+  title: string
+  /** ISO 8601 timestamp of the last on-disk modification. */
+  updatedAt: string
+}
+
+/** A note that links to the currently-open note via `[[Title]]`. The
+ *  `snippet` is a short excerpt of the surrounding line for context. */
+export interface VaultBacklink {
+  filename: string
+  title: string
+  snippet: string
+}
+
+export interface VaultStorage {
+  /** Attach a vault folder to an existing vault project. Idempotent — callers
+   *  can re-run this to change the folder later. */
+  openVault(projectId: string, folderPath: string): Promise<void>
+  /** Returns the absolute vault path stored for the project, or null when
+   *  the user hasn't chosen a folder yet. */
+  getVaultPath(projectId: string): Promise<string | null>
+  /** Lists every `.md` file in the vault, sorted by title. */
+  listNotes(projectId: string): Promise<VaultNote[]>
+  /** Reads the raw markdown content of a note. */
+  readNote(projectId: string, filename: string): Promise<string>
+  /** Writes raw markdown to a note. Creates the file if missing. */
+  writeNote(projectId: string, filename: string, content: string): Promise<void>
+  /** Creates an empty note with the given title (`.md` added automatically).
+   *  Returns the created note record. Rejects if the title collides. */
+  createNote(projectId: string, title: string): Promise<VaultNote>
+  /** Deletes the note from disk. */
+  deleteNote(projectId: string, filename: string): Promise<void>
+  /** Scans every other note in the vault for `[[title]]` references and
+   *  returns the matches. Case-insensitive by design so casual link
+   *  authoring keeps working. Aliases (`[[title|alias]]`) match on title. */
+  getBacklinks(projectId: string, title: string): Promise<VaultBacklink[]>
+  /** Re-reads a single note from disk and refreshes its row set in the
+   *  backlinks index. Primarily used by the filesystem watcher when an
+   *  external tool (vim, Obsidian, `git checkout`) writes into the vault.
+   *  When the file no longer exists, the note's outbound rows are deleted
+   *  instead — keeps ghost sources out of backlinks. */
+  reindexLinks(projectId: string, filename: string): Promise<void>
+}
+
 // ─── AI ───────────────────────────────────────────────────────────────────
 
 export interface AiStorage {
@@ -394,6 +448,7 @@ export interface Storage {
   workspaces: WorkspaceStorage
   collaboration: CollaborationStorage
   settings: SettingsStorage
+  vault: VaultStorage
   ai: AiStorage
   admin: { billing: AdminBillingStorage }
 }

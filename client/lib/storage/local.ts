@@ -28,6 +28,13 @@
  */
 
 import Database from "@tauri-apps/plugin-sql"
+import {
+  readDir,
+  readTextFile,
+  writeTextFile,
+  remove,
+  exists,
+} from "@tauri-apps/plugin-fs"
 
 import type {
   AdminBillingStorage,
@@ -58,6 +65,9 @@ import type {
   SettingsStorage,
   Storage,
   UpdateProfileResponse,
+  VaultBacklink,
+  VaultNote,
+  VaultStorage,
   Workspace,
   WorkspaceStorage,
   WorkspacesResponse,
@@ -357,6 +367,7 @@ const BUILTIN_CATEGORIES: Category[] = [
   { id: "cat-if", slug: "interactive_fiction", name: "Interactive Fiction", description: "Choice-based stories.", icon: "GitFork" },
   { id: "cat-memoir", slug: "memoir", name: "Memoir", description: "Memoirs and personal narratives.", icon: "User" },
   { id: "cat-lyrics", slug: "lyrics", name: "Lyrics", description: "Song lyrics and compositions.", icon: "Music" },
+  { id: "cat-vault", slug: "vault", name: "Vault", description: "Markdown notes linked with [[wikilinks]].", icon: "Notebook" },
 ]
 
 function slugifyCategory(slug: string): Category {
@@ -1155,6 +1166,262 @@ const ai: AiStorage = {
   streamChat: () => reject("ai.hosted"),
 }
 
+// ─── Vault (markdown notes on disk) ──────────────────────────────────────
+
+function sanitiseFilename(title: string): string {
+  // Strip characters that are illegal on Windows (and annoying everywhere).
+  // Collapse whitespace runs and cap length so we don't generate names NTFS
+  // rejects. The result is always safe to use as a filename fragment.
+  const cleaned = title
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200)
+  return cleaned || "Untitled"
+}
+
+function joinPath(dir: string, filename: string): string {
+  // Cross-platform join: prefer the OS separator already present in `dir`
+  // when it's obviously Windows (`C:\`). Otherwise use `/` which Tauri's
+  // fs plugin normalises on Windows too.
+  const sep = /\\/.test(dir) && !/\//.test(dir) ? "\\" : "/"
+  return `${dir.replace(/[\/\\]+$/, "")}${sep}${filename}`
+}
+
+// ─── Backlinks index ─────────────────────────────────────────────────────
+
+/** Projects whose `note_links` rows we've reconciled this session.
+ *  Prevents doing a full vault scan on every `listNotes`. */
+const vaultIndexBuilt = new Set<string>()
+
+/** Matches `[[Target]]` and `[[Target|Alias]]`. Bounded length keeps a
+ *  stray `[[` from running away; non-greedy to avoid swallowing the next
+ *  closing bracket in a sequence of links. */
+const WIKILINK_PATTERN = /\[\[\s*([^\]|]{1,200}?)(?:\s*\|[^\]]{0,200})?\s*\]\]/g
+
+/** Replaces every note_links row for a given source file. Called on
+ *  writeNote + during the initial full scan. */
+async function reindexNoteLinks(
+  projectId: string,
+  filename: string,
+  body: string,
+): Promise<void> {
+  const db = await getDb()
+  const ts = now()
+  await db.execute(
+    "DELETE FROM note_links WHERE project_id = ? AND from_filename = ?",
+    [projectId, filename],
+  )
+  // We need the original (non-lowered) target so the backlinks UI can
+  // show "Page" rather than "page". Re-parse the body to keep casing.
+  const seen = new Set<string>()
+  const lines = body.split(/\r?\n/)
+  for (const line of lines) {
+    WIKILINK_PATTERN.lastIndex = 0
+    let m: RegExpExecArray | null
+    while ((m = WIKILINK_PATTERN.exec(line)) !== null) {
+      const title = m[1].trim()
+      if (!title) continue
+      const key = title.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      await db.execute(
+        `INSERT OR REPLACE INTO note_links (project_id, from_filename, to_title, snippet, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [projectId, filename, title, line.trim().slice(0, 200), ts],
+      )
+    }
+  }
+}
+
+/** Ensures every `.md` file in the vault has an up-to-date row set in
+ *  `note_links`. Cheap no-op on subsequent calls — the in-memory
+ *  `vaultIndexBuilt` set short-circuits repeated work per session. */
+async function ensureVaultIndex(
+  projectId: string,
+  folder: string,
+): Promise<void> {
+  if (vaultIndexBuilt.has(projectId)) return
+  const entries = await readDir(folder)
+  for (const entry of entries) {
+    if (!entry.isFile) continue
+    if (!entry.name.toLowerCase().endsWith(".md")) continue
+    try {
+      const body = await readTextFile(joinPath(folder, entry.name))
+      await reindexNoteLinks(projectId, entry.name, body)
+    } catch {
+      // Skip unreadable files silently; they just won't participate in
+      // backlinks until the user opens them.
+    }
+  }
+  vaultIndexBuilt.add(projectId)
+}
+
+async function getVaultPathOrThrow(projectId: string): Promise<string> {
+  const db = await getDb()
+  const rows = await db.select<Array<{ vault_path: string | null }>>(
+    "SELECT vault_path FROM projects WHERE id = ?",
+    [projectId],
+  )
+  const path = rows[0]?.vault_path
+  if (!path) {
+    throw new Error(
+      `Vault project ${projectId} has no folder attached. Pick one via the folder picker first.`,
+    )
+  }
+  return path
+}
+
+const vault: VaultStorage = {
+  openVault: async (projectId, folderPath) => {
+    const db = await getDb()
+    const ts = now()
+    await db.execute(
+      "UPDATE projects SET vault_path = ?, updated_at = ? WHERE id = ?",
+      [folderPath, ts, projectId],
+    )
+  },
+
+  getVaultPath: async (projectId) => {
+    const db = await getDb()
+    const rows = await db.select<Array<{ vault_path: string | null }>>(
+      "SELECT vault_path FROM projects WHERE id = ?",
+      [projectId],
+    )
+    return rows[0]?.vault_path ?? null
+  },
+
+  listNotes: async (projectId) => {
+    const folder = await getVaultPathOrThrow(projectId)
+    // One-time-per-session full scan so backlinks work for notes that
+    // already existed on disk before we had an index. Fast: O(files).
+    await ensureVaultIndex(projectId, folder)
+
+    const entries = await readDir(folder)
+    const notes: VaultNote[] = []
+    for (const entry of entries) {
+      // Skip directories for v0 (flat vault). Filter to .md only.
+      if (!entry.isFile) continue
+      if (!entry.name.toLowerCase().endsWith(".md")) continue
+      const fullPath = joinPath(folder, entry.name)
+      notes.push({
+        filename: entry.name,
+        path: fullPath,
+        title: entry.name.replace(/\.md$/i, ""),
+        // `readDir` doesn't expose mtime; we'd need `stat` to fill this in.
+        // For v0 use an empty string so the UI just falls back to the name.
+        updatedAt: "",
+      })
+    }
+    notes.sort((a, b) => a.title.localeCompare(b.title))
+    return notes
+  },
+
+  readNote: async (projectId, filename) => {
+    const folder = await getVaultPathOrThrow(projectId)
+    return readTextFile(joinPath(folder, filename))
+  },
+
+  writeNote: async (projectId, filename, content) => {
+    const folder = await getVaultPathOrThrow(projectId)
+    await writeTextFile(joinPath(folder, filename), content)
+    // Keep the backlinks index in sync with every save; the cost is one
+    // SQL write per wikilink in the note, negligible for human-sized notes.
+    await reindexNoteLinks(projectId, filename, content)
+  },
+
+  createNote: async (projectId, title) => {
+    const folder = await getVaultPathOrThrow(projectId)
+    const base = sanitiseFilename(title)
+    let filename = `${base}.md`
+    let path = joinPath(folder, filename)
+    // If the chosen name collides, append ` 2`, ` 3`, … until we find a gap.
+    // Bounded so a pathological vault never hangs the UI.
+    for (let i = 2; i < 1000 && (await exists(path)); i++) {
+      filename = `${base} ${i}.md`
+      path = joinPath(folder, filename)
+    }
+    const body = `# ${title}\n\n`
+    await writeTextFile(path, body)
+    await reindexNoteLinks(projectId, filename, body)
+    return {
+      filename,
+      path,
+      title: filename.replace(/\.md$/i, ""),
+      updatedAt: "",
+    }
+  },
+
+  deleteNote: async (projectId, filename) => {
+    const folder = await getVaultPathOrThrow(projectId)
+    await remove(joinPath(folder, filename))
+    // Drop every outbound-from-this-file entry so deleted notes can't
+    // appear as phantom backlink sources. Inbound rows (other notes
+    // linking *to* this file) stay; they just won't resolve.
+    const db = await getDb()
+    await db.execute(
+      "DELETE FROM note_links WHERE project_id = ? AND from_filename = ?",
+      [projectId, filename],
+    )
+  },
+
+  reindexLinks: async (projectId, filename) => {
+    // Called by the filesystem watcher when an external tool touches a
+    // `.md` file. Keeps the backlinks index honest without waiting for
+    // the user to re-save from Inkwell.
+    const folder = await getVaultPathOrThrow(projectId)
+    const path = joinPath(folder, filename)
+    if (!(await exists(path))) {
+      // File was deleted or renamed — drop its outbound rows so it stops
+      // showing up as a backlink source.
+      const db = await getDb()
+      await db.execute(
+        "DELETE FROM note_links WHERE project_id = ? AND from_filename = ?",
+        [projectId, filename],
+      )
+      return
+    }
+    try {
+      const body = await readTextFile(path)
+      await reindexNoteLinks(projectId, filename, body)
+    } catch {
+      // A writer may still be holding the file (atomic-write patterns
+      // briefly rename a temp file into place). Skip this batch — the
+      // watcher will fire again when the write settles.
+    }
+  },
+
+  getBacklinks: async (projectId, title) => {
+    const target = title.trim()
+    if (!target) return []
+    const folder = await getVaultPathOrThrow(projectId)
+    await ensureVaultIndex(projectId, folder)
+    const db = await getDb()
+    const rows = await db.select<
+      Array<{ from_filename: string; snippet: string }>
+    >(
+      `SELECT from_filename, snippet
+       FROM note_links
+       WHERE project_id = ? AND to_title = ? COLLATE NOCASE
+       ORDER BY from_filename`,
+      [projectId, target],
+    )
+    const results: VaultBacklink[] = []
+    for (const row of rows) {
+      const sourceTitle = row.from_filename.replace(/\.md$/i, "")
+      // Self-links are filtered at read time rather than write time so the
+      // index stays authoritative even after a rename.
+      if (sourceTitle.toLowerCase() === target.toLowerCase()) continue
+      results.push({
+        filename: row.from_filename,
+        title: sourceTitle,
+        snippet: row.snippet,
+      })
+    }
+    return results
+  },
+}
+
 // ─── Settings (local profile + BYO-key AI keys land here) ────────────────
 
 const settings: SettingsStorage = {
@@ -1225,6 +1492,7 @@ export function createLocalStorage(): Storage {
     workspaces,
     collaboration,
     settings,
+    vault,
     ai,
     admin: { billing: adminBilling },
   }

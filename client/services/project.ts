@@ -15,6 +15,7 @@ export type ProjectCategory =
   | "tabletop_rpg"
   | "memoir"
   | "lyrics"
+  | "vault"
 
 export interface Project {
   id: string

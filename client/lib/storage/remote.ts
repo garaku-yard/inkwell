@@ -9,6 +9,11 @@
 import { apiClient, apiStreamClient } from "@/lib/api"
 import { type CollaboratorRole } from "@/models/constants/collaboratorRoles"
 
+import { NotSupportedError } from "./errors"
+
+const rejectVault = <T>(): Promise<T> =>
+  Promise.reject(new NotSupportedError("vault"))
+
 import type {
   AdminBillingStorage,
   AiStorage,
@@ -18,6 +23,7 @@ import type {
   BeatBoardData,
   BillingAnalytics,
   Capability,
+  VaultStorage,
   Category,
   Character,
   CharacterStorage,
@@ -646,6 +652,26 @@ const settings: SettingsStorage = {
   },
 }
 
+// ─── Vault (not supported on the hosted build) ───────────────────────────
+
+// The gateway doesn't handle Obsidian-style vaults yet — vaults are a
+// desktop-first feature that reads/writes markdown files from the user's
+// local disk. Every method here hard-rejects; the UI layer gates vault
+// affordances behind a Tauri runtime check.
+const vault: VaultStorage = {
+  openVault: () => rejectVault(),
+  getVaultPath: async () => null,
+  listNotes: () => rejectVault(),
+  readNote: () => rejectVault(),
+  writeNote: () => rejectVault(),
+  createNote: () => rejectVault(),
+  deleteNote: () => rejectVault(),
+  getBacklinks: async () => [],
+  reindexLinks: async () => {
+    /* vault is desktop-only; nothing to index on the hosted build */
+  },
+}
+
 // ─── AI ───────────────────────────────────────────────────────────────────
 
 const ai: AiStorage = {
@@ -759,6 +785,7 @@ export function createRemoteStorage(): Storage {
     workspaces,
     collaboration,
     settings,
+    vault,
     ai,
     admin: { billing: adminBilling },
   }

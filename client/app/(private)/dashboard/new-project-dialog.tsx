@@ -20,6 +20,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { useWorkspace } from "@/lib/WorkspaceContext"
+import { getStorage } from "@/lib/storage"
+import { isTauri } from "@tauri-apps/api/core"
 
 import { createProject, addCollaborator, Project, createScene } from "@/services/project"
 
@@ -82,6 +84,26 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
     try {
       const categoryLabel = workspaceCategories.find(c => c.slug === selectedCategory)?.name
       const effectiveCategory = (selectedCategory || workspaceCategories[0]?.slug || "screenplay") as import("@/services/project").ProjectCategory
+
+      // Vault projects need a folder attached before the editor can render.
+      // Ask the user for it up front; bail out early if they cancel the
+      // native dialog so we don't leave an orphaned empty project behind.
+      let pickedVaultPath: string | null = null
+      if (effectiveCategory === "vault") {
+        if (!isTauri()) {
+          setError("Vault projects require the desktop app.")
+          setIsLoading(false)
+          return
+        }
+        const { open } = await import("@tauri-apps/plugin-dialog")
+        const picked = await open({ directory: true, multiple: false, title: "Choose vault folder" })
+        if (!picked || typeof picked !== "string") {
+          setIsLoading(false)
+          return
+        }
+        pickedVaultPath = picked
+      }
+
       const newProject = await createProject({
         title: projectName,
         description: description || categoryLabel || "New Project",
@@ -89,17 +111,22 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
         category: effectiveCategory,
       })
 
-      // Automatically create the first scene for the new project
-      try {
-        await createScene(newProject.id, userId, {
-          scene_heading: "",
-          content: "",
-          order_index: 0
-        })
-      } catch (sceneErr) {
-        console.error("Failed to create initial scene:", sceneErr)
-        // Don't fail project creation if scene creation fails
-        // The user can create a scene manually if needed
+      if (pickedVaultPath) {
+        await getStorage().vault.openVault(newProject.id, pickedVaultPath)
+      } else {
+        // Scenes/elements projects start with an empty first scene so the
+        // editor has somewhere to type into. Vault doesn't use scenes.
+        try {
+          await createScene(newProject.id, userId, {
+            scene_heading: "",
+            content: "",
+            order_index: 0
+          })
+        } catch (sceneErr) {
+          console.error("Failed to create initial scene:", sceneErr)
+          // Don't fail project creation if scene creation fails
+          // The user can create a scene manually if needed
+        }
       }
 
       if (collaborators.length > 0) {
