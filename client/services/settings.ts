@@ -77,32 +77,17 @@ export const changePassword = async (currentPassword: string, newPassword: strin
 }
 
 /**
- * Clears all client-side cached data from `localStorage` and `sessionStorage`
- * while preserving the `authToken`. Does not make a network request.
+ * Clears all client-side cached data from `localStorage` and `sessionStorage`.
+ * Does not make a network request and does not affect the session — the JWT
+ * lives in an httpOnly cookie managed by the gateway.
  *
- * **Side effects:** Removes all `localStorage` keys except `"authToken"` and
- * calls `sessionStorage.clear()`.
+ * **Side effects:** Calls `localStorage.clear()` and `sessionStorage.clear()`.
  *
  * @returns A promise that resolves immediately after clearing local storage.
  */
 export const clearCache = async (): Promise<void> => {
   if (typeof window !== "undefined") {
-    const authToken = localStorage.getItem("authToken")
-    const keysToRemove: string[] = []
-
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key && key !== "authToken") {
-        keysToRemove.push(key)
-      }
-    }
-
-    keysToRemove.forEach(key => localStorage.removeItem(key))
-
-    if (authToken) {
-      localStorage.setItem("authToken", authToken)
-    }
-
+    localStorage.clear()
     sessionStorage.clear()
   }
 

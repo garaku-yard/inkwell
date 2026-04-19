@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -649,11 +651,15 @@ func (s *authService) hashPassword(password string) (string, error) {
 	return string(hash), nil
 }
 
-// hashRefreshToken creates a hash of the refresh token for storage
+// hashRefreshToken returns the SHA-256 hex digest of the refresh token for
+// storage. Refresh tokens are 32 bytes of crypto/rand, so they are already
+// high-entropy and do not require a slow password hash — we only need a
+// one-way function so a database leak cannot hand attackers every live
+// session. Lookups hash the incoming token and compare against the stored
+// digest.
 func (s *authService) hashRefreshToken(token string) string {
-	// For simplicity, we're using the token directly as hash
-	// In production, you might want to use a proper hash function
-	return token
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }
 
 // GetUserByUsernameTag returns user information for a given username and tag

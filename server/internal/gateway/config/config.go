@@ -25,14 +25,15 @@ type Config struct {
 	AIChatService    ServiceConfig
 	WorkspaceService ServiceConfig
 
-	// JWT configuration (for token validation)
-	JWTSecret string `env:"JWT_SECRET" default:"dev-gateway-secret"`
-
 	// Redis configuration — used for JWT blocklist and rate limiting
 	Redis RedisConfig
 
-	// Rate limiting — requests per minute per IP (0 = disabled)
-	RateLimitRPM int `env:"RATE_LIMIT_RPM" default:"120"`
+	// Rate limiting — requests per minute per IP (0 = disabled).
+	// RateLimitRPM applies to every request; AuthRateLimitRPM is a tighter
+	// per-IP bucket for credential-heavy endpoints (login, register, password
+	// change) so online brute-forcing is uneconomical.
+	RateLimitRPM     int `env:"RATE_LIMIT_RPM" default:"120"`
+	AuthRateLimitRPM int `env:"AUTH_RATE_LIMIT_RPM" default:"10"`
 }
 
 // RedisConfig holds Redis connection settings for the gateway.
@@ -80,7 +81,6 @@ func Load() (*Config, error) {
 		Port:        getEnvOrDefault("GATEWAY_PORT", "8080"),
 		Host:        getEnvOrDefault("GATEWAY_HOST", "0.0.0.0"),
 		Environment: getEnvOrDefault("ENVIRONMENT", "development"),
-		JWTSecret:   getEnvOrDefault("JWT_SECRET", "dev-gateway-secret"),
 
 		// Service configurations
 		IdentityService: ServiceConfig{
@@ -116,7 +116,8 @@ func Load() (*Config, error) {
 			Port:     getEnvOrDefault("REDIS_PORT", "6379"),
 			Password: getEnvOrDefault("REDIS_PASSWORD", ""),
 		},
-		RateLimitRPM: getEnvIntOrDefault("RATE_LIMIT_RPM", 120),
+		RateLimitRPM:     getEnvIntOrDefault("RATE_LIMIT_RPM", 120),
+		AuthRateLimitRPM: getEnvIntOrDefault("AUTH_RATE_LIMIT_RPM", 10),
 	}
 
 	// Parse allowed origins

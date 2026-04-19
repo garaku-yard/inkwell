@@ -1,15 +1,25 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"strconv"
 	"time"
 )
 
+// ErrJWTSecretRequired is returned by Load when ENVIRONMENT is anything other
+// than "development" and JWT_SECRET has not been set. It prevents the service
+// from starting with the insecure development default in production.
+var ErrJWTSecretRequired = errors.New("JWT_SECRET must be set when ENVIRONMENT is not development")
+
 // Config holds all configuration for the Identity service
 type Config struct {
 	// Server configuration
 	GRPCPort string `env:"GRPC_PORT" default:"50051"`
+
+	// Environment ("development", "staging", "production"). Controls whether
+	// insecure defaults are tolerated (see ErrJWTSecretRequired).
+	Environment string `env:"ENVIRONMENT" default:"development"`
 
 	// Database configuration
 	DatabaseConfig DatabaseConfig
@@ -40,10 +50,12 @@ type DatabaseConfig struct {
 	ConnMaxLifetime time.Duration `env:"IDENTITY_DB_CONN_MAX_LIFETIME" default:"1h"`
 }
 
-// JWTConfig holds JWT token settings
+// JWTConfig holds JWT token settings. AccessTokenSecret is populated from the
+// JWT_SECRET environment variable — a single name is shared with the gateway
+// and other services to avoid the same value being set under two keys. There
+// is no production default: Load rejects empty secrets outside development.
 type JWTConfig struct {
-	AccessTokenSecret  string        `env:"JWT_ACCESS_SECRET" default:"dev-access-secret"`
-	RefreshTokenSecret string        `env:"JWT_REFRESH_SECRET" default:"dev-refresh-secret"`
+	AccessTokenSecret  string        `env:"JWT_SECRET"`
 	AccessTokenExpiry  time.Duration `env:"JWT_ACCESS_EXPIRY" default:"24h"`
 	RefreshTokenExpiry time.Duration `env:"JWT_REFRESH_EXPIRY" default:"168h"` // 7 days
 	Issuer             string        `env:"JWT_ISSUER" default:"inkwell-identity"`
@@ -73,10 +85,23 @@ type SecurityConfig struct {
 	EmailVerificationExpiry time.Duration `env:"EMAIL_VERIFICATION_EXPIRY" default:"24h"`
 }
 
-// Load loads configuration from environment variables
+// Load loads configuration from environment variables. It returns
+// ErrJWTSecretRequired when JWT_SECRET is empty and ENVIRONMENT is not set
+// to "development" — identity refuses to start with the baked-in dev default
+// anywhere else, since tokens it signs would be trivially forgeable.
 func Load() (*Config, error) {
+	env := getEnvOrDefault("ENVIRONMENT", "development")
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		if env != "development" {
+			return nil, ErrJWTSecretRequired
+		}
+		jwtSecret = "dev-secret-change-me"
+	}
+
 	config := &Config{
-		GRPCPort: getEnvOrDefault("IDENTITY_GRPC_PORT", "50051"),
+		GRPCPort:    getEnvOrDefault("IDENTITY_GRPC_PORT", "50051"),
+		Environment: env,
 
 		DatabaseConfig: DatabaseConfig{
 			Host:            getEnvOrDefault("IDENTITY_DB_HOST", "localhost"),
@@ -91,8 +116,7 @@ func Load() (*Config, error) {
 		},
 
 		JWTConfig: JWTConfig{
-			AccessTokenSecret:  getEnvOrDefault("JWT_ACCESS_SECRET", "dev-access-secret"),
-			RefreshTokenSecret: getEnvOrDefault("JWT_REFRESH_SECRET", "dev-refresh-secret"),
+			AccessTokenSecret:  jwtSecret,
 			AccessTokenExpiry:  getEnvDurationOrDefault("JWT_ACCESS_EXPIRY", 24*time.Hour),
 			RefreshTokenExpiry: getEnvDurationOrDefault("JWT_REFRESH_EXPIRY", 168*time.Hour), // 7 days
 			Issuer:             getEnvOrDefault("JWT_ISSUER", "inkwell-identity"),

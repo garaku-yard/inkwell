@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 import { registerUser, RegisterRequest } from "@/services/auth"
+import { useAuth } from "@/lib/AuthContext"
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -30,6 +31,7 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const { login } = useAuth()
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -61,12 +63,21 @@ export default function RegisterPage() {
     }
 
     try {
-      await registerUser(apiPayload)
+      const data = await registerUser(apiPayload)
+      login({
+        id: data.user.id,
+        email: data.user.email,
+        username: data.user.username,
+        tag: data.user.usernameTag,
+        role: data.user.role ?? "user",
+        name: data.user.name ?? "",
+        lastName: data.user.lastName ?? "",
+      })
       setSuccess("Registration successful! Let's set up your workspace...")
 
       setTimeout(() => {
-        router.push("/login?next=/onboarding")
-      }, 1500)
+        router.push("/onboarding")
+      }, 1000)
 
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed")

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	redisPkg "inkwell/server/pkg/redis"
@@ -9,16 +10,29 @@ import (
 
 // RateLimiter enforces a fixed-window request limit per IP address using Redis counters.
 // The window resets every minute. If Redis is unavailable the request is allowed through
-// (fail-open) to avoid taking the service down over an infra blip.
+// (fail-open) to avoid taking the service down over an infra blip. Each limiter uses
+// its own Redis key prefix so counters for different buckets (e.g. global vs. auth)
+// don't pollute each other.
 type RateLimiter struct {
-	redis *redisPkg.Client
-	// rpm is the maximum requests allowed per IP per minute.
-	rpm int64
+	redis  *redisPkg.Client
+	rpm    int64
+	prefix string
 }
 
-// NewRateLimiter creates a RateLimiter with the given requests-per-minute limit.
+// NewRateLimiter creates a RateLimiter with the given requests-per-minute limit and
+// the default "ratelimit" key prefix.
 func NewRateLimiter(redis *redisPkg.Client, rpm int) *RateLimiter {
-	return &RateLimiter{redis: redis, rpm: int64(rpm)}
+	return &RateLimiter{redis: redis, rpm: int64(rpm), prefix: "ratelimit"}
+}
+
+// NewNamedRateLimiter creates a RateLimiter whose counters are stored under the given
+// Redis key prefix. Use this for per-endpoint buckets (login, register, password
+// change) so a flood against one doesn't consume the global quota.
+func NewNamedRateLimiter(redis *redisPkg.Client, rpm int, prefix string) *RateLimiter {
+	if prefix == "" {
+		prefix = "ratelimit"
+	}
+	return &RateLimiter{redis: redis, rpm: int64(rpm), prefix: prefix}
 }
 
 // Middleware returns an HTTP middleware that rejects requests exceeding the rate limit
@@ -31,7 +45,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 		}
 
 		ip := realIP(r)
-		key := "ratelimit:" + ip
+		key := rl.prefix + ":" + ip
 
 		count, err := rl.redis.Incr(r.Context(), key, time.Minute)
 		if err != nil {
@@ -40,7 +54,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		w.Header().Set("X-RateLimit-Limit", "120")
+		w.Header().Set("X-RateLimit-Limit", strconv.FormatInt(rl.rpm, 10))
 		if count > rl.rpm {
 			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 			return

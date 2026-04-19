@@ -36,7 +36,9 @@ func NewAuthMiddleware(identityServiceURL string, blocklist *TokenBlocklist) (*A
 }
 
 // Middleware returns the HTTP middleware function that authenticates every
-// non-public request. It checks the Redis blocklist before hitting the
+// non-public request. The JWT is read from the "inkwell_token" httpOnly cookie
+// first (browser flow) and falls back to an Authorization: Bearer header for
+// API clients and tests. The Redis blocklist is checked before hitting the
 // identity service so revoked tokens are rejected immediately.
 func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -45,19 +47,11 @@ func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			http.Error(w, "Authorization header required", http.StatusUnauthorized)
+		token := tokenFromRequest(r)
+		if token == "" {
+			http.Error(w, "Authorization header or session cookie required", http.StatusUnauthorized)
 			return
 		}
-
-		tokenParts := strings.Split(authHeader, " ")
-		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-			http.Error(w, "Invalid authorization header format", http.StatusUnauthorized)
-			return
-		}
-
-		token := tokenParts[1]
 
 		// Fast path: reject explicitly revoked tokens without hitting identity service.
 		if am.blocklist != nil {
@@ -103,6 +97,28 @@ func isPublicEndpoint(path string) bool {
 		}
 	}
 	return strings.HasPrefix(path, "/uploads/")
+}
+
+// AuthCookieName mirrors handlers.AuthCookieName. It is duplicated here so the
+// middleware package does not depend on the handlers package (which depends on
+// middleware for the blocklist — that direction only). Keep the two in sync.
+const AuthCookieName = "inkwell_token"
+
+// tokenFromRequest returns the JWT access token carried by r, preferring the
+// session cookie over the Authorization header.
+func tokenFromRequest(r *http.Request) string {
+	if c, err := r.Cookie(AuthCookieName); err == nil && c.Value != "" {
+		return c.Value
+	}
+	header := r.Header.Get("Authorization")
+	if header == "" {
+		return ""
+	}
+	parts := strings.SplitN(header, " ", 2)
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return ""
+	}
+	return parts[1]
 }
 
 // GetUserIDFromRequest extracts the authenticated user ID from the request context.

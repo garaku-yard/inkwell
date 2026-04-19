@@ -39,14 +39,16 @@ export default function LoginPage() {
     try {
       const data = await loginUser({ email, password });
 
-      if (data.token) {
-        const success = login(data.token);
-        if (success) {
-          window.location.href = nextPath;
-        } else {
-          setError("Failed to process login token");
-        }
-      }
+      login({
+        id: data.user.id,
+        email: data.user.email,
+        username: data.user.username,
+        tag: data.user.usernameTag,
+        role: data.user.role ?? "user",
+        name: data.user.name ?? "",
+        lastName: data.user.lastName ?? "",
+      });
+      window.location.href = nextPath;
 
     } catch (err: unknown) {
       if (err instanceof Error) {

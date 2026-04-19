@@ -21,7 +21,8 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 
 	// Global middleware
 	r.Use(chimiddleware.Recoverer)
-	r.Use(middleware.CORS(cfg.AllowedOrigins))
+	r.Use(middleware.CORS(cfg.AllowedOrigins, cfg.Environment))
+	r.Use(middleware.OriginCheck(cfg.AllowedOrigins, cfg.Environment))
 	r.Use(middleware.RequestLogger())
 
 	// Redis — used for JWT blocklist and rate limiting.
@@ -29,6 +30,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	// (blocklist checks and rate limiting are skipped in degraded mode).
 	var blocklist *middleware.TokenBlocklist
 	var rateLimiter *middleware.RateLimiter
+	var authRateLimiter *middleware.RateLimiter
 
 	redisClient, err := redisPkg.New(redisPkg.Config{
 		Host:     cfg.Redis.Host,
@@ -40,10 +42,22 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	} else {
 		blocklist = middleware.NewTokenBlocklist(redisClient)
 		rateLimiter = middleware.NewRateLimiter(redisClient, cfg.RateLimitRPM)
+		// Much tighter per-IP bucket for credential-heavy endpoints (login,
+		// register, password change) so online brute-forcing is uneconomical.
+		authRateLimiter = middleware.NewNamedRateLimiter(redisClient, cfg.AuthRateLimitRPM, "ratelimit:auth")
 	}
 
 	if rateLimiter != nil {
 		r.Use(rateLimiter.Middleware)
+	}
+
+	// authLimit returns the per-route middleware chain for auth endpoints.
+	// When Redis is down it degrades to a no-op wrapper so routing still works.
+	authLimit := func(next http.HandlerFunc) http.HandlerFunc {
+		if authRateLimiter == nil {
+			return next
+		}
+		return authRateLimiter.Middleware(next).ServeHTTP
 	}
 
 	// Shared gRPC client registry — one circuit-broken connection per downstream service.
@@ -53,7 +67,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	}
 
 	// Handlers
-	authHandler := handlers.NewAuthHandler(clients, blocklist)
+	authHandler := handlers.NewAuthHandler(clients, blocklist, cfg.Environment)
 	scriptsHandler := handlers.NewScriptsHandler(clients)
 	collaborationHandler := handlers.NewCollaborationHandler(clients)
 	workspaceHandler := handlers.NewWorkspaceHandler(clients)
@@ -75,14 +89,14 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
 
 	// ── Legacy public routes (kept for backwards compatibility) ──────────────
-	r.Post("/login", authHandler.Login)
-	r.Post("/register", authHandler.Register)
+	r.Post("/login", authLimit(authHandler.Login))
+	r.Post("/register", authLimit(authHandler.Register))
 
 	// ── /api/v1 — versioned API ───────────────────────────────────────────────
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public
-		r.Post("/login", authHandler.Login)
-		r.Post("/register", authHandler.Register)
+		r.Post("/login", authLimit(authHandler.Login))
+		r.Post("/register", authLimit(authHandler.Register))
 
 		// Protected
 		r.Group(func(r chi.Router) {
@@ -90,8 +104,9 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 
 			// Auth
 			r.Post("/logout", authHandler.Logout)
+			r.Get("/users/me", authHandler.Me)
 			r.Patch("/users/me", authHandler.UpdateProfile)
-			r.Post("/users/me/password", authHandler.ChangePassword)
+			r.Post("/users/me/password", authLimit(authHandler.ChangePassword))
 
 			// Projects
 			r.Route("/projects", func(r chi.Router) {
@@ -242,8 +257,10 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware.Middleware)
 
+		r.Get("/users/me", authHandler.Me)
 		r.Patch("/users/me", authHandler.UpdateProfile)
-		r.Post("/users/me/password", authHandler.ChangePassword)
+		r.Post("/users/me/password", authLimit(authHandler.ChangePassword))
+		r.Post("/logout", authHandler.Logout)
 
 		r.Route("/projects", func(r chi.Router) {
 			r.Get("/", scriptsHandler.GetUserProjects)

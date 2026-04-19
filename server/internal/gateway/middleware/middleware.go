@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"strings"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,44 +13,68 @@ import (
 // correlationIDKey is the context key for the request correlation ID.
 type correlationIDKey struct{}
 
-// CORS sets permissive cross-origin headers and handles preflight requests.
-func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
+// CORS sets cross-origin headers and handles preflight requests. Only origins
+// in allowedOrigins are echoed back; any localhost/127.0.0.1 port is additionally
+// permitted when env == "development" so local front-end dev servers can talk
+// to the gateway without needing to be listed explicitly. The wildcard origin
+// ("*") is never emitted because this API advertises Allow-Credentials: true,
+// and the two are forbidden in combination by the Fetch spec.
+func CORS(allowedOrigins []string, env string) func(http.Handler) http.Handler {
+	allowDevLocalhost := env == "development"
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
+			allowed := isAllowedOrigin(origin, allowedOrigins, allowDevLocalhost)
 
-			allowed := false
-			for _, o := range allowedOrigins {
-				if origin == o {
-					allowed = true
-					break
-				}
-			}
-			// Allow any localhost port in development.
-			if !allowed && strings.Contains(origin, "localhost") {
-				allowed = true
+			// Echo the caller's origin only when it's on the allowlist. Non-CORS
+			// requests (no Origin header) pass through without any ACAO response.
+			if allowed && origin != "" {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Add("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-User-ID")
 			}
 
-			if allowed || origin == "" {
-				if origin != "" {
-					w.Header().Set("Access-Control-Allow-Origin", origin)
+			if r.Method == http.MethodOptions {
+				if allowed {
+					w.WriteHeader(http.StatusNoContent)
 				} else {
-					w.Header().Set("Access-Control-Allow-Origin", "*")
+					// Disallowed preflight — reply but withhold CORS headers so the
+					// browser blocks the real request.
+					w.WriteHeader(http.StatusForbidden)
 				}
-			}
-
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-User-ID")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-			if r.Method == "OPTIONS" {
-				w.WriteHeader(http.StatusOK)
 				return
 			}
 
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// isAllowedOrigin reports whether origin is on the explicit allowlist, or —
+// when allowDevLocalhost is true — is any port on localhost/127.0.0.1. The
+// localhost check parses the URL properly so that values such as
+// "https://localhost.attacker.example" (which merely contain the substring
+// "localhost") are rejected.
+func isAllowedOrigin(origin string, allowed []string, allowDevLocalhost bool) bool {
+	if origin == "" {
+		return false
+	}
+	for _, o := range allowed {
+		if origin == o {
+			return true
+		}
+	}
+	if !allowDevLocalhost {
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 // RequestLogger returns a middleware that logs every request with structured fields

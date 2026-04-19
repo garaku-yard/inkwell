@@ -14,13 +14,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertTriangle, Clock, Loader2 } from "lucide-react"
 import { loginUser } from "@/services/auth"
+import type { AuthUser } from "@/lib/AuthContext"
 
 interface SessionExpiryModalProps {
   isOpen: boolean
   type: "warning" | "expired"
   userEmail?: string
   onExtendSession?: () => void
-  onLogin?: (token: string) => void
+  /** Called with the authenticated user after a successful in-modal re-login. */
+  onLogin?: (user: AuthUser) => void
   onLogout: () => void
   timeRemaining?: number // in seconds
 }
@@ -46,10 +48,16 @@ export function SessionExpiryModal({
 
     try {
       const response = await loginUser({ email, password })
-      if (response.token) {
-        onLogin?.(response.token)
-        setPassword("")
-      }
+      onLogin?.({
+        id: response.user.id,
+        email: response.user.email,
+        username: response.user.username,
+        tag: response.user.usernameTag,
+        role: response.user.role ?? "user",
+        name: response.user.name ?? "",
+        lastName: response.user.lastName ?? "",
+      })
+      setPassword("")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed. Please try again.")
     } finally {

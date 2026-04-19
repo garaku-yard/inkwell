@@ -67,13 +67,13 @@ export class ApiError extends Error {
 }
 
 /**
- * Fires a `"session-expired"` custom event on `window` and removes the stored
- * auth token from `localStorage`. Components can listen to this event to show
- * a re-login modal without coupling to the HTTP layer.
+ * Fires a `"session-expired"` custom event on `window`. Components listen to
+ * this event to show a re-login modal without coupling to the HTTP layer.
+ * The session token lives in an httpOnly cookie managed by the gateway, so
+ * this function no longer touches client-side storage.
  */
 const notifySessionExpired = () => {
   if (typeof window !== "undefined") {
-    localStorage.removeItem("authToken");
     window.dispatchEvent(new CustomEvent("session-expired"));
   }
 };
@@ -105,9 +105,10 @@ async function parseApiError(response: Response): Promise<ApiError> {
 }
 
 /**
- * Generic JSON API client for the Inkwell gateway. Attaches the stored JWT as
- * a `Bearer` token, serialises the request body to JSON, and parses the
- * response. Treats HTTP 204 No Content as an empty object.
+ * Generic JSON API client for the Inkwell gateway. Authentication is carried
+ * by the httpOnly `inkwell_token` cookie set at login; the browser attaches
+ * it automatically when `credentials: "include"` is set, so no Authorization
+ * header is needed. Treats HTTP 204 No Content as an empty object.
  *
  * @param endpoint - Path relative to `NEXT_PUBLIC_API_URL` (e.g. `"projects"`).
  * @param options - Optional fetch options including a typed `body` object.
@@ -130,12 +131,8 @@ export async function apiClient<T>(
   const headers = new Headers(customHeaders);
   headers.set("Content-Type", "application/json");
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
   const config: RequestInit = {
+    credentials: "include",
     ...customOptions,
     headers,
   };
@@ -172,8 +169,9 @@ export async function apiClient<T>(
 }
 
 /**
- * Streaming variant of `apiClient`. Sends the request with the same
- * authentication and serialisation logic but returns the raw
+ * Streaming variant of `apiClient`. Uses the same cookie-based authentication
+ * as `apiClient` (the browser attaches the httpOnly session cookie
+ * automatically via `credentials: "include"`) and returns the raw
  * `ReadableStream<Uint8Array>` instead of parsing JSON. Used for
  * Server-Sent Events and NDJSON AI chat responses.
  *
@@ -199,12 +197,8 @@ export async function apiStreamClient(
   const headers = new Headers(customHeaders);
   headers.set("Content-Type", "application/json");
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
   const config: RequestInit = {
+    credentials: "include",
     ...customOptions,
     headers,
   };

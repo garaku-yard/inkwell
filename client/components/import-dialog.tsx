@@ -126,11 +126,9 @@ export function ImportProjectDialog({ open, onOpenChange, onProjectImported }: I
       formData.append('projectName', projectName)
       formData.append('projectType', projectType)
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/import-fdx`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/projects/import-fdx`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-        },
+        credentials: 'include',
         body: formData,
       })
 

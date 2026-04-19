@@ -5,8 +5,9 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	scriptspb "inkwell/server/pkg/grpc/scripts"
@@ -43,26 +44,39 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := getUserIDFromContext(r)
+	if userID == "" {
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
-	// Parse multipart form (10MB limit)
+	// Parse multipart form (10 MB limit — prevents unbounded memory use on malicious uploads).
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		log.Printf("ImportFDX: Error parsing form: %v", err)
+		slog.Warn("ImportFDX: error parsing form", "error", err)
 		writeError(w, "Failed to parse form", http.StatusBadRequest)
 		return
 	}
 
-	// Get uploaded file
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		log.Printf("ImportFDX: Error getting file: %v", err)
+		slog.Warn("ImportFDX: error getting file", "error", err)
 		writeError(w, "No file provided", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	log.Printf("ImportFDX: Processing file: %s", header.Filename)
+	// Extension allowlist — only genuine Final Draft files should reach the XML
+	// parser. Without this, an attacker can submit arbitrary XML (or deeply
+	// nested documents engineered to balloon memory) to an endpoint named
+	// "import-fdx". Content-Type alone is client-controlled, so we check the
+	// filename extension too.
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	if ext != ".fdx" && ext != ".xml" {
+		writeError(w, "Only .fdx files are supported", http.StatusBadRequest)
+		return
+	}
 
-	// Get project metadata
+	slog.Info("ImportFDX: processing file", "filename", header.Filename, "user_id", userID)
+
 	projectName := r.FormValue("projectName")
 	projectType := r.FormValue("projectType")
 
@@ -71,25 +85,24 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read FDX file
 	fdxData, err := io.ReadAll(file)
 	if err != nil {
-		log.Printf("ImportFDX: Error reading file: %v", err)
+		slog.Error("ImportFDX: error reading file", "error", err)
 		writeError(w, "Failed to read file", http.StatusInternalServerError)
 		return
 	}
 
-	// Parse FDX XML
 	var fdx FDX
-	if err := xml.Unmarshal(fdxData, &fdx); err != nil {
-		log.Printf("ImportFDX: Error parsing FDX: %v", err)
+	decoder := xml.NewDecoder(strings.NewReader(string(fdxData)))
+	decoder.Strict = true
+	if err := decoder.Decode(&fdx); err != nil {
+		slog.Warn("ImportFDX: error parsing FDX", "error", err)
 		writeError(w, "Invalid FDX file format", http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("ImportFDX: Parsed %d paragraphs", len(fdx.Content.Paragraphs))
+	slog.Info("ImportFDX: parsed paragraphs", "count", len(fdx.Content.Paragraphs))
 
-	// Create project
 	createProjectResp, err := h.scriptsClient.CreateProject(r.Context(), &scriptspb.CreateProjectRequest{
 		OwnerId:     userID,
 		Title:       projectName,
@@ -97,13 +110,13 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		log.Printf("ImportFDX: Error creating project: %v", err)
+		slog.Error("ImportFDX: error creating project", "error", err)
 		handleGRPCError(w, err)
 		return
 	}
 
 	projectID := createProjectResp.Project.Id
-	log.Printf("ImportFDX: Created project %s with %d paragraphs to import", projectID, len(fdx.Content.Paragraphs))
+	slog.Info("ImportFDX: created project", "project_id", projectID, "paragraphs", len(fdx.Content.Paragraphs))
 
 	// Process FDX paragraphs into scenes and elements
 	var currentScene *scriptspb.Scene
@@ -123,7 +136,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 					Elements:  sceneElements,
 				})
 				if err != nil {
-					log.Printf("ImportFDX: Error creating elements for scene %s: %v", currentScene.Id, err)
+					slog.Warn("ImportFDX: error creating elements for scene", "scene_id", currentScene.Id, "error", err)
 				}
 				sceneElements = nil
 			}
@@ -137,12 +150,12 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 				OrderIndex:   0,
 			})
 			if err != nil {
-				log.Printf("ImportFDX: Error creating scene: %v", err)
+				slog.Error("ImportFDX: error creating scene", "error", err)
 				writeError(w, "Failed to import scenes", http.StatusInternalServerError)
 				return
 			}
 			currentScene = sceneResp.Scene
-			log.Printf("ImportFDX: Created scene %s: %s", currentScene.Id, currentScene.SceneHeading)
+			slog.Info("ImportFDX: created scene", "scene_id", currentScene.Id)
 		} else if currentScene != nil {
 			// Add element to current scene
 			sceneElements = append(sceneElements, &scriptspb.ScriptElement{
@@ -164,11 +177,11 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 			Elements:  sceneElements,
 		})
 		if err != nil {
-			log.Printf("ImportFDX: Error creating final elements: %v", err)
+			slog.Warn("ImportFDX: error creating final elements", "error", err)
 		}
 	}
 
-	log.Printf("ImportFDX: Successfully imported project with elements")
+	slog.Info("ImportFDX: import complete", "project_id", projectID)
 
 	// Return created project
 	w.Header().Set("Content-Type", "application/json")

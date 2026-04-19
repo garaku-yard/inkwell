@@ -3,14 +3,16 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"inkwell/server/internal/gateway/apierror"
+	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/pkg/grpc/collab"
 	"inkwell/server/pkg/grpc/common"
@@ -35,14 +37,14 @@ func NewScriptsHandler(clients *grpcclient.Registry) *ScriptsHandler {
 }
 
 // CreateProject creates a new writing project and immediately registers its
-// creator as an "owner" collaborator in the collab service. If the collab
-// service call fails the project is still returned — the error is logged but
+// creator as an "owner" collaborator in the collab service. The owner is
+// always the authenticated caller — client-supplied owner fields are ignored
+// so a signed-in user cannot mint projects owned by someone else. If the
+// collab call fails the project is still returned; the error is logged but
 // not surfaced to the client.
-// createProjectBody is the JSON shape accepted by CreateProject.
 type createProjectBody struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
-	OwnerID     string `json:"owner_id"`
 	Category    string `json:"category"`
 }
 
@@ -60,20 +62,18 @@ type createProjectResponse struct {
 func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	Endpoint[createProjectBody, createProjectResponse]{
 		Method:        http.MethodPost,
+		Auth:          true,
 		Decode:        JSONBody[createProjectBody],
 		SuccessStatus: http.StatusCreated,
-		Handle: func(r *http.Request, _ string, body *createProjectBody) (*createProjectResponse, error) {
+		Handle: func(r *http.Request, userID string, body *createProjectBody) (*createProjectResponse, error) {
 			if body.Title == "" {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "title is required")
-			}
-			if body.OwnerID == "" {
-				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "owner_id is required")
 			}
 
 			resp, err := h.scriptsClient.CreateProject(r.Context(), &scriptspb.CreateProjectRequest{
 				Title:       body.Title,
 				Description: body.Description,
-				OwnerId:     body.OwnerID,
+				OwnerId:     userID,
 				Category:    body.Category,
 			})
 			if err != nil {
@@ -85,11 +85,11 @@ func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 			// the project itself already committed.
 			if _, err := h.collabClient.AddCollaboratorDirect(r.Context(), &collab.AddCollaboratorDirectRequest{
 				ProjectId: resp.Project.Id,
-				UserId:    body.OwnerID,
-				InviterId: body.OwnerID,
+				UserId:    userID,
+				InviterId: userID,
 				Role:      "owner",
 			}); err != nil {
-				log.Printf("failed to add owner %s as collaborator for project %s: %v", body.OwnerID, resp.Project.Id, err)
+				slog.Warn("failed to register owner as collaborator", "user_id", userID, "project_id", resp.Project.Id, "error", err)
 			}
 
 			return &createProjectResponse{Project: convertProjectFromProto(resp.Project)}, nil
@@ -106,16 +106,12 @@ func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract project ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/projects/")
-	projectID := path
-
+	projectID := chi.URLParam(r, "projectId")
 	if projectID == "" {
 		writeError(w, "Project ID is required", http.StatusBadRequest)
 		return
 	}
 
-	// Get user ID from context (set by auth middleware)
 	userID := getUserIDFromContext(r)
 	if userID == "" {
 		writeError(w, "Unauthorized", http.StatusUnauthorized)
@@ -154,16 +150,12 @@ func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract project ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/projects/")
-	parts := strings.Split(path, "/")
-	if len(parts) == 0 || parts[0] == "" {
+	projectID := chi.URLParam(r, "projectId")
+	if projectID == "" {
 		writeError(w, "Project ID is required", http.StatusBadRequest)
 		return
 	}
-	projectID := parts[0]
 
-	// Get user ID from context
 	userID := getUserIDFromContext(r)
 	if userID == "" {
 		writeError(w, "Unauthorized", http.StatusUnauthorized)
@@ -194,16 +186,12 @@ func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Extract project ID from URL
-	path := strings.TrimPrefix(r.URL.Path, "/projects/")
-	parts := strings.Split(path, "/")
-	if len(parts) < 2 {
+	projectID := chi.URLParam(r, "projectId")
+	if projectID == "" {
 		writeError(w, "Project ID is required", http.StatusBadRequest)
 		return
 	}
-	projectID := parts[0]
 
-	// Get user ID from context
 	userID := getUserIDFromContext(r)
 	if userID == "" {
 		writeError(w, "Unauthorized", http.StatusUnauthorized)
@@ -366,11 +354,18 @@ func (h *ScriptsHandler) GetSharedProjects(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// CreateScene adds a new scene to a project.
+// CreateScene adds a new scene to a project. The scene is always attributed
+// to the authenticated caller; a user_id field in the request body is ignored
+// to prevent impersonation.
 func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
+	userID, ok := contextx.UserIDFrom(r.Context())
+	if !ok {
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var req struct {
 		ProjectID     string `json:"project_id"`
-		UserID        string `json:"user_id"`
 		OutlineUnitID string `json:"outline_unit_id,omitempty"`
 		SceneHeading  string `json:"scene_heading"`
 		Content       string `json:"content"`
@@ -382,19 +377,17 @@ func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate required fields
-	if req.ProjectID == "" || req.UserID == "" {
-		writeRawError(w, `{"error":"project_id and user_id are required"}`, http.StatusBadRequest)
+	if req.ProjectID == "" {
+		writeRawError(w, `{"error":"project_id is required"}`, http.StatusBadRequest)
 		return
 	}
 
-	// Call Scripts service
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	response, err := h.scriptsClient.CreateScene(ctx, &scriptspb.CreateSceneRequest{
 		ProjectId:     req.ProjectID,
-		UserId:        req.UserID,
+		UserId:        userID,
 		OutlineUnitId: &req.OutlineUnitID,
 		SceneHeading:  req.SceneHeading,
 		Content:       req.Content,
@@ -464,20 +457,23 @@ func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(result)
 }
 
-// UpdateScene applies partial updates to a scene. Only non-nil fields in the
-// request body are forwarded to the scripts service.
+// UpdateScene applies partial updates to a scene. The caller is identified
+// from the auth context; a user_id field in the body is ignored. Only non-nil
+// fields in the request body are forwarded to the scripts service.
 func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
-	// Extract scene ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/scenes/")
-	sceneID := path
-
+	sceneID := chi.URLParam(r, "sceneId")
 	if sceneID == "" {
 		writeRawError(w, `{"error":"Scene ID is required"}`, http.StatusBadRequest)
 		return
 	}
 
+	userID, ok := contextx.UserIDFrom(r.Context())
+	if !ok {
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var req struct {
-		UserID        string  `json:"user_id"`
 		SceneHeading  *string `json:"scene_heading,omitempty"`
 		Content       *string `json:"content,omitempty"`
 		OrderIndex    *int32  `json:"order_index,omitempty"`
@@ -489,19 +485,12 @@ func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate required fields
-	if req.UserID == "" {
-		writeRawError(w, `{"error":"user_id is required"}`, http.StatusBadRequest)
-		return
-	}
-
-	// Call Scripts service
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	response, err := h.scriptsClient.UpdateScene(ctx, &scriptspb.UpdateSceneRequest{
 		SceneId:      sceneID,
-		UserId:       req.UserID,
+		UserId:       userID,
 		SceneHeading: req.SceneHeading,
 		Content:      req.Content,
 		OrderIndex:   req.OrderIndex,
@@ -524,10 +513,7 @@ func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 
 // DeleteScene removes a scene by ID. Requires a userID from the request context.
 func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
-	// Extract scene ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/scenes/")
-	sceneID := path
-
+	sceneID := chi.URLParam(r, "sceneId")
 	if sceneID == "" {
 		writeRawError(w, `{"error":"Scene ID is required"}`, http.StatusBadRequest)
 		return
@@ -561,11 +547,17 @@ func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateElement adds a new script element (e.g. dialogue, action, transition)
-// to a scene within a project.
+// to a scene within a project. The element is attributed to the authenticated
+// caller; a user_id field in the request body is ignored.
 func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
+	userID, ok := contextx.UserIDFrom(r.Context())
+	if !ok {
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var req struct {
 		ProjectID   string            `json:"project_id"`
-		UserID      string            `json:"user_id"`
 		SceneID     string            `json:"scene_id"`
 		ElementType string            `json:"element_type"`
 		Content     string            `json:"content"`
@@ -579,19 +571,17 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate required fields
-	if req.ProjectID == "" || req.UserID == "" || req.ElementType == "" || req.SceneID == "" {
-		writeRawError(w, `{"error":"project_id, user_id, scene_id, and element_type are required"}`, http.StatusBadRequest)
+	if req.ProjectID == "" || req.ElementType == "" || req.SceneID == "" {
+		writeRawError(w, `{"error":"project_id, scene_id, and element_type are required"}`, http.StatusBadRequest)
 		return
 	}
 
-	// Call Scripts service
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	response, err := h.scriptsClient.CreateElement(ctx, &scriptspb.CreateElementRequest{
 		ProjectId:   req.ProjectID,
-		UserId:      req.UserID,
+		UserId:      userID,
 		SceneId:     req.SceneID,
 		ElementType: req.ElementType,
 		Content:     req.Content,
@@ -618,10 +608,7 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 // UpdateElement applies partial updates to a script element. At least one of
 // content or elementType must be provided in the request body.
 func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
-	// Extract element ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/elements/")
-	elementID := path
-
+	elementID := chi.URLParam(r, "elementId")
 	if elementID == "" {
 		writeRawError(w, `{"error":"Element ID is required"}`, http.StatusBadRequest)
 		return
@@ -689,10 +676,7 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 
 // DeleteElement removes a script element by ID. Requires a userID from the request context.
 func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
-	// Extract element ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/elements/")
-	elementID := path
-
+	elementID := chi.URLParam(r, "elementId")
 	if elementID == "" {
 		writeRawError(w, `{"error":"Element ID is required"}`, http.StatusBadRequest)
 		return

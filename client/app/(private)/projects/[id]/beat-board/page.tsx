@@ -452,11 +452,9 @@ export default function BeatBoardPage() {
     const formData = new FormData();
     formData.append('image', compressedBlob, file.name);
 
-    const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/beats/upload-image`, {
+    const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/beats/upload-image`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-      },
+      credentials: 'include',
       body: formData,
     });
 
