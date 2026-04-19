@@ -7,7 +7,7 @@
     "build": "next build",
     "build:tauri": "BUILD_TARGET=tauri next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
