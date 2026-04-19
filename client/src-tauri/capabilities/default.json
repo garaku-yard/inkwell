@@ -7,6 +7,7 @@
   ],
   "permissions": [
     "core:default",
+    "core:window:allow-set-title",
     {
       "identifier": "sql:allow-load",
       "allow": [{ "name": "sqlite:inkwell.db" }]
@@ -22,6 +23,25 @@
     {
       "identifier": "sql:allow-close",
       "allow": [{ "name": "sqlite:inkwell.db" }]
-    }
+    },
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "dialog:allow-ask",
+    "dialog:allow-confirm",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-dir",
+    "fs:allow-remove",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
+    "fs:allow-rename",
+    "fs:allow-watch",
+    "fs:allow-unwatch",
+    "fs:scope-home-recursive",
+    "fs:scope-document-recursive",
+    "fs:scope-desktop-recursive",
+    "fs:scope-download-recursive"
   ]
 }

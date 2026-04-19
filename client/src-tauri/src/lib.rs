@@ -7,12 +7,26 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 /// version would desync existing users. Append new migrations with higher
 /// version numbers instead.
 fn sql_migrations() -> Vec<Migration> {
-  vec![Migration {
-    version: 1,
-    description: "initial schema: projects, scenes, elements, characters, locations, beat board, workspaces",
-    sql: include_str!("../migrations/0001_initial.sql"),
-    kind: MigrationKind::Up,
-  }]
+  vec![
+    Migration {
+      version: 1,
+      description: "initial schema: projects, scenes, elements, characters, locations, beat board, workspaces",
+      sql: include_str!("../migrations/0001_initial.sql"),
+      kind: MigrationKind::Up,
+    },
+    Migration {
+      version: 2,
+      description: "vault support: projects.vault_path column",
+      sql: include_str!("../migrations/0002_vault.sql"),
+      kind: MigrationKind::Up,
+    },
+    Migration {
+      version: 3,
+      description: "vault backlinks index: note_links table",
+      sql: include_str!("../migrations/0003_note_links.sql"),
+      kind: MigrationKind::Up,
+    },
+  ]
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -23,6 +37,8 @@ pub fn run() {
         .add_migrations("sqlite:inkwell.db", sql_migrations())
         .build(),
     )
+    .plugin(tauri_plugin_dialog::init())
+    .plugin(tauri_plugin_fs::init())
     .setup(|app| {
       // Native menu bar. Items emit `menu:<id>` events; the React layer
       // listens and responds. Predefined items (Quit, Cut, Copy, Paste…)
