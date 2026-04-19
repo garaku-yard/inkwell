@@ -13,9 +13,10 @@ node_modules
 # testing
 /client/coverage       # Ignore coverage in the client directory
 
-# next.js
+# next.js — build output (server+static exports)
 .next
-out/           # Ignore output files in the client directory
+out/
+/client/out/
 
 # production
 /client/build          # Ignore build files in the client directory
