@@ -91,6 +91,15 @@ export const inkwellTheme = EditorView.theme(
       margin: "0",
     },
 
+    // Unordered list bullet glyph, rendered by BulletWidget.
+    ".cm-md-bullet": {
+      display: "inline-block",
+      color: "var(--muted-foreground)",
+      fontWeight: "700",
+      lineHeight: "1",
+      transform: "translateY(-1px)",
+    },
+
     // Wikilinks use a slightly different tint from regular links so users
     // can tell internal references apart from external URLs at a glance.
     ".cm-md-wikilink": {

@@ -75,6 +75,21 @@ class HorizontalRuleWidget extends WidgetType {
   }
 }
 
+/** Rendered `•` in place of the raw `-` / `*` / `+` marker on unordered
+ *  list items. Markers for ordered lists (`1.`, `2.`) stay as-is so the
+ *  numbering remains visible and meaningful. */
+class BulletWidget extends WidgetType {
+  toDOM() {
+    const span = document.createElement("span")
+    span.className = "cm-md-bullet"
+    span.textContent = "•"
+    return span
+  }
+  eq() {
+    return true
+  }
+}
+
 /** Clickable checkbox inside a task-list line. Toggling the widget replaces
  *  the source `[ ]` with `[x]` (or vice versa) so the document is always
  *  the source of truth. */
@@ -404,19 +419,56 @@ function buildDecorations(view: EditorView): DecorationSet {
           return
         }
 
+        // Unordered list bullets --------------------------------------
+        // Replace the raw `-` / `*` / `+` with a real •, but only on
+        // unordered lists and only when this isn't already a task-list
+        // item (those are handled below and swallow the whole prefix).
+        //
+        // We double-check via the line text rather than trusting
+        // `listItem.getChild("TaskMarker")` — GFM's Task extension
+        // occasionally parses the task marker as a sibling outside the
+        // ListItem depending on spacing, which left the raw `-` leaking
+        // through next to rendered checkboxes.
+        if (name === "ListMark" && !nodeOnActiveLine(node.from)) {
+          const lineText = doc.lineAt(node.from).text
+          const looksLikeTask = /^\s*[-*+]\s+\[[\sxX]\]/.test(lineText)
+          if (looksLikeTask) return
+          const listItem = node.node.parent
+          const list = listItem?.parent
+          if (list?.name === "BulletList") {
+            pushReplace(
+              node.from,
+              node.to,
+              Decoration.replace({ widget: new BulletWidget() }),
+            )
+            return
+          }
+        }
+
         // Task list items ---------------------------------------------
         // GFM produces a `TaskMarker` inside `ListItem` whose children
         // look like: `ListMark (-)`, `TaskMarker ([ ]|[x])`, content.
         // We swallow the whole `- [ ]` / `- [x]` prefix into one widget
         // so the bullet doesn't show next to the rendered checkbox.
+        //
+        // Note: Lezer's ListMark lookup occasionally returns null (nested
+        // lists, continuation lines). Line-text parsing is the fallback
+        // safety net so the raw `-` never leaks through next to the
+        // rendered checkbox.
         if (name === "TaskMarker") {
           const raw = doc.sliceString(node.from, node.to)
           const checked = /x/i.test(raw)
           if (checked) pushLine(doc.lineAt(node.from).from, taskDoneLine)
 
+          const line = doc.lineAt(node.from)
           const listItem = node.node.parent
           const listMark = listItem ? listItem.getChild("ListMark") : null
-          const widgetFrom = listMark ? listMark.from : node.from
+          const indentMatch = line.text.match(/^\s*/)
+          const indentLen = indentMatch ? indentMatch[0].length : 0
+          const widgetFrom = Math.min(
+            listMark ? listMark.from : node.from,
+            line.from + indentLen,
+          )
           pushReplace(
             widgetFrom,
             node.to,
