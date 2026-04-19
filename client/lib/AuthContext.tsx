@@ -4,7 +4,8 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { useRouter } from "next/navigation"
 
 import { SessionExpiryModal } from "@/components/session-expiry-modal"
-import { apiClient, ApiError } from "@/lib/api"
+import { ApiError } from "@/lib/api"
+import { getStorage } from "@/lib/storage"
 
 /**
  * Shape of the authenticated user stored in React state. The server owns the
@@ -18,23 +19,6 @@ export interface AuthUser {
   role: string
   name: string
   lastName: string
-}
-
-/**
- * Shape returned by the gateway's `/login`, `/register`, and `/users/me`
- * endpoints. Access tokens are delivered only as httpOnly cookies, so the
- * client never sees them — the API returns the user profile alone.
- */
-interface AuthEnvelope {
-  user: {
-    id: string
-    email: string
-    username: string
-    usernameTag: string
-    name: string
-    lastName: string
-    role?: string
-  }
 }
 
 interface AuthContextType {
@@ -52,17 +36,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-/** Maps the wire-format user envelope to the in-memory AuthUser shape. */
-const toAuthUser = (u: AuthEnvelope["user"]): AuthUser => ({
-  id: u.id,
-  email: u.email,
-  username: u.username,
-  tag: u.usernameTag,
-  role: u.role ?? "user",
-  name: u.name ?? "",
-  lastName: u.lastName ?? "",
-})
 
 /**
  * Provides authentication state to the rest of the app. Hydrates on mount by
@@ -82,7 +55,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = useCallback(async () => {
     try {
-      await apiClient("api/v1/logout", { method: "POST" })
+      await getStorage().auth.logout()
     } catch {
       // Network or 401 here is harmless — we're going to clear state anyway.
     }
@@ -99,14 +72,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser((prev) => (prev ? { ...prev, ...updates } : prev))
   }, [])
 
-  // Initial session hydration.
+  // Initial session hydration. Storage is already bound by StorageProvider,
+  // so `getStorage().auth.me()` returns synchronously-resolvable data — the
+  // remote impl hits `/users/me`, the desktop impl returns the local profile.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const data = await apiClient<AuthEnvelope>("api/v1/users/me", { method: "GET" })
-        if (!cancelled) {
-          setUser(toAuthUser(data.user))
+        const me = await getStorage().auth.me()
+        if (!cancelled && me !== null) {
+          setUser(me)
         }
       } catch (err) {
         // 401 is expected for signed-out users — just leave user=null.

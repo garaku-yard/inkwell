@@ -10,7 +10,7 @@ import { useDebouncedCallback } from 'use-debounce';
 import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLanes";
 import { OutlineDocument } from '@/components/outline-editor/OutlineDocument';
 
-import { getProjectByIdLegacy, type FullProject } from "@/services/project";
+import { getFullProject, type FullProject } from "@/services/project";
 import { getBeatBoardForProject, updateBeat, type Beat } from '@/services/beat';
 import { type Lane, type OutlineItem, createLane, updateLane, updateLaneOrder, createOutlineItem, updateOutlineItem, deleteOutlineItem } from '@/services/beat-board';
 import { useAuth } from '@/lib/AuthContext';
@@ -41,6 +41,7 @@ const parsePageRange = (sceneNumbers: string): { start: number; end: number } | 
 export default function OutlineEditorPage() {
   const params = useParams();
   const projectId = params.id as string;
+  const { user } = useAuth();
 
   const [project, setProject] = useState<FullProject | null>(null);
   const [beats, setBeats] = useState<Beat[]>([]);
@@ -56,13 +57,13 @@ export default function OutlineEditorPage() {
   const [draggedLaneItem, setDraggedLaneItem] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || !user?.id) return;
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
       try {
         const [projectData, beatBoardData] = await Promise.all([
-          getProjectByIdLegacy(projectId),
+          getFullProject(projectId, user.id),
           getBeatBoardForProject(projectId)
         ]);
         setProject(projectData);
@@ -100,7 +101,7 @@ export default function OutlineEditorPage() {
       finally { setIsLoading(false); }
     };
     fetchData();
-  }, [projectId]);
+  }, [projectId, user?.id]);
 
   const transformedStructure = useMemo((): StructureElement[] => {
     if (lanes.length === 0 || beats.length === 0 || outlineItems.length === 0) return [];

@@ -454,18 +454,15 @@ func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(response)
 }
 
-// getUserIDFromContext extracts the authenticated user's ID from the request context,
-// falling back to the X-User-ID header set by the auth middleware. Returns an empty
-// string if neither source yields a value, which callers should treat as an
-// unauthenticated request and respond with 401.
+// getUserIDFromContext extracts the authenticated user's ID from the request
+// context. Returns an empty string if no value is present, which callers
+// should treat as an unauthenticated request and respond with 401. There is
+// deliberately no X-User-ID header fallback: trusting a client-supplied
+// header would silently bypass authentication if a future route skipped the
+// auth middleware.
 func getUserIDFromContext(r *http.Request) string {
-	if id, ok := contextx.UserIDFrom(r.Context()); ok {
-		return id
-	}
-	// Fallback to the X-User-ID header that AuthMiddleware also sets, so
-	// handlers reached via internal routing (or during tests) can still
-	// resolve the caller without a fully populated context.
-	return r.Header.Get("X-User-ID")
+	id, _ := contextx.UserIDFrom(r.Context())
+	return id
 }
 
 // resolveEmailOrUserTag normalises an invitation target to an email address.

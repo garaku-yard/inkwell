@@ -9,6 +9,10 @@ import "context"
 // userIDKey is the context key under which the authenticated user's UUID is stored.
 type userIDKey struct{}
 
+// userRoleKey is the context key under which the authenticated user's
+// authorisation role ("admin", "user", …) is stored.
+type userRoleKey struct{}
+
 // WithUserID returns a copy of ctx carrying the authenticated user's UUID.
 // It is intended for use by the auth middleware after a successful token
 // validation; handler code should read the value via UserIDFrom.
@@ -22,4 +26,18 @@ func WithUserID(ctx context.Context, userID string) context.Context {
 func UserIDFrom(ctx context.Context) (string, bool) {
 	id, ok := ctx.Value(userIDKey{}).(string)
 	return id, ok && id != ""
+}
+
+// WithUserRole returns a copy of ctx carrying the authenticated user's
+// authorisation role. Set by the auth middleware alongside the user ID.
+func WithUserRole(ctx context.Context, role string) context.Context {
+	return context.WithValue(ctx, userRoleKey{}, role)
+}
+
+// UserRoleFrom extracts the authenticated user's role from ctx. The second
+// return value reports whether a role was present; an empty string (with
+// ok=true) reads as the default "user" role.
+func UserRoleFrom(ctx context.Context) (string, bool) {
+	role, ok := ctx.Value(userRoleKey{}).(string)
+	return role, ok
 }

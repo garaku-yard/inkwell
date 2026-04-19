@@ -81,10 +81,9 @@ func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		r = r.WithContext(contextx.WithUserID(r.Context(), resp.User.Id))
-		r.Header.Set("X-User-ID", resp.User.Id)
-
-		next.ServeHTTP(w, r)
+		ctx2 := contextx.WithUserID(r.Context(), resp.User.Id)
+		ctx2 = contextx.WithUserRole(ctx2, resp.User.Role)
+		next.ServeHTTP(w, r.WithContext(ctx2))
 	})
 }
 

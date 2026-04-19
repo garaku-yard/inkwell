@@ -213,8 +213,9 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 				r.Post("/decline", collaborationHandler.DeclineInvitation)
 			})
 
-			// Admin billing
+			// Admin billing — requires role=admin in addition to authentication.
 			r.Route("/admin/billing", func(r chi.Router) {
+				r.Use(middleware.RequireAdmin)
 				r.Get("/tiers", billingHandler.GetTiers)
 				r.Get("/analytics", billingHandler.GetAnalytics)
 				r.Get("/gateways", billingHandler.GetGateways)
@@ -358,6 +359,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		})
 
 		r.Route("/api/admin/billing", func(r chi.Router) {
+			r.Use(middleware.RequireAdmin)
 			r.Get("/tiers", billingHandler.GetTiers)
 			r.Get("/analytics", billingHandler.GetAnalytics)
 			r.Get("/gateways", billingHandler.GetGateways)
