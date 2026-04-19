@@ -1,1 +1,0 @@
-self.__SSG_MANIFEST=new Set(["\u002Fprojects\u002F[id]\u002Fbeat-board","\u002Fprojects\u002F[id]\u002Feditor","\u002Fprojects\u002F[id]\u002Foutline-editor","\u002Fworkspace\u002F[workspaceId]\u002Fsettings"]);self.__SSG_MANIFEST_CB&&self.__SSG_MANIFEST_CB()
