@@ -4,6 +4,39 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Tauri desktop: transparent window + rounded body gives the app a soft
+ * card feel when restored. Flat corners take over the instant the window
+ * maximises (see WindowTitlebar toggling `window-maximised` on <html>),
+ * matching OS expectations that full-screen apps go edge-to-edge.
+ *
+ * Both html AND the root elements must be transparent so the OS
+ * compositor can see through to the area outside body's rounded shape —
+ * otherwise the corners get painted with default window fill and look
+ * square. Body carries the real app surface + the border-radius.
+ */
+html,
+html body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+html {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+html body {
+  min-height: 100vh;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--background);
+}
+html.window-maximised body {
+  border-radius: 0;
+  border-width: 0;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

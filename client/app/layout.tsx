@@ -4,6 +4,7 @@ import { AuthProvider } from "@/lib/AuthContext";
 import { ThemeProvider } from "@/lib/ThemeContext";
 import { StorageProvider } from "@/lib/storage/StorageProvider";
 import { DesktopMenuBridge } from "@/components/desktop-menu-bridge";
+import { WindowTitlebar } from "@/components/window-titlebar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,7 +36,10 @@ export default function RootLayout({
           <ThemeProvider>
             <AuthProvider>
               <DesktopMenuBridge />
-              {children}
+              <div className="flex h-screen flex-col">
+                <WindowTitlebar />
+                <div className="min-h-0 flex-1">{children}</div>
+              </div>
             </AuthProvider>
           </ThemeProvider>
         </StorageProvider>
