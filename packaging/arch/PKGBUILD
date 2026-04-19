@@ -40,21 +40,24 @@ package() {
     cd "${srcdir}/squashfs-root"
 
     # Install the Tauri binary under /usr/bin so `inkwell` is on PATH.
-    install -Dm755 "usr/bin/Inkwell" "${pkgdir}/usr/bin/inkwell"
+    # The binary name matches the Cargo crate name (lowercase `inkwell`).
+    install -Dm755 "usr/bin/inkwell" "${pkgdir}/usr/bin/inkwell"
 
-    # Application resources (icons, etc.) — keep the Tauri layout.
-    for size in 32x32 128x128 256x256@2 512x512; do
-        if [[ -f "usr/share/icons/hicolor/${size}/apps/Inkwell.png" ]]; then
-            install -Dm644 "usr/share/icons/hicolor/${size}/apps/Inkwell.png" \
-                "${pkgdir}/usr/share/icons/hicolor/${size}/apps/inkwell.png"
-        fi
+    # Copy every hicolor icon size Tauri's bundler produced. Filenames
+    # already arrive as lowercase `inkwell.png` — the bundler lowercases
+    # productName for file paths — so we install them at the same
+    # relative path inside /usr/share/icons.
+    for icon in usr/share/icons/hicolor/*/apps/inkwell.png; do
+        [[ -f "$icon" ]] && install -Dm644 "$icon" "${pkgdir}/${icon}"
     done
 
-    # Desktop entry — ensures Inkwell appears in the application launcher.
+    # Desktop entry — the file is still named `Inkwell.desktop` (derived
+    # from productName), but we install it as lowercase to match the
+    # binary and icon names. Exec/Icon lines get normalised so the OS
+    # launches the pacman-installed binary rather than the AppImage's
+    # internal path.
     install -Dm644 "usr/share/applications/Inkwell.desktop" \
         "${pkgdir}/usr/share/applications/inkwell.desktop"
-    # Normalise the exec line so it points at the installed binary rather
-    # than the AppImage's internal path.
     sed -i 's|^Exec=.*|Exec=inkwell %U|' \
         "${pkgdir}/usr/share/applications/inkwell.desktop"
     sed -i 's|^Icon=.*|Icon=inkwell|' \
