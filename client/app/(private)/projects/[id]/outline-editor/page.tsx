@@ -268,8 +268,8 @@ export default function OutlineEditorPage() {
         const finalItems: OutlineItem[] = [];
         const originalLaneId = existingItem.laneId;
         setOutlineItems(prevItems => {
-          let allItems = prevItems.filter(item => item.id !== existingItem.id);
-          let targetLaneItems = allItems.filter(item => item.laneId === targetLaneId).sort((a, b) => a.order - b.order);
+          const allItems = prevItems.filter(item => item.id !== existingItem.id);
+          const targetLaneItems = allItems.filter(item => item.laneId === targetLaneId).sort((a, b) => a.order - b.order);
           targetLaneItems.push({ ...existingItem, laneId: targetLaneId, order: targetLaneItems.length });
           const reorderedTargetLane = targetLaneItems.map((item, index) => ({ ...item, order: index }));
           const otherItems = allItems.filter(item => item.laneId !== targetLaneId);
@@ -308,8 +308,8 @@ export default function OutlineEditorPage() {
       let finalItems: OutlineItem[] = [];
       const originalLaneId = draggedItem.laneId;
       setOutlineItems(prevItems => {
-        let allItems = prevItems.filter(item => item.id !== outlineItemId);
-        let targetLaneItems = allItems.filter(item => item.laneId === targetLaneId).sort((a, b) => a.order - b.order);
+        const allItems = prevItems.filter(item => item.id !== outlineItemId);
+        const targetLaneItems = allItems.filter(item => item.laneId === targetLaneId).sort((a, b) => a.order - b.order);
         const targetItemIndex = targetItemId ? targetLaneItems.findIndex(item => item.id === targetItemId) : -1;
         const insertIndex = targetItemIndex !== -1 ? targetItemIndex : targetLaneItems.length;
         targetLaneItems.splice(insertIndex, 0, { ...draggedItem, laneId: targetLaneId });

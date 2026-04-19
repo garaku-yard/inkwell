@@ -228,8 +228,8 @@ export default function BeatBoardPage() {
       let finalItems: OutlineItem[] = [];
       const originalLaneId = draggedItem.laneId;
       setOutlineItems(prevItems => {
-        let allItems = prevItems.filter(item => item.id !== outlineItemId);
-        let targetLaneItems = allItems.filter(item => item.laneId === targetLaneId).sort((a, b) => a.order - b.order);
+        const allItems = prevItems.filter(item => item.id !== outlineItemId);
+        const targetLaneItems = allItems.filter(item => item.laneId === targetLaneId).sort((a, b) => a.order - b.order);
         const targetItemIndex = targetItemId ? targetLaneItems.findIndex(item => item.id === targetItemId) : -1;
         const insertIndex = targetItemIndex !== -1 ? targetItemIndex : targetLaneItems.length;
         targetLaneItems.splice(insertIndex, 0, { ...draggedItem, laneId: targetLaneId });
@@ -263,7 +263,7 @@ export default function BeatBoardPage() {
       const updatedBeats = prevBeats.map(beat => {
         if (beat.id !== beatId) return beat;
 
-        let updatedBeat = { ...beat, [field]: value };
+        const updatedBeat = { ...beat, [field]: value };
 
         // Ensure endPage is never less than startPage
         if (field === 'startPage' && updatedBeat.endPage && (value as number) > updatedBeat.endPage) {
@@ -300,7 +300,7 @@ export default function BeatBoardPage() {
 
     const validatedBeat = beats.find(b => b.id === beatId);
     if (validatedBeat) {
-      let updateData: Partial<Beat> = { [field]: value };
+      const updateData: Partial<Beat> = { [field]: value };
 
       if (field === 'startPage' && validatedBeat.endPage && (value as number) > validatedBeat.endPage) {
         updateData.endPage = value as number;
