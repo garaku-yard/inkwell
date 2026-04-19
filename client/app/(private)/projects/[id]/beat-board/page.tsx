@@ -523,11 +523,11 @@ export default function BeatBoardPage() {
     }
   };
 
-  if (isLoading) return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+  if (isLoading) return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
   if (error) return <div>{error}</div>;
 
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-black" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+    <div className="h-full flex flex-col bg-white dark:bg-black" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
       <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black z-10">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">

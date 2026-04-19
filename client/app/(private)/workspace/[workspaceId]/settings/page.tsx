@@ -252,7 +252,7 @@ export default function WorkspaceSettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     )
@@ -267,7 +267,7 @@ export default function WorkspaceSettingsPage() {
   ]
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex h-full flex-col bg-background">
       {/* Header */}
       <div className="flex items-center gap-3 border-b px-6 py-4">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-8 w-8">

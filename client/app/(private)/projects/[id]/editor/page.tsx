@@ -51,7 +51,7 @@ export default function ProjectPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
+      <div className="flex h-full w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
@@ -59,7 +59,7 @@ export default function ProjectPage() {
 
   if (error) {
     return (
-      <div className="flex h-screen w-full items-center justify-center p-8">
+      <div className="flex h-full w-full items-center justify-center p-8">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error Loading Project</AlertTitle>

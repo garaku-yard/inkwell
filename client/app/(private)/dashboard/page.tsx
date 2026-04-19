@@ -102,7 +102,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden bg-background">
       <AppHeader inviteCount={inviteCount} />
 
       <div className="flex flex-1 overflow-hidden">
