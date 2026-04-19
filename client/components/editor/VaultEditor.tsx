@@ -6,9 +6,13 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import {
   ArrowLeft,
+  ChevronDown,
+  ChevronRight,
   Eye,
   FileText,
+  Folder,
   FolderOpen,
+  FolderPlus,
   Link2,
   PanelRight,
   Pencil,
@@ -72,10 +76,17 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   const [view, setView] = useState<ViewMode>("live")
   const [createOpen, setCreateOpen] = useState(false)
   const [createTitle, setCreateTitle] = useState("")
+  const [createFolderForNote, setCreateFolderForNote] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false)
+  const [newFolderPath, setNewFolderPath] = useState("")
+  const [newFolderParent, setNewFolderParent] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
+    () => new Set<string>(),
+  )
   const [backlinks, setBacklinks] = useState<VaultBacklink[]>([])
-  const [showBacklinks, setShowBacklinks] = useState(true)
+  const [showBacklinks, setShowBacklinks] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Track the most recently-loaded filename so the debounced save can't
@@ -85,8 +96,60 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   const filteredNotes = useMemo(() => {
     if (!search.trim()) return notes
     const q = search.trim().toLowerCase()
-    return notes.filter((n) => n.title.toLowerCase().includes(q))
+    // When filtering, match against the full relative path so users can
+    // narrow by folder (`"archive/"`) just as easily as by title.
+    return notes.filter(
+      (n) =>
+        n.title.toLowerCase().includes(q) ||
+        n.filename.toLowerCase().includes(q),
+    )
   }, [notes, search])
+
+  const tree = useMemo(() => buildTree(filteredNotes), [filteredNotes])
+
+  // Auto-expand every ancestor of the selected note so it's visible in
+  // the tree. Also expand everything when a search is active so matches
+  // aren't hidden inside collapsed folders.
+  useEffect(() => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev)
+      let changed = false
+      if (search.trim()) {
+        for (const note of filteredNotes) {
+          if (!note.folder) continue
+          const parts = note.folder.split("/")
+          let acc = ""
+          for (const p of parts) {
+            acc = acc ? `${acc}/${p}` : p
+            if (!next.has(acc)) {
+              next.add(acc)
+              changed = true
+            }
+          }
+        }
+      } else if (selected?.folder) {
+        const parts = selected.folder.split("/")
+        let acc = ""
+        for (const p of parts) {
+          acc = acc ? `${acc}/${p}` : p
+          if (!next.has(acc)) {
+            next.add(acc)
+            changed = true
+          }
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [filteredNotes, search, selected?.folder])
+
+  const toggleFolder = (path: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
 
   const refreshNotes = useCallback(async () => {
     try {
@@ -175,25 +238,83 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     await openNote(note)
   }
 
-  const openCreateDialog = () => {
+  const openCreateDialog = (folder: string | null) => {
+    setCreateFolderForNote(folder)
     setCreateTitle("")
     setCreateOpen(true)
   }
 
   const confirmCreateNote = async () => {
-    const title = createTitle.trim()
-    if (!title) return
+    const raw = createTitle.trim()
+    if (!raw) return
     setActionBusy(true)
     await flushPending()
     try {
-      const created = await storage.vault.createNote(projectId, title)
+      // Allow the user to type `folder/title` even without picking a
+      // folder from the sidebar — we split on the last slash and pass
+      // both parts down. Explicit folder (from sidebar menu) wins if set.
+      let folder = createFolderForNote ?? ""
+      let title = raw
+      const lastSlash = raw.lastIndexOf("/")
+      if (lastSlash !== -1 && !folder) {
+        folder = raw.slice(0, lastSlash)
+        title = raw.slice(lastSlash + 1)
+      }
+      const created = await storage.vault.createNote(
+        projectId,
+        title,
+        folder || undefined,
+      )
       await refreshNotes()
       await openNote(created)
+      // Make sure the containing folder unfolds so the new note is visible.
+      if (created.folder) {
+        setExpandedFolders((prev) => {
+          const next = new Set(prev)
+          const parts = created.folder.split("/")
+          let acc = ""
+          for (const p of parts) {
+            acc = acc ? `${acc}/${p}` : p
+            next.add(acc)
+          }
+          return next
+        })
+      }
       setCreateOpen(false)
       setCreateTitle("")
+      setCreateFolderForNote(null)
     } catch (err) {
       console.error("Vault createNote failed:", err)
       setError("Could not create the note.")
+    } finally {
+      setActionBusy(false)
+    }
+  }
+
+  const confirmCreateFolder = async () => {
+    const raw = newFolderPath.trim()
+    if (!raw) return
+    const full = newFolderParent ? `${newFolderParent}/${raw}` : raw
+    setActionBusy(true)
+    try {
+      await storage.vault.createFolder(projectId, full)
+      await refreshNotes()
+      setExpandedFolders((prev) => {
+        const next = new Set(prev)
+        const parts = full.split("/")
+        let acc = ""
+        for (const p of parts) {
+          acc = acc ? `${acc}/${p}` : p
+          next.add(acc)
+        }
+        return next
+      })
+      setFolderDialogOpen(false)
+      setNewFolderPath("")
+      setNewFolderParent(null)
+    } catch (err) {
+      console.error("Vault createFolder failed:", err)
+      setError("Could not create the folder.")
     } finally {
       setActionBusy(false)
     }
@@ -248,15 +369,24 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
             void refreshNotes()
 
             // Keep the backlinks index honest when external tools touch
-            // `.md` files. Paths come in absolute; basename is enough for
-            // reindexLinks to locate the row set. Errors are swallowed
-            // per-file so one broken write doesn't abort the batch.
+            // `.md` files. Paths come in absolute; we convert them back
+            // to vault-relative so nested notes reindex correctly.
             const paths: string[] = Array.isArray(event?.paths) ? event.paths : []
+            const normalisedRoot = vaultPath.replace(/[\\/]+$/, "")
             const changedMd = new Set<string>()
             for (const p of paths) {
               if (!p.toLowerCase().endsWith(".md")) continue
-              const name = p.split(/[\\/]/).pop()
-              if (name) changedMd.add(name)
+              const normalised = p.replace(/\\/g, "/")
+              const rootForwardSlash = normalisedRoot.replace(/\\/g, "/")
+              if (normalised.startsWith(rootForwardSlash + "/")) {
+                changedMd.add(normalised.slice(rootForwardSlash.length + 1))
+              } else if (normalised.startsWith(rootForwardSlash)) {
+                changedMd.add(normalised.slice(rootForwardSlash.length).replace(/^\/+/, ""))
+              } else {
+                // Fallback to basename if we can't re-root the path.
+                const name = p.split(/[\\/]/).pop()
+                if (name) changedMd.add(name)
+              }
             }
             for (const filename of changedMd) {
               void storage.vault.reindexLinks(projectId, filename).catch(() => {})
@@ -291,10 +421,10 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
                 })
             }
           },
-          // `recursive: false` matches the flat-vault assumption; bump
-          // to true when we support subfolders. `delayMs` coalesces
+          // Recursive so edits anywhere under the vault — including
+          // nested subfolders — trigger a refresh. `delayMs` coalesces
           // bursts (e.g. a save that touches several files at once).
-          { recursive: false, delayMs: 300 },
+          { recursive: true, delayMs: 300 },
         )
         if (!active) {
           void stop()
@@ -392,7 +522,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         Loading vault…
       </div>
     )
@@ -400,7 +530,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
 
   if (!vaultPath) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4 p-8 text-center">
+      <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
           <FolderOpen className="h-8 w-8 text-muted-foreground" />
         </div>
@@ -418,8 +548,9 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-background">
-      {/* Top bar */}
+    <div className="flex h-full flex-col bg-background">
+      {/* Top bar — deliberately sparse. The folder path lives in the
+          Settings dialog (gear icon on the right). */}
       <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur">
         <Button asChild size="icon" variant="ghost" className="h-8 w-8" title="Back to dashboard">
           <Link href="/dashboard">
@@ -427,12 +558,8 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
           </Link>
         </Button>
         <div className="h-5 w-px bg-border" />
-        <FolderOpen className="h-4 w-4 text-muted-foreground" />
-        <div
-          className="flex-1 truncate text-xs text-muted-foreground"
-          title={vaultPath}
-        >
-          {vaultPath}
+        <div className="flex-1 truncate text-sm font-medium">
+          {projectData.title}
         </div>
         <Button
           size="icon"
@@ -448,7 +575,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
       <div className="flex min-h-0 flex-1">
         {/* Sidebar */}
         <aside className="flex w-64 shrink-0 flex-col border-r bg-muted/20">
-          <div className="flex shrink-0 items-center gap-2 p-3">
+          <div className="flex shrink-0 items-center gap-1 p-3">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -462,15 +589,28 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
               size="icon"
               variant="ghost"
               className="h-8 w-8"
-              onClick={openCreateDialog}
-              title="New note (Ctrl/Cmd+N)"
+              onClick={() => {
+                setNewFolderParent(null)
+                setNewFolderPath("")
+                setFolderDialogOpen(true)
+              }}
+              title="New folder"
+            >
+              <FolderPlus className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              onClick={() => openCreateDialog(null)}
+              title="New note"
             >
               <Plus className="h-4 w-4" />
             </Button>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-            {filteredNotes.length === 0 ? (
+            {tree.length === 0 ? (
               <div className="px-3 py-4 text-center text-xs text-muted-foreground">
                 {notes.length === 0
                   ? "No notes yet."
@@ -478,32 +618,23 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
               </div>
             ) : (
               <ul className="space-y-0.5 px-1.5">
-                {filteredNotes.map((note) => {
-                  const active = selected?.filename === note.filename
-                  return (
-                    <li key={note.filename}>
-                      <button
-                        type="button"
-                        onClick={() => void onSelectNote(note)}
-                        className={cn(
-                          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                          active
-                            ? "bg-accent text-accent-foreground"
-                            : "text-foreground/80 hover:bg-accent/50",
-                        )}
-                        title={note.filename}
-                      >
-                        <FileText
-                          className={cn(
-                            "h-3.5 w-3.5 shrink-0",
-                            active ? "text-accent-foreground" : "text-muted-foreground",
-                          )}
-                        />
-                        <span className="truncate">{note.title}</span>
-                      </button>
-                    </li>
-                  )
-                })}
+                {tree.map((node, i) => (
+                  <TreeNodeView
+                    key={nodeKey(node, i)}
+                    node={node}
+                    depth={0}
+                    selected={selected}
+                    expanded={expandedFolders}
+                    onToggle={toggleFolder}
+                    onSelect={(note) => void onSelectNote(note)}
+                    onNewNoteInFolder={(folderPath) => openCreateDialog(folderPath)}
+                    onNewSubfolder={(parentPath) => {
+                      setNewFolderParent(parentPath)
+                      setNewFolderPath("")
+                      setFolderDialogOpen(true)
+                    }}
+                  />
+                ))}
               </ul>
             )}
           </div>
@@ -519,7 +650,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
             <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
               <FileText className="h-8 w-8" />
               <div>Pick a note from the sidebar, or create a new one.</div>
-              <Button size="sm" onClick={openCreateDialog}>
+              <Button size="sm" onClick={() => openCreateDialog(null)}>
                 <Plus className="mr-2 h-4 w-4" /> New note
               </Button>
             </div>
@@ -719,6 +850,67 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
         </DialogContent>
       </Dialog>
 
+      {/* New folder dialog. When `newFolderParent` is set the new folder
+          is nested under that path; otherwise it lands at the vault root. */}
+      <Dialog
+        open={folderDialogOpen}
+        onOpenChange={(o) => !actionBusy && setFolderDialogOpen(o)}
+      >
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>New folder</DialogTitle>
+            <DialogDescription>
+              {newFolderParent ? (
+                <>
+                  Create a subfolder inside{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                    {newFolderParent}
+                  </code>
+                  . You can nest further with <code>a/b/c</code>.
+                </>
+              ) : (
+                <>
+                  Create a folder at the vault root. Nest deeper with{" "}
+                  <code>a/b/c</code>.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="vault-folder-path">Folder name</Label>
+            <Input
+              id="vault-folder-path"
+              value={newFolderPath}
+              autoFocus
+              onChange={(e) => setNewFolderPath(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newFolderPath.trim()) {
+                  e.preventDefault()
+                  void confirmCreateFolder()
+                }
+              }}
+              placeholder="e.g. projects/alpha"
+              disabled={actionBusy}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setFolderDialogOpen(false)}
+              disabled={actionBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void confirmCreateFolder()}
+              disabled={actionBusy || !newFolderPath.trim()}
+            >
+              {actionBusy ? "Creating…" : "Create folder"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Vault settings — change folder, see stats. Will grow as we add
           per-project toggles (template, excluded folders, etc.). */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
@@ -854,6 +1046,185 @@ function ViewModeButton({
       <span className="hidden sm:inline">{label}</span>
     </button>
   )
+}
+
+// ─── Tree rendering ──────────────────────────────────────────────────────
+
+function nodeKey(node: TreeNode, index: number): string {
+  return node.type === "folder"
+    ? `folder:${node.path}`
+    : `file:${node.note.filename}#${index}`
+}
+
+interface TreeNodeViewProps {
+  node: TreeNode
+  depth: number
+  selected: VaultNote | null
+  expanded: Set<string>
+  onToggle: (path: string) => void
+  onSelect: (note: VaultNote) => void
+  onNewNoteInFolder: (folderPath: string) => void
+  onNewSubfolder: (parentPath: string) => void
+}
+
+/** Recursive tree row. Folders get a chevron + folder icon and toggle on
+ *  click; hovering reveals inline actions for creating a note or
+ *  subfolder inside. Files get a file icon + title. */
+function TreeNodeView({
+  node,
+  depth,
+  selected,
+  expanded,
+  onToggle,
+  onSelect,
+  onNewNoteInFolder,
+  onNewSubfolder,
+}: TreeNodeViewProps) {
+  if (node.type === "folder") {
+    const open = expanded.has(node.path)
+    return (
+      <li>
+        <div
+          className="group flex items-center gap-1 rounded-md pr-1 hover:bg-accent/50"
+          style={{ paddingLeft: `${depth * 12 + 4}px` }}
+        >
+          <button
+            type="button"
+            onClick={() => onToggle(node.path)}
+            className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-sm text-foreground/80"
+            title={node.path}
+          >
+            {open ? (
+              <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+            )}
+            {open ? (
+              <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            ) : (
+              <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            )}
+            <span className="truncate">{node.name}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onNewSubfolder(node.path)}
+            className="hidden h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground group-hover:flex"
+            title="New subfolder"
+          >
+            <FolderPlus className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onNewNoteInFolder(node.path)}
+            className="hidden h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground group-hover:flex"
+            title="New note in folder"
+          >
+            <Plus className="h-3 w-3" />
+          </button>
+        </div>
+        {open && node.children.length > 0 && (
+          <ul className="space-y-0.5">
+            {node.children.map((child, i) => (
+              <TreeNodeView
+                key={nodeKey(child, i)}
+                node={child}
+                depth={depth + 1}
+                selected={selected}
+                expanded={expanded}
+                onToggle={onToggle}
+                onSelect={onSelect}
+                onNewNoteInFolder={onNewNoteInFolder}
+                onNewSubfolder={onNewSubfolder}
+              />
+            ))}
+          </ul>
+        )}
+      </li>
+    )
+  }
+
+  const active = selected?.filename === node.note.filename
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onSelect(node.note)}
+        style={{ paddingLeft: `${depth * 12 + 22}px` }}
+        className={cn(
+          "flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm transition-colors",
+          active
+            ? "bg-accent text-accent-foreground"
+            : "text-foreground/80 hover:bg-accent/50",
+        )}
+        title={node.note.filename}
+      >
+        <FileText
+          className={cn(
+            "h-3.5 w-3.5 shrink-0",
+            active ? "text-accent-foreground" : "text-muted-foreground",
+          )}
+        />
+        <span className="truncate">{node.note.title}</span>
+      </button>
+    </li>
+  )
+}
+
+// ─── Tree helpers ────────────────────────────────────────────────────────
+
+interface TreeFolderNode {
+  type: "folder"
+  name: string
+  path: string
+  children: TreeNode[]
+}
+interface TreeFileNode {
+  type: "file"
+  note: VaultNote
+}
+type TreeNode = TreeFolderNode | TreeFileNode
+
+/** Derives a collapsible tree from the flat VaultNote list by splitting
+ *  `filename` on `/`. Sorted so folders surface first at each level,
+ *  then files, each group alphabetical. */
+function buildTree(notes: VaultNote[]): TreeNode[] {
+  const root: TreeFolderNode = { type: "folder", name: "", path: "", children: [] }
+  for (const note of notes) {
+    const parts = note.filename.split("/")
+    const fileName = parts.pop()!
+    let cursor = root
+    let curPath = ""
+    for (const seg of parts) {
+      curPath = curPath ? `${curPath}/${seg}` : seg
+      let child = cursor.children.find(
+        (c) => c.type === "folder" && c.name === seg,
+      ) as TreeFolderNode | undefined
+      if (!child) {
+        child = { type: "folder", name: seg, path: curPath, children: [] }
+        cursor.children.push(child)
+      }
+      cursor = child
+    }
+    cursor.children.push({ type: "file", note })
+    // Prevent the unused-var lint fire in branches that don't consume
+    // `fileName` — it's the leaf we just attached.
+    void fileName
+  }
+  sortTree(root)
+  return root.children
+}
+
+function sortTree(folder: TreeFolderNode): void {
+  folder.children.sort((a, b) => {
+    if (a.type !== b.type) return a.type === "folder" ? -1 : 1
+    const aName = a.type === "folder" ? a.name : a.note.title
+    const bName = b.type === "folder" ? b.name : b.note.title
+    return aName.localeCompare(bName)
+  })
+  for (const child of folder.children) {
+    if (child.type === "folder") sortTree(child)
+  }
 }
 
 function SaveStatus({ saving, dirty }: { saving: boolean; dirty: boolean }) {

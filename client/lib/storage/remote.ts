@@ -666,6 +666,8 @@ const vault: VaultStorage = {
   writeNote: () => rejectVault(),
   createNote: () => rejectVault(),
   deleteNote: () => rejectVault(),
+  createFolder: () => rejectVault(),
+  deleteFolder: () => rejectVault(),
   getBacklinks: async () => [],
   reindexLinks: async () => {
     /* vault is desktop-only; nothing to index on the hosted build */

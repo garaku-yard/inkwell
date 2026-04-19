@@ -34,6 +34,7 @@ import {
   writeTextFile,
   remove,
   exists,
+  mkdir,
 } from "@tauri-apps/plugin-fs"
 
 import type {
@@ -1168,24 +1169,33 @@ const ai: AiStorage = {
 
 // ─── Vault (markdown notes on disk) ──────────────────────────────────────
 
-function sanitiseFilename(title: string): string {
-  // Strip characters that are illegal on Windows (and annoying everywhere).
-  // Collapse whitespace runs and cap length so we don't generate names NTFS
-  // rejects. The result is always safe to use as a filename fragment.
-  const cleaned = title
+function joinPath(dir: string, filename: string): string {
+  // Cross-platform join: prefer the OS separator already present in `dir`
+  // when it's obviously Windows (`C:\`). Otherwise use `/` which Tauri's
+  // fs plugin normalises on Windows too. Handles relative `filename` with
+  // its own `/` separators — they get preserved when the base uses `/`
+  // and flipped to `\\` on pure-Windows bases.
+  const sep = /\\/.test(dir) && !/\//.test(dir) ? "\\" : "/"
+  const cleanDir = dir.replace(/[\\/]+$/, "")
+  const normalisedTail = sep === "\\" ? filename.replace(/\//g, "\\") : filename
+  return `${cleanDir}${sep}${normalisedTail}`
+}
+
+/** Strips a leading `./` and collapses `\\` → `/` so we always carry
+ *  forward-slash relative paths inside the app; the OS-specific join is
+ *  only applied when we hand the path to the filesystem. */
+function normaliseRelPath(rel: string): string {
+  return rel.replace(/\\/g, "/").replace(/^\.\/+/, "").replace(/^\/+/, "")
+}
+
+/** Sanitises a single path segment — folder name or note title. */
+function sanitiseSegment(segment: string): string {
+  const cleaned = segment
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 200)
-  return cleaned || "Untitled"
-}
-
-function joinPath(dir: string, filename: string): string {
-  // Cross-platform join: prefer the OS separator already present in `dir`
-  // when it's obviously Windows (`C:\`). Otherwise use `/` which Tauri's
-  // fs plugin normalises on Windows too.
-  const sep = /\\/.test(dir) && !/\//.test(dir) ? "\\" : "/"
-  return `${dir.replace(/[\/\\]+$/, "")}${sep}${filename}`
+  return cleaned
 }
 
 // ─── Backlinks index ─────────────────────────────────────────────────────
@@ -1234,6 +1244,35 @@ async function reindexNoteLinks(
   }
 }
 
+/** Recursively walks `folder` and returns every `.md` file it finds,
+ *  yielding the relative path from the top-level folder (forward-slash
+ *  separated) plus the matching absolute path. Hidden files starting
+ *  with `.` are skipped so `.obsidian/` / `.git/` don't pollute the list. */
+async function walkMarkdownFiles(
+  folder: string,
+  relPrefix = "",
+): Promise<Array<{ rel: string; abs: string }>> {
+  const out: Array<{ rel: string; abs: string }> = []
+  let entries: Awaited<ReturnType<typeof readDir>>
+  try {
+    entries = await readDir(folder)
+  } catch {
+    return out
+  }
+  for (const entry of entries) {
+    if (entry.name.startsWith(".")) continue
+    const childRel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name
+    const childAbs = joinPath(folder, entry.name)
+    if (entry.isDirectory) {
+      const nested = await walkMarkdownFiles(childAbs, childRel)
+      out.push(...nested)
+    } else if (entry.isFile && entry.name.toLowerCase().endsWith(".md")) {
+      out.push({ rel: childRel, abs: childAbs })
+    }
+  }
+  return out
+}
+
 /** Ensures every `.md` file in the vault has an up-to-date row set in
  *  `note_links`. Cheap no-op on subsequent calls — the in-memory
  *  `vaultIndexBuilt` set short-circuits repeated work per session. */
@@ -1242,13 +1281,11 @@ async function ensureVaultIndex(
   folder: string,
 ): Promise<void> {
   if (vaultIndexBuilt.has(projectId)) return
-  const entries = await readDir(folder)
-  for (const entry of entries) {
-    if (!entry.isFile) continue
-    if (!entry.name.toLowerCase().endsWith(".md")) continue
+  const files = await walkMarkdownFiles(folder)
+  for (const file of files) {
     try {
-      const body = await readTextFile(joinPath(folder, entry.name))
-      await reindexNoteLinks(projectId, entry.name, body)
+      const body = await readTextFile(file.abs)
+      await reindexNoteLinks(projectId, file.rel, body)
     } catch {
       // Skip unreadable files silently; they just won't participate in
       // backlinks until the user opens them.
@@ -1297,71 +1334,130 @@ const vault: VaultStorage = {
     // already existed on disk before we had an index. Fast: O(files).
     await ensureVaultIndex(projectId, folder)
 
-    const entries = await readDir(folder)
-    const notes: VaultNote[] = []
-    for (const entry of entries) {
-      // Skip directories for v0 (flat vault). Filter to .md only.
-      if (!entry.isFile) continue
-      if (!entry.name.toLowerCase().endsWith(".md")) continue
-      const fullPath = joinPath(folder, entry.name)
-      notes.push({
-        filename: entry.name,
-        path: fullPath,
-        title: entry.name.replace(/\.md$/i, ""),
+    const files = await walkMarkdownFiles(folder)
+    const notes: VaultNote[] = files.map((file) => {
+      const lastSlash = file.rel.lastIndexOf("/")
+      const folderPart = lastSlash === -1 ? "" : file.rel.slice(0, lastSlash)
+      const nameOnly = lastSlash === -1 ? file.rel : file.rel.slice(lastSlash + 1)
+      return {
+        filename: file.rel,
+        path: file.abs,
+        title: nameOnly.replace(/\.md$/i, ""),
+        folder: folderPart,
         // `readDir` doesn't expose mtime; we'd need `stat` to fill this in.
         // For v0 use an empty string so the UI just falls back to the name.
         updatedAt: "",
-      })
-    }
-    notes.sort((a, b) => a.title.localeCompare(b.title))
+      }
+    })
+    // Sort by full relative path so the tree UI gets stable ordering —
+    // folders surface together, then files alphabetical per folder.
+    notes.sort((a, b) => a.filename.localeCompare(b.filename))
     return notes
   },
 
   readNote: async (projectId, filename) => {
     const folder = await getVaultPathOrThrow(projectId)
-    return readTextFile(joinPath(folder, filename))
+    return readTextFile(joinPath(folder, normaliseRelPath(filename)))
   },
 
   writeNote: async (projectId, filename, content) => {
     const folder = await getVaultPathOrThrow(projectId)
-    await writeTextFile(joinPath(folder, filename), content)
+    const rel = normaliseRelPath(filename)
+    // Ensure the parent folder exists before writing. Cheap idempotent
+    // mkdir — no harm if the directory is already there.
+    const lastSlash = rel.lastIndexOf("/")
+    if (lastSlash !== -1) {
+      await mkdir(joinPath(folder, rel.slice(0, lastSlash)), {
+        recursive: true,
+      }).catch(() => {
+        /* parent dir likely already exists */
+      })
+    }
+    await writeTextFile(joinPath(folder, rel), content)
     // Keep the backlinks index in sync with every save; the cost is one
     // SQL write per wikilink in the note, negligible for human-sized notes.
-    await reindexNoteLinks(projectId, filename, content)
+    await reindexNoteLinks(projectId, rel, content)
   },
 
-  createNote: async (projectId, title) => {
-    const folder = await getVaultPathOrThrow(projectId)
-    const base = sanitiseFilename(title)
-    let filename = `${base}.md`
-    let path = joinPath(folder, filename)
-    // If the chosen name collides, append ` 2`, ` 3`, … until we find a gap.
-    // Bounded so a pathological vault never hangs the UI.
+  createNote: async (projectId, title, folder) => {
+    const vaultRoot = await getVaultPathOrThrow(projectId)
+    const base = sanitiseSegment(title) || "Untitled"
+
+    // `folder` may contain nested segments like `projects/alpha`. Each is
+    // sanitised separately so a stray slash in the title doesn't escape
+    // the vault. Empty-string or undefined folder → root-level note.
+    const folderRel = folder
+      ? normaliseRelPath(folder)
+          .split("/")
+          .map(sanitiseSegment)
+          .filter((s) => s.length > 0)
+          .join("/")
+      : ""
+    if (folderRel) {
+      await mkdir(joinPath(vaultRoot, folderRel), { recursive: true }).catch(() => {
+        /* idempotent */
+      })
+    }
+
+    const makeRel = (name: string) =>
+      folderRel ? `${folderRel}/${name}` : name
+    let rel = makeRel(`${base}.md`)
+    let path = joinPath(vaultRoot, rel)
     for (let i = 2; i < 1000 && (await exists(path)); i++) {
-      filename = `${base} ${i}.md`
-      path = joinPath(folder, filename)
+      rel = makeRel(`${base} ${i}.md`)
+      path = joinPath(vaultRoot, rel)
     }
     const body = `# ${title}\n\n`
     await writeTextFile(path, body)
-    await reindexNoteLinks(projectId, filename, body)
+    await reindexNoteLinks(projectId, rel, body)
+
+    const lastSlash = rel.lastIndexOf("/")
+    const nameOnly = lastSlash === -1 ? rel : rel.slice(lastSlash + 1)
     return {
-      filename,
+      filename: rel,
       path,
-      title: filename.replace(/\.md$/i, ""),
+      title: nameOnly.replace(/\.md$/i, ""),
+      folder: folderRel,
       updatedAt: "",
     }
   },
 
   deleteNote: async (projectId, filename) => {
     const folder = await getVaultPathOrThrow(projectId)
-    await remove(joinPath(folder, filename))
+    const rel = normaliseRelPath(filename)
+    await remove(joinPath(folder, rel))
     // Drop every outbound-from-this-file entry so deleted notes can't
     // appear as phantom backlink sources. Inbound rows (other notes
     // linking *to* this file) stay; they just won't resolve.
     const db = await getDb()
     await db.execute(
       "DELETE FROM note_links WHERE project_id = ? AND from_filename = ?",
-      [projectId, filename],
+      [projectId, rel],
+    )
+  },
+
+  createFolder: async (projectId, relPath) => {
+    const vaultRoot = await getVaultPathOrThrow(projectId)
+    const segments = normaliseRelPath(relPath)
+      .split("/")
+      .map(sanitiseSegment)
+      .filter((s) => s.length > 0)
+    if (segments.length === 0) return
+    await mkdir(joinPath(vaultRoot, segments.join("/")), { recursive: true })
+  },
+
+  deleteFolder: async (projectId, relPath) => {
+    const vaultRoot = await getVaultPathOrThrow(projectId)
+    const rel = normaliseRelPath(relPath)
+    if (!rel) return
+    await remove(joinPath(vaultRoot, rel), { recursive: true })
+    // Clean the backlinks index of every note that used to live here.
+    // LIKE with the folder prefix catches nested notes as well.
+    const db = await getDb()
+    const prefix = `${rel}/`
+    await db.execute(
+      "DELETE FROM note_links WHERE project_id = ? AND (from_filename = ? OR from_filename LIKE ?)",
+      [projectId, rel, `${prefix}%`],
     )
   },
 

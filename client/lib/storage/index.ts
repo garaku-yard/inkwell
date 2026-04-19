@@ -323,12 +323,17 @@ export interface SettingsStorage {
  *  files on the user's disk; the vault storage layer reads them on demand
  *  rather than caching the full text. */
 export interface VaultNote {
-  /** Filename including `.md` extension — unique within a vault. */
+  /** Relative path from the vault root, including `.md`. Use this as the
+   *  stable key — two notes in different folders can share a title but
+   *  never a full path. Examples: `"notes.md"`, `"projects/alpha/spec.md"`. */
   filename: string
   /** Absolute path to the note on disk. */
   path: string
-  /** Filename without extension, used as the display title. */
+  /** Basename without the `.md` extension, used as the display title. */
   title: string
+  /** Relative parent folder within the vault. Empty string for
+   *  vault-root notes, otherwise e.g. `"projects/alpha"`. */
+  folder: string
   /** ISO 8601 timestamp of the last on-disk modification. */
   updatedAt: string
 }
@@ -348,17 +353,27 @@ export interface VaultStorage {
   /** Returns the absolute vault path stored for the project, or null when
    *  the user hasn't chosen a folder yet. */
   getVaultPath(projectId: string): Promise<string | null>
-  /** Lists every `.md` file in the vault, sorted by title. */
+  /** Lists every `.md` file in the vault recursively, sorted by relative
+   *  path. `filename` on each entry is the vault-relative path. */
   listNotes(projectId: string): Promise<VaultNote[]>
-  /** Reads the raw markdown content of a note. */
+  /** Reads the raw markdown content of a note. `filename` is the
+   *  vault-relative path (possibly with folder segments). */
   readNote(projectId: string, filename: string): Promise<string>
-  /** Writes raw markdown to a note. Creates the file if missing. */
+  /** Writes raw markdown to a note, creating the file + any missing
+   *  parent directories when needed. */
   writeNote(projectId: string, filename: string, content: string): Promise<void>
   /** Creates an empty note with the given title (`.md` added automatically).
-   *  Returns the created note record. Rejects if the title collides. */
-  createNote(projectId: string, title: string): Promise<VaultNote>
-  /** Deletes the note from disk. */
+   *  Optional `folder` places the note inside a subfolder (auto-created).
+   *  Returns the created note record. Appends a counter when names collide. */
+  createNote(projectId: string, title: string, folder?: string): Promise<VaultNote>
+  /** Deletes the note from disk. `filename` is the vault-relative path. */
   deleteNote(projectId: string, filename: string): Promise<void>
+  /** Creates an empty subfolder inside the vault. `relPath` is relative
+   *  to the vault root. Intermediate folders are created automatically. */
+  createFolder(projectId: string, relPath: string): Promise<void>
+  /** Deletes a subfolder and every note/subfolder underneath it. Use
+   *  with care — the operation is irreversible. */
+  deleteFolder(projectId: string, relPath: string): Promise<void>
   /** Scans every other note in the vault for `[[title]]` references and
    *  returns the matches. Case-insensitive by design so casual link
    *  authoring keeps working. Aliases (`[[title|alias]]`) match on title. */
