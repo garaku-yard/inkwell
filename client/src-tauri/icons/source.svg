@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Inkwell app monogram. Matches the BRANDBOOK spec: a bold serif "I" in a
+  warm-charcoal rounded square. Rasterised to 1024×1024 PNG via rsvg-convert
+  and fed to `tauri icon` to generate every platform-specific size variant
+  (icon.ico, icon.icns, 32×32, 128×128, @2x, etc.). Regenerate those assets
+  by rerunning `rsvg-convert ... source.svg > source.png && npx tauri icon`.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect width="1024" height="1024" rx="220" ry="220" fill="#1f2420"/>
+  <text x="512" y="720" text-anchor="middle"
+        font-family="'Times New Roman', Times, serif"
+        font-weight="700"
+        font-size="720"
+        fill="#f6f0e6">I</text>
+</svg>
