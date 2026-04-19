@@ -28,10 +28,11 @@ import { CollaboratorsDialog } from "./collaborators-dialog"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { RenameProjectDialog } from "@/components/rename-project-dialog"
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 export default function DashboardPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { isAuthenticated, isLoading: authLoading, user } = useAuth()
   const { needsOnboarding, activeWorkspace } = useWorkspace()
   const userId = user?.id
@@ -76,6 +77,17 @@ export default function DashboardPage() {
       router.replace("/onboarding")
     }
   }, [authLoading, isAuthenticated, needsOnboarding, router])
+
+  // File → New Project (native menu) lands here with ?new=1. Open the
+  // existing dialog and strip the flag so a refresh doesn't reopen it.
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setIsNewProjectDialogOpen(true)
+      const url = new URL(window.location.href)
+      url.searchParams.delete("new")
+      router.replace(url.pathname + (url.search ? url.search : ""))
+    }
+  }, [searchParams, router])
 
   const handleManageCollaborators = (projectId: string, projectTitle: string) => {
     setCollaboratorsDialog({ open: true, projectId, projectName: projectTitle })

@@ -1,0 +1,62 @@
+# Maintainer: l1roii <lira45@hotmail.com>
+# Maintainer: puhize <puhizarexhaaa@gmail.com>
+#
+# Arch Linux package for Inkwell — binary package that unpacks the official
+# AppImage published on GitHub Releases. No compilation on the user's side,
+# which keeps install time short and avoids needing a full Rust toolchain
+# for every installer. Submit to AUR as `inkwell-bin`.
+#
+# After each release:
+#   1. Bump `pkgver` to match the Git tag (without the `v` prefix).
+#   2. Update `sha256sums` with the AppImage digest from the Releases page,
+#      or use `updpkgsums` if the file is reachable.
+#   3. Regenerate `.SRCINFO` with `makepkg --printsrcinfo > .SRCINFO`.
+#   4. Commit + push to the AUR git repo.
+
+pkgname=inkwell-bin
+pkgver=0.1.1
+pkgrel=1
+pkgdesc="A local-first, collaborative writing platform for screenwriters, novelists, poets, and more"
+arch=('x86_64')
+url="https://github.com/l1roii/inkwell"
+license=('custom:PolyForm-Noncommercial-1.0.0')
+depends=('webkit2gtk-4.1' 'gtk3')
+provides=('inkwell')
+conflicts=('inkwell')
+options=('!strip' '!emptydirs')
+
+source=("${pkgname}-${pkgver}.AppImage::https://github.com/l1roii/inkwell/releases/download/v${pkgver}/Inkwell_${pkgver}_amd64.AppImage")
+# Replace SKIP with the real sha256 before publishing.
+sha256sums=('SKIP')
+noextract=("${pkgname}-${pkgver}.AppImage")
+
+prepare() {
+    chmod +x "${srcdir}/${pkgname}-${pkgver}.AppImage"
+    cd "${srcdir}"
+    "${srcdir}/${pkgname}-${pkgver}.AppImage" --appimage-extract >/dev/null
+}
+
+package() {
+    cd "${srcdir}/squashfs-root"
+
+    # Install the Tauri binary under /usr/bin so `inkwell` is on PATH.
+    install -Dm755 "usr/bin/Inkwell" "${pkgdir}/usr/bin/inkwell"
+
+    # Application resources (icons, etc.) — keep the Tauri layout.
+    for size in 32x32 128x128 256x256@2 512x512; do
+        if [[ -f "usr/share/icons/hicolor/${size}/apps/Inkwell.png" ]]; then
+            install -Dm644 "usr/share/icons/hicolor/${size}/apps/Inkwell.png" \
+                "${pkgdir}/usr/share/icons/hicolor/${size}/apps/inkwell.png"
+        fi
+    done
+
+    # Desktop entry — ensures Inkwell appears in the application launcher.
+    install -Dm644 "usr/share/applications/Inkwell.desktop" \
+        "${pkgdir}/usr/share/applications/inkwell.desktop"
+    # Normalise the exec line so it points at the installed binary rather
+    # than the AppImage's internal path.
+    sed -i 's|^Exec=.*|Exec=inkwell %U|' \
+        "${pkgdir}/usr/share/applications/inkwell.desktop"
+    sed -i 's|^Icon=.*|Icon=inkwell|' \
+        "${pkgdir}/usr/share/applications/inkwell.desktop"
+}

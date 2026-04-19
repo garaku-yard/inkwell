@@ -7,6 +7,7 @@ import { EditorFactory } from "@/components/editor/EditorFactory"
 import { getFullProject, FullProject } from "@/services/project"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useAuth } from "@/lib/AuthContext"
+import { setWindowTitle } from "@/lib/desktop"
 
 export default function ProjectPage() {
   const { user } = useAuth()
@@ -38,6 +39,15 @@ export default function ProjectPage() {
       setError("Authentication required. Please log in again.")
     }
   }, [projectId, user?.id]);
+
+  // Mirror the project title into the native window chrome (desktop only;
+  // no-op in the web build). Restored to plain "Inkwell" on unmount.
+  useEffect(() => {
+    if (project?.title) void setWindowTitle(`Inkwell — ${project.title}`)
+    return () => {
+      void setWindowTitle("Inkwell")
+    }
+  }, [project?.title])
 
   if (isLoading) {
     return (

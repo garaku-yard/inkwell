@@ -1,0 +1,104 @@
+name: Release
+
+# Fires on any `v*` tag push. Builds Windows + Linux in parallel, drops the
+# installers into a GitHub Release draft named after the tag. macOS is
+# intentionally skipped (no Apple Developer cert + notarization setup).
+on:
+  push:
+    tags:
+      - "v*"
+
+# Guard against two runs stepping on each other if a tag is force-pushed.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            label: Linux
+          - platform: windows-latest
+            label: Windows
+
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.platform }}
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust target
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: client/src-tauri -> target
+
+      - name: Install Linux build deps
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev
+
+      - name: Install client dependencies
+        working-directory: ./client
+        run: npm ci
+
+      - name: Build Tauri bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional updater signing. Set these repo secrets to enable
+          # `tauri-plugin-updater` signatures on each release; leave unset to
+          # ship unsigned builds (no auto-update support).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: ./client
+          tauriScript: npx tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: "Inkwell ${{ github.ref_name }}"
+          releaseBody: |
+            ## Inkwell ${{ github.ref_name }}
+
+            Download the installer for your platform below.
+
+            - **Windows:** `.exe` (NSIS installer). Windows SmartScreen will
+              show a warning on first run — click "More info" → "Run anyway".
+              Releases are unsigned for now; we'll add code signing before
+              public launch.
+            - **Linux:** `.AppImage` (portable, works on most distros) or
+              `.deb` (for Debian/Ubuntu).
+
+            ### Notes
+            - First launch creates a local SQLite database at
+              `~/.local/share/com.inkwell.app/inkwell.db` (Linux) or
+              `%APPDATA%\com.inkwell.app\inkwell.db` (Windows). All your
+              projects stay on your machine — no server required.
+          releaseDraft: true
+          prerelease: false
