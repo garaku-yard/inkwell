@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { Loader2, AlertCircle } from "lucide-react"
 import { EditorFactory } from "@/components/editor/EditorFactory"
 import { getFullProject, FullProject } from "@/services/project"
@@ -15,8 +15,8 @@ export default function ProjectPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const params = useParams();
-  const projectId = params.id as string;
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get("id") ?? "";
 
   useEffect(() => {
     if (projectId && user?.id) {

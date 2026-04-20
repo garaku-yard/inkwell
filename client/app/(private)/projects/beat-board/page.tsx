@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { useDebouncedCallback } from "use-debounce"
 import { ArrowLeft, Loader2, LayoutGrid } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -28,8 +28,8 @@ export default function BeatBoardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const params = useParams()
-  const projectId = params.id as string
+  const searchParams = useSearchParams()
+  const projectId = searchParams.get("id") ?? ""
 
   const [editingField, setEditingField] = useState<{ beatId: string; field: keyof Beat } | null>(null)
   const [draggedBeat, setDraggedBeat] = useState<string | null>(null)
@@ -531,8 +531,8 @@ export default function BeatBoardPage() {
       <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black z-10">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
-            <Link href={`/projects/${projectId}/editor`}><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back to Editor</Button></Link>
-            <Link href={`/projects/${projectId}/outline-editor`}>
+            <Link href={`/projects/editor?id=${projectId}`}><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back to Editor</Button></Link>
+            <Link href={`/projects/outline-editor?id=${projectId}`}>
               <Button variant="outline" size="sm">
                 <LayoutGrid className="h-4 w-4 mr-2" />
                 Go to Outline Editor

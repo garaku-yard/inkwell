@@ -207,7 +207,7 @@ export function useProjects({
    * @param projectId - UUID of the project to open.
    */
   const handleProjectClick = (projectId: string) => {
-    router.push(`/projects/${projectId}/editor`)
+    router.push(`/projects/editor?id=${projectId}`)
   }
 
   return {

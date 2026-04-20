@@ -55,7 +55,7 @@ export default function InvitesPage() {
       }
       setInvites((prevInvites) => prevInvites.filter((invite) => invite.id !== invitationId))
       if (accepted) {
-        router.push(`/projects/${projectId}/editor`)
+        router.push(`/projects/editor?id=${projectId}`)
       }
     } catch (error) {
       console.error(`Failed to ${accepted ? 'accept' : 'decline'} invite:`, error)

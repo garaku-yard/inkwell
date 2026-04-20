@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { ArrowLeft, Settings2, Users, Tag, Trash2, Loader2, UserPlus, MoreHorizontal, Check, X, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -60,7 +60,8 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 export default function WorkspaceSettingsPage() {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const searchParams = useSearchParams()
+  const workspaceId = searchParams.get("id") ?? ""
   const router = useRouter()
   const { toast } = useToast()
   const { refetch, setActiveWorkspace } = useWorkspace()

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronRight, ChevronDown } from 'lucide-react';
-import { type StructureElement } from '@/app/(private)/projects/[id]/outline-editor/page';
+import { type StructureElement } from '@/app/(private)/projects/outline-editor/page';
 
 interface OutlineNodeProps {
   element: StructureElement;

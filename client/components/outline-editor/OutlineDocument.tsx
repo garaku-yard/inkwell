@@ -1,5 +1,5 @@
 import { OutlineNode } from './OutlineNode';
-import { type StructureElement } from '@/app/(private)/projects/[id]/outline-editor/page';
+import { type StructureElement } from '@/app/(private)/projects/outline-editor/page';
 
 interface OutlineDocumentProps {
   structure: StructureElement[];

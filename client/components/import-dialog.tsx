@@ -141,7 +141,7 @@ export function ImportProjectDialog({ open, onOpenChange, onProjectImported }: I
 
       onProjectImported(importedProject)
       handleOpenChange(false)
-      router.push(`/projects/${importedProject.id}/editor`)
+      router.push(`/projects/editor?id=${importedProject.id}`)
 
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to import project. Please try again.")

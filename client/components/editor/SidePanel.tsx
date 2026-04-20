@@ -89,7 +89,7 @@ export const SidePanel = React.memo(
       }
 
       const handleBeatBoardClick = (projectId: string) => {
-        router.push(`/projects/${projectId}/beat-board`)
+        router.push(`/projects/beat-board?id=${projectId}`)
       }
 
       const activeElement = useMemo((): ActiveScriptItem | null => {

@@ -36,7 +36,7 @@ export default function SceneBreakdown() {
             </Link>
             <h1 className="text-xl font-semibold text-foreground">Scene Breakdown</h1>
           </div>
-          <Link href={`/projects/${projectId}/editor`}>
+          <Link href={`/projects/editor?id=${projectId}`}>
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Editor

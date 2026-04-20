@@ -259,7 +259,7 @@ export function WorkspaceSwitcher() {
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                onClick={() => router.push(`/workspace/${activeWorkspace.id}/settings`)}
+                onClick={() => router.push(`/workspace/settings?id=${activeWorkspace.id}`)}
                 className={cn(
                   "flex h-10 w-10 items-center justify-center rounded-[14px] border border-border",
                   "text-muted-foreground transition-all duration-150 hover:rounded-[10px] hover:border-primary hover:text-primary"

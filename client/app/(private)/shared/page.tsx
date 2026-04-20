@@ -189,7 +189,7 @@ export default function SharedPage() {
                     onManageCollaborators={() => {}}
                     onDelete={() => {}}
                     onRename={() => {}}
-                    onClick={(id) => router.push(`/projects/${id}/editor`)}
+                    onClick={(id) => router.push(`/projects/editor?id=${id}`)}
                   />
                 ))}
               </div>

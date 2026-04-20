@@ -2,7 +2,7 @@ import type React from "react";
 import { ClipboardList } from "lucide-react";
 import type { Beat, Connection } from "@/services/beat";
 import { BeatCard } from "./BeatCard";
-import type { ConnectionSide } from "@/app/(private)/projects/[id]/beat-board/page";
+import type { ConnectionSide } from "@/app/(private)/projects/beat-board/page";
 
 interface BeatCanvasProps {
   boardRef: React.RefObject<HTMLDivElement | null>;
