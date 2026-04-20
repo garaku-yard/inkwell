@@ -14,18 +14,23 @@
 #   4. Commit + push to the AUR git repo.
 
 pkgname=inkwell-bin
-pkgver=0.2.2
+pkgver=0.2.3
+# Upstream binary version embedded in the AppImage filename. Usually
+# matches `pkgver`; split out here because the v0.2.3 release tag was
+# cut without bumping `tauri.conf.json`, so the release artefact is
+# still named `Inkwell_0.2.2_amd64.AppImage`. Realign next release.
+_binver=0.2.2
 pkgrel=1
 pkgdesc="A local-first, collaborative writing platform for screenwriters, novelists, poets, and more"
 arch=('x86_64')
-url="https://github.com/l1roii/inkwell"
+url="https://github.com/garaku-yard/inkwell"
 license=('custom:PolyForm-Noncommercial-1.0.0')
 depends=('webkit2gtk-4.1' 'gtk3')
 provides=('inkwell')
 conflicts=('inkwell')
 options=('!strip' '!emptydirs')
 
-source=("${pkgname}-${pkgver}.AppImage::https://github.com/l1roii/inkwell/releases/download/v${pkgver}/Inkwell_${pkgver}_amd64.AppImage")
+source=("${pkgname}-${pkgver}.AppImage::https://github.com/garaku-yard/inkwell/releases/download/v${pkgver}/Inkwell_${_binver}_amd64.AppImage")
 # Replace SKIP with the real sha256 before publishing.
 sha256sums=('SKIP')
 noextract=("${pkgname}-${pkgver}.AppImage")

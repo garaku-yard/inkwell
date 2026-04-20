@@ -1,0 +1,6 @@
+# makepkg artefacts — regenerated locally, never committed
+src/
+pkg/
+*.AppImage
+*.pkg.tar.zst
+*.pkg.tar.xz
