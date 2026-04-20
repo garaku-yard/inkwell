@@ -104,3 +104,47 @@ export function wikilinkClickExtension(
     },
   })
 }
+
+/**
+ * Mirror of `wikilinkClickExtension` for `#tag` inline spans. The tag
+ * text (without the `#`) is handed to the consumer so callers can
+ * filter notes, scroll a sidebar, etc.
+ */
+export function tagClickExtension(
+  getHandler: () => ((tag: string) => void) | undefined,
+): Extension {
+  return EditorView.domEventHandlers({
+    mousedown(event, view) {
+      const handler = getHandler()
+      if (!handler) return false
+      const el = event.target as HTMLElement | null
+      if (!el || !el.closest(".cm-md-tag")) return false
+
+      const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+      if (pos == null) return false
+
+      const line = view.state.doc.lineAt(pos)
+      // Slice the whole line and find the tag spanning `pos` — cheaper
+      // than threading tag ranges out of the live-preview plugin.
+      const text = line.text
+      const offset = pos - line.from
+      // Walk backwards to the `#`, forwards to the end of the tag.
+      let start = offset
+      while (start > 0 && /[\w\-/]/.test(text[start - 1])) start--
+      if (text[start - 1] !== "#") {
+        // Cursor may have landed between the `#` and the first character.
+        if (text[start] !== "#") return false
+        start++
+      }
+      let end = offset
+      while (end < text.length && /[\w\-/]/.test(text[end])) end++
+      const tag = text.slice(start, end).replace(/^#/, "").replace(/\/+$/, "")
+      if (!tag) return false
+
+      event.preventDefault()
+      event.stopPropagation()
+      handler(tag)
+      return true
+    },
+  })
+}

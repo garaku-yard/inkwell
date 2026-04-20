@@ -114,6 +114,24 @@ export const inkwellTheme = EditorView.theme(
       backgroundColor: "color-mix(in srgb, var(--primary) 16%, transparent)",
     },
 
+    // Inline tag — pill-shaped, muted tint, click-to-filter cursor. We
+    // borrow the muted-foreground palette so it reads quieter than
+    // wikilinks (which are primary-coloured and more action-weighty).
+    ".cm-md-tag": {
+      color: "var(--muted-foreground)",
+      backgroundColor:
+        "color-mix(in srgb, var(--muted-foreground) 12%, transparent)",
+      padding: "1px 6px",
+      borderRadius: "999px",
+      fontSize: "0.88em",
+      cursor: "pointer",
+    },
+    ".cm-md-tag:hover": {
+      color: "var(--foreground)",
+      backgroundColor:
+        "color-mix(in srgb, var(--muted-foreground) 22%, transparent)",
+    },
+
     // Task list checkboxes
     ".cm-md-task-checkbox": {
       appearance: "none",
@@ -130,6 +148,9 @@ export const inkwellTheme = EditorView.theme(
     ".cm-md-task-checkbox:hover": {
       borderColor: "var(--primary)",
     },
+    // Checked state — light mode: white tick on dark-green --primary.
+    // The dark-mode override lives in globals.css because CM6 theme
+    // scoping mangles ancestor-class selectors like `.dark`.
     ".cm-md-task-checkbox:checked": {
       backgroundColor: "var(--primary)",
       borderColor: "var(--primary)",

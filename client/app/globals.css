@@ -130,12 +130,12 @@ html.window-maximised body {
   --secondary: oklch(0.245 0.008 145);       /* interactive / hover surfaces */
   --secondary-foreground: oklch(0.92 0.004 106);
   --muted: oklch(0.245 0.008 145);
-  --muted-foreground: oklch(0.60 0.008 145); /* subdued labels */
+  --muted-foreground: oklch(0.70 0.008 145); /* subdued labels — readable on charcoal */
   --accent: oklch(0.245 0.008 145);
   --accent-foreground: oklch(0.92 0.004 106);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
+  --border: oklch(1 0 0 / 14%);              /* hairline, but actually visible */
+  --input: oklch(1 0 0 / 18%);
   --ring: oklch(0.50 0.010 145);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
@@ -148,7 +148,7 @@ html.window-maximised body {
   --sidebar-primary-foreground: oklch(0.92 0.004 106);
   --sidebar-accent: oklch(0.22 0.008 145);
   --sidebar-accent-foreground: oklch(0.92 0.004 106);
-  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-border: oklch(1 0 0 / 14%);
   --sidebar-ring: oklch(0.50 0.010 145);
   --grid-color: #2d3530;
 }
@@ -203,8 +203,18 @@ html.window-maximised body {
     line-height: var(--inkwell-editor-lh);
   }
 
+
   /* UI font applied to body when preference is set */
   body {
     font-family: var(--inkwell-ui-font);
   }
+}
+
+/* Dark-mode checkbox tick — must live OUTSIDE `@layer components` so it
+ * beats CodeMirror's unlayered theme injection. Unlayered CSS always wins
+ * over layered CSS regardless of specificity. `--primary` flips to
+ * near-white in dark mode, so the white SVG tick from theme.ts vanishes;
+ * paint a dark tick (matches `--primary-foreground`) instead. */
+html.dark .cm-md-task-checkbox:checked {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%231f2420'%3E%3Cpath d='M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z'/%3E%3C/svg%3E");
 }

@@ -129,10 +129,10 @@ function TitlebarButton({
       onClick={onClick}
       title={title}
       className={cn(
-        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted/40 text-muted-foreground transition-colors",
+        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted/40 transition-colors",
         destructive
-          ? "hover:border-destructive hover:bg-destructive hover:text-destructive-foreground"
-          : "hover:bg-muted hover:text-foreground",
+          ? "text-muted-foreground/60 hover:border-red-800 hover:bg-red-800 hover:text-white"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
       {children}

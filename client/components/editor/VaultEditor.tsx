@@ -2,25 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
 import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
-  Eye,
   FileText,
   Folder,
   FolderOpen,
   FolderPlus,
+  Hash,
   Link2,
+  Network,
   PanelRight,
-  Pencil,
   Plus,
-  Save,
   Search,
   Settings,
   Trash2,
+  X,
 } from "lucide-react"
 import { useDebouncedCallback } from "use-debounce"
 import { isTauri } from "@tauri-apps/api/core"
@@ -36,12 +34,17 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { getStorage, type VaultBacklink, type VaultNote } from "@/lib/storage"
+import {
+  getStorage,
+  type VaultBacklink,
+  type VaultGraph as VaultGraphData,
+  type VaultNote,
+  type VaultTag,
+} from "@/lib/storage"
 import { cn } from "@/lib/utils"
 import type { FullProject } from "@/services/project"
 import { MarkdownEditor } from "./markdown/MarkdownEditor"
-
-type ViewMode = "live" | "preview"
+import { VaultGraph } from "./VaultGraph"
 
 interface VaultEditorProps {
   projectData: FullProject
@@ -70,10 +73,8 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   const [content, setContent] = useState<string>("")
   const [dirty, setDirty] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState<string>("")
-  const [view, setView] = useState<ViewMode>("live")
   const [createOpen, setCreateOpen] = useState(false)
   const [createTitle, setCreateTitle] = useState("")
   const [createFolderForNote, setCreateFolderForNote] = useState<string | null>(null)
@@ -88,22 +89,47 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   const [backlinks, setBacklinks] = useState<VaultBacklink[]>([])
   const [showBacklinks, setShowBacklinks] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // When non-null, the title bar shows an <input> instead of the static
+  // title text — null means "not editing".
+  const [renameDraft, setRenameDraft] = useState<string | null>(null)
+  // Vault-wide "graph mode" swaps the main pane for the force-directed
+  // visualisation. Sidebar stays mounted so the user can still navigate
+  // notes the usual way.
+  const [graphOpen, setGraphOpen] = useState(false)
+  const [graphData, setGraphData] = useState<VaultGraphData | null>(null)
+  // Tags sidebar panel — list of all tags in the vault + the filter
+  // currently applied to the note list.
+  const [tags, setTags] = useState<VaultTag[]>([])
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
+  const [tagFilterNotes, setTagFilterNotes] = useState<Set<string> | null>(null)
+  const [tagsExpanded, setTagsExpanded] = useState(true)
 
   // Track the most recently-loaded filename so the debounced save can't
   // stomp on a file the user has already navigated away from.
   const selectedRef = useRef<string | null>(null)
 
+  const wordCount = useMemo(() => {
+    const trimmed = content.trim()
+    if (!trimmed) return 0
+    return trimmed.split(/\s+/).length
+  }, [content])
+  const charCount = content.length
+
   const filteredNotes = useMemo(() => {
-    if (!search.trim()) return notes
     const q = search.trim().toLowerCase()
-    // When filtering, match against the full relative path so users can
-    // narrow by folder (`"archive/"`) just as easily as by title.
-    return notes.filter(
-      (n) =>
+    return notes.filter((n) => {
+      // Tag filter narrows to notes returned by getNotesByTag. Null
+      // tagFilter = no tag filter applied.
+      if (tagFilterNotes && !tagFilterNotes.has(n.filename)) return false
+      if (!q) return true
+      // When filtering, match against the full relative path so users
+      // can narrow by folder (`"archive/"`) as easily as by title.
+      return (
         n.title.toLowerCase().includes(q) ||
-        n.filename.toLowerCase().includes(q),
-    )
-  }, [notes, search])
+        n.filename.toLowerCase().includes(q)
+      )
+    })
+  }, [notes, search, tagFilterNotes])
 
   const tree = useMemo(() => buildTree(filteredNotes), [filteredNotes])
 
@@ -205,15 +231,12 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   // Autosave — 600 ms after the last keystroke.
   const debouncedSave = useDebouncedCallback(
     async (filename: string, body: string) => {
-      setIsSaving(true)
       try {
         await storage.vault.writeNote(projectId, filename, body)
         setDirty(false)
       } catch (err) {
         console.error("Vault writeNote failed:", err)
         setError("Autosave failed. Check that the vault folder is writable.")
-      } finally {
-        setIsSaving(false)
       }
     },
     600,
@@ -337,6 +360,100 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
       setError("Could not delete the note.")
     } finally {
       setActionBusy(false)
+    }
+  }
+
+  // Tag panel loader — refetches whenever the note set changes. Cheap
+  // — one indexed SQL group-by over `note_tags`.
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const list = await storage.vault.listTags(projectId)
+        if (!cancelled) setTags(list)
+      } catch (err) {
+        console.error("Vault listTags failed:", err)
+        if (!cancelled) setTags([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, storage, notes])
+
+  // Tag filter resolver — fetches the filtered note list from the
+  // backend and caches it as a Set for O(1) lookups during render.
+  useEffect(() => {
+    if (!tagFilter) {
+      setTagFilterNotes(null)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const filenames = await storage.vault.getNotesByTag(projectId, tagFilter)
+        if (!cancelled) setTagFilterNotes(new Set(filenames))
+      } catch (err) {
+        console.error("Vault getNotesByTag failed:", err)
+        if (!cancelled) setTagFilterNotes(new Set())
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, storage, tagFilter, notes])
+
+  const onTagClick = (tag: string) => {
+    setTagFilter((current) => (current?.toLowerCase() === tag.toLowerCase() ? null : tag))
+  }
+
+  // Graph data loader — refetches whenever graph mode opens or the note
+  // set changes. Cheap enough to re-run on every refreshNotes tick
+  // because it's a single SQL scan + one directory walk.
+  useEffect(() => {
+    if (!graphOpen) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const g = await storage.vault.getGraph(projectId)
+        if (!cancelled) setGraphData(g)
+      } catch (err) {
+        console.error("Vault getGraph failed:", err)
+        if (!cancelled) setError("Could not build the graph.")
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [graphOpen, projectId, storage, notes])
+
+  const onGraphNodeSelect = async (filename: string) => {
+    const note = notes.find((n) => n.filename === filename)
+    if (!note) return
+    await flushPending()
+    setGraphOpen(false)
+    await openNote(note)
+  }
+
+  const commitRename = async () => {
+    const draft = renameDraft
+    setRenameDraft(null)
+    if (!draft || !selected) return
+    const trimmed = draft.trim()
+    if (!trimmed || trimmed === selected.title) return
+    try {
+      await flushPending()
+      const updated = await storage.vault.renameNote(
+        projectId,
+        selected.filename,
+        trimmed,
+      )
+      selectedRef.current = updated.filename
+      setSelected(updated)
+      await refreshNotes()
+    } catch (err) {
+      console.error("Vault renameNote failed:", err)
+      setError(err instanceof Error ? err.message : "Could not rename the note.")
     }
   }
 
@@ -564,6 +681,18 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
         <Button
           size="icon"
           variant="ghost"
+          className={cn(
+            "h-8 w-8",
+            graphOpen && "bg-muted text-foreground",
+          )}
+          onClick={() => setGraphOpen((v) => !v)}
+          title="Toggle graph view"
+        >
+          <Network className="h-4 w-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
           className="h-8 w-8"
           onClick={() => setSettingsOpen(true)}
           title="Vault settings"
@@ -639,14 +768,82 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
             )}
           </div>
 
-          <div className="shrink-0 border-t px-3 py-2 text-xs text-muted-foreground">
-            {notes.length} {notes.length === 1 ? "note" : "notes"}
+          {tags.length > 0 && (
+            <div className="shrink-0 border-t">
+              <button
+                type="button"
+                onClick={() => setTagsExpanded((v) => !v)}
+                className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+              >
+                {tagsExpanded ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+                Tags
+                <span className="ml-auto text-[10px] font-normal normal-case">
+                  {tags.length}
+                </span>
+              </button>
+              {tagsExpanded && (
+                <div className="flex max-h-40 flex-wrap gap-1 overflow-y-auto px-2 pb-2">
+                  {tags.map((t) => {
+                    const active = tagFilter?.toLowerCase() === t.tag.toLowerCase()
+                    return (
+                      <button
+                        key={t.tag}
+                        type="button"
+                        onClick={() => onTagClick(t.tag)}
+                        className={cn(
+                          "flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] transition-colors",
+                          active
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                        title={`${t.count} ${t.count === 1 ? "note" : "notes"}`}
+                      >
+                        <Hash className="h-3 w-3" />
+                        <span>{t.tag}</span>
+                        <span className="text-[10px] opacity-70">{t.count}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
+            <span>
+              {filteredNotes.length}
+              {filteredNotes.length !== notes.length && ` / ${notes.length}`}{" "}
+              {notes.length === 1 ? "note" : "notes"}
+            </span>
+            {tagFilter && (
+              <button
+                type="button"
+                onClick={() => setTagFilter(null)}
+                className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary hover:bg-primary/15"
+                title="Clear tag filter"
+              >
+                <Hash className="h-3 w-3" />
+                {tagFilter}
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </aside>
 
         {/* Main */}
         <main className="flex min-w-0 flex-1 flex-col">
-          {!selected ? (
+          {graphOpen ? (
+            <VaultGraph
+              graph={graphData ?? { nodes: [], edges: [] }}
+              activeFilename={selected?.filename ?? null}
+              onSelect={(f) => void onGraphNodeSelect(f)}
+              className="flex-1"
+            />
+          ) : !selected ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
               <FileText className="h-8 w-8" />
               <div>Pick a note from the sidebar, or create a new one.</div>
@@ -658,26 +855,35 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
             <>
               {/* Note toolbar */}
               <div className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-                <div className="flex-1 truncate text-sm font-semibold">
-                  {selected.title}
-                </div>
-
-                <div className="flex items-center gap-0.5 rounded-md border bg-muted/40 p-0.5">
-                  <ViewModeButton
-                    active={view === "live"}
-                    onClick={() => setView("live")}
-                    icon={<Pencil className="h-3.5 w-3.5" />}
-                    label="Live"
+                {renameDraft === null ? (
+                  <button
+                    type="button"
+                    onClick={() => setRenameDraft(selected.title)}
+                    className="flex-1 truncate rounded px-1.5 py-1 text-left text-sm font-semibold hover:bg-accent/50"
+                    title="Click to rename"
+                  >
+                    {selected.title}
+                  </button>
+                ) : (
+                  <Input
+                    autoFocus
+                    value={renameDraft}
+                    onChange={(e) => setRenameDraft(e.target.value)}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onBlur={() => void commitRename()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        void commitRename()
+                      } else if (e.key === "Escape") {
+                        e.preventDefault()
+                        setRenameDraft(null)
+                      }
+                    }}
+                    className="h-8 flex-1 text-sm font-semibold"
                   />
-                  <ViewModeButton
-                    active={view === "preview"}
-                    onClick={() => setView("preview")}
-                    icon={<Eye className="h-3.5 w-3.5" />}
-                    label="Preview"
-                  />
-                </div>
+                )}
 
-                <SaveStatus saving={isSaving} dirty={dirty} />
                 <Button
                   size="icon"
                   variant="ghost"
@@ -690,19 +896,11 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
                 >
                   <PanelRight className="h-4 w-4" />
                 </Button>
+
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-8 w-8"
-                  onClick={() => void flushPending()}
-                  title="Save now (Ctrl/Cmd+S)"
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => setDeleteOpen(true)}
                   title="Delete note"
                 >
@@ -710,33 +908,16 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
                 </Button>
               </div>
 
-              {/* Editor / preview + optional backlinks pane */}
-              <div className="flex min-h-0 flex-1">
-                {view === "live" ? (
-                  <MarkdownEditor
-                    value={content}
-                    onChange={onContentChange}
-                    onWikilinkClick={(target) => void onWikilinkClick(target)}
-                    vaultPath={vaultPath}
-                    className="min-w-0 flex-1 overflow-hidden"
-                  />
-                ) : (
-                  <div className="min-w-0 flex-1 overflow-y-auto bg-background">
-                    <div className="mx-auto max-w-3xl px-12 py-10">
-                      {content.trim() ? (
-                        <article className="prose prose-sm max-w-none dark:prose-invert prose-headings:tracking-tight prose-pre:bg-muted prose-pre:text-foreground">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {content}
-                          </ReactMarkdown>
-                        </article>
-                      ) : (
-                        <div className="text-sm text-muted-foreground/60">
-                          Nothing to preview yet.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+              {/* Editor + optional backlinks pane */}
+              <div className="relative flex min-h-0 flex-1">
+                <MarkdownEditor
+                  value={content}
+                  onChange={onContentChange}
+                  onWikilinkClick={(target) => void onWikilinkClick(target)}
+                  onTagClick={onTagClick}
+                  vaultPath={vaultPath}
+                  className="min-w-0 flex-1 overflow-hidden"
+                />
 
                 {showBacklinks && (
                   <aside className="flex w-64 shrink-0 flex-col border-l bg-muted/20">
@@ -785,6 +966,40 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
                     </div>
                   </aside>
                 )}
+
+                {/* Floating status pill: stays out of the way but always
+                    visible. Positioned over the editor (not the backlinks
+                    pane) so it anchors to the writing surface. */}
+                <div
+                  className={cn(
+                    "pointer-events-none absolute bottom-3 z-10 flex items-center gap-2 rounded-full border bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur tabular-nums",
+                    showBacklinks ? "right-[17rem]" : "right-3",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setShowBacklinks((v) => !v)}
+                    className={cn(
+                      "pointer-events-auto flex items-center gap-1 rounded transition-colors hover:text-foreground",
+                      showBacklinks && "text-foreground",
+                    )}
+                    title="Toggle backlinks panel"
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    <span>
+                      {backlinks.length} {backlinks.length === 1 ? "backlink" : "backlinks"}
+                    </span>
+                  </button>
+                  <span className="h-3 w-px bg-border" aria-hidden />
+                  <span>
+                    {wordCount.toLocaleString()} {wordCount === 1 ? "word" : "words"}
+                  </span>
+                  <span className="h-3 w-px bg-border" aria-hidden />
+                  <span>
+                    {charCount.toLocaleString()}{" "}
+                    {charCount === 1 ? "character" : "characters"}
+                  </span>
+                </div>
               </div>
             </>
           )}
@@ -1019,35 +1234,6 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   )
 }
 
-function ViewModeButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean
-  onClick: () => void
-  icon: React.ReactNode
-  label: string
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={label}
-      className={cn(
-        "flex h-7 items-center gap-1.5 rounded px-2 text-xs transition-colors",
-        active
-          ? "bg-background text-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      {icon}
-      <span className="hidden sm:inline">{label}</span>
-    </button>
-  )
-}
-
 // ─── Tree rendering ──────────────────────────────────────────────────────
 
 function nodeKey(node: TreeNode, index: number): string {
@@ -1227,11 +1413,3 @@ function sortTree(folder: TreeFolderNode): void {
   }
 }
 
-function SaveStatus({ saving, dirty }: { saving: boolean; dirty: boolean }) {
-  const [label, tone] = saving
-    ? ["Saving…", "text-muted-foreground"]
-    : dirty
-      ? ["Unsaved", "text-amber-600 dark:text-amber-400"]
-      : ["Saved", "text-muted-foreground"]
-  return <span className={cn("mr-1 text-xs", tone)}>{label}</span>
-}

@@ -35,6 +35,7 @@ import {
   remove,
   exists,
   mkdir,
+  rename,
 } from "@tauri-apps/plugin-fs"
 
 import type {
@@ -67,8 +68,11 @@ import type {
   Storage,
   UpdateProfileResponse,
   VaultBacklink,
+  VaultGraphEdge,
+  VaultGraphNode,
   VaultNote,
   VaultStorage,
+  VaultTag,
   Workspace,
   WorkspaceStorage,
   WorkspacesResponse,
@@ -1209,8 +1213,42 @@ const vaultIndexBuilt = new Set<string>()
  *  closing bracket in a sequence of links. */
 const WIKILINK_PATTERN = /\[\[\s*([^\]|]{1,200}?)(?:\s*\|[^\]]{0,200})?\s*\]\]/g
 
-/** Replaces every note_links row for a given source file. Called on
- *  writeNote + during the initial full scan. */
+/** Matches `#tag` / `#nested/tag`. Must be preceded by whitespace or
+ *  start-of-string so `foo#bar` and URL fragments don't count. First
+ *  character can't be a digit to keep numeric-only strings out —
+ *  matches Obsidian's convention. Allows `_ - /` inside, forward slash
+ *  for nested tags (`#project/alpha`). */
+const TAG_PATTERN = /(?:^|\s)(#[A-Za-z_][\w\-/]{0,100})/g
+
+function extractTags(body: string): string[] {
+  // Strip fenced code blocks and inline code spans first — `#define`
+  // in a code sample isn't a tag.
+  const stripped = body
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`[^`]*`/g, "")
+  const out = new Set<string>()
+  // Preserve first-seen casing per lowered key.
+  const canonByLower = new Map<string, string>()
+  let m: RegExpExecArray | null
+  TAG_PATTERN.lastIndex = 0
+  while ((m = TAG_PATTERN.exec(stripped)) !== null) {
+    // Drop the leading `#` and trim any trailing slash (e.g. `#foo/`).
+    const tag = m[1].slice(1).replace(/\/+$/, "")
+    if (!tag) continue
+    const lower = tag.toLowerCase()
+    if (!canonByLower.has(lower)) canonByLower.set(lower, tag)
+    out.add(lower)
+  }
+  // Return in original casing, sorted alphabetical.
+  return Array.from(out)
+    .map((lower) => canonByLower.get(lower)!)
+    .sort((a, b) => a.localeCompare(b))
+}
+
+/** Replaces every note_links + note_tags row for a given source file.
+ *  Called on writeNote + during the initial full scan. Both indexes are
+ *  rebuilt in one pass so the filesystem watcher can lean on a single
+ *  entry point. */
 async function reindexNoteLinks(
   projectId: string,
   filename: string,
@@ -1241,6 +1279,21 @@ async function reindexNoteLinks(
         [projectId, filename, title, line.trim().slice(0, 200), ts],
       )
     }
+  }
+
+  // Tags — wipe + re-insert. Parse against the full body (not per line)
+  // because fenced code blocks span multiple lines and the extractor
+  // handles stripping those internally.
+  await db.execute(
+    "DELETE FROM note_tags WHERE project_id = ? AND from_filename = ?",
+    [projectId, filename],
+  )
+  for (const tag of extractTags(body)) {
+    await db.execute(
+      `INSERT OR REPLACE INTO note_tags (project_id, from_filename, tag, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      [projectId, filename, tag, ts],
+    )
   }
 }
 
@@ -1422,6 +1475,108 @@ const vault: VaultStorage = {
     }
   },
 
+  renameNote: async (projectId, filename, newTitle) => {
+    const vaultRoot = await getVaultPathOrThrow(projectId)
+    const oldRel = normaliseRelPath(filename)
+    const sanitised = sanitiseSegment(newTitle)
+    if (!sanitised) {
+      throw new Error("The title can't be empty.")
+    }
+
+    const lastSlash = oldRel.lastIndexOf("/")
+    const folderRel = lastSlash === -1 ? "" : oldRel.slice(0, lastSlash)
+    const oldBasename = lastSlash === -1 ? oldRel : oldRel.slice(lastSlash + 1)
+    const oldTitle = oldBasename.replace(/\.md$/i, "")
+
+    // Same title (casing included) → nothing to do. Return the current
+    // record so callers don't need a branch.
+    if (oldTitle === sanitised) {
+      const path = joinPath(vaultRoot, oldRel)
+      return {
+        filename: oldRel,
+        path,
+        title: oldTitle,
+        folder: folderRel,
+        updatedAt: now(),
+      }
+    }
+
+    const newRel = folderRel ? `${folderRel}/${sanitised}.md` : `${sanitised}.md`
+    const oldPath = joinPath(vaultRoot, oldRel)
+    const newPath = joinPath(vaultRoot, newRel)
+
+    // Collision guard — only when the target is a different file. A
+    // case-only change on a case-insensitive FS lands on the same inode,
+    // which is fine.
+    if (
+      newRel.toLowerCase() !== oldRel.toLowerCase() &&
+      (await exists(newPath))
+    ) {
+      throw new Error(
+        `A note named "${sanitised}" already exists in this folder.`,
+      )
+    }
+
+    await rename(oldPath, newPath)
+
+    // Sweep every other note for `[[oldTitle]]` or `[[oldTitle|alias]]`
+    // and rewrite the target. Alias segment (including the pipe) is
+    // preserved verbatim. Case-insensitive match; the replacement uses
+    // the new title's casing.
+    const escaped = oldTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    const sweepRegex = new RegExp(
+      `(\\[\\[\\s*)${escaped}(\\s*(?:\\|[^\\]]*)?\\s*\\]\\])`,
+      "gi",
+    )
+    const files = await walkMarkdownFiles(vaultRoot)
+    for (const f of files) {
+      if (f.rel === newRel) continue
+      let body: string
+      try {
+        body = await readTextFile(f.abs)
+      } catch {
+        continue
+      }
+      sweepRegex.lastIndex = 0
+      if (!sweepRegex.test(body)) continue
+      sweepRegex.lastIndex = 0
+      const rewritten = body.replace(
+        sweepRegex,
+        (_m, open: string, close: string) => `${open}${sanitised}${close}`,
+      )
+      if (rewritten !== body) {
+        await writeTextFile(f.abs, rewritten)
+        await reindexNoteLinks(projectId, f.rel, rewritten)
+      }
+    }
+
+    // Move the renamed file's own index row + retarget any row that
+    // previously pointed at `oldTitle`.
+    const db = await getDb()
+    await db.execute(
+      "UPDATE note_links SET from_filename = ? WHERE project_id = ? AND from_filename = ?",
+      [newRel, projectId, oldRel],
+    )
+    await db.execute(
+      "UPDATE note_links SET to_title = ? WHERE project_id = ? AND to_title = ? COLLATE NOCASE",
+      [sanitised, projectId, oldTitle],
+    )
+    // Tag rows only key off from_filename — the tag text doesn't change
+    // on rename, we just point the rows at the new filename.
+    await db.execute(
+      "UPDATE note_tags SET from_filename = ? WHERE project_id = ? AND from_filename = ?",
+      [newRel, projectId, oldRel],
+    )
+
+    return {
+      filename: newRel,
+      path: newPath,
+      title: sanitised,
+      folder: folderRel,
+      updatedAt: now(),
+    }
+  },
+
   deleteNote: async (projectId, filename) => {
     const folder = await getVaultPathOrThrow(projectId)
     const rel = normaliseRelPath(filename)
@@ -1432,6 +1587,10 @@ const vault: VaultStorage = {
     const db = await getDb()
     await db.execute(
       "DELETE FROM note_links WHERE project_id = ? AND from_filename = ?",
+      [projectId, rel],
+    )
+    await db.execute(
+      "DELETE FROM note_tags WHERE project_id = ? AND from_filename = ?",
       [projectId, rel],
     )
   },
@@ -1459,6 +1618,10 @@ const vault: VaultStorage = {
       "DELETE FROM note_links WHERE project_id = ? AND (from_filename = ? OR from_filename LIKE ?)",
       [projectId, rel, `${prefix}%`],
     )
+    await db.execute(
+      "DELETE FROM note_tags WHERE project_id = ? AND (from_filename = ? OR from_filename LIKE ?)",
+      [projectId, rel, `${prefix}%`],
+    )
   },
 
   reindexLinks: async (projectId, filename) => {
@@ -1475,6 +1638,10 @@ const vault: VaultStorage = {
         "DELETE FROM note_links WHERE project_id = ? AND from_filename = ?",
         [projectId, filename],
       )
+      await db.execute(
+        "DELETE FROM note_tags WHERE project_id = ? AND from_filename = ?",
+        [projectId, filename],
+      )
       return
     }
     try {
@@ -1485,6 +1652,87 @@ const vault: VaultStorage = {
       // briefly rename a temp file into place). Skip this batch — the
       // watcher will fire again when the write settles.
     }
+  },
+
+  getGraph: async (projectId) => {
+    const folder = await getVaultPathOrThrow(projectId)
+    await ensureVaultIndex(projectId, folder)
+
+    // Nodes: one per `.md` file on disk. We also build a lowered-title
+    // → filename map so we can resolve `to_title` rows back to a real
+    // node (SQL stores the target title, not filename, because the
+    // target may not exist yet when the link is written).
+    const files = await walkMarkdownFiles(folder)
+    const titleToFile = new Map<string, string>()
+    const nodes: VaultGraphNode[] = []
+    for (const f of files) {
+      const lastSlash = f.rel.lastIndexOf("/")
+      const basename = lastSlash === -1 ? f.rel : f.rel.slice(lastSlash + 1)
+      const title = basename.replace(/\.md$/i, "")
+      titleToFile.set(title.toLowerCase(), f.rel)
+      nodes.push({ filename: f.rel, title, degree: 0 })
+    }
+
+    const db = await getDb()
+    const rows = await db.select<
+      Array<{ from_filename: string; to_title: string }>
+    >(
+      "SELECT from_filename, to_title FROM note_links WHERE project_id = ?",
+      [projectId],
+    )
+
+    const nodeIndex = new Map<string, VaultGraphNode>()
+    for (const n of nodes) nodeIndex.set(n.filename, n)
+
+    const edges: VaultGraphEdge[] = []
+    const seenPair = new Set<string>()
+    for (const row of rows) {
+      const from = row.from_filename
+      const to = titleToFile.get(row.to_title.toLowerCase())
+      if (!to) continue // phantom target — no node to connect
+      if (from === to) continue // self-link
+      // Deduplicate undirected pair — A→B + B→A collapse to one line.
+      const key = from < to ? `${from}|${to}` : `${to}|${from}`
+      if (seenPair.has(key)) continue
+      seenPair.add(key)
+      edges.push({ from, to })
+      const a = nodeIndex.get(from)
+      const b = nodeIndex.get(to)
+      if (a) a.degree++
+      if (b) b.degree++
+    }
+
+    return { nodes, edges }
+  },
+
+  listTags: async (projectId) => {
+    const folder = await getVaultPathOrThrow(projectId)
+    await ensureVaultIndex(projectId, folder)
+    const db = await getDb()
+    const rows = await db.select<Array<{ tag: string; n: number }>>(
+      `SELECT tag, COUNT(*) AS n
+       FROM note_tags
+       WHERE project_id = ?
+       GROUP BY tag COLLATE NOCASE
+       ORDER BY n DESC, tag COLLATE NOCASE ASC`,
+      [projectId],
+    )
+    const results: VaultTag[] = rows.map((r) => ({ tag: r.tag, count: r.n }))
+    return results
+  },
+
+  getNotesByTag: async (projectId, tag) => {
+    const folder = await getVaultPathOrThrow(projectId)
+    await ensureVaultIndex(projectId, folder)
+    const db = await getDb()
+    const rows = await db.select<Array<{ from_filename: string }>>(
+      `SELECT from_filename
+       FROM note_tags
+       WHERE project_id = ? AND tag = ? COLLATE NOCASE
+       ORDER BY from_filename`,
+      [projectId, tag],
+    )
+    return rows.map((r) => r.from_filename)
   },
 
   getBacklinks: async (projectId, title) => {

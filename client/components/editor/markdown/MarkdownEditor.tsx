@@ -8,7 +8,11 @@ import { languages as codeLanguages } from "@codemirror/language-data"
 import { Compartment, EditorState } from "@codemirror/state"
 import { EditorView, highlightActiveLine, keymap } from "@codemirror/view"
 
-import { wikilinkClickExtension, wikilinkParser } from "./wikilinks"
+import {
+  tagClickExtension,
+  wikilinkClickExtension,
+  wikilinkParser,
+} from "./wikilinks"
 
 import { livePreviewPlugin, vaultPathFacet } from "./live-preview"
 import { inkwellTheme } from "./theme"
@@ -23,6 +27,10 @@ interface MarkdownEditorProps {
    *  `[[Wikilink]]`. Implementers typically open the note or create it
    *  if it doesn't exist yet. */
   onWikilinkClick?: (target: string) => void
+  /** Called with the tag text (no `#` prefix) when the user clicks an
+   *  inline `#tag` span. Typically filters the sidebar to notes tagged
+   *  with that value. */
+  onTagClick?: (tag: string) => void
   /** Absolute path to the enclosing vault folder, used to resolve
    *  relative image paths. null/undefined disables local image rendering
    *  — HTTP(S) images still work. */
@@ -47,6 +55,7 @@ export function MarkdownEditor({
   value,
   onChange,
   onWikilinkClick,
+  onTagClick,
   vaultPath,
   placeholder,
   className,
@@ -59,6 +68,8 @@ export function MarkdownEditor({
   onChangeRef.current = onChange
   const onWikilinkRef = useRef(onWikilinkClick)
   onWikilinkRef.current = onWikilinkClick
+  const onTagRef = useRef(onTagClick)
+  onTagRef.current = onTagClick
 
   // Reconfigure target for vault path — swapping the folder mid-session
   // (via the Settings dialog) should re-resolve image paths without
@@ -86,6 +97,7 @@ export function MarkdownEditor({
         livePreviewPlugin,
         vaultPathCompartment.current.of(vaultPathFacet.of(vaultPath ?? null)),
         wikilinkClickExtension(() => onWikilinkRef.current),
+        tagClickExtension(() => onTagRef.current),
         EditorView.lineWrapping,
         highlightActiveLine(),
         inkwellTheme,

@@ -25,6 +25,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0003_note_links.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 4,
+      description: "vault tags index: note_tags table",
+      sql: include_str!("../migrations/0004_note_tags.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 

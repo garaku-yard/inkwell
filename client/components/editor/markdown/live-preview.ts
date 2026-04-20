@@ -214,6 +214,12 @@ const strikeMark = Decoration.mark({ class: "cm-md-strike" })
 const codeMark = Decoration.mark({ class: "cm-md-code" })
 const linkMark = Decoration.mark({ class: "cm-md-link" })
 const wikilinkMark = Decoration.mark({ class: "cm-md-wikilink" })
+const tagMark = Decoration.mark({ class: "cm-md-tag" })
+
+/** Matches `#tag` / `#nested/tag`. Must be preceded by whitespace / BOF
+ *  so `foo#bar` (URL fragments, literal hex) doesn't count. First char
+ *  after `#` can't be a digit — matches Obsidian + our storage parser. */
+const TAG_INLINE_PATTERN = /(?:^|\s)#[A-Za-z_][\w\-/]{0,100}/g
 
 const blockquoteLine = Decoration.line({ class: "cm-md-blockquote" })
 const taskDoneLine = Decoration.line({ class: "cm-md-task-done" })
@@ -276,6 +282,10 @@ function buildDecorations(view: EditorView): DecorationSet {
   const doc = view.state.doc
   const tableTodo: Array<{ from: number; to: number }> = []
   const seenTableRanges = new Set<string>()
+  // Ranges where tags should not be highlighted — inside fenced code
+  // blocks, inline code, or URLs. Sorted by `from` during the tree walk
+  // so the tag scan can binary-skip later.
+  const tagSkipRanges: Array<[number, number]> = []
 
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(view.state).iterate({
@@ -340,10 +350,15 @@ function buildDecorations(view: EditorView): DecorationSet {
         }
         if (name === "InlineCode") {
           pushMark(node.from, node.to, codeMark)
+          tagSkipRanges.push([node.from, node.to])
           if (!nodeOnActiveLine(node.from)) {
             pushReplace(node.from, node.from + 1, hideMark)
             pushReplace(node.to - 1, node.to, hideMark)
           }
+          return
+        }
+        if (name === "FencedCode" || name === "CodeBlock") {
+          tagSkipRanges.push([node.from, node.to])
           return
         }
 
@@ -510,6 +525,31 @@ function buildDecorations(view: EditorView): DecorationSet {
         block: true,
       }),
     )
+  }
+
+  // Tag decoration pass. We scan the visible text directly with a regex
+  // rather than registering a Lezer node — tags are inline and don't
+  // fight any existing markdown construct.
+  const inSkip = (from: number): boolean => {
+    for (const [s, e] of tagSkipRanges) {
+      if (from >= s && from < e) return true
+    }
+    return false
+  }
+  for (const { from, to } of view.visibleRanges) {
+    const text = doc.sliceString(from, to)
+    TAG_INLINE_PATTERN.lastIndex = 0
+    let m: RegExpExecArray | null
+    while ((m = TAG_INLINE_PATTERN.exec(text)) !== null) {
+      // The regex captures a leading whitespace/BOF char — skip past it
+      // so the hashtag anchors the decoration.
+      const raw = m[0]
+      const hashOffset = raw.startsWith("#") ? 0 : 1
+      const start = from + m.index + hashOffset
+      const end = from + m.index + raw.length
+      if (inSkip(start)) continue
+      pushMark(start, end, tagMark)
+    }
   }
 
   pending.sort(
