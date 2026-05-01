@@ -1,25 +1,14 @@
 "use client"
 
 import React, { useEffect, useRef, useState } from "react"
-import Link from "next/link"
-import { Bot, Send, Square, User, Sparkles, X, AlertCircle } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
-import { useAIProviders } from "./ai-chat/useAIProviders"
+import { AIChatComposer } from "./ai-chat/AIChatComposer"
+import { AIChatHeader } from "./ai-chat/AIChatHeader"
+import { AIChatMessages } from "./ai-chat/AIChatMessages"
 import { useAIChatStream, type ChatMessage } from "./ai-chat/useAIChatStream"
+import { useAIProviders } from "./ai-chat/useAIProviders"
 
 const WELCOME: Record<string, string> = {
   screenplay:           "Ask me anything about your script — scenes, dialogue, structure.",
@@ -83,21 +72,14 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
   }, [messages, isTyping])
 
   const canSend = selectedProvider !== null
+  const showEmptyState = providersLoaded && providers.length === 0
 
-  const handleSend = (content: string) => {
-    if (!content.trim()) return
+  const handleSend = () => {
+    if (!inputValue.trim()) return
+    const content = inputValue
     setInputValue("")
     void sendMessage(content, messages)
   }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSend(inputValue)
-    }
-  }
-
-  const showEmptyState = providersLoaded && providers.length === 0
 
   return (
     <div
@@ -116,200 +98,28 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
         )}
       >
         <div className={cn("flex-1 flex flex-col", !isOpen && "invisible")}>
-          <div className="relative p-6 border-b border-border/40 flex-shrink-0 space-y-4 overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
-            <div className="relative flex items-center justify-between">
-              <div className="flex items-center gap-3.5">
-                <div className="relative p-2.5 bg-gradient-to-br from-primary/15 via-primary/10 to-primary/5 rounded-2xl ring-1 ring-primary/20 shadow-lg shadow-primary/10">
-                  <Bot className="h-5 w-5 text-primary" />
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full ring-2 ring-background animate-pulse" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg tracking-tight">Writing Buddy</h3>
-                  <p className="text-xs text-muted-foreground/80 font-medium">Crafting Ideas, One Word at a Time</p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 hover:bg-muted/60 hover:rotate-90 transition-all duration-300 rounded-xl"
-                onClick={onClose}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {providers.length > 0 && (
-              <div className="relative">
-                <Select value={selectedId ?? undefined} onValueChange={selectProvider}>
-                  <SelectTrigger className="h-9 bg-background/70 text-sm">
-                    <SelectValue placeholder="Pick a provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {providers.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        <span className="font-medium">{p.label}</span>
-                        {p.defaultModel && (
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {p.defaultModel}
-                          </span>
-                        )}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-          <ScrollArea className="flex-1 p-5 min-h-0">
-            <div className="space-y-7 p-1">
-              {showEmptyState ? (
-                <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border/60 bg-muted/20 p-6 text-center">
-                  <AlertCircle className="h-5 w-5 text-muted-foreground" />
-                  <div className="text-sm text-muted-foreground">
-                    No AI providers configured yet.
-                  </div>
-                  <Link
-                    href="/settings"
-                    className="text-sm font-medium text-primary underline underline-offset-2"
-                  >
-                    Set one up in Settings → AI Providers
-                  </Link>
-                </div>
-              ) : (
-                messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={cn("flex gap-3.5 items-start", message.type === "user" ? "justify-end" : "justify-start")}
-                  >
-                    {message.type === "ai" && (
-                      <Avatar
-                        className={cn(
-                          "h-10 w-10 flex-shrink-0 ring-2 shadow-lg",
-                          message.error
-                            ? "ring-destructive/40 shadow-destructive/10"
-                            : "ring-primary/30 shadow-primary/10",
-                        )}
-                      >
-                        <AvatarFallback
-                          className={cn(
-                            "bg-gradient-to-br",
-                            message.error
-                              ? "from-destructive/20 via-destructive/15 to-destructive/10 text-destructive"
-                              : "from-primary/20 via-primary/15 to-primary/10 text-primary",
-                          )}
-                        >
-                          {message.error ? (
-                            <AlertCircle className="h-4.5 w-4.5" />
-                          ) : (
-                            <Bot className="h-4.5 w-4.5" />
-                          )}
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                    <div className={cn("flex flex-col gap-2", message.type === "user" ? "items-end" : "items-start")}>
-                      <div
-                        className={cn(
-                          "max-w-[340px] rounded-2xl px-5 py-3.5 shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-[1.02]",
-                          message.type === "user"
-                            ? "bg-gradient-to-br from-primary via-primary/95 to-primary/90 text-primary-foreground rounded-tr-sm shadow-primary/20"
-                            : message.error
-                              ? "bg-destructive/10 border border-destructive/30 text-destructive rounded-tl-sm shadow-destructive/10"
-                              : "bg-gradient-to-br from-muted/95 via-muted/90 to-muted/85 border border-border/40 rounded-tl-sm",
-                        )}
-                      >
-                        <p className="text-sm leading-relaxed whitespace-pre-line font-medium">{message.content}</p>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground/50 px-2.5 font-semibold tracking-wide">
-                        {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    </div>
-                    {message.type === "user" && (
-                      <Avatar className="h-10 w-10 flex-shrink-0 ring-2 ring-border/40 shadow-lg">
-                        <AvatarFallback className="bg-gradient-to-br from-muted via-muted/95 to-muted/90 text-foreground">
-                          <User className="h-4.5 w-4.5" />
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                  </div>
-                ))
-              )}
-              {isTyping && (
-                <div className="flex gap-3.5 items-start justify-start">
-                  <Avatar className="h-10 w-10 flex-shrink-0 ring-2 ring-primary/30 shadow-lg shadow-primary/10">
-                    <AvatarFallback className="bg-gradient-to-br from-primary/20 via-primary/15 to-primary/10 text-primary">
-                      <Bot className="h-4.5 w-4.5" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="bg-gradient-to-br from-muted/95 via-muted/90 to-muted/85 border border-border/40 rounded-2xl rounded-tl-sm px-6 py-4 shadow-lg">
-                    <div className="flex gap-2">
-                      <div
-                        className="w-2.5 h-2.5 bg-primary/80 rounded-full animate-bounce shadow-sm"
-                        style={{ animationDelay: "0ms", animationDuration: "1s" }}
-                      />
-                      <div
-                        className="w-2.5 h-2.5 bg-primary/80 rounded-full animate-bounce shadow-sm"
-                        style={{ animationDelay: "200ms", animationDuration: "1s" }}
-                      />
-                      <div
-                        className="w-2.5 h-2.5 bg-primary/80 rounded-full animate-bounce shadow-sm"
-                        style={{ animationDelay: "400ms", animationDuration: "1s" }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
-          <div className="p-5 border-t border-border/40 bg-gradient-to-t from-muted/20 via-muted/10 to-transparent flex-shrink-0">
-            <div className="flex gap-3 mb-4">
-              <div className="relative flex-1">
-                <Input
-                  ref={inputRef}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  placeholder={
-                    showEmptyState
-                      ? "Add a provider to start chatting…"
-                      : "Ask for writing suggestions..."
-                  }
-                  className="w-full text-sm bg-background/90 border-border/40 h-11 pl-4 pr-4 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/50 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 font-medium"
-                  disabled={isTyping || !canSend}
-                />
-              </div>
-              {isTyping ? (
-                <Button
-                  size="icon"
-                  onClick={stop}
-                  className="h-11 w-11 flex-shrink-0 shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-200 rounded-xl bg-gradient-to-br from-destructive/90 to-destructive"
-                  aria-label="Stop response"
-                >
-                  <Square className="h-4 w-4 fill-current" />
-                </Button>
-              ) : (
-                <Button
-                  size="icon"
-                  onClick={() => handleSend(inputValue)}
-                  disabled={!inputValue.trim() || !canSend}
-                  className="h-11 w-11 flex-shrink-0 shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-200 rounded-xl bg-gradient-to-br from-primary to-primary/90"
-                >
-                  <Send className="h-4.5 w-4.5" />
-                </Button>
-              )}
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <Badge
-                variant="secondary"
-                className="text-xs px-3 py-1.5 bg-gradient-to-r from-primary/15 to-primary/10 text-primary border-primary/30 shadow-sm font-semibold"
-              >
-                <Sparkles className="h-3.5 w-3.5 mr-1.5 animate-pulse" />
-                AI Powered
-              </Badge>
-              <span className="text-xs text-muted-foreground/60 font-medium">Press Enter to send</span>
-            </div>
-          </div>
+          <AIChatHeader
+            providers={providers}
+            selectedId={selectedId}
+            onSelect={selectProvider}
+            onClose={onClose}
+          />
+          <AIChatMessages
+            ref={messagesEndRef}
+            messages={messages}
+            isTyping={isTyping}
+            showEmptyState={showEmptyState}
+          />
+          <AIChatComposer
+            ref={inputRef}
+            value={inputValue}
+            onChange={setInputValue}
+            onSend={handleSend}
+            onStop={stop}
+            isTyping={isTyping}
+            canSend={canSend}
+            emptyState={showEmptyState}
+          />
         </div>
       </div>
     </div>
