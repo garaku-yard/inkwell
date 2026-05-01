@@ -22,6 +22,7 @@ import { useBeatImageUpload } from "@/components/beat-board/useBeatImageUpload"
 import { useBeatDrag } from "@/components/beat-board/useBeatDrag"
 import { useBeatResize } from "@/components/beat-board/useBeatResize"
 import { useBeatConnections, type ConnectionSide } from "@/components/beat-board/useBeatConnections"
+import { useTimelineDnD } from "@/components/beat-board/useTimelineDnD"
 
 export type { ConnectionSide };
 
@@ -60,9 +61,6 @@ export default function BeatBoardPage() {
   // for the timeline drop, while useBeatDrag tracks position changes
   // on the canvas.
   const [draggedBeat, setDraggedBeat] = useState<string | null>(null)
-  const [hoveredLane, setHoveredLane] = useState<string | null>(null)
-  const [draggedLaneItem, setDraggedLaneItem] = useState<string | null>(null)
-  const [draggedLaneId, setDraggedLaneId] = useState<string | null>(null);
 
   const structure = useMemo(() => getCategoryStructure(project?.category), [project?.category]);
 
@@ -111,6 +109,19 @@ export default function BeatBoardPage() {
   const getPositionFromPage = (page: number) => ((page - 1) / TOTAL_PAGES) * 100;
   const getWidthFromPages = (startPage: number, endPage: number) => ((endPage - startPage + 1) / TOTAL_PAGES) * 100;
 
+  const timeline = useTimelineDnD({
+    projectId,
+    beats,
+    setBeats,
+    outlineItems,
+    setOutlineItems,
+    lanes,
+    setLanes,
+    pageMath: { getPageFromPosition, getPositionFromPage, getWidthFromPages },
+    debouncedUpdateBeat,
+    debouncedUpdateOutlineItem,
+  })
+
   const handleAddBeat = (position: { x: number; y: number }) => {
     const beatData: Partial<Beat> = {
       title: "New Beat",
@@ -129,146 +140,6 @@ export default function BeatBoardPage() {
         setBeats([...beats, createdBeat]);
       })
       .catch(err => console.error('Failed to create beat:', err));
-  };
-
-  const layoutLane = (laneId: string, items: OutlineItem[]): OutlineItem[] => {
-    const laneItems = items.filter(item => item.laneId === laneId).sort((a, b) => a.order - b.order);
-    let currentPosition = 0;
-    const gapPercentage = 0.5;
-    const updatedLaneItemsWithLayout = laneItems.map(item => {
-      const newItem = { ...item, timelinePosition: currentPosition };
-      currentPosition += (item.width || 5) + gapPercentage;
-      return newItem;
-    });
-    const otherItems = items.filter(item => item.laneId !== laneId);
-    return [...otherItems, ...updatedLaneItemsWithLayout];
-  };
-
-  const handleUpdateLane = (laneId: string, updates: Partial<Lane>) => {
-    setLanes(currentLanes =>
-      currentLanes.map(lane =>
-        lane.id === laneId ? { ...lane, ...updates } : lane
-      )
-    );
-    updateLane(laneId, updates).catch(err => {
-      console.error("Failed to update lane name", err);
-    });
-  };
-
-  const handleLaneDrop = (targetLaneId: string) => {
-    if (draggedLaneId === null || draggedLaneId === targetLaneId) return;
-    let newLanes: Lane[] = [];
-    setLanes(currentLanes => {
-      const draggedLaneIndex = currentLanes.findIndex(l => l.id === draggedLaneId);
-      const targetLaneIndex = currentLanes.findIndex(l => l.id === targetLaneId);
-      newLanes = [...currentLanes];
-      const [draggedLane] = newLanes.splice(draggedLaneIndex, 1);
-      newLanes.splice(targetLaneIndex, 0, draggedLane);
-      return newLanes;
-    });
-    const orderedIds = newLanes.map(l => l.id);
-    updateLaneOrder(projectId, orderedIds).catch(err => {
-      console.error("Failed to update lane order", err);
-    });
-    setDraggedLaneId(null);
-  };
-
-  const handleAddLane = async () => {
-    const newLaneData: Partial<Lane> = {
-      name: "New Lane",
-      color: "#e5e7eb",
-      order: lanes.length,
-    };
-
-    try {
-      const createdLane = await createLane(projectId, newLaneData);
-      setLanes(currentLanes => [...currentLanes, createdLane]);
-    } catch (err) {
-      console.error("Failed to create new lane", err);
-    }
-  };
-
-  const handleUpdateOutlineItem = (itemId: string, updates: Partial<OutlineItem>) => {
-    setOutlineItems(prevItems => {
-      const newItems = prevItems.map(item =>
-        item.id === itemId ? { ...item, ...updates } : item
-      );
-      if (updates.order !== undefined) {
-        const changedItem = newItems.find(item => item.id === itemId);
-        if (changedItem) {
-          return layoutLane(changedItem.laneId, newItems);
-        }
-      }
-      return newItems;
-    });
-    debouncedUpdateOutlineItem(itemId, updates);
-
-    if (updates.timelinePosition !== undefined || updates.width !== undefined) {
-      const item = outlineItems.find(i => i.id === itemId);
-      if (item) {
-        const updatedItem = { ...item, ...updates };
-        const position = updatedItem.timelinePosition || 0;
-        const width = updatedItem.width || 0;
-        const startPage = getPageFromPosition(position);
-        const endPage = getPageFromPosition(position + width);
-        debouncedUpdateBeat(item.beatId, { startPage, endPage });
-        setBeats(prev => prev.map(b =>
-          b.id === item.beatId ? { ...b, startPage, endPage } : b
-        ));
-      }
-    }
-  };
-
-  const handleDropOnTimeline = async (e: React.DragEvent, targetLaneId: string, targetItemId?: string) => {
-    e.preventDefault();
-    setHoveredLane(null);
-    setDraggedLaneItem(null);
-    const beatId = e.dataTransfer.getData("text/plain");
-    const outlineItemId = e.dataTransfer.getData("application/x-outline-item-id");
-    if (beatId) {
-      const currentLaneItems = outlineItems.filter(item => item.laneId === targetLaneId);
-      const beat = beats.find(b => b.id === beatId);
-      const startPage = beat?.startPage || 1;
-      const endPage = beat?.endPage || startPage;
-      const timelinePosition = getPositionFromPage(startPage);
-      const width = getWidthFromPages(startPage, endPage);
-      const newItemData: Partial<OutlineItem> = {
-        beatId, laneId: targetLaneId, order: currentLaneItems.length,
-        timelinePosition, width,
-      };
-      try {
-        const createdItem = await createOutlineItem(projectId, newItemData);
-        setOutlineItems(prevItems => {
-          const updatedItems = [...prevItems, createdItem];
-          return layoutLane(targetLaneId, updatedItems);
-        });
-      } catch (err) { console.error("Failed to create outline item", err); }
-    } else if (outlineItemId) {
-      const draggedItem = outlineItems.find(item => item.id === outlineItemId);
-      if (!draggedItem) return;
-      let finalItems: OutlineItem[] = [];
-      const originalLaneId = draggedItem.laneId;
-      setOutlineItems(prevItems => {
-        const allItems = prevItems.filter(item => item.id !== outlineItemId);
-        const targetLaneItems = allItems.filter(item => item.laneId === targetLaneId).sort((a, b) => a.order - b.order);
-        const targetItemIndex = targetItemId ? targetLaneItems.findIndex(item => item.id === targetItemId) : -1;
-        const insertIndex = targetItemIndex !== -1 ? targetItemIndex : targetLaneItems.length;
-        targetLaneItems.splice(insertIndex, 0, { ...draggedItem, laneId: targetLaneId });
-        const reorderedTargetLane = targetLaneItems.map((item, index) => ({ ...item, order: index }));
-        const otherItems = allItems.filter(item => item.laneId !== targetLaneId);
-        finalItems = [...otherItems, ...reorderedTargetLane];
-        finalItems = layoutLane(targetLaneId, finalItems);
-        if (originalLaneId !== targetLaneId) {
-          finalItems = layoutLane(originalLaneId, finalItems);
-        }
-        return finalItems;
-      });
-      const finalDraggedItemState = finalItems.find(item => item.id === outlineItemId);
-      if (finalDraggedItemState) {
-        updateOutlineItem(outlineItemId, { laneId: finalDraggedItemState.laneId, order: finalDraggedItemState.order })
-          .catch(err => console.error("Failed to update moved item", err));
-      }
-    }
   };
 
   const handleDeleteBeat = (id: string) => {
@@ -382,19 +253,19 @@ export default function BeatBoardPage() {
           </div>
         </div>
         <StoryLanes
-          onAddLane={handleAddLane}
+          onAddLane={timeline.handleAddLane}
           lanes={lanes}
-          draggedLaneId={draggedLaneId}
-          onUpdateLane={handleUpdateLane}
-          onLaneDragStart={(_e, laneId) => setDraggedLaneId(laneId)}
-          onLaneDrop={handleLaneDrop}
-          onLaneDragEnd={() => setDraggedLaneId(null)}
-          beats={beats} outlineItems={outlineItems} hoveredLane={hoveredLane}
-          draggedLaneItem={draggedLaneItem} setHoveredLane={setHoveredLane}
-          handleDropOnTimeline={handleDropOnTimeline}
-          handleLaneDragStart={(_e, itemId) => setDraggedLaneItem(itemId)}
-          setDraggedLaneItem={setDraggedLaneItem}
-          onUpdateOutlineItem={handleUpdateOutlineItem} scriptMarkers={scriptMarkers}
+          draggedLaneId={timeline.draggedLaneId}
+          onUpdateLane={timeline.handleUpdateLane}
+          onLaneDragStart={(_e, laneId) => timeline.setDraggedLaneId(laneId)}
+          onLaneDrop={timeline.handleLaneDrop}
+          onLaneDragEnd={() => timeline.setDraggedLaneId(null)}
+          beats={beats} outlineItems={outlineItems} hoveredLane={timeline.hoveredLane}
+          draggedLaneItem={timeline.draggedLaneItem} setHoveredLane={timeline.setHoveredLane}
+          handleDropOnTimeline={timeline.handleDropOnTimeline}
+          handleLaneDragStart={(_e, itemId) => timeline.setDraggedLaneItem(itemId)}
+          setDraggedLaneItem={timeline.setDraggedLaneItem}
+          onUpdateOutlineItem={timeline.handleUpdateOutlineItem} scriptMarkers={scriptMarkers}
           totalPages={TOTAL_PAGES} structure={structure}
         />
       </div>
