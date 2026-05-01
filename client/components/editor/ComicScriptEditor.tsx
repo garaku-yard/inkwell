@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useMemo, useRef } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -9,6 +9,8 @@ import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
 import { useElementAutosave } from "./shared/useElementAutosave"
+import { dispatchKey } from "@/lib/editor/keymap"
+import { createComicKeymap, type ComicElementType as KeymapComicElementType } from "./comic/keymap"
 import { exportProjectToText } from "@/lib/export/text-export"
 import {
   createScene,
@@ -16,6 +18,7 @@ import {
   type ScriptElement,
   type FullProject,
 } from "@/services/project"
+import { deleteScriptElement } from "@/services/editor"
 
 // Element types follow standard Marvel/DC comic script conventions:
 // panel       — visual action description for a panel
@@ -24,16 +27,7 @@ import {
 // caption     — narration caption box
 // sfx         — sound effect
 // transition  — page/scene transition (e.g. CUT TO—)
-type ComicElementType = "panel" | "character" | "balloon" | "caption" | "sfx" | "transition"
-
-const SMART_NEXT: Record<string, ComicElementType> = {
-  panel: "character",
-  character: "balloon",
-  balloon: "character",
-  caption: "caption",
-  sfx: "character",
-  transition: "panel",
-}
+type ComicElementType = KeymapComicElementType
 
 interface ComicScriptEditorProps {
   projectData: FullProject
@@ -111,18 +105,65 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
     if (el) setTimeout(() => document.getElementById(`el-${el.id}`)?.focus(), 50)
   }
 
-  const handleKeyDown = async (
-    e: React.KeyboardEvent<HTMLDivElement>,
-    pageId: string,
-    el: ScriptElement,
-    elIdx: number,
-  ) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      const next = SMART_NEXT[el.element_type] ?? "caption"
-      await handleAddElement(pageId, next as ComicElementType, elIdx)
-    }
-  }
+  const handleDeleteElement = useCallback(
+    async (pageId: string, elementId: string) => {
+      const ids: string[] = []
+      for (const p of pages) {
+        for (const el of p.elements ?? []) {
+          ids.push(el.id)
+        }
+      }
+      const idx = ids.indexOf(elementId)
+      const prevId = idx > 0 ? ids[idx - 1] : null
+
+      setPages((prev) =>
+        prev.map((p) =>
+          p.id !== pageId
+            ? p
+            : { ...p, elements: (p.elements ?? []).filter((el) => el.id !== elementId) },
+        ),
+      )
+      try {
+        await deleteScriptElement(elementId)
+      } catch (err) {
+        console.error("Failed to delete element:", err)
+      }
+      if (prevId) {
+        setTimeout(() => {
+          document.getElementById(`el-${prevId}`)?.focus()
+        }, 50)
+      }
+    },
+    [pages],
+  )
+
+  const keyMap = useMemo(
+    () =>
+      createComicKeymap({
+        pages,
+        insertElementAfter: (pageId, type, afterIdx) =>
+          void handleAddElement(pageId, type, afterIdx),
+        deleteEmptyElement: (pageId, elementId) => void handleDeleteElement(pageId, elementId),
+      }),
+    [pages, handleDeleteElement],
+  )
+
+  const handleKeyDown = useCallback(
+    (
+      e: React.KeyboardEvent<HTMLDivElement>,
+      pageId: string,
+      el: ScriptElement,
+      elIdx: number,
+    ) => {
+      dispatchKey(e, keyMap, {
+        pageId,
+        elementId: el.id,
+        elementType: el.element_type as ComicElementType,
+        elementIndex: elIdx,
+      })
+    },
+    [keyMap],
+  )
 
   return (
     <div className="flex h-screen bg-background">
