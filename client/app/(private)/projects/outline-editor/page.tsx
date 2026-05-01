@@ -4,11 +4,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, PanelsTopLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, PanelsTopLeft } from 'lucide-react';
 import { useDebouncedCallback } from 'use-debounce';
 
 import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLanes";
 import { OutlineDocument } from '@/components/outline-editor/OutlineDocument';
+import { PaneSpinner } from "@/components/shared/PaneSpinner";
 
 import { getFullProject, type FullProject } from "@/services/project";
 import { getBeatBoardForProject, updateBeat, type Beat } from '@/services/beat';
@@ -364,7 +365,7 @@ export default function OutlineEditorPage() {
     );
   };
 
-  if (isLoading) return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+  if (isLoading) return <PaneSpinner />;
   if (error) return <div className="flex h-full w-full items-center justify-center text-red-500">{error}</div>;
 
   return (

@@ -5,10 +5,11 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useDebouncedCallback } from "use-debounce"
-import { ArrowLeft, Loader2, LayoutGrid } from "lucide-react"
+import { ArrowLeft, LayoutGrid } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLanes";
 import { BeatCanvas } from "@/components/beat-board/BeatCanvas";
+import { PaneSpinner } from "@/components/shared/PaneSpinner";
 
 import { getBeatBoardForProject, createBeat, deleteBeat, updateBeat, createConnection, deleteConnection, type Beat, type Connection } from "@/services/beat"
 import { type Lane, type OutlineItem, updateLane, updateLaneOrder, createOutlineItem, updateOutlineItem, createLane } from "@/services/beat-board";
@@ -523,7 +524,7 @@ export default function BeatBoardPage() {
     }
   };
 
-  if (isLoading) return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+  if (isLoading) return <PaneSpinner />
   if (error) return <div>{error}</div>;
 
   return (

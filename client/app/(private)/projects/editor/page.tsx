@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
-import { Loader2, AlertCircle } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 import { EditorFactory } from "@/components/editor/EditorFactory"
 import { getFullProject, FullProject } from "@/services/project"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useAuth } from "@/lib/AuthContext"
 import { setWindowTitle } from "@/lib/desktop"
+import { PaneSpinner } from "@/components/shared/PaneSpinner"
 
 export default function ProjectPage() {
   const { user } = useAuth()
@@ -50,11 +51,7 @@ export default function ProjectPage() {
   }, [project?.title])
 
   if (isLoading) {
-    return (
-      <div className="flex h-full w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
+    return <PaneSpinner />
   }
 
   if (error) {

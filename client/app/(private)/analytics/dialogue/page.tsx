@@ -4,19 +4,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
-import { ArrowLeft, Loader2, MessageCircle } from "lucide-react"
+import { ArrowLeft, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { useProjectAnalytics } from "@/hooks/useProjectAnalytics"
+import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 
 export default function DialogueAnalysis() {
   const { projectId, analytics, isLoading, error } = useProjectAnalytics()
 
-  if (isLoading) return (
-    <div className="flex h-screen items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-    </div>
-  )
+  if (isLoading) return <FullPageSpinner />
 
   if (error || !analytics) return (
     <div className="flex h-screen items-center justify-center text-muted-foreground">
