@@ -33,18 +33,16 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  type VaultBacklink,
-  type VaultGraph as VaultGraphData,
-  type VaultNote,
-  type VaultTag,
-} from "@/lib/storage"
+import { type VaultNote } from "@/lib/storage"
 import { cn } from "@/lib/utils"
 import type { FullProject } from "@/services/project"
 import { MarkdownEditor } from "./markdown/MarkdownEditor"
 import { VaultGraph } from "./VaultGraph"
 import { useVaultAutosave } from "./vault/useVaultAutosave"
+import { useVaultBacklinks } from "./vault/useVaultBacklinks"
+import { useVaultGraph } from "./vault/useVaultGraph"
 import { useVaultNotes } from "./vault/useVaultNotes"
+import { useVaultTags } from "./vault/useVaultTags"
 import { useVaultWatcher } from "./vault/useVaultWatcher"
 
 interface VaultEditorProps {
@@ -97,23 +95,28 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
     () => new Set<string>(),
   )
-  const [backlinks, setBacklinks] = useState<VaultBacklink[]>([])
   const [showBacklinks, setShowBacklinks] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   // When non-null, the title bar shows an <input> instead of the static
   // title text — null means "not editing".
   const [renameDraft, setRenameDraft] = useState<string | null>(null)
-  // Vault-wide "graph mode" swaps the main pane for the force-directed
-  // visualisation. Sidebar stays mounted so the user can still navigate
-  // notes the usual way.
-  const [graphOpen, setGraphOpen] = useState(false)
-  const [graphData, setGraphData] = useState<VaultGraphData | null>(null)
-  // Tags sidebar panel — list of all tags in the vault + the filter
-  // currently applied to the note list.
-  const [tags, setTags] = useState<VaultTag[]>([])
-  const [tagFilter, setTagFilter] = useState<string | null>(null)
-  const [tagFilterNotes, setTagFilterNotes] = useState<Set<string> | null>(null)
-  const [tagsExpanded, setTagsExpanded] = useState(true)
+
+  const { backlinks, setBacklinks } = useVaultBacklinks(projectId, storage, selected)
+  const {
+    tags,
+    tagFilter,
+    tagFilterNotes,
+    tagsExpanded,
+    setTagsExpanded,
+    setTagFilter,
+    onTagClick,
+  } = useVaultTags(projectId, storage, notes)
+  const { graphOpen, setGraphOpen, graphData } = useVaultGraph({
+    projectId,
+    storage,
+    notes,
+    setError,
+  })
 
   const wordCount = useMemo(() => {
     const trimmed = content.trim()
@@ -309,70 +312,6 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     }
   }
 
-  // Tag panel loader — refetches whenever the note set changes. Cheap
-  // — one indexed SQL group-by over `note_tags`.
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const list = await storage.vault.listTags(projectId)
-        if (!cancelled) setTags(list)
-      } catch (err) {
-        console.error("Vault listTags failed:", err)
-        if (!cancelled) setTags([])
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [projectId, storage, notes])
-
-  // Tag filter resolver — fetches the filtered note list from the
-  // backend and caches it as a Set for O(1) lookups during render.
-  useEffect(() => {
-    if (!tagFilter) {
-      setTagFilterNotes(null)
-      return
-    }
-    let cancelled = false
-    void (async () => {
-      try {
-        const filenames = await storage.vault.getNotesByTag(projectId, tagFilter)
-        if (!cancelled) setTagFilterNotes(new Set(filenames))
-      } catch (err) {
-        console.error("Vault getNotesByTag failed:", err)
-        if (!cancelled) setTagFilterNotes(new Set())
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [projectId, storage, tagFilter, notes])
-
-  const onTagClick = (tag: string) => {
-    setTagFilter((current) => (current?.toLowerCase() === tag.toLowerCase() ? null : tag))
-  }
-
-  // Graph data loader — refetches whenever graph mode opens or the note
-  // set changes. Cheap enough to re-run on every refreshNotes tick
-  // because it's a single SQL scan + one directory walk.
-  useEffect(() => {
-    if (!graphOpen) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const g = await storage.vault.getGraph(projectId)
-        if (!cancelled) setGraphData(g)
-      } catch (err) {
-        console.error("Vault getGraph failed:", err)
-        if (!cancelled) setError("Could not build the graph.")
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [graphOpen, projectId, storage, notes])
-
   const onGraphNodeSelect = async (filename: string) => {
     const note = notes.find((n) => n.filename === filename)
     if (!note) return
@@ -413,29 +352,6 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     onBacklinksReload: setBacklinks,
     onContentReload: (_filename, body) => setContent((prev) => (prev === body ? prev : body)),
   })
-
-  // Recompute backlinks whenever the selected note changes. We wait for
-  // autosave to flush so fresh incoming links are picked up immediately
-  // after renaming or creating a target.
-  useEffect(() => {
-    let cancelled = false
-    if (!selected) {
-      setBacklinks([])
-      return
-    }
-    void (async () => {
-      try {
-        const list = await storage.vault.getBacklinks(projectId, selected.title)
-        if (!cancelled) setBacklinks(list)
-      } catch (err) {
-        console.error("Vault getBacklinks failed:", err)
-        if (!cancelled) setBacklinks([])
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [projectId, selected, storage])
 
   // Resolve a clicked [[Wikilink]] to a real note. If a note with that
   // title already exists in the vault we open it; otherwise we create a
