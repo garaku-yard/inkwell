@@ -1,3 +1,5 @@
+import type React from "react"
+
 import {
   createElementNavigationKeymap,
   focusContentEditableAtEnd,
@@ -30,6 +32,25 @@ const NEXT_ELEMENT_AFTER_ENTER: Record<ComicElementType, ComicElementType> = {
   transition: "panel",
 }
 
+/** Tab cycles to the next element type the same way Enter does. Comic
+ *  scriptwriters carrying habits over from screenwriting expect Tab
+ *  to be a "next element" gesture; mapping it through the same table
+ *  matches that muscle memory. The two keys diverge once we add
+ *  format-specific overrides. */
+const NEXT_ELEMENT_ON_TAB: Record<ComicElementType, ComicElementType> = NEXT_ELEMENT_AFTER_ENTER
+
+/** mod+digit shortcuts to insert a specific element type after the
+ *  current one. Cover all six types so writers don't have to mouse to
+ *  the toolbar. */
+const NUMBER_KEY_TO_ELEMENT: Record<string, ComicElementType> = {
+  "1": "panel",
+  "2": "character",
+  "3": "balloon",
+  "4": "caption",
+  "5": "sfx",
+  "6": "transition",
+}
+
 export interface ComicKeyContext {
   pageId: string
   elementId: string
@@ -59,6 +80,16 @@ function getElementNode(id: string): HTMLElement | null {
 }
 
 export function createComicKeymap(opts: CreateComicKeymapOptions): Keymap<ComicKeyContext> {
+  const insertViaDigit = (type: ComicElementType) =>
+    (e: React.KeyboardEvent<HTMLDivElement>, ctx: ComicKeyContext) => {
+      e.preventDefault()
+      opts.insertElementAfter(ctx.pageId, type, ctx.elementIndex)
+    }
+
+  const numberKeyEntries = Object.entries(NUMBER_KEY_TO_ELEMENT).map(
+    ([digit, type]) => [`mod+${digit}`, insertViaDigit(type)] as const,
+  )
+
   return {
     ...createElementNavigationKeymap<ComicKeyContext>({
       getNeighbour: (ctx, dir) => {
@@ -77,5 +108,11 @@ export function createComicKeymap(opts: CreateComicKeymapOptions): Keymap<ComicK
       const next = NEXT_ELEMENT_AFTER_ENTER[ctx.elementType] ?? "caption"
       opts.insertElementAfter(ctx.pageId, next, ctx.elementIndex)
     },
+    tab: (e, ctx) => {
+      e.preventDefault()
+      const next = NEXT_ELEMENT_ON_TAB[ctx.elementType] ?? "caption"
+      opts.insertElementAfter(ctx.pageId, next, ctx.elementIndex)
+    },
+    ...Object.fromEntries(numberKeyEntries),
   }
 }
