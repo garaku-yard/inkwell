@@ -3,20 +3,18 @@
 import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Plus, AlignCenter, AlignLeft, Music, Bot, Download, ChevronDown } from "lucide-react"
-import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { AIChatPanel } from "./AIChatPanel"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
+import { useElementAutosave } from "./shared/useElementAutosave"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { exportProjectToText } from "@/lib/export/text-export"
 import {
   createScene,
-  updateSceneHeading,
-  updateElementContent,
   createSceneElement,
   type ScriptElement,
   type FullProject,
@@ -39,29 +37,15 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   const isLyrics = projectData.category === "lyrics"
   const [scenes, setScenes] = useState(() => projectData.scenes ?? [])
   const [centered, setCentered] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const poemRefs = useRef<Map<string, HTMLElement | null>>(new Map())
+  // Poetry uses a snappier debounce than the prose-shaped editors —
+  // lyrics/poem lines are short and the longer delay felt sluggish.
+  const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id, debounceMs: 1200 })
 
   const totalLines = scenes.reduce((acc, s) => acc + countLines(s.elements ?? []), 0)
 
-  const debouncedSave = useDebouncedCallback(async (id: string, content: string, isScene: boolean) => {
-    if (!user?.id) return
-    setSaveStatus("saving")
-    try {
-      if (isScene) {
-        await updateSceneHeading(id, user.id, content)
-      } else {
-        await updateElementContent(id, user.id, content)
-      }
-      setSaveStatus("saved")
-    } catch {
-      setSaveStatus("unsaved")
-    }
-  }, 1200)
-
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
-    setSaveStatus("unsaved")
     if (isScene) {
       setScenes(prev => prev.map(s => s.id === id ? { ...s, scene_heading: content } : s))
     } else {
@@ -70,8 +54,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
         elements: (s.elements ?? []).map(el => el.id === id ? { ...el, content } : el),
       })))
     }
-    debouncedSave(id, content, isScene)
-  }, [debouncedSave])
+    scheduleSave(id, content, isScene)
+  }, [scheduleSave])
 
   const handleAddPoem = async () => {
     if (!user?.id) return

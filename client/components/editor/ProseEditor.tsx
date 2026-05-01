@@ -3,20 +3,18 @@
 import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Plus, BookOpen, Bot, Download, ChevronDown } from "lucide-react"
-import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { AIChatPanel } from "./AIChatPanel"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
+import { useElementAutosave } from "./shared/useElementAutosave"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import {
   createScene,
-  updateSceneHeading,
-  updateElementContent,
   createSceneElement,
   type ScriptElement,
   type FullProject,
@@ -36,31 +34,15 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const router = useRouter()
   const { user } = useAuth()
   const [scenes, setScenes] = useState(() => projectData.scenes ?? [])
-  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const chapterRefs = useRef<Map<string, HTMLElement | null>>(new Map())
+  const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
 
   const totalWords = scenes.reduce((acc, scene) => {
     return acc + (scene.elements ?? []).reduce((s, el) => s + wordCount(el.content), 0)
   }, 0)
 
-  const debouncedSave = useDebouncedCallback(async (id: string, content: string, isScene: boolean) => {
-    if (!user?.id) return
-    setSaveStatus("saving")
-    try {
-      if (isScene) {
-        await updateSceneHeading(id, user.id, content)
-      } else {
-        await updateElementContent(id, user.id, content)
-      }
-      setSaveStatus("saved")
-    } catch {
-      setSaveStatus("unsaved")
-    }
-  }, 1500)
-
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
-    setSaveStatus("unsaved")
     if (isScene) {
       setScenes(prev => prev.map(s => s.id === id ? { ...s, scene_heading: content } : s))
     } else {
@@ -69,8 +51,8 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         elements: (s.elements ?? []).map(el => el.id === id ? { ...el, content } : el),
       })))
     }
-    debouncedSave(id, content, isScene)
-  }, [debouncedSave])
+    scheduleSave(id, content, isScene)
+  }, [scheduleSave])
 
   const handleAddChapter = async () => {
     if (!user?.id) return

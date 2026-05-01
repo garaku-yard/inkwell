@@ -3,20 +3,18 @@
 import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Plus, Bot, Download, ChevronDown } from "lucide-react"
-import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { AIChatPanel } from "./AIChatPanel"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
+import { useElementAutosave } from "./shared/useElementAutosave"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { exportProjectToText } from "@/lib/export/text-export"
 import {
   createScene,
-  updateSceneHeading,
-  updateElementContent,
   createSceneElement,
   type ScriptElement,
   type FullProject,
@@ -52,26 +50,13 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
   const router = useRouter()
   const { user } = useAuth()
   const [pages, setPages] = useState(() => projectData.scenes ?? [])
-  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const pageRefs = useRef<Map<string, HTMLElement | null>>(new Map())
+  const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
 
   const totalPanels = pages.reduce((acc, p) => acc + panelCount(p.elements ?? []), 0)
 
-  const debouncedSave = useDebouncedCallback(async (id: string, content: string, isScene: boolean) => {
-    if (!user?.id) return
-    setSaveStatus("saving")
-    try {
-      if (isScene) await updateSceneHeading(id, user.id, content)
-      else await updateElementContent(id, user.id, content)
-      setSaveStatus("saved")
-    } catch {
-      setSaveStatus("unsaved")
-    }
-  }, 1500)
-
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
-    setSaveStatus("unsaved")
     if (isScene) {
       setPages(prev => prev.map(p => p.id === id ? { ...p, scene_heading: content } : p))
     } else {
@@ -80,8 +65,8 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
         elements: (p.elements ?? []).map(el => el.id === id ? { ...el, content } : el),
       })))
     }
-    debouncedSave(id, content, isScene)
-  }, [debouncedSave])
+    scheduleSave(id, content, isScene)
+  }, [scheduleSave])
 
   const handleAddPage = async () => {
     if (!user?.id) return

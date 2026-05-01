@@ -4,19 +4,17 @@ import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Bot, Download, ChevronDown } from "lucide-react"
 import { PassageGraph } from "./PassageGraph"
-import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { AIChatPanel } from "./AIChatPanel"
+import { useElementAutosave } from "./shared/useElementAutosave"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { exportProjectToText } from "@/lib/export/text-export"
 import {
   createScene,
-  updateSceneHeading,
-  updateElementContent,
   createSceneElement,
   type ScriptElement,
   type FullProject,
@@ -56,11 +54,11 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const [activePassageId, setActivePassageId] = useState<string | null>(
     () => (projectData.scenes ?? [])[0]?.id ?? null
   )
-  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"write" | "graph">("write")
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
+  const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
 
   const activePassage = passages.find(p => p.id === activePassageId) ?? null
   const activeElements = activePassage?.elements ?? []
@@ -71,20 +69,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const totalLinks = passages.reduce((acc, p) =>
     acc + (p.elements ?? []).reduce((a, el) => a + parseLinks(el.content).length, 0), 0)
 
-  const debouncedSave = useDebouncedCallback(async (id: string, content: string, isScene: boolean) => {
-    if (!user?.id) return
-    setSaveStatus("saving")
-    try {
-      if (isScene) await updateSceneHeading(id, user.id, content)
-      else await updateElementContent(id, user.id, content)
-      setSaveStatus("saved")
-    } catch {
-      setSaveStatus("unsaved")
-    }
-  }, 1500)
-
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
-    setSaveStatus("unsaved")
     if (isScene) {
       setPassages(prev => prev.map(p => p.id === id ? { ...p, scene_heading: content } : p))
     } else {
@@ -93,8 +78,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
         elements: (p.elements ?? []).map(el => el.id === id ? { ...el, content } : el),
       })))
     }
-    debouncedSave(id, content, isScene)
-  }, [debouncedSave])
+    scheduleSave(id, content, isScene)
+  }, [scheduleSave])
 
   const handleAddPassage = async (name = "") => {
     if (!user?.id) return

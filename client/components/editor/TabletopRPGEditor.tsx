@@ -3,20 +3,18 @@
 import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Plus, ChevronRight, ChevronDown, Table, Pencil, Dice6, Bot, Download } from "lucide-react"
-import { useDebouncedCallback } from "use-debounce"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { AIChatPanel } from "./AIChatPanel"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
+import { useElementAutosave } from "./shared/useElementAutosave"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import {
   createScene,
-  updateSceneHeading,
-  updateElementContent,
   createSceneElement,
   type ScriptElement,
   type FullProject,
@@ -66,29 +64,16 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const router = useRouter()
   const { user } = useAuth()
   const [sections, setSections] = useState(() => projectData.scenes ?? [])
-  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [tableMode, setTableMode] = useState<Record<string, "edit" | "preview">>({})
   const sectionRefs = useRef<Map<string, HTMLElement | null>>(new Map())
+  const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
 
   const totalWords = sections.reduce((acc, s) =>
     acc + (s.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0), 0)
 
-  const debouncedSave = useDebouncedCallback(async (id: string, content: string, isScene: boolean) => {
-    if (!user?.id) return
-    setSaveStatus("saving")
-    try {
-      if (isScene) await updateSceneHeading(id, user.id, content)
-      else await updateElementContent(id, user.id, content)
-      setSaveStatus("saved")
-    } catch {
-      setSaveStatus("unsaved")
-    }
-  }, 1500)
-
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
-    setSaveStatus("unsaved")
     if (isScene) {
       setSections(prev => prev.map(s => s.id === id ? { ...s, scene_heading: content } : s))
     } else {
@@ -97,8 +82,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         elements: (s.elements ?? []).map(el => el.id === id ? { ...el, content } : el),
       })))
     }
-    debouncedSave(id, content, isScene)
-  }, [debouncedSave])
+    scheduleSave(id, content, isScene)
+  }, [scheduleSave])
 
   const handleAddSection = async () => {
     if (!user?.id) return
