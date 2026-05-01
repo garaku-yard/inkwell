@@ -11,6 +11,7 @@ import { AIChatPanel } from "./AIChatPanel"
 import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createIFKeymap } from "./if/keymap"
+import { PassageAutocomplete } from "./if/PassageAutocomplete"
 import { deleteScriptElement } from "@/services/editor"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -176,6 +177,154 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
       })
     },
     [keyMap, activePassageId],
+  )
+
+  // Autocomplete state — non-null while the caret sits inside an
+  // unclosed [[…]] token. Tracks which element triggered the popup
+  // and the query text typed since the [[.
+  const [autocomplete, setAutocomplete] = useState<{
+    elementId: string
+    query: string
+    bracketStart: number
+    position: { top: number; left: number }
+  } | null>(null)
+
+  // Computes the autocomplete context for the current caret. Returns
+  // null when the caret isn't inside an open `[[` token (no
+  // dropdown). The check walks the element's plain text up to the
+  // caret offset, finds the last `[[`, and refuses to trigger if a
+  // `]]` already closed it.
+  const computeAutocompleteContext = useCallback(
+    (elementId: string): typeof autocomplete => {
+      if (typeof window === "undefined") return null
+      const el = document.getElementById(`el-${elementId}`)
+      if (!el) return null
+      const sel = window.getSelection()
+      if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return null
+      const range = sel.getRangeAt(0)
+      // Plain-text contentEditable: the caret offset against the
+      // element's textContent is the offset within the single text
+      // node. Bail out gracefully if the structure ever grows nested.
+      if (range.startContainer !== el && range.startContainer.parentElement !== el) {
+        return null
+      }
+      const text = el.textContent ?? ""
+      // Walk a Range from the element start to the caret to get the
+      // plain-text offset, regardless of which child node the caret
+      // sits in.
+      const probe = document.createRange()
+      probe.setStart(el, 0)
+      probe.setEnd(range.startContainer, range.startOffset)
+      const beforeCaret = probe.toString()
+      const lastOpen = beforeCaret.lastIndexOf("[[")
+      if (lastOpen === -1) return null
+      // Refuse if a `]]` already closes the token between [[ and the
+      // caret — user has finished a link.
+      if (beforeCaret.slice(lastOpen).includes("]]")) return null
+      // Refuse if the user typed a newline inside the token; links
+      // don't span lines.
+      const query = beforeCaret.slice(lastOpen + 2)
+      if (query.includes("\n")) return null
+      // Position below the caret using the range's bounding client
+      // rect. A zero-width range still has a valid rect on most
+      // browsers; if it doesn't (rare), fall back to the element's
+      // top-left.
+      const rangeRect = range.getBoundingClientRect()
+      const elRect = el.getBoundingClientRect()
+      const top =
+        (rangeRect.bottom > 0 ? rangeRect.bottom : elRect.bottom) + 4
+      const left = rangeRect.left > 0 ? rangeRect.left : elRect.left
+      void text
+      return {
+        elementId,
+        query,
+        bracketStart: lastOpen,
+        position: { top, left },
+      }
+    },
+    [],
+  )
+
+  const handleBodyInput = useCallback(
+    (e: React.FormEvent<HTMLDivElement>, elementId: string) => {
+      handleContentChange(elementId, e.currentTarget.textContent ?? "", false)
+      setAutocomplete(computeAutocompleteContext(elementId))
+    },
+    [handleContentChange, computeAutocompleteContext],
+  )
+
+  const insertLinkAt = useCallback((elementId: string, name: string) => {
+    const el = document.getElementById(`el-${elementId}`)
+    if (!el) return
+    const text = el.textContent ?? ""
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return
+    const range = sel.getRangeAt(0)
+    const probe = document.createRange()
+    probe.setStart(el, 0)
+    probe.setEnd(range.startContainer, range.startOffset)
+    const caretOffset = probe.toString().length
+    const lastOpen = text.lastIndexOf("[[", caretOffset)
+    if (lastOpen === -1) return
+
+    const before = text.slice(0, lastOpen)
+    const after = text.slice(caretOffset)
+    const next = `${before}[[${name}]]${after}`
+    el.textContent = next
+
+    // Place the caret right after the inserted ]] so the user can
+    // keep typing.
+    const newOffset = lastOpen + 2 + name.length + 2
+    const textNode = el.firstChild
+    if (textNode) {
+      const newRange = document.createRange()
+      newRange.setStart(textNode, Math.min(newOffset, textNode.textContent?.length ?? 0))
+      newRange.collapse(true)
+      sel.removeAllRanges()
+      sel.addRange(newRange)
+    }
+
+    // Trigger React's onInput by firing an input event so the
+    // controlled handleContentChange picks up the new content for
+    // autosave + state.
+    el.dispatchEvent(new Event("input", { bubbles: true }))
+    setAutocomplete(null)
+  }, [])
+
+  const handleAutocompleteSelect = useCallback(
+    (name: string) => {
+      if (!autocomplete) return
+      insertLinkAt(autocomplete.elementId, name)
+    },
+    [autocomplete, insertLinkAt],
+  )
+
+  const handleAutocompleteCreate = useCallback(
+    async (name: string) => {
+      if (!autocomplete) return
+      const targetElementId = autocomplete.elementId
+      // Insert the link immediately (writes against the current
+      // caret); creating the passage happens as a background side
+      // effect so the user isn't waiting on the network round-trip.
+      insertLinkAt(targetElementId, name)
+      try {
+        // Don't switch focus to the new passage — the user is mid-link
+        // in the current one. handleAddPassage normally activates the
+        // new passage; reuse the underlying createScene call directly.
+        if (user?.id) {
+          await createScene(projectData.id, user.id, {
+            scene_heading: name,
+            content: "",
+            order_index: passages.length,
+          }).then((p) => {
+            setPassages((prev) => [...prev, { ...p, elements: [] }])
+          })
+        }
+      } catch (err) {
+        console.error("Failed to create passage:", err)
+      }
+    },
+    [autocomplete, insertLinkAt, projectData.id, passages.length, user?.id],
   )
 
   const navigateToPassage = (name: string) => {
@@ -385,7 +534,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                             id={`el-${el.id}`}
                             contentEditable
                             suppressContentEditableWarning
-                            onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                            onInput={(e) => handleBodyInput(e, el.id)}
                             onKeyDown={(e) => handleKeyDown(e, el)}
                             className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Passage\00a0text…'] empty:before:text-muted-foreground/25"
                           >
@@ -402,7 +551,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                               id={`el-${el.id}`}
                               contentEditable
                               suppressContentEditableWarning
-                              onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                              onInput={(e) => handleBodyInput(e, el.id)}
                               onKeyDown={(e) => handleKeyDown(e, el)}
                               className="outline-none font-mono text-sm text-primary bg-primary/5 border border-primary/20 rounded-md px-3 py-1.5 min-h-[2rem] leading-relaxed"
                             >
@@ -544,6 +693,16 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
         <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
       </div>
+      {autocomplete && (
+        <PassageAutocomplete
+          passages={passages.map((p) => p.scene_heading).filter(Boolean)}
+          query={autocomplete.query}
+          position={autocomplete.position}
+          onSelect={handleAutocompleteSelect}
+          onCreate={handleAutocompleteCreate}
+          onDismiss={() => setAutocomplete(null)}
+        />
+      )}
     </div>
   )
 }
