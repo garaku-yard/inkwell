@@ -1,72 +1,24 @@
 import type React from "react"
-import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 
-export interface KeymapHandlers {
-  handleFinalizeUpdate: (id: string, content: string, isScene: boolean) => void
-  handleInsertElement: (
-    type: ToolbarScriptElementType,
-    targetElementId?: string,
-    isTargetScene?: boolean,
-  ) => void
-  handleDeleteScene: (sceneId: string) => void
-  handleDeleteElement: (elementId: string) => void
-  handleSelectAll: (e: React.KeyboardEvent<HTMLDivElement>) => void
-  handleChangeElementType: (
-    elementId: string,
-    newType: ToolbarScriptElementType,
-    currentContent: string,
-  ) => void
-  handleNavigateToPrevious?: (elementId: string) => void
-  handleNavigateToNext?: (elementId: string) => void
-  handleAddNewScene?: () => void
-}
-
-/** Window for double-Enter detection. Two Enters within this many ms
- *  start a fresh scene; a single Enter falls through to the normal
- *  insert-next-element flow after the same delay so we can't fire both
- *  for what was meant to be a double-tap. */
-const DOUBLE_ENTER_THRESHOLD = 300
-
-/** Element type to insert when the user presses Enter inside an
- *  element of the given type. Drives the per-key dispatch instead of a
- *  switch statement that's just an inline lookup table. Scene
- *  headings are handled separately because they always insert ACTION. */
-const NEXT_ELEMENT_AFTER_ENTER: Record<ToolbarScriptElementType, ToolbarScriptElementType> = {
-  ACTION: "ACTION",
-  CHARACTER: "DIALOG",
-  DIALOG: "ACTION",
-  PARENTHETICAL: "DIALOG",
-  TRANSITION: "ACTION",
-  SHOT: "ACTION",
-  TEXT: "TEXT",
-  NOTE: "ACTION",
-  OUTLINE: "ACTION",
-  NEW_ACT: "ACTION",
-  END_ACT: "ACTION",
-  LYRICS: "LYRICS",
-  SEQUENCE: "ACTION",
-  DUAL_DIALOG: "DUAL_DIALOG",
-}
-
-/** Tab inside one of these element types inserts a new sibling of the
- *  mapped type. Other element types ignore Tab (Tab on a scene heading
- *  is a no-op too). */
-const NEXT_ELEMENT_ON_TAB: Partial<Record<ToolbarScriptElementType, ToolbarScriptElementType>> = {
-  ACTION: "CHARACTER",
-  DIALOG: "PARENTHETICAL",
-}
-
-/** mod+digit shortcuts. Note: 1 and 7 both bind to SHOT — two ways to
- *  reach the same element type, intentional in the original code. */
-const NUMBER_KEY_TO_ELEMENT: Record<string, ToolbarScriptElementType> = {
-  "1": "SHOT",
-  "2": "ACTION",
-  "3": "CHARACTER",
-  "4": "PARENTHETICAL",
-  "5": "DIALOG",
-  "6": "TRANSITION",
-  "7": "SHOT",
-}
+/**
+ * Generic keyboard primitives shared by every format editor's keymap.
+ *
+ * Three things live here:
+ *   1. getKeyString — canonical "mod+shift+a" string with the
+ *      cross-platform Mod token resolving to Cmd on Mac and Ctrl
+ *      elsewhere.
+ *   2. dispatchKey — looks up a handler from a keymap object and
+ *      invokes it with a caller-supplied context.
+ *   3. Low-level helpers for the rules every contentEditable-backed
+ *      editor ends up rewriting: empty check, start/end-of-element
+ *      check, and a double-tap detector factory.
+ *
+ * Format-specific bindings (screenplay's number-key shortcuts, comic's
+ * SMART_NEXT, etc.) live next to their editor — they're tied to the
+ * editor's element-type vocabulary and rotate independently of this
+ * engine. See `components/editor/screenplay/keymap.ts` for the
+ * canonical example.
+ */
 
 /** True on Apple platforms where Cmd is the primary modifier. Browsers
  *  expose `metaKey` for Cmd on Mac and the Win key on Windows; we want
@@ -77,11 +29,10 @@ function isMacPlatform(): boolean {
 }
 
 /** Builds a canonical key string with the cross-platform "mod" modifier
- *  collapsing Cmd-on-Mac and Ctrl-elsewhere into a single token. The
- *  keymap keys use the same `mod+` convention so we don't end up with
- *  parallel ctrl+/meta+ entries. Modifier order is fixed
- *  (mod, shift, alt) so callers don't need to think about ordering. */
-export const getKeyString = (e: React.KeyboardEvent): string => {
+ *  collapsing Cmd-on-Mac and Ctrl-elsewhere into a single token. Modifier
+ *  order is fixed (mod, shift, alt) so callers building keymap entries
+ *  don't need to think about ordering. */
+export function getKeyString(e: React.KeyboardEvent): string {
   const mac = isMacPlatform()
   const mod = mac ? e.metaKey : e.ctrlKey
   let key = e.key.toLowerCase()
@@ -91,146 +42,120 @@ export const getKeyString = (e: React.KeyboardEvent): string => {
   return key
 }
 
-export const createKeymap = (handlers: KeymapHandlers) => {
-  // Per-keymap closure state — owning the Enter timer here prevents
-  // two simultaneous editor mounts from sharing it, which would let a
-  // tap in one tab cancel a pending insert in the other.
-  let lastEnterTime = 0
-  let pendingEnterTimeout: ReturnType<typeof setTimeout> | null = null
+/** Generic shape of a keymap: keys are the strings produced by
+ *  getKeyString, values are handlers that receive the event plus
+ *  whatever context the caller threads through. Each editor narrows
+ *  TContext to its own domain (element id + scene flag + element type
+ *  for screenplay; just element id for simpler editors). */
+export type Keymap<TContext> = Record<
+  string,
+  (e: React.KeyboardEvent<HTMLDivElement>, ctx: TContext) => void
+>
 
-  const cancelPendingEnter = () => {
-    if (pendingEnterTimeout) {
-      clearTimeout(pendingEnterTimeout)
-      pendingEnterTimeout = null
-    }
-  }
+/** Looks up a handler for the current event in `keymap` and invokes
+ *  it. Returns true if a handler ran, false otherwise — useful when
+ *  the editor wants to fall through to default browser behaviour. */
+export function dispatchKey<TContext>(
+  e: React.KeyboardEvent<HTMLDivElement>,
+  keymap: Keymap<TContext>,
+  ctx: TContext,
+): boolean {
+  const handler = keymap[getKeyString(e)]
+  if (!handler) return false
+  handler(e, ctx)
+  return true
+}
 
-  const handleEnter = (
-    e: React.KeyboardEvent<HTMLDivElement>,
-    elementId: string,
-    isScene: boolean,
-    elementType: ToolbarScriptElementType | "SCENE_HEADING",
-  ) => {
-    e.preventDefault()
+// ─── Selection / element-state helpers ──────────────────────────────
 
-    const now = Date.now()
-    const isDoubleEnter = now - lastEnterTime < DOUBLE_ENTER_THRESHOLD
-    lastEnterTime = now
+/** True when the contentEditable element is visually empty. Treats
+ *  both `""` and the lone `<br>` browsers insert when you delete the
+ *  last character as empty — the latter would otherwise let the user
+ *  see what looks like an empty bullet that backspace refuses to
+ *  delete. */
+export function isElementEmpty(el: HTMLElement): boolean {
+  const html = el.innerHTML
+  return html === "" || html === "<br>"
+}
 
-    if (isDoubleEnter && handlers.handleAddNewScene) {
-      cancelPendingEnter()
-      handlers.handleAddNewScene()
-      return
-    }
-
-    const currentContent = e.currentTarget.innerHTML
-    cancelPendingEnter()
-    pendingEnterTimeout = setTimeout(() => {
-      pendingEnterTimeout = null
-      handlers.handleFinalizeUpdate(elementId, currentContent, isScene)
-      if (isScene) {
-        handlers.handleInsertElement("ACTION", elementId, true)
-        return
-      }
-      const nextType = NEXT_ELEMENT_AFTER_ENTER[elementType as ToolbarScriptElementType]
-      if (nextType) {
-        handlers.handleInsertElement(nextType, elementId, false)
-      }
-    }, DOUBLE_ENTER_THRESHOLD)
-  }
-
-  const handleTab = (
-    e: React.KeyboardEvent<HTMLDivElement>,
-    elementId: string,
-    isScene: boolean,
-    elementType: ToolbarScriptElementType | "SCENE_HEADING",
-  ) => {
-    e.preventDefault()
-    if (isScene) return
-    const newType = NEXT_ELEMENT_ON_TAB[elementType as ToolbarScriptElementType]
-    if (!newType) return
-    handlers.handleFinalizeUpdate(elementId, e.currentTarget.innerHTML, isScene)
-    handlers.handleInsertElement(newType, elementId, false)
-  }
-
-  const handleBackspace = (
-    e: React.KeyboardEvent<HTMLDivElement>,
-    elementId: string,
-    isScene: boolean,
-  ) => {
-    const content = e.currentTarget.innerHTML
-    if (content !== "" && content !== "<br>") return
-    e.preventDefault()
-    if (isScene) handlers.handleDeleteScene(elementId)
-    else handlers.handleDeleteElement(elementId)
-  }
-
-  const handleArrowUp = (
-    e: React.KeyboardEvent<HTMLDivElement>,
-    elementId: string,
-  ) => {
-    const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0) return
-    const range = selection.getRangeAt(0)
-    const element = e.currentTarget
-    const isAtStart =
-      range.startOffset === 0 &&
-      (range.startContainer === element ||
-        range.startContainer === element.firstChild ||
-        element.textContent?.length === 0)
-    if (isAtStart && handlers.handleNavigateToPrevious) {
-      e.preventDefault()
-      handlers.handleNavigateToPrevious(elementId)
-    }
-  }
-
-  const handleArrowDown = (
-    e: React.KeyboardEvent<HTMLDivElement>,
-    elementId: string,
-  ) => {
-    const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0) return
-    const range = selection.getRangeAt(0)
-    const element = e.currentTarget
-    const textLength = element.textContent?.length || 0
-    const isAtEnd =
-      range.collapsed &&
-      (range.endOffset === textLength ||
-        (range.endContainer === element.lastChild &&
-          range.endOffset === (range.endContainer.textContent?.length || 0)) ||
-        textLength === 0)
-    if (isAtEnd && handlers.handleNavigateToNext) {
-      e.preventDefault()
-      handlers.handleNavigateToNext(elementId)
-    }
-  }
-
-  /** Factory for the seven mod+digit handlers. Each one swaps the
-   *  current element to a different type without inserting a sibling. */
-  const changeTypeHandler = (type: ToolbarScriptElementType) =>
-    (
-      e: React.KeyboardEvent<HTMLDivElement>,
-      elementId: string,
-      isScene: boolean,
-    ) => {
-      e.preventDefault()
-      if (isScene) return
-      handlers.handleChangeElementType(elementId, type, e.currentTarget.textContent ?? "")
-    }
-
-  const numberKeyEntries = Object.entries(NUMBER_KEY_TO_ELEMENT).map(
-    ([digit, type]) => [`mod+${digit}`, changeTypeHandler(type)] as const,
+/** True when the caret is at the start of `el`. Handles three shapes:
+ *  selection on the element itself, selection on its first text node,
+ *  and the empty-element edge case where textContent is zero-length. */
+export function isCaretAtElementStart(
+  range: Range,
+  el: HTMLElement,
+): boolean {
+  return (
+    range.startOffset === 0 &&
+    (range.startContainer === el ||
+      range.startContainer === el.firstChild ||
+      el.textContent?.length === 0)
   )
+}
+
+/** True when the caret is collapsed at the end of `el`. Mirrors
+ *  isCaretAtElementStart for the closing edge. */
+export function isCaretAtElementEnd(
+  range: Range,
+  el: HTMLElement,
+): boolean {
+  if (!range.collapsed) return false
+  const textLength = el.textContent?.length || 0
+  return (
+    range.endOffset === textLength ||
+    (range.endContainer === el.lastChild &&
+      range.endOffset === (range.endContainer.textContent?.length || 0)) ||
+    textLength === 0
+  )
+}
+
+// ─── Double-tap detector ────────────────────────────────────────────
+
+export interface DoubleTapDetector {
+  /** Schedule a single-tap action and report whether this call
+   *  completed a double-tap. When it returns true the caller should
+   *  fire its double-tap handler instead — the queued single-tap from
+   *  the previous press has been cancelled. */
+  scheduleOrDoubleTap: (onSingleTap: () => void) => boolean
+  /** Cancel any pending single-tap without firing it. Useful on
+   *  unmount or when a different handler short-circuits the gesture. */
+  cancel: () => void
+}
+
+/** Returns a fresh double-tap detector. Each call captures its own
+ *  closure state so two simultaneous editor mounts can't share a
+ *  timer — a tap in one tab can no longer cancel a pending insert in
+ *  the other. The classic use is screenplay's Enter handler:
+ *  single-Enter inserts a sibling, double-Enter starts a new scene. */
+export function createDoubleTapDetector(thresholdMs: number): DoubleTapDetector {
+  let lastTime = 0
+  let pendingTimeout: ReturnType<typeof setTimeout> | null = null
+
+  const cancel = () => {
+    if (pendingTimeout) {
+      clearTimeout(pendingTimeout)
+      pendingTimeout = null
+    }
+  }
 
   return {
-    enter: handleEnter,
-    tab: handleTab,
-    backspace: handleBackspace,
-    arrowup: handleArrowUp,
-    arrowdown: handleArrowDown,
-    "mod+a": (e: React.KeyboardEvent<HTMLDivElement>) => {
-      handlers.handleSelectAll(e)
+    cancel,
+    scheduleOrDoubleTap(onSingleTap) {
+      const now = Date.now()
+      const isDouble = now - lastTime < thresholdMs
+      lastTime = now
+
+      if (isDouble) {
+        cancel()
+        return true
+      }
+
+      cancel()
+      pendingTimeout = setTimeout(() => {
+        pendingTimeout = null
+        onSingleTap()
+      }, thresholdMs)
+      return false
     },
-    ...Object.fromEntries(numberKeyEntries),
   }
 }

@@ -42,15 +42,15 @@ interface CharacterAutocompleteProps {
  */
 function normalizeCharacterName(name: string): string {
   let normalized = name.trim().toUpperCase()
-  
+
   // Remove known extensions
   for (const ext of CHARACTER_EXTENSIONS) {
     normalized = normalized.replace(ext, "").trim()
   }
-  
+
   // Remove any remaining parenthetical at the end
   normalized = normalized.replace(/\s*\([^)]*\)\s*$/, "").trim()
-  
+
   return normalized
 }
 
@@ -60,25 +60,25 @@ function normalizeCharacterName(name: string): string {
 function extractCharacters(scenes: Scene[], currentSceneId: string): CharacterInfo[] {
   const characterMap = new Map<string, CharacterInfo>()
   const currentSceneIndex = scenes.findIndex(s => s.id === currentSceneId)
-  
+
   scenes.forEach((scene, sceneIndex) => {
     if (!scene.elements) return
-    
+
     scene.elements.forEach((element, elementIndex) => {
       if (element.element_type === "CHARACTER") {
         const normalizedName = normalizeCharacterName(element.content)
-        
+
         if (normalizedName.length === 0) return
-        
+
         const isNearby = Math.abs(sceneIndex - currentSceneIndex) <= 1
-        
+
         const existing = characterMap.get(normalizedName)
         if (existing) {
           existing.frequency += 1
           existing.isNearby = existing.isNearby || isNearby
           // Update recency if this occurrence is later
-          if (sceneIndex > existing.lastSceneIndex || 
-              (sceneIndex === existing.lastSceneIndex && elementIndex > existing.lastElementIndex)) {
+          if (sceneIndex > existing.lastSceneIndex ||
+            (sceneIndex === existing.lastSceneIndex && elementIndex > existing.lastElementIndex)) {
             existing.lastSceneIndex = sceneIndex
             existing.lastElementIndex = elementIndex
           }
@@ -94,7 +94,7 @@ function extractCharacters(scenes: Scene[], currentSceneId: string): CharacterIn
       }
     })
   })
-  
+
   return Array.from(characterMap.values())
 }
 
@@ -105,28 +105,28 @@ function extractCharacters(scenes: Scene[], currentSceneId: string): CharacterIn
  * 3. Recency of use
  */
 function rankCharacters(
-  characters: CharacterInfo[], 
+  characters: CharacterInfo[],
   currentSceneIndex: number
 ): CharacterInfo[] {
   return characters.sort((a, b) => {
     // Calculate proximity score (lower distance = higher score)
     const distanceA = Math.abs(a.lastSceneIndex - currentSceneIndex)
     const distanceB = Math.abs(b.lastSceneIndex - currentSceneIndex)
-    
+
     // Proximity is most important - characters in same or adjacent scenes first
     if (distanceA <= 1 && distanceB > 1) return -1
     if (distanceB <= 1 && distanceA > 1) return 1
-    
+
     // Then by frequency
     if (a.frequency !== b.frequency) {
       return b.frequency - a.frequency
     }
-    
+
     // Then by recency
     if (a.lastSceneIndex !== b.lastSceneIndex) {
       return b.lastSceneIndex - a.lastSceneIndex
     }
-    
+
     return b.lastElementIndex - a.lastElementIndex
   })
 }
@@ -145,20 +145,20 @@ export const CharacterAutocomplete: React.FC<CharacterAutocompleteProps> = ({
 
   const getSuggestions = useCallback((text: string): CharacterInfo[] => {
     const normalizedInput = normalizeCharacterName(text)
-    
+
     // Don't show suggestions if input is empty or too short
     if (normalizedInput.length === 0) {
       return []
     }
-    
+
     const currentSceneIndex = scenes.findIndex(s => s.id === currentSceneId)
     const allCharacters = extractCharacters(scenes, currentSceneId)
     const rankedCharacters = rankCharacters(allCharacters, currentSceneIndex)
-    
+
     // Filter by prefix match
     const matches = rankedCharacters
       .filter(char => char.name.startsWith(normalizedInput) && char.name !== normalizedInput)
-    
+
     // Limit to top 5 suggestions for a cleaner look
     return matches.slice(0, 5)
   }, [scenes, currentSceneId])
@@ -265,7 +265,7 @@ export const CharacterAutocomplete: React.FC<CharacterAutocompleteProps> = ({
           Characters
         </span>
       </div>
-      
+
       {/* Suggestions */}
       <div className="py-1">
         {suggestions.map((suggestion, index) => (
@@ -288,7 +288,7 @@ export const CharacterAutocomplete: React.FC<CharacterAutocompleteProps> = ({
             </span>
             <div className="flex items-center gap-1.5 flex-shrink-0">
               {suggestion.isNearby && (
-                <span 
+                <span
                   className={cn(
                     "text-[9px] px-1 py-0.5 rounded font-medium",
                     index === selectedIndex
@@ -299,7 +299,7 @@ export const CharacterAutocomplete: React.FC<CharacterAutocompleteProps> = ({
                   nearby
                 </span>
               )}
-              <span 
+              <span
                 className={cn(
                   "text-[10px] tabular-nums",
                   index === selectedIndex
@@ -313,7 +313,7 @@ export const CharacterAutocomplete: React.FC<CharacterAutocompleteProps> = ({
           </div>
         ))}
       </div>
-      
+
       {/* Footer hint */}
       <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-2 text-[10px] text-gray-400">

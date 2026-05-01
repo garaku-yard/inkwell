@@ -22,7 +22,8 @@ import {
   type ScriptElement,
   type Comment
 } from "@/services/project"
-import { getKeyString, createKeymap } from "@/lib/editor/keymap";
+import { dispatchKey } from "@/lib/editor/keymap";
+import { createScreenplayKeymap } from "./screenplay/keymap";
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { AIChatPanel } from "./AIChatPanel"
 import { useScreenplayElements } from "./screenplay/useScreenplayElements"
@@ -414,7 +415,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     toast,
   })
 
-  const keyMap = useMemo(() => createKeymap({
+  const keyMap = useMemo(() => createScreenplayKeymap({
     handleFinalizeUpdate,
     handleInsertElement,
     handleDeleteScene,
@@ -443,12 +444,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       isScene: boolean,
       elementType: ToolbarScriptElementType | "SCENE_HEADING",
     ) => {
-      const keyString = getKeyString(e);
-
-      const handler = keyMap[keyString as keyof typeof keyMap];
-      if (handler) {
-        handler(e, elementId, isScene, elementType);
-      }
+      dispatchKey(e, keyMap, { elementId, isScene, elementType });
     },
     [keyMap],
   );
