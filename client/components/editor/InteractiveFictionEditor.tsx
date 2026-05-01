@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Bot, Download, ChevronDown } from "lucide-react"
 import { PassageGraph } from "./PassageGraph"
@@ -9,6 +9,9 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { AIChatPanel } from "./AIChatPanel"
 import { useElementAutosave } from "./shared/useElementAutosave"
+import { dispatchKey } from "@/lib/editor/keymap"
+import { createIFKeymap } from "./if/keymap"
+import { deleteScriptElement } from "@/services/editor"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -123,12 +126,57 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     }, 50)
   }
 
-  const handleKeyDown = async (e: React.KeyboardEvent<HTMLDivElement>, el: ScriptElement) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      await handleAddElement(el.element_type === "body" ? "body" : "choice")
-    }
-  }
+  const handleDeleteElement = useCallback(
+    async (passageId: string, elementId: string) => {
+      const passage = passages.find((p) => p.id === passageId)
+      if (!passage) return
+      const ids = (passage.elements ?? []).map((el) => el.id)
+      const idx = ids.indexOf(elementId)
+      const prevId = idx > 0 ? ids[idx - 1] : null
+
+      setPassages((prev) =>
+        prev.map((p) =>
+          p.id !== passageId
+            ? p
+            : { ...p, elements: (p.elements ?? []).filter((el) => el.id !== elementId) },
+        ),
+      )
+      try {
+        await deleteScriptElement(elementId)
+      } catch (err) {
+        console.error("Failed to delete element:", err)
+      }
+      if (prevId) {
+        setTimeout(() => {
+          document.getElementById(`el-${prevId}`)?.focus()
+        }, 50)
+      }
+    },
+    [passages],
+  )
+
+  const keyMap = useMemo(
+    () =>
+      createIFKeymap({
+        activePassage,
+        insertElementAtEnd: (type) => void handleAddElement(type),
+        deleteEmptyElement: (passageId, elementId) =>
+          void handleDeleteElement(passageId, elementId),
+      }),
+    [activePassage, handleDeleteElement],
+  )
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>, el: ScriptElement) => {
+      if (!activePassageId) return
+      dispatchKey(e, keyMap, {
+        passageId: activePassageId,
+        elementId: el.id,
+        elementType: el.element_type as IFElementType,
+      })
+    },
+    [keyMap, activePassageId],
+  )
 
   const navigateToPassage = (name: string) => {
     const target = passages.find(p => p.scene_heading.toLowerCase().trim() === name.toLowerCase().trim())
