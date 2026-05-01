@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { AIChatPanel } from "./AIChatPanel"
+import { EmptyEditorState } from "./shared/EmptyEditorState"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -224,10 +225,11 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
         <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
           <div className="inkwell-editor-content max-w-[680px] mx-auto px-10 py-12 font-mono">
             {pages.length === 0 ? (
-              <div className="text-center text-muted-foreground text-sm py-24 space-y-4 font-sans">
-                <p>No pages yet.</p>
-                <Button variant="outline" size="sm" onClick={handleAddPage}>Add first page</Button>
-              </div>
+              <EmptyEditorState
+                message="No pages yet."
+                actionLabel="Add first page"
+                onAction={handleAddPage}
+              />
             ) : (
               pages.map((page, pageIdx) => {
                 const elements = page.elements ?? []

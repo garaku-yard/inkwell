@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { AIChatPanel } from "./AIChatPanel"
+import { EmptyEditorState } from "./shared/EmptyEditorState"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -207,10 +208,11 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
           <div className="inkwell-editor-content max-w-[680px] mx-auto px-10 py-16">
             {scenes.length === 0 ? (
-              <div className="text-center text-muted-foreground text-sm py-24 space-y-4">
-                <p>No chapters yet.</p>
-                <Button variant="outline" size="sm" onClick={handleAddChapter}>Add first chapter</Button>
-              </div>
+              <EmptyEditorState
+                message="No chapters yet."
+                actionLabel="Add first chapter"
+                onAction={handleAddChapter}
+              />
             ) : (
               scenes.map((scene, chapterIdx) => (
                 <div
