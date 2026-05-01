@@ -287,6 +287,26 @@ services:
     networks:
       - inkwell-network
 
+  postgres-aisettings:
+    image: postgres:15-alpine
+    container_name: inkwell-aisettings-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aisettings_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5437:5432"
+    volumes:
+      - postgres_aisettings_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - inkwell-network
+
   workspace-service:
     build:
       context: ./server
@@ -310,6 +330,37 @@ services:
     networks:
       - inkwell-network
 
+  aisettings-service:
+    build:
+      context: ./server
+      dockerfile: cmd/aisettings/Dockerfile
+    container_name: inkwell-aisettings-service
+    restart: unless-stopped
+    ports:
+      - "50057:50057"
+    environment:
+      - GRPC_PORT=50057
+      - AISETTINGS_DB_HOST=postgres-aisettings
+      - AISETTINGS_DB_PORT=5432
+      - AISETTINGS_DB_USER=${POSTGRES_USER:-postgres}
+      - AISETTINGS_DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - AISETTINGS_DB_NAME=aisettings_db
+      - AISETTINGS_DB_SSLMODE=disable
+      - AI_ENCRYPTION_KEY=${AI_ENCRYPTION_KEY:?AI_ENCRYPTION_KEY must be set — generate 32 random bytes and base64 them, then set in .env}
+      - RUN_MIGRATIONS=true
+    depends_on:
+      postgres-aisettings:
+        condition: service_healthy
+    networks:
+      - inkwell-network
+
+  # ai-service — LEGACY. The Python service handled all AI chat in the
+  # pre-BYO era. The gateway now dispatches BYO-hosted traffic server-side
+  # via `server/pkg/aiadapter`; the Python service is only hit on the
+  # legacy fallback path (no `providerId` in the chat request). It's kept
+  # running so existing deployments don't break; new features should go
+  # into the Go-side adapter. Safe to remove once we drop the fallback
+  # endpoint entirely.
   ai-service:
     build:
       context: ./server/services/ai
@@ -352,6 +403,8 @@ services:
       - AI_CHAT_SERVICE_PORT=50054
       - WORKSPACE_SERVICE_HOST=workspace-service
       - WORKSPACE_SERVICE_PORT=50056
+      - AI_SETTINGS_SERVICE_HOST=aisettings-service
+      - AI_SETTINGS_SERVICE_PORT=50057
       - REDIS_URL=redis:6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-redis}
       - ENVIRONMENT=${ENVIRONMENT:-development}
@@ -364,6 +417,7 @@ services:
       - billing-service
       - ai-service
       - workspace-service
+      - aisettings-service
     networks:
       - inkwell-network
 
@@ -395,6 +449,8 @@ volumes:
   postgres_billing_data:
     driver: local
   postgres_workspace_data:
+    driver: local
+  postgres_aisettings_data:
     driver: local
   redis_data:
     driver: local

@@ -17,8 +17,9 @@ import { CollaborationSection } from "@/components/settings/sections/collaborati
 import { IntegrationsSection } from "@/components/settings/sections/integrations-section"
 import { AccessibilitySection } from "@/components/settings/sections/accessibility-section"
 import { AboutSection } from "@/components/settings/sections/about-section"
+import { AISection } from "@/components/settings/sections/ai-section"
 
-export type SettingsSection = 
+export type SettingsSection =
   | "account"
   | "security"
   | "privacy"
@@ -28,6 +29,7 @@ export type SettingsSection =
   | "billing"
   | "collaboration"
   | "integrations"
+  | "ai"
   | "accessibility"
   | "about"
 
@@ -55,6 +57,8 @@ export default function SettingsPage() {
         return <CollaborationSection />
       case "integrations":
         return <IntegrationsSection />
+      case "ai":
+        return <AISection />
       case "accessibility":
         return <AccessibilitySection />
       case "about":

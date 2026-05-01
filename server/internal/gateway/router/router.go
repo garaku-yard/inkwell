@@ -21,6 +21,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 
 	// Global middleware
 	r.Use(chimiddleware.Recoverer)
+	r.Use(middleware.SecurityHeaders())
 	r.Use(middleware.CORS(cfg.AllowedOrigins, cfg.Environment))
 	r.Use(middleware.OriginCheck(cfg.AllowedOrigins, cfg.Environment))
 	r.Use(middleware.RequestLogger())
@@ -31,6 +32,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	var blocklist *middleware.TokenBlocklist
 	var rateLimiter *middleware.RateLimiter
 	var authRateLimiter *middleware.RateLimiter
+	var aiRateLimiter *middleware.RateLimiter
 
 	redisClient, err := redisPkg.New(redisPkg.Config{
 		Host:     cfg.Redis.Host,
@@ -45,6 +47,10 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		// Much tighter per-IP bucket for credential-heavy endpoints (login,
 		// register, password change) so online brute-forcing is uneconomical.
 		authRateLimiter = middleware.NewNamedRateLimiter(redisClient, cfg.AuthRateLimitRPM, "ratelimit:auth")
+		// Per-user bucket on AI endpoints — a single account can rack up
+		// provider bills (chat) or enumerate provider ids (settings),
+		// regardless of source IP. Applied post-auth via UserMiddleware.
+		aiRateLimiter = middleware.NewNamedRateLimiter(redisClient, cfg.AIRateLimitRPM, "ratelimit:ai")
 	}
 
 	if rateLimiter != nil {
@@ -60,6 +66,16 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		return authRateLimiter.Middleware(next).ServeHTTP
 	}
 
+	// aiLimit wraps a handler with the per-user AI rate limit. No-op when
+	// Redis is down, same as authLimit. Runs AFTER AuthMiddleware so the
+	// user id is available on the context.
+	aiLimit := func(next http.HandlerFunc) http.HandlerFunc {
+		if aiRateLimiter == nil {
+			return next
+		}
+		return aiRateLimiter.UserMiddleware(next).ServeHTTP
+	}
+
 	// Shared gRPC client registry — one circuit-broken connection per downstream service.
 	clients, err := grpcclient.New(cfg)
 	if err != nil {
@@ -73,10 +89,11 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	workspaceHandler := handlers.NewWorkspaceHandler(clients)
 	billingHandler := handlers.NewBillingHandler(clients)
 
-	aiHandler, err := handlers.NewAIHandler(cfg)
+	aiHandler, err := handlers.NewAIHandler(cfg, clients)
 	if err != nil {
 		return nil, err
 	}
+	aiSettingsHandler := handlers.NewAISettingsHandler(clients)
 
 	// Auth middleware — shared across all protected route groups.
 	identityServiceURL := cfg.IdentityService.Host + ":" + cfg.IdentityService.Port
@@ -222,10 +239,26 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 				r.Get("/subscriptions", billingHandler.GetSubscriptions)
 			})
 
-			// AI
-			r.Post("/ai/chat", aiHandler.Chat)
+			// AI — chat goes through the per-user limiter because provider
+			// bills accrue per account, not per IP.
+			r.Post("/ai/chat", aiLimit(aiHandler.Chat))
 			r.Get("/ai/providers", aiHandler.GetProviders)
 			r.Get("/ai/health", aiHandler.Health)
+
+			// AI provider BYO settings — CRUD + key management. Plaintext
+			// keys accepted on SetKey only; all other responses omit them.
+			// Per-id reads/writes go through the per-user limiter to make
+			// provider-id enumeration uneconomical.
+			r.Route("/ai/settings", func(r chi.Router) {
+				r.Get("/", aiSettingsHandler.List)
+				r.Post("/", aiSettingsHandler.Create)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Put("/", aiLimit(aiSettingsHandler.Update))
+					r.Delete("/", aiLimit(aiSettingsHandler.Delete))
+					r.Post("/key", aiLimit(aiSettingsHandler.SetKey))
+					r.Delete("/key", aiLimit(aiSettingsHandler.ClearKey))
+				})
+			})
 
 			// Workspaces
 			r.Get("/categories", workspaceHandler.ListCategories)

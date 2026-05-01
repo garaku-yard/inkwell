@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"inkwell/server/internal/gateway/config"
+	aisettingspb "inkwell/server/pkg/grpc/aisettings"
 	billingpb "inkwell/server/pkg/grpc/billing"
 	"inkwell/server/pkg/grpc/collab"
 	"inkwell/server/pkg/grpc/identity"
@@ -26,11 +27,12 @@ import (
 // Each underlying connection is wrapped by a circuit breaker that opens after
 // 3 consecutive failures and retries after 30 s, preventing cascade failures.
 type Registry struct {
-	Identity  identity.IdentityServiceClient
-	Scripts   scriptspb.ScriptsServiceClient
-	Collab    collab.CollaborationServiceClient
-	Billing   billingpb.BillingServiceClient
-	Workspace workspacepb.WorkspaceServiceClient
+	Identity   identity.IdentityServiceClient
+	Scripts    scriptspb.ScriptsServiceClient
+	Collab     collab.CollaborationServiceClient
+	Billing    billingpb.BillingServiceClient
+	Workspace  workspacepb.WorkspaceServiceClient
+	AISettings aisettingspb.AISettingsServiceClient
 }
 
 // New dials every downstream service and returns a populated Registry.
@@ -56,13 +58,18 @@ func New(cfg *config.Config) (*Registry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("workspace service: %w", err)
 	}
+	aiSettingsConn, err := dial(cfg.AISettingsServiceURL(), "aisettings")
+	if err != nil {
+		return nil, fmt.Errorf("aisettings service: %w", err)
+	}
 
 	return &Registry{
-		Identity:  identity.NewIdentityServiceClient(identityConn),
-		Scripts:   scriptspb.NewScriptsServiceClient(scriptsConn),
-		Collab:    collab.NewCollaborationServiceClient(collabConn),
-		Billing:   billingpb.NewBillingServiceClient(billingConn),
-		Workspace: workspacepb.NewWorkspaceServiceClient(workspaceConn),
+		Identity:   identity.NewIdentityServiceClient(identityConn),
+		Scripts:    scriptspb.NewScriptsServiceClient(scriptsConn),
+		Collab:     collab.NewCollaborationServiceClient(collabConn),
+		Billing:    billingpb.NewBillingServiceClient(billingConn),
+		Workspace:  workspacepb.NewWorkspaceServiceClient(workspaceConn),
+		AISettings: aisettingspb.NewAISettingsServiceClient(aiSettingsConn),
 	}, nil
 }
 

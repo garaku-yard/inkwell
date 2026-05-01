@@ -31,12 +31,15 @@ skip entirely.
   section labels; comic scripts follow Marvel/DC layout; interactive fiction
   ships with Twine-style `[[links]]`, a live validator, and a graph view;
   TTRPG has stat blocks and dice tables; lyrics handle chord overlays.
-- **Markdown vault** — plain `.md` files on disk, live-preview rendering
-  (markdown styled inline while you type, no split-screen), `[[wikilinks]]`
-  with click-to-create, backlinks panel, subfolder tree, and a filesystem
-  watcher so external edits (vim, git, other apps) flow through. A vault
-  is just a regular folder — rename it, back it up with git, point another
-  tool at the same path. Everything interoperates.
+- **Markdown vault** _(desktop only)_ — plain `.md` files on disk,
+  live-preview rendering (markdown styled inline while you type, no
+  split-screen), `[[wikilinks]]` with click-to-create, backlinks panel,
+  subfolder tree, and a filesystem watcher so external edits (vim, git,
+  other apps) flow through. A vault is just a regular folder — rename it,
+  back it up with git, point another tool at the same path. Everything
+  interoperates. The hosted web build can't reach your filesystem, so vault
+  projects are available in the desktop app only; the other eight editors
+  work on both.
 - **Beat board** — a free-form canvas of story beats with swim lanes,
   connections, and timeline placement. Works for any category, not just
   screenplay.

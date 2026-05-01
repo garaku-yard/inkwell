@@ -77,9 +77,49 @@ tasks:
       - "{{.DOCKER_COMPOSE}} restart"
 
   docker:build:
-    desc: Build all Docker images
+    desc: Build all Docker images (no start)
     cmds:
       - "{{.DOCKER_COMPOSE}} build"
+
+  docker:build:gateway:
+    desc: Build API Gateway image only (no start)
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build api-gateway"
+
+  docker:build:identity:
+    desc: Build Identity Service image only (no start)
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build identity-service"
+
+  docker:build:scripts:
+    desc: Build Scripts Service image only (no start)
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build scripts-service"
+
+  docker:build:collab:
+    desc: Build Collab Service image only (no start)
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build collab-service"
+
+  docker:build:billing:
+    desc: Build Billing Service image only (no start)
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build billing-service"
+
+  docker:build:ai:
+    desc: Build AI Service image only (no start)
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build ai-service"
+
+  docker:build:workspace:
+    desc: Build Workspace Service image only (no start)
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build workspace-service"
+
+  docker:build:client:
+    desc: Build Client image only (no start)
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build client"
 
   docker:rebuild:
     desc: Rebuild and restart all containers
@@ -89,59 +129,91 @@ tasks:
       - task: docker:up
 
   docker:rebuild:gateway:
-    desc: Rebuild and restart API Gateway
+    desc: Rebuild and restart API Gateway (use `task docker:logs:gateway` to tail)
     cmds:
       - "{{.DOCKER_COMPOSE}} build api-gateway"
       - "{{.DOCKER_COMPOSE}} up -d api-gateway"
-      - "{{.DOCKER_COMPOSE}} logs -f api-gateway"
 
   docker:rebuild:identity:
-    desc: Rebuild and restart Identity Service
+    desc: Rebuild and restart Identity Service (use `task docker:logs:identity` to tail)
     cmds:
       - "{{.DOCKER_COMPOSE}} build identity-service"
       - "{{.DOCKER_COMPOSE}} up -d identity-service"
-      - "{{.DOCKER_COMPOSE}} logs -f identity-service"
 
   docker:rebuild:scripts:
-    desc: Rebuild and restart Scripts Service
+    desc: Rebuild and restart Scripts Service (use `task docker:logs:scripts` to tail)
     cmds:
       - "{{.DOCKER_COMPOSE}} build scripts-service"
       - "{{.DOCKER_COMPOSE}} up -d scripts-service"
-      - "{{.DOCKER_COMPOSE}} logs -f scripts-service"
 
   docker:rebuild:collab:
-    desc: Rebuild and restart Collab Service
+    desc: Rebuild and restart Collab Service (use `task docker:logs:collab` to tail)
     cmds:
       - "{{.DOCKER_COMPOSE}} build collab-service"
       - "{{.DOCKER_COMPOSE}} up -d collab-service"
-      - "{{.DOCKER_COMPOSE}} logs -f collab-service"
 
   docker:rebuild:billing:
-    desc: Rebuild and restart Billing Service
+    desc: Rebuild and restart Billing Service (use `task docker:logs:billing` to tail)
     cmds:
       - "{{.DOCKER_COMPOSE}} build billing-service"
       - "{{.DOCKER_COMPOSE}} up -d billing-service"
-      - "{{.DOCKER_COMPOSE}} logs -f billing-service"
 
   docker:rebuild:ai:
-    desc: Rebuild and restart AI Service
+    desc: Rebuild and restart AI Service (use `task docker:logs:ai` to tail)
     cmds:
       - "{{.DOCKER_COMPOSE}} build ai-service"
       - "{{.DOCKER_COMPOSE}} up -d ai-service"
-      - "{{.DOCKER_COMPOSE}} logs -f ai-service"
 
   docker:rebuild:workspace:
-    desc: Rebuild and restart Workspace Service
+    desc: Rebuild and restart Workspace Service (use `task docker:logs:workspace` to tail)
     cmds:
       - "{{.DOCKER_COMPOSE}} build workspace-service"
       - "{{.DOCKER_COMPOSE}} up -d workspace-service"
-      - "{{.DOCKER_COMPOSE}} logs -f workspace-service"
 
   docker:rebuild:client:
-    desc: Rebuild and restart Client (production build)
+    desc: Rebuild and restart Client (use `task docker:logs:client` to tail)
     cmds:
       - "{{.DOCKER_COMPOSE}} build client"
       - "{{.DOCKER_COMPOSE}} up -d client"
+
+  docker:logs:gateway:
+    desc: Tail logs for API Gateway
+    cmds:
+      - "{{.DOCKER_COMPOSE}} logs -f api-gateway"
+
+  docker:logs:identity:
+    desc: Tail logs for Identity Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} logs -f identity-service"
+
+  docker:logs:scripts:
+    desc: Tail logs for Scripts Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} logs -f scripts-service"
+
+  docker:logs:collab:
+    desc: Tail logs for Collab Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} logs -f collab-service"
+
+  docker:logs:billing:
+    desc: Tail logs for Billing Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} logs -f billing-service"
+
+  docker:logs:ai:
+    desc: Tail logs for AI Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} logs -f ai-service"
+
+  docker:logs:workspace:
+    desc: Tail logs for Workspace Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} logs -f workspace-service"
+
+  docker:logs:client:
+    desc: Tail logs for Client
+    cmds:
       - "{{.DOCKER_COMPOSE}} logs -f client"
 
   docker:logs:
@@ -341,6 +413,7 @@ tasks:
       - task: proto:gen:collab
       - task: proto:gen:billing
       - task: proto:gen:workspace
+      - task: proto:gen:aisettings
       - task: proto:gen:ai
 
   proto:gen:common:
@@ -378,6 +451,12 @@ tasks:
     dir: server
     cmds:
       - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative workspace/workspace.proto
+
+  proto:gen:aisettings:
+    desc: Generate protobuf code for AI Settings service
+    dir: server
+    cmds:
+      - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative aisettings/aisettings.proto
 
   proto:gen:ai:
     desc: Generate protobuf code for AI service

@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package aisettings;
+
+option go_package = "inkwell/server/pkg/grpc/aisettings";
+
+import "common/types.proto";
+
+// ─── Entity ──────────────────────────────────────────────────────────────────
+
+// ProviderSetting is one user's configured BYO AI provider. API keys are
+// stored encrypted at rest (AES-256-GCM) and never appear on this message
+// — callers get plaintext only via GetForDispatch, which is restricted to
+// the gateway's internal network.
+message ProviderSetting {
+  string id            = 1;
+  string user_id       = 2;
+  string kind          = 3; // openai | anthropic | gemini | openai_compatible
+  string label         = 4;
+  bool   enabled       = 5;
+  string base_url      = 6; // optional; only meaningful for openai_compatible
+  string default_model = 7;
+  bool   has_key       = 8;
+  int32  key_version   = 9;
+  common.Timestamp created_at = 10;
+  common.Timestamp updated_at = 11;
+}
+
+// ─── CRUD RPCs ───────────────────────────────────────────────────────────────
+
+message ListProviderSettingsRequest {
+  string user_id = 1;
+}
+
+message ListProviderSettingsResponse {
+  repeated ProviderSetting settings = 1;
+}
+
+message CreateProviderSettingRequest {
+  string user_id       = 1;
+  string kind          = 2;
+  string label         = 3;
+  bool   enabled       = 4;
+  string base_url      = 5;
+  string default_model = 6;
+}
+
+message CreateProviderSettingResponse {
+  ProviderSetting setting = 1;
+}
+
+message UpdateProviderSettingRequest {
+  string user_id       = 1;
+  string id            = 2;
+  string kind          = 3;
+  string label         = 4;
+  bool   enabled       = 5;
+  string base_url      = 6;
+  string default_model = 7;
+}
+
+message UpdateProviderSettingResponse {
+  ProviderSetting setting = 1;
+}
+
+message DeleteProviderSettingRequest {
+  string user_id = 1;
+  string id      = 2;
+}
+
+message DeleteProviderSettingResponse {}
+
+// ─── Key management RPCs ─────────────────────────────────────────────────────
+
+message SetProviderKeyRequest {
+  string user_id = 1;
+  string id      = 2;
+  string api_key = 3;
+}
+
+message SetProviderKeyResponse {}
+
+message ClearProviderKeyRequest {
+  string user_id = 1;
+  string id      = 2;
+}
+
+message ClearProviderKeyResponse {}
+
+// GetForDispatch returns the plaintext key alongside the row. Intended
+// for the gateway's chat path only — do not expose through any
+// user-facing endpoint.
+message GetForDispatchRequest {
+  string user_id = 1;
+  string id      = 2;
+}
+
+message GetForDispatchResponse {
+  ProviderSetting setting = 1;
+  string api_key = 2; // may be empty for keyless openai_compatible rows
+}
+
+// ─── Service ─────────────────────────────────────────────────────────────────
+
+service AISettingsService {
+  rpc ListProviderSettings(ListProviderSettingsRequest) returns (ListProviderSettingsResponse);
+  rpc CreateProviderSetting(CreateProviderSettingRequest) returns (CreateProviderSettingResponse);
+  rpc UpdateProviderSetting(UpdateProviderSettingRequest) returns (UpdateProviderSettingResponse);
+  rpc DeleteProviderSetting(DeleteProviderSettingRequest) returns (DeleteProviderSettingResponse);
+
+  rpc SetProviderKey(SetProviderKeyRequest) returns (SetProviderKeyResponse);
+  rpc ClearProviderKey(ClearProviderKeyRequest) returns (ClearProviderKeyResponse);
+
+  rpc GetForDispatch(GetForDispatchRequest) returns (GetForDispatchResponse);
+}

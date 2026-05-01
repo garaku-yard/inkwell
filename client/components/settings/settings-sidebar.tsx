@@ -1,17 +1,18 @@
 "use client"
 
-import { 
-  User, 
-  Shield, 
-  Eye, 
+import {
+  User,
+  Shield,
+  Eye,
   Palette,
-  Bell, 
-  Database, 
-  CreditCard, 
-  Users, 
-  Plug, 
-  Accessibility, 
-  Info 
+  Bell,
+  Database,
+  CreditCard,
+  Users,
+  Plug,
+  Sparkles,
+  Accessibility,
+  Info
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { SettingsSection } from "@/app/(private)/settings/page"
@@ -31,6 +32,7 @@ const sections = [
   { id: "billing" as const, label: "Billing", icon: CreditCard },
   { id: "collaboration" as const, label: "Collaboration", icon: Users },
   { id: "integrations" as const, label: "Integrations", icon: Plug },
+  { id: "ai" as const, label: "AI Providers", icon: Sparkles },
   { id: "accessibility" as const, label: "Accessibility", icon: Accessibility },
   { id: "about" as const, label: "About & Legal", icon: Info },
 ]

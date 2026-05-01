@@ -1,6 +1,8 @@
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+mod secrets;
+
 /// Schema migrations applied to the local SQLite database on startup. Keep
 /// each migration immutable once shipped — edits to a previously released
 /// version would desync existing users. Append new migrations with higher
@@ -31,6 +33,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0004_note_tags.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 5,
+      description: "AI provider BYO-key settings: ai_providers table (keys in OS keychain)",
+      sql: include_str!("../migrations/0005_ai_providers.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 
@@ -48,6 +56,11 @@ pub fn run() {
     )
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
+    .invoke_handler(tauri::generate_handler![
+      secrets::secret_set,
+      secrets::secret_get,
+      secrets::secret_delete,
+    ])
     .setup(|app| {
       // Make sure the window advertises the bundle icon on platforms that
       // look at the window's own icon (most Linux WMs, Windows taskbar).

@@ -1026,6 +1026,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         <AIChatPanel
           isOpen={isAIChatOpen}
           onClose={() => setIsAIChatOpen(false)}
+          category={project.category}
+          projectId={project.id}
           currentScene={
             activeElementId
               ? allScenes.find(

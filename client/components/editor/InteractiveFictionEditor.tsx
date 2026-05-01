@@ -508,7 +508,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             )}
           </div>
         )}
-        <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} />
+        <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
       </div>
     </div>

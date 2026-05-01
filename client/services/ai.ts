@@ -9,7 +9,15 @@ export interface ChatMessage {
 
 export interface AIChatRequest {
   messages: ChatMessage[]
+  /** Provider kind (e.g. "openai", "anthropic"). Used by the server-side
+   *  dispatch path; ignored by the desktop path, which looks the kind up
+   *  from the row identified by `providerId`. Kept for back-compat with
+   *  the existing gateway schema. */
   provider?: string
+  /** Stable id of a configured {@link AIProviderSettings} row. Required
+   *  for the desktop BYO path; optional on the hosted web path, which
+   *  falls back to `provider` + server-held keys. */
+  providerId?: string
   model?: string
   stream?: boolean
 }
@@ -30,6 +38,7 @@ export const getAvailableAIProviders = (): Promise<AIProvidersResponse> =>
 
 export const streamChatCompletion = (
   data: AIChatRequest | LegacyAIChatRequest,
+  options?: { signal?: AbortSignal },
 ): Promise<ReadableStream<Uint8Array>> => {
   // Fold the legacy single-prompt shape into the current messages format so
   // older callsites keep working while they migrate.
@@ -42,7 +51,7 @@ export const streamChatCompletion = (
           stream: true,
         }
       : { stream: true, ...data }
-  return getStorage().ai.streamChat(request)
+  return getStorage().ai.streamChat(request, options)
 }
 
 /** @deprecated Use `getAvailableAIProviders` and select a model from its `config` map. */

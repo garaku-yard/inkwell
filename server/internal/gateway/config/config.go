@@ -21,9 +21,10 @@ type Config struct {
 	ScriptsService   ServiceConfig
 	CollabService    ServiceConfig
 	BillingService   ServiceConfig
-	AIService        ServiceConfig
-	AIChatService    ServiceConfig
-	WorkspaceService ServiceConfig
+	AIService         ServiceConfig
+	AIChatService     ServiceConfig
+	WorkspaceService  ServiceConfig
+	AISettingsService ServiceConfig
 
 	// Redis configuration — used for JWT blocklist and rate limiting
 	Redis RedisConfig
@@ -34,6 +35,7 @@ type Config struct {
 	// change) so online brute-forcing is uneconomical.
 	RateLimitRPM     int `env:"RATE_LIMIT_RPM" default:"120"`
 	AuthRateLimitRPM int `env:"AUTH_RATE_LIMIT_RPM" default:"10"`
+	AIRateLimitRPM   int `env:"AI_RATE_LIMIT_RPM" default:"30"`
 }
 
 // RedisConfig holds Redis connection settings for the gateway.
@@ -75,6 +77,10 @@ func (c *Config) WorkspaceServiceURL() string {
 	return c.WorkspaceService.URL()
 }
 
+func (c *Config) AISettingsServiceURL() string {
+	return c.AISettingsService.URL()
+}
+
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	config := &Config{
@@ -111,6 +117,10 @@ func Load() (*Config, error) {
 			Host: getEnvOrDefault("WORKSPACE_SERVICE_HOST", "localhost"),
 			Port: getEnvOrDefault("WORKSPACE_SERVICE_PORT", "50056"),
 		},
+		AISettingsService: ServiceConfig{
+			Host: getEnvOrDefault("AI_SETTINGS_SERVICE_HOST", "localhost"),
+			Port: getEnvOrDefault("AI_SETTINGS_SERVICE_PORT", "50057"),
+		},
 		Redis: RedisConfig{
 			Host:     getEnvOrDefault("REDIS_HOST", "localhost"),
 			Port:     getEnvOrDefault("REDIS_PORT", "6379"),
@@ -118,6 +128,7 @@ func Load() (*Config, error) {
 		},
 		RateLimitRPM:     getEnvIntOrDefault("RATE_LIMIT_RPM", 120),
 		AuthRateLimitRPM: getEnvIntOrDefault("AUTH_RATE_LIMIT_RPM", 10),
+		AIRateLimitRPM:   getEnvIntOrDefault("AI_RATE_LIMIT_RPM", 30),
 	}
 
 	// Parse allowed origins

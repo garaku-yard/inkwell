@@ -1,10 +1,17 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useLayoutEffect, useState } from "react"
 import { isTauri as tauriIsTauri } from "@tauri-apps/api/core"
 
 import { setStorage } from "./index"
 import { createRemoteStorage } from "./remote"
+
+/** `useLayoutEffect` logs a warning on the server because DOM layout
+ *  doesn't exist there; aliasing to `useEffect` during SSR silences that
+ *  without changing client behaviour (layout effects only matter when
+ *  there's a DOM to measure/mutate). */
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect
 
 /**
  * Blocks the app shell until a Storage implementation is bound. The desktop
@@ -13,46 +20,83 @@ import { createRemoteStorage } from "./remote"
  * resolves inside a Tauri webview), so we need a gate between `getStorage()`
  * being callable and the React tree below being allowed to render.
  *
- * Web builds bind synchronously and render immediately — no loading state is
- * visible to the user.
+ * Both the server and the client's first render emit the loading
+ * placeholder so React's hydration checks pass. On the web the binding
+ * runs in a layout effect — React flushes the resulting state change
+ * before the browser paints, so users never actually see the placeholder.
+ * On Tauri the binding is async (dynamic import of the local impl) so a
+ * brief "Loading…" frame is unavoidable while the chunk resolves.
  */
 export function StorageProvider({ children }: { children: React.ReactNode }) {
-  // `@tauri-apps/api/core`'s `isTauri()` checks `window.isTauri === true`,
-  // the runtime flag Tauri v2 injects into every webview. SSR/Next build
-  // time returns false (no window), so the remote impl binds during static
-  // export and the desktop impl takes over at runtime.
-  const [ready, setReady] = useState(() => {
-    if (typeof window === "undefined") return false
-    if (!tauriIsTauri()) {
-      setStorage(createRemoteStorage())
-      return true
-    }
-    return false
-  })
+  const [ready, setReady] = useState(false)
+  const [loadError, setLoadError] = useState<Error | null>(null)
+
+  useIsomorphicLayoutEffect(() => {
+    // Web path: bind synchronously inside a layout effect so the first
+    // client paint already shows the real tree rather than "Loading…".
+    // `isTauri()` checks `window.isTauri === true`, the flag Tauri v2
+    // injects into every webview. Returns false everywhere else.
+    if (tauriIsTauri()) return
+    setStorage(createRemoteStorage())
+    setReady(true)
+  }, [])
 
   useEffect(() => {
-    if (ready) return
+    // Tauri path: the SQLite-backed impl is a separate chunk pulled in by
+    // dynamic import. One brief "Loading…" frame on Tauri startup is the
+    // cost of keeping `@tauri-apps/plugin-sql` out of the web bundle.
+    //
+    // If the import itself fails (missing plugin, corrupt bundle) we
+    // surface an explicit error — silently falling back to the remote
+    // impl would leave the user on a "connected" app with vault + BYO
+    // features quietly broken.
+    if (!tauriIsTauri()) return
     let cancelled = false
     void (async () => {
       try {
         const { createLocalStorage } = await import("./local")
         if (cancelled) return
         setStorage(createLocalStorage())
+        setReady(true)
       } catch (err) {
-        // If the local impl can't load (e.g. plugin-sql missing), fall back
-        // to remote so at least a "connection failed" error surfaces cleanly
-        // instead of the UI hanging on the loading screen forever.
-        console.error("Failed to load local Storage impl — falling back to remote.", err)
+        console.error("Failed to load local Storage implementation.", err)
         if (cancelled) return
-        setStorage(createRemoteStorage())
-      } finally {
-        if (!cancelled) setReady(true)
+        setLoadError(err as Error)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [ready])
+  }, [])
+
+  if (loadError) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          minHeight: "100vh",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+          gap: "1rem",
+          padding: "2rem",
+          textAlign: "center",
+        }}
+      >
+        <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>
+          Inkwell couldn&apos;t load its local storage layer.
+        </div>
+        <div style={{ maxWidth: "40ch", fontSize: "0.9rem", opacity: 0.8 }}>
+          This usually means the SQLite plugin failed to load. Please restart
+          the app; if the problem persists, reinstall or report the error
+          below.
+        </div>
+        <pre style={{ fontSize: "0.8rem", opacity: 0.7, whiteSpace: "pre-wrap" }}>
+          {loadError.message}
+        </pre>
+      </div>
+    )
+  }
 
   if (!ready) {
     return (

@@ -54,3 +54,12 @@ __pycache__/
 # ignored: build artefacts + generated platform bundles
 /client/src-tauri/target/
 /client/src-tauri/gen/
+
+# Go service binaries (output of `go build` at the service root)
+/server/aisettings
+/server/gateway
+/server/identity
+/server/scripts
+/server/collab
+/server/billing
+/server/workspace

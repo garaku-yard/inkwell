@@ -1,75 +1,80 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"strings"
 
 	"inkwell/server/internal/gateway/config"
+	"inkwell/server/internal/gateway/contextx"
+	"inkwell/server/internal/gateway/grpcclient"
+	"inkwell/server/pkg/aiadapter"
+	aisettingspb "inkwell/server/pkg/grpc/aisettings"
 )
 
-// AIHandler proxies HTTP requests to the Python AI chat service. Rather than
-// implementing AI logic directly, the gateway forwards requests over plain HTTP
-// and streams responses back to the client.
+// AIHandler serves AI endpoints on the gateway. It covers two dispatch
+// paths:
+//
+//  1. BYO: when the request names a `providerId` the user has configured,
+//     the handler fetches the decrypted key from ai-settings and calls
+//     the provider directly via the aiadapter package. Keys never reach
+//     the client or the Python service.
+//  2. Legacy: when no providerId is given, the request is proxied to the
+//     Python AI service using server-managed keys (the current hosted
+//     default).
 type AIHandler struct {
 	aiChatServiceURL string
+	aiSettings       aisettingspb.AISettingsServiceClient
 }
 
-// NewAIHandler creates an AIHandler that forwards requests to the AI chat
-// service address configured in cfg.
-func NewAIHandler(cfg *config.Config) (*AIHandler, error) {
-	aiChatServiceURL := fmt.Sprintf("http://%s:%s", cfg.AIChatService.Host, cfg.AIChatService.Port)
-
+// NewAIHandler creates an AIHandler with both the Python proxy URL and
+// the ai-settings gRPC client. The clients registry is taken as input
+// instead of assembled locally so test doubles can be injected.
+func NewAIHandler(cfg *config.Config, clients *grpcclient.Registry) (*AIHandler, error) {
 	return &AIHandler{
-		aiChatServiceURL: aiChatServiceURL,
+		aiChatServiceURL: fmt.Sprintf("http://%s:%s", cfg.AIChatService.Host, cfg.AIChatService.Port),
+		aiSettings:       clients.AISettings,
 	}, nil
 }
 
-// ChatRequest carries the conversation history and optional model preferences
-// for a single AI chat turn.
+// ChatRequest carries the conversation history and optional provider
+// selection. Either `provider` (legacy kind string) or `providerId` (BYO
+// row id) may be set.
 type ChatRequest struct {
-	Messages []ChatMessage `json:"messages"`
-	Provider string        `json:"provider,omitempty"`
-	Model    string        `json:"model,omitempty"`
-	Stream   bool          `json:"stream,omitempty"`
+	Messages   []ChatMessage `json:"messages"`
+	Provider   string        `json:"provider,omitempty"`
+	ProviderID string        `json:"providerId,omitempty"`
+	Model      string        `json:"model,omitempty"`
+	Stream     bool          `json:"stream,omitempty"`
 }
 
-// ChatMessage represents a single turn in a conversation, identified by role
-// ("user", "assistant", or "system") and its text content.
+// ChatMessage is one turn in a chat. Roles are "system" | "user" | "assistant".
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// ProvidersResponse describes the AI providers available in the chat service
-// and their per-provider configuration.
+// ProvidersResponse matches the legacy Python AI service response.
 type ProvidersResponse struct {
 	Providers []string                          `json:"providers"`
 	Config    map[string]map[string]interface{} `json:"config"`
 }
 
-// Chat proxies a streaming AI chat request to the Python AI service and streams
-// the NDJSON response back to the caller using chunked transfer encoding. CORS
-// preflight OPTIONS requests are handled inline. Returns 503 if the AI service
-// is unreachable.
+// Chat routes to the BYO path when `providerId` is set; otherwise falls
+// through to the legacy Python proxy.
 func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
-	// Handle preflight CORS requests
-	if r.Method == http.MethodOptions {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
+	// Preflight is handled by the global CORS middleware (router-level).
+	// Emitting our own ACAO=* here would contradict the allowlist and
+	// break credentialed requests.
 	if r.Method != http.MethodPost {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Read and parse request body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeError(w, "Failed to read request body", http.StatusBadRequest)
@@ -77,24 +82,147 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Forward the request to the AI chat service
-	req, err := http.NewRequest(http.MethodPost, h.aiChatServiceURL+"/chat", strings.NewReader(string(body)))
+	var req ChatRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeError(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	if req.ProviderID != "" {
+		h.chatBYO(w, r, &req)
+		return
+	}
+	h.chatProxy(w, r, body)
+}
+
+// chatBYO resolves a user-configured provider, fetches the decrypted key
+// via ai-settings, and dispatches through the aiadapter package. The
+// response is streamed back as NDJSON (`{"response":"..."}` per chunk,
+// terminating with `{"done":true}`) so the existing client parser stays
+// unchanged.
+func (h *AIHandler) chatBYO(w http.ResponseWriter, r *http.Request, req *ChatRequest) {
+	userID, ok := contextx.UserIDFrom(r.Context())
+	if !ok {
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	disp, err := h.aiSettings.GetForDispatch(r.Context(), &aisettingspb.GetForDispatchRequest{
+		UserId: userID,
+		Id:     req.ProviderID,
+	})
+	if err != nil {
+		handleGRPCError(w, err)
+		return
+	}
+	setting := disp.Setting
+	if !setting.Enabled {
+		writeError(w, fmt.Sprintf("AI provider %q is disabled", setting.Label), http.StatusBadRequest)
+		return
+	}
+
+	model := req.Model
+	if model == "" {
+		model = setting.DefaultModel
+	}
+	if model == "" {
+		writeError(w, "model required (no default set for provider)", http.StatusBadRequest)
+		return
+	}
+
+	adapter, err := aiadapter.Get(aiadapter.ProviderKind(setting.Kind))
+	if err != nil {
+		writeError(w, fmt.Sprintf("Provider kind %q not supported on this build", setting.Kind), http.StatusBadRequest)
+		return
+	}
+
+	messages := make([]aiadapter.Message, len(req.Messages))
+	for i, m := range req.Messages {
+		messages[i] = aiadapter.Message{Role: m.Role, Content: m.Content}
+	}
+
+	stream, err := adapter.StreamChat(r.Context(), aiadapter.Input{
+		Messages: messages,
+		Model:    model,
+		APIKey:   disp.ApiKey,
+		BaseURL:  setting.BaseUrl,
+	})
+	if err != nil {
+		log.Printf("ai dispatch error (kind=%s): %v", setting.Kind, err)
+		writeError(w, "Provider rejected the request", providerHTTPStatus(err))
+		return
+	}
+	defer stream.Close()
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Transfer-Encoding", "chunked")
+	w.WriteHeader(http.StatusOK)
+
+	encoder := json.NewEncoder(w)
+	for {
+		chunk, err := stream.Next(r.Context())
+		if errors.Is(err, io.EOF) {
+			return
+		}
+		if err != nil {
+			log.Printf("ai stream error: %v", err)
+			return
+		}
+		if chunk.Delta != "" {
+			_ = encoder.Encode(map[string]string{"response": chunk.Delta})
+			flusher.Flush()
+		}
+		if chunk.Done {
+			_ = encoder.Encode(map[string]bool{"done": true})
+			flusher.Flush()
+			return
+		}
+	}
+}
+
+// providerHTTPStatus maps a provider-layer error onto an HTTP status so
+// the client sees e.g. 401 when a saved key was revoked.
+func providerHTTPStatus(err error) int {
+	var perr *aiadapter.ErrProvider
+	if !errors.As(err, &perr) {
+		return http.StatusBadGateway
+	}
+	switch {
+	case perr.Status >= 400 && perr.Status < 500:
+		return perr.Status
+	case perr.Status >= 500:
+		return http.StatusBadGateway
+	default:
+		return http.StatusBadGateway
+	}
+}
+
+// chatProxy is the legacy Python passthrough. Kept intact so the hosted
+// server-managed-keys tier keeps working alongside BYO.
+func (h *AIHandler) chatProxy(w http.ResponseWriter, r *http.Request, body []byte) {
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, h.aiChatServiceURL+"/chat", bytes.NewReader(body))
 	if err != nil {
 		writeError(w, "Failed to create request", http.StatusInternalServerError)
 		return
 	}
-
-	// Copy headers
 	req.Header.Set("Content-Type", "application/json")
 	for name, values := range r.Header {
-		if name != "Host" && name != "Content-Length" {
-			for _, value := range values {
-				req.Header.Add(name, value)
-			}
+		if name == "Host" || name == "Content-Length" {
+			continue
+		}
+		for _, v := range values {
+			req.Header.Add(name, v)
 		}
 	}
 
-	// Make the request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -103,32 +231,23 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	// Set response headers for streaming
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	w.Header().Set("Transfer-Encoding", "chunked")
-
-	// Copy status code
 	w.WriteHeader(resp.StatusCode)
 
-	// Check if response supports flushing
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeError(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
 	}
-
-	// Stream the response with immediate flushing
-	buffer := make([]byte, 1024)
+	buf := make([]byte, 1024)
 	for {
-		n, err := resp.Body.Read(buffer)
+		n, err := resp.Body.Read(buf)
 		if n > 0 {
-			w.Write(buffer[:n])
-			flusher.Flush() // Immediately flush each chunk
+			_, _ = w.Write(buf[:n])
+			flusher.Flush()
 		}
 		if err == io.EOF {
 			break
@@ -140,16 +259,12 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetProviders proxies a request to the AI service's /providers endpoint and
-// returns the list of available AI providers (e.g. OpenAI, Anthropic) along
-// with their configuration.
+// GetProviders proxies the legacy `/providers` endpoint. Unchanged.
 func (h *AIHandler) GetProviders(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	// Make request to AI chat service
 	resp, err := http.Get(h.aiChatServiceURL + "/providers")
 	if err != nil {
 		writeError(w, "Failed to connect to AI service", http.StatusServiceUnavailable)
@@ -157,52 +272,40 @@ func (h *AIHandler) GetProviders(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		writeError(w, "Failed to read AI service response", http.StatusInternalServerError)
 		return
 	}
-
-	// Set response headers
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
-
-	// Forward the response
-	w.Write(body)
+	_, _ = w.Write(body)
 }
 
-// Health proxies a health check to the AI chat service and returns its status.
-// Returns 503 with a JSON error body if the AI service is unreachable.
+// Health proxies the legacy health check. Unchanged.
 func (h *AIHandler) Health(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	// Make request to AI chat service
 	resp, err := http.Get(h.aiChatServiceURL + "/health")
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte(`{"status":"error","error":"AI service unavailable"}`))
+		_, _ = w.Write([]byte(`{"status":"error","error":"AI service unavailable"}`))
 		return
 	}
 	defer resp.Body.Close()
 
-	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"status":"error","error":"Failed to read AI service response"}`))
+		_, _ = w.Write([]byte(`{"status":"error","error":"Failed to read AI service response"}`))
 		return
 	}
-
-	// Set response headers
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
-
-	// Forward the response
-	w.Write(body)
+	_, _ = w.Write(body)
 }
+

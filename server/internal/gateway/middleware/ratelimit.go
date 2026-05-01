@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"inkwell/server/internal/gateway/contextx"
 	redisPkg "inkwell/server/pkg/redis"
 )
 
@@ -50,6 +51,48 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 		count, err := rl.redis.Incr(r.Context(), key, time.Minute)
 		if err != nil {
 			// Fail open — don't block users because Redis is down.
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		w.Header().Set("X-RateLimit-Limit", strconv.FormatInt(rl.rpm, 10))
+		if count > rl.rpm {
+			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// UserMiddleware returns an HTTP middleware that enforces the rate limit
+// per authenticated user instead of per source IP. This is the right
+// bucket for endpoints where a single account can inflict real costs
+// (provider bills on /api/ai/chat, enumeration on /api/ai/settings/{id})
+// regardless of how many IPs the request arrives from.
+//
+// It must run AFTER AuthMiddleware so the userID is present in the
+// context. When no userID is found — which shouldn't happen on protected
+// routes but would be ambiguous otherwise — the limiter falls back to
+// the IP key to avoid letting unauthenticated traffic bypass the quota
+// entirely.
+func (rl *RateLimiter) UserMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if rl.rpm <= 0 {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		bucket := ""
+		if userID, ok := contextx.UserIDFrom(r.Context()); ok && userID != "" {
+			bucket = "user:" + userID
+		} else {
+			bucket = "ip:" + realIP(r)
+		}
+		key := rl.prefix + ":" + bucket
+
+		count, err := rl.redis.Incr(r.Context(), key, time.Minute)
+		if err != nil {
 			next.ServeHTTP(w, r)
 			return
 		}
