@@ -35,7 +35,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  getStorage,
   type VaultBacklink,
   type VaultGraph as VaultGraphData,
   type VaultNote,
@@ -45,6 +44,7 @@ import { cn } from "@/lib/utils"
 import type { FullProject } from "@/services/project"
 import { MarkdownEditor } from "./markdown/MarkdownEditor"
 import { VaultGraph } from "./VaultGraph"
+import { useVaultNotes } from "./vault/useVaultNotes"
 
 interface VaultEditorProps {
   projectData: FullProject
@@ -65,15 +65,25 @@ interface VaultEditorProps {
  */
 export function VaultEditor({ projectData }: VaultEditorProps) {
   const projectId = projectData.id
-  const storage = useMemo(() => getStorage(), [])
+  const {
+    storage,
+    vaultPath,
+    setVaultPath,
+    notes,
+    selected,
+    setSelected,
+    content,
+    setContent,
+    dirty,
+    setDirty,
+    selectedFilenameRef,
+    isLoading,
+    error,
+    setError,
+    refresh: refreshNotes,
+    openNote,
+  } = useVaultNotes(projectId)
 
-  const [vaultPath, setVaultPath] = useState<string | null>(null)
-  const [notes, setNotes] = useState<VaultNote[]>([])
-  const [selected, setSelected] = useState<VaultNote | null>(null)
-  const [content, setContent] = useState<string>("")
-  const [dirty, setDirty] = useState<boolean>(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState<string>("")
   const [createOpen, setCreateOpen] = useState(false)
   const [createTitle, setCreateTitle] = useState("")
@@ -103,10 +113,6 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [tagFilterNotes, setTagFilterNotes] = useState<Set<string> | null>(null)
   const [tagsExpanded, setTagsExpanded] = useState(true)
-
-  // Track the most recently-loaded filename so the debounced save can't
-  // stomp on a file the user has already navigated away from.
-  const selectedRef = useRef<string | null>(null)
 
   const wordCount = useMemo(() => {
     const trimmed = content.trim()
@@ -177,57 +183,6 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     })
   }
 
-  const refreshNotes = useCallback(async () => {
-    try {
-      const list = await storage.vault.listNotes(projectId)
-      setNotes(list)
-      return list
-    } catch (err) {
-      console.error("Vault listNotes failed:", err)
-      setError("Could not read the vault folder.")
-      return []
-    }
-  }, [projectId, storage])
-
-  const openNote = useCallback(
-    async (note: VaultNote) => {
-      try {
-        const body = await storage.vault.readNote(projectId, note.filename)
-        selectedRef.current = note.filename
-        setSelected(note)
-        setContent(body)
-        setDirty(false)
-      } catch (err) {
-        console.error("Vault readNote failed:", err)
-        setError(`Could not open "${note.title}".`)
-      }
-    },
-    [projectId, storage],
-  )
-
-  // Initial load.
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      setIsLoading(true)
-      setError(null)
-      const path = await storage.vault.getVaultPath(projectId)
-      if (cancelled) return
-      setVaultPath(path)
-      if (!path) {
-        setIsLoading(false)
-        return
-      }
-      const list = await refreshNotes()
-      if (cancelled) return
-      if (list.length > 0) void openNote(list[0])
-      setIsLoading(false)
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [projectId, storage, refreshNotes, openNote])
-
   // Autosave — 600 ms after the last keystroke.
   const debouncedSave = useDebouncedCallback(
     async (filename: string, body: string) => {
@@ -252,11 +207,11 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   const onContentChange = (next: string) => {
     setContent(next)
     setDirty(true)
-    if (selectedRef.current) debouncedSave(selectedRef.current, next)
+    if (selectedFilenameRef.current) debouncedSave(selectedFilenameRef.current, next)
   }
 
   const onSelectNote = async (note: VaultNote) => {
-    if (note.filename === selectedRef.current) return
+    if (note.filename === selectedFilenameRef.current) return
     await flushPending()
     await openNote(note)
   }
@@ -349,7 +304,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     debouncedSave.cancel()
     try {
       await storage.vault.deleteNote(projectId, selected.filename)
-      selectedRef.current = null
+      selectedFilenameRef.current = null
       setSelected(null)
       setContent("")
       setDirty(false)
@@ -448,7 +403,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
         selected.filename,
         trimmed,
       )
-      selectedRef.current = updated.filename
+      selectedFilenameRef.current = updated.filename
       setSelected(updated)
       await refreshNotes()
     } catch (err) {
@@ -462,7 +417,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   // `selected` or `dirty` identity flipped on a keystroke.
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty
-  const currentFilenameRef = selectedRef
+  const currentFilenameRef = selectedFilenameRef
 
   // Filesystem watcher: picks up external edits (vim, obsidian, git
   // checkout, etc.) and keeps the note list + open buffer in sync. Bails
