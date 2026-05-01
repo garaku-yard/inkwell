@@ -11,12 +11,14 @@ import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLane
 import { BeatCanvas } from "@/components/beat-board/BeatCanvas";
 import { PaneSpinner } from "@/components/shared/PaneSpinner";
 
-import { getBeatBoardForProject, createBeat, deleteBeat, updateBeat, createConnection, deleteConnection, type Beat, type Connection } from "@/services/beat"
+import { createBeat, deleteBeat, updateBeat, createConnection, deleteConnection, type Beat, type Connection } from "@/services/beat"
 import { type Lane, type OutlineItem, updateLane, updateLaneOrder, createOutlineItem, updateOutlineItem, createLane } from "@/services/beat-board";
 import { getProjectById, type FullProject } from "@/services/project"
 import { useAuth } from "@/lib/AuthContext"
 import { getCategoryStructure } from "@/lib/helpers/category-structure"
 import { useProjectLoader } from "@/hooks/useProjectLoader"
+import { useBeatBoardData } from "@/components/beat-board/useBeatBoardData"
+import { useBeatImageUpload } from "@/components/beat-board/useBeatImageUpload"
 
 export type ConnectionSide = "top" | "right" | "bottom" | "left";
 
@@ -31,16 +33,18 @@ export default function BeatBoardPage() {
     error: projectError,
   } = useProjectLoader<FullProject>(projectId, user?.id, getProjectById)
 
-  const [beats, setBeats] = useState<Beat[]>([])
-  const [outlineItems, setOutlineItems] = useState<OutlineItem[]>([])
-  const [connections, setConnections] = useState<Connection[]>([])
-  const [lanes, setLanes] = useState<Lane[]>([])
-  // Beat-board fetch — separate from the project fetch so the hook stays
-  // simple. Trades a single round-trip for two on initial load (the
-  // project must resolve before this effect fires); negligible since
-  // both go to the same gateway.
-  const [boardLoading, setBoardLoading] = useState(true)
-  const [boardError, setBoardError] = useState<string | null>(null)
+  const {
+    beats,
+    setBeats,
+    connections,
+    setConnections,
+    lanes,
+    setLanes,
+    outlineItems,
+    setOutlineItems,
+    isLoading: boardLoading,
+    error: boardError,
+  } = useBeatBoardData(project?.id)
 
   const isLoading = projectLoading || boardLoading
   const error = projectError ?? boardError
@@ -60,32 +64,6 @@ export default function BeatBoardPage() {
   const [hoveredLane, setHoveredLane] = useState<string | null>(null)
   const [draggedLaneItem, setDraggedLaneItem] = useState<string | null>(null)
   const [draggedLaneId, setDraggedLaneId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!project?.id) return
-    let cancelled = false
-    setBoardLoading(true)
-    setBoardError(null)
-    getBeatBoardForProject(project.id)
-      .then((beatBoardData) => {
-        if (cancelled) return
-        setBeats(beatBoardData.beats || [])
-        setConnections(beatBoardData.connections || [])
-        setLanes(beatBoardData.lanes || [])
-        setOutlineItems(beatBoardData.outlineItems || [])
-      })
-      .catch((err) => {
-        if (cancelled) return
-        console.error("beat-board load failed", err)
-        setBoardError("Failed to load beat board data.")
-      })
-      .finally(() => {
-        if (!cancelled) setBoardLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [project?.id])
 
   const structure = useMemo(() => getCategoryStructure(project?.category), [project?.category]);
 
@@ -419,122 +397,8 @@ export default function BeatBoardPage() {
     }
   };
 
-  const compressImage = async (file: File, maxWidth: number = 1024, maxHeight: number = 1024, quality: number = 0.8): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > maxWidth) {
-              height = height * (maxWidth / width);
-              width = maxWidth;
-            }
-          } else {
-            if (height > maxHeight) {
-              width = width * (maxHeight / height);
-              height = maxHeight;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-
-          canvas.toBlob((blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error('Failed to compress image'));
-          }, 'image/jpeg', quality);
-        };
-        img.onerror = reject;
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const uploadImage = async (file: File): Promise<string> => {
-    const compressedBlob = await compressImage(file);
-
-    const formData = new FormData();
-    formData.append('image', compressedBlob, file.name);
-
-    const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/beats/upload-image`, {
-      method: 'POST',
-      credentials: 'include',
-      body: formData,
-    });
-
-    if (!uploadResponse.ok) {
-      throw new Error('Failed to upload image');
-    }
-
-    const { imageUrl } = await uploadResponse.json();
-    return imageUrl;
-  };
-
-  const handleUploadImageForBeat = (beatId: string) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        try {
-          const imageUrl = await uploadImage(file);
-          setBeats(beats.map(b => b.id === beatId ? { ...b, imageUrl } : b));
-          await updateBeat(beatId, { imageUrl });
-        } catch (err) {
-          console.error('Failed to upload image:', err);
-        }
-      }
-    };
-    input.click();
-  };
-
-  const handleImageDrop = async (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-
-    const files = Array.from(e.dataTransfer.files);
-    const imageFile = files.find(file => file.type.startsWith('image/'));
-
-    if (imageFile) {
-      const rect = boardRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const x = snapToGrid(e.clientX - rect.left + (boardRef.current?.scrollLeft || 0));
-      const y = snapToGrid(e.clientY - rect.top + (boardRef.current?.scrollTop || 0));
-
-      try {
-        const imageUrl = await uploadImage(imageFile);
-        const beatData: Partial<Beat> = {
-          title: "New Image Beat",
-          description: "",
-          startPage: 1,
-          endPage: 1,
-          sceneNumbers: "Pg. 1",
-          color: "#ffffff",
-          imageUrl: imageUrl,
-          position: { x, y },
-          width: 250,
-          height: 250,
-          act: 1,
-          order: beats.length
-        };
-
-        const createdBeat = await createBeat(projectId, beatData);
-        setBeats([...beats, createdBeat]);
-      } catch (err) {
-        console.error('Failed to create beat with image:', err);
-      }
-    }
-  };
+  const { uploadImageForBeat: handleUploadImageForBeat, onImageDrop: handleImageDrop } =
+    useBeatImageUpload({ projectId, beats, setBeats, boardRef, snapToGrid })
 
   if (isLoading) return <PaneSpinner />
   if (error) return <div>{error}</div>;
