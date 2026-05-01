@@ -11,7 +11,7 @@ import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLane
 import { BeatCanvas } from "@/components/beat-board/BeatCanvas";
 import { PaneSpinner } from "@/components/shared/PaneSpinner";
 
-import { createBeat, deleteBeat, updateBeat, createConnection, deleteConnection, type Beat, type Connection } from "@/services/beat"
+import { createBeat, deleteBeat, updateBeat, deleteConnection, type Beat, type Connection } from "@/services/beat"
 import { type Lane, type OutlineItem, updateLane, updateLaneOrder, createOutlineItem, updateOutlineItem, createLane } from "@/services/beat-board";
 import { getProjectById, type FullProject } from "@/services/project"
 import { useAuth } from "@/lib/AuthContext"
@@ -19,8 +19,11 @@ import { getCategoryStructure } from "@/lib/helpers/category-structure"
 import { useProjectLoader } from "@/hooks/useProjectLoader"
 import { useBeatBoardData } from "@/components/beat-board/useBeatBoardData"
 import { useBeatImageUpload } from "@/components/beat-board/useBeatImageUpload"
+import { useBeatDrag } from "@/components/beat-board/useBeatDrag"
+import { useBeatResize } from "@/components/beat-board/useBeatResize"
+import { useBeatConnections, type ConnectionSide } from "@/components/beat-board/useBeatConnections"
 
-export type ConnectionSide = "top" | "right" | "bottom" | "left";
+export type { ConnectionSide };
 
 export default function BeatBoardPage() {
   const { user } = useAuth()
@@ -50,17 +53,13 @@ export default function BeatBoardPage() {
   const error = projectError ?? boardError
 
   const [editingField, setEditingField] = useState<{ beatId: string; field: keyof Beat } | null>(null)
-  const [draggedBeat, setDraggedBeat] = useState<string | null>(null)
-  const [movingBeatId, setMovingBeatId] = useState<string | null>(null);
-  const [isResizing, setIsResizing] = useState<string | null>(null)
-  const [resizeStartMousePos, setResizeStartMousePos] = useState({ x: 0, y: 0 })
-  const [resizeStartBeatSize, setResizeStartBeatSize] = useState({ width: 0, height: 0 })
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
-  const [isConnecting, setIsConnecting] = useState(false)
-  const [connectionStart, setConnectionStart] = useState<{ beatId: string; side: ConnectionSide } | null>(null)
-  const [tempConnection, setTempConnection] = useState<{ x: number; y: number } | null>(null)
   const [colorPickerOpen, setColorPickerOpen] = useState<string | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
+  // HTML5 drag-and-drop is distinct from the per-frame mouse drag the
+  // useBeatDrag hook manages — this tracks which beat the user grabbed
+  // for the timeline drop, while useBeatDrag tracks position changes
+  // on the canvas.
+  const [draggedBeat, setDraggedBeat] = useState<string | null>(null)
   const [hoveredLane, setHoveredLane] = useState<string | null>(null)
   const [draggedLaneItem, setDraggedLaneItem] = useState<string | null>(null)
   const [draggedLaneId, setDraggedLaneId] = useState<string | null>(null);
@@ -75,6 +74,37 @@ export default function BeatBoardPage() {
   const debouncedUpdateOutlineItem = useDebouncedCallback((itemId: string, data: Partial<OutlineItem>) => { updateOutlineItem(itemId, data) }, 500);
 
   const snapToGrid = (value: number) => Math.round(value / 20) * 20;
+
+  const drag = useBeatDrag({
+    beats,
+    setBeats,
+    boardRef,
+    snapToGrid,
+    onCommit: (beatId, position) => debouncedUpdateBeat(beatId, { position }),
+  })
+  const resize = useBeatResize({
+    beats,
+    setBeats,
+    snapToGrid,
+    onCommit: (beatId, size) => debouncedUpdateBeat(beatId, size),
+  })
+  const connect = useBeatConnections({
+    projectId,
+    connections,
+    setConnections,
+    boardRef,
+  })
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    drag.onMouseMove(e)
+    resize.onMouseMove(e)
+    connect.onMouseMove(e)
+  }
+  const onMouseUp = () => {
+    drag.onMouseUp()
+    resize.onMouseUp()
+    connect.onMouseUp()
+  }
 
   const TOTAL_PAGES = structure.totalUnits;
   const getPageFromPosition = (position: number) => Math.max(1, Math.round((position / 100) * TOTAL_PAGES));
@@ -309,77 +339,9 @@ export default function BeatBoardPage() {
     updateBeat(beatId, { color });
   };
 
-  const handleMouseDownOnBeat = (e: React.MouseEvent, beatId: string) => {
-    if ((e.target as HTMLElement).closest(".resize-handle, .connection-handle, input, textarea, button, [draggable=true]")) return;
-    setMovingBeatId(beatId);
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  };
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (movingBeatId && boardRef.current) {
-      const boardRect = boardRef.current.getBoundingClientRect();
-      const newX = snapToGrid(e.clientX - boardRect.left - dragOffset.x);
-      const newY = snapToGrid(e.clientY - boardRect.top - dragOffset.y);
-      setBeats(prev => prev.map(beat => beat.id === movingBeatId ? { ...beat, position: { x: Math.max(0, newX), y: Math.max(0, newY) } } : beat));
-    } else if (isResizing && boardRef.current) {
-      const deltaX = e.clientX - resizeStartMousePos.x;
-      const deltaY = e.clientY - resizeStartMousePos.y;
-      setBeats(prev => prev.map(beat => {
-        if (beat.id === isResizing) {
-          const newWidth = snapToGrid(Math.max(200, resizeStartBeatSize.width + deltaX));
-          const newHeight = snapToGrid(Math.max(150, resizeStartBeatSize.height + deltaY));
-          return { ...beat, width: newWidth, height: newHeight };
-        }
-        return beat;
-      }));
-    }
-    if (isConnecting && connectionStart && boardRef.current) {
-      const boardRect = boardRef.current.getBoundingClientRect();
-      setTempConnection({ x: e.clientX - boardRect.left, y: e.clientY - boardRect.top });
-    }
-  }, [movingBeatId, dragOffset, isResizing, resizeStartMousePos, resizeStartBeatSize, isConnecting, connectionStart]);
-
-  const handleMouseUp = () => {
-    if (movingBeatId) {
-      const beat = beats.find(b => b.id === movingBeatId);
-      if (beat) debouncedUpdateBeat(beat.id, { position: beat.position });
-    }
-    if (isResizing) {
-      const beat = beats.find(b => b.id === isResizing);
-      if (beat) debouncedUpdateBeat(beat.id, { width: beat.width, height: beat.height });
-    }
-    setMovingBeatId(null);
-    setIsResizing(null);
-  };
-
-  const handleResizeMouseDown = (e: React.MouseEvent, beatId: string) => {
-    e.stopPropagation();
-    setIsResizing(beatId);
-    setResizeStartMousePos({ x: e.clientX, y: e.clientY });
-    const beat = beats.find(b => b.id === beatId);
-    if (beat) setResizeStartBeatSize({ width: beat.width, height: beat.height });
-  };
-
   const handleFieldBlur = () => {
     if (editingField) debouncedUpdateBeat.flush();
     setEditingField(null);
-  };
-
-  const handleConnectionStart = (e: React.MouseEvent, beatId: string, side: ConnectionSide) => {
-    e.stopPropagation();
-    setIsConnecting(true);
-    setConnectionStart({ beatId, side });
-  };
-
-  const handleConnectionEnd = (beatId: string, side: ConnectionSide) => {
-    if (connectionStart && connectionStart.beatId !== beatId) {
-      createConnection(projectId, { fromId: connectionStart.beatId, toId: beatId, fromSide: connectionStart.side, toSide: side })
-        .then(newConnection => setConnections(prev => [...prev, newConnection]));
-    }
-    setIsConnecting(false);
-    setConnectionStart(null);
-    setTempConnection(null);
   };
 
   const handleBoardDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -404,7 +366,7 @@ export default function BeatBoardPage() {
   if (error) return <div>{error}</div>;
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-black" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+    <div className="h-full flex flex-col bg-white dark:bg-black" onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
       <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black z-10">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
@@ -439,11 +401,11 @@ export default function BeatBoardPage() {
       <BeatCanvas
         boardRef={boardRef} beats={beats} connections={connections} isLoading={isLoading}
         editingField={editingField} colorPickerOpen={colorPickerOpen} draggedBeat={draggedBeat}
-        movingBeatId={movingBeatId} isResizing={isResizing}
-        onMouseDownOnBeat={handleMouseDownOnBeat}
+        movingBeatId={drag.movingBeatId} isResizing={resize.isResizing}
+        onMouseDownOnBeat={drag.onBeatMouseDown}
         onDragStartOnBeat={(_e, beatId) => setDraggedBeat(beatId)}
         onDragEndOnBeat={() => setDraggedBeat(null)}
-        onResizeMouseDown={handleResizeMouseDown}
+        onResizeMouseDown={resize.onResizeMouseDown}
         handleFieldChange={handleFieldChange}
         handleDoubleClick={(beatId, field) => setEditingField({ beatId, field })}
         handleFieldBlur={handleFieldBlur}
@@ -451,12 +413,12 @@ export default function BeatBoardPage() {
         handleChangeColor={handleChangeColor}
         handleDeleteBeat={handleDeleteBeat}
         handleUploadImage={handleUploadImageForBeat}
-        handleConnectionStart={handleConnectionStart}
-        handleConnectionEnd={handleConnectionEnd}
+        handleConnectionStart={connect.onConnectionStart}
+        handleConnectionEnd={connect.onConnectionEnd}
         handleDeleteConnection={deleteConnection}
-        tempConnection={tempConnection}
-        isConnecting={isConnecting}
-        connectionStart={connectionStart}
+        tempConnection={connect.tempConnection}
+        isConnecting={connect.isConnecting}
+        connectionStart={connect.connectionStart}
         onBoardDoubleClick={handleBoardDoubleClick}
         onImageDrop={handleImageDrop}
       />
