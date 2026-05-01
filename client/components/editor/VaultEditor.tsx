@@ -45,6 +45,7 @@ import { MarkdownEditor } from "./markdown/MarkdownEditor"
 import { VaultGraph } from "./VaultGraph"
 import { useVaultAutosave } from "./vault/useVaultAutosave"
 import { useVaultNotes } from "./vault/useVaultNotes"
+import { useVaultWatcher } from "./vault/useVaultWatcher"
 
 interface VaultEditorProps {
   projectData: FullProject
@@ -402,107 +403,16 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     }
   }
 
-  // Stable refs for the watcher callback — the `useEffect` below runs once
-  // per vault-path change, and we don't want to resubscribe just because
-  // `selected` or `dirty` identity flipped on a keystroke.
-  const dirtyRef = useRef(dirty)
-  dirtyRef.current = dirty
-  const currentFilenameRef = selectedFilenameRef
-
-  // Filesystem watcher: picks up external edits (vim, obsidian, git
-  // checkout, etc.) and keeps the note list + open buffer in sync. Bails
-  // out silently outside Tauri — nothing to watch in the web build.
-  useEffect(() => {
-    if (!vaultPath || !isTauri()) return
-    let active = true
-    let unwatch: (() => Promise<void> | void) | undefined
-
-    void (async () => {
-      try {
-        // `watch` collects change events during `delayMs` and fires once —
-        // cheaper than `watchImmediate` when a save touches several files
-        // (e.g. our autosave + an editor tool running in parallel).
-        const { watch } = await import("@tauri-apps/plugin-fs")
-        const stop = await watch(
-          vaultPath,
-          (event) => {
-            if (!active) return
-            // Always refresh the sidebar; cheap SQL-free directory read.
-            void refreshNotes()
-
-            // Keep the backlinks index honest when external tools touch
-            // `.md` files. Paths come in absolute; we convert them back
-            // to vault-relative so nested notes reindex correctly.
-            const paths: string[] = Array.isArray(event?.paths) ? event.paths : []
-            const normalisedRoot = vaultPath.replace(/[\\/]+$/, "")
-            const changedMd = new Set<string>()
-            for (const p of paths) {
-              if (!p.toLowerCase().endsWith(".md")) continue
-              const normalised = p.replace(/\\/g, "/")
-              const rootForwardSlash = normalisedRoot.replace(/\\/g, "/")
-              if (normalised.startsWith(rootForwardSlash + "/")) {
-                changedMd.add(normalised.slice(rootForwardSlash.length + 1))
-              } else if (normalised.startsWith(rootForwardSlash)) {
-                changedMd.add(normalised.slice(rootForwardSlash.length).replace(/^\/+/, ""))
-              } else {
-                // Fallback to basename if we can't re-root the path.
-                const name = p.split(/[\\/]/).pop()
-                if (name) changedMd.add(name)
-              }
-            }
-            for (const filename of changedMd) {
-              void storage.vault.reindexLinks(projectId, filename).catch(() => {})
-            }
-            // Kick the backlinks panel to refresh if the current note is
-            // linked-from any of the changed files. Cheaper to just
-            // re-run the query than to diff.
-            if (currentFilenameRef.current) {
-              void storage.vault
-                .getBacklinks(
-                  projectId,
-                  currentFilenameRef.current.replace(/\.md$/i, ""),
-                )
-                .then((list) => {
-                  if (active) setBacklinks(list)
-                })
-                .catch(() => {})
-            }
-
-            // Only reload the current buffer from disk if there are no
-            // local unsaved edits, otherwise we'd clobber the user's work.
-            const openFile = currentFilenameRef.current
-            if (openFile && !dirtyRef.current) {
-              storage.vault
-                .readNote(projectId, openFile)
-                .then((body) => {
-                  if (!active) return
-                  setContent((prev) => (prev === body ? prev : body))
-                })
-                .catch(() => {
-                  /* file vanished — sidebar refresh will drop it */
-                })
-            }
-          },
-          // Recursive so edits anywhere under the vault — including
-          // nested subfolders — trigger a refresh. `delayMs` coalesces
-          // bursts (e.g. a save that touches several files at once).
-          { recursive: true, delayMs: 300 },
-        )
-        if (!active) {
-          void stop()
-          return
-        }
-        unwatch = stop
-      } catch (err) {
-        console.warn("Vault watcher unavailable:", err)
-      }
-    })()
-
-    return () => {
-      active = false
-      if (unwatch) void unwatch()
-    }
-  }, [vaultPath, projectId, refreshNotes, storage, currentFilenameRef])
+  useVaultWatcher({
+    vaultPath,
+    projectId,
+    storage,
+    selectedFilenameRef,
+    dirty,
+    onSidebarRefresh: refreshNotes,
+    onBacklinksReload: setBacklinks,
+    onContentReload: (_filename, body) => setContent((prev) => (prev === body ? prev : body)),
+  })
 
   // Recompute backlinks whenever the selected note changes. We wait for
   // autosave to flush so fresh incoming links are picked up immediately
