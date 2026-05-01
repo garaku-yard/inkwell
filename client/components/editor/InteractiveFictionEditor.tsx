@@ -565,14 +565,21 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                                   return (
                                     <button
                                       key={i}
-                                      onClick={() => exists && navigateToPassage(target)}
+                                      onClick={() => {
+                                        if (exists) navigateToPassage(target)
+                                        else void handleAddPassage(target)
+                                      }}
                                       className={cn(
-                                        "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors",
+                                        "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer",
                                         exists
-                                          ? "border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 hover:bg-green-500/10 cursor-pointer"
-                                          : "border-destructive/30 text-destructive bg-destructive/5 cursor-default"
+                                          ? "border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 hover:bg-green-500/10"
+                                          : "border-destructive/30 text-destructive bg-destructive/5 hover:bg-destructive/10"
                                       )}
-                                      title={exists ? `Go to "${target}"` : `Passage "${target}" not found`}
+                                      title={
+                                        exists
+                                          ? `Go to "${target}"`
+                                          : `Click to create passage "${target}"`
+                                      }
                                     >
                                       {exists
                                         ? <CheckCircle2 className="h-2.5 w-2.5" />
