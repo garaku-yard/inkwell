@@ -1,17 +1,14 @@
 "use client"
 
 import { useState, useCallback, useRef } from "react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, ChevronRight, ChevronDown, Table, Pencil, Dice6, Bot, Download } from "lucide-react"
+import { Plus, ChevronRight, ChevronDown, Table, Pencil, Dice6 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { AIChatPanel } from "./AIChatPanel"
+import { EditorHeader } from "./shared/EditorHeader"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
 import { useElementAutosave } from "./shared/useElementAutosave"
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import {
   createScene,
@@ -61,7 +58,6 @@ interface TabletopRPGEditorProps {
 }
 
 export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
-  const router = useRouter()
   const { user } = useAuth()
   const [sections, setSections] = useState(() => projectData.scenes ?? [])
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
@@ -404,46 +400,23 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
 
       {/* Editor */}
       <div className="flex flex-col flex-1 min-w-0">
-        <header className="flex items-center justify-between px-6 py-3 border-b shrink-0">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push("/dashboard")}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div>
-              <h1 className="text-base font-semibold leading-tight">{projectData.title}</h1>
-              <p className="text-xs text-muted-foreground">Tabletop RPG</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span>{totalWords.toLocaleString()} words</span>
-            <span className={cn(
-              saveStatus === "saved" && "text-green-600 dark:text-green-400",
-              saveStatus === "saving" && "text-yellow-600 dark:text-yellow-400",
-            )}>
-              {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving…" : "Unsaved"}
-            </span>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
-                  <Download className="h-3.5 w-3.5" />
-                  Export
-                  <ChevronDown className="h-3 w-3 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportProjectToText({ ...projectData, scenes: sections })}>
-                  Export as Plain Text (.txt)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportProjectToMarkdown({ ...projectData, scenes: sections })}>
-                  Export as Markdown (.md)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsAIChatOpen(o => !o)} title="Writing Buddy">
-              <Bot className="h-4 w-4" />
-            </Button>
-          </div>
-        </header>
+        <EditorHeader
+          title={projectData.title}
+          subtitle="Tabletop RPG"
+          statRight={`${totalWords.toLocaleString()} words`}
+          saveStatus={saveStatus}
+          onToggleAI={() => setIsAIChatOpen(o => !o)}
+          exportItems={[
+            {
+              label: "Export as Plain Text (.txt)",
+              onClick: () => exportProjectToText({ ...projectData, scenes: sections }),
+            },
+            {
+              label: "Export as Markdown (.md)",
+              onClick: () => exportProjectToMarkdown({ ...projectData, scenes: sections }),
+            },
+          ]}
+        />
 
         <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">

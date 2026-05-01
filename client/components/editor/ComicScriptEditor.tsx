@@ -1,17 +1,14 @@
 "use client"
 
 import { useState, useCallback, useRef } from "react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, Bot, Download, ChevronDown } from "lucide-react"
+import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { AIChatPanel } from "./AIChatPanel"
+import { EditorHeader } from "./shared/EditorHeader"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
 import { useElementAutosave } from "./shared/useElementAutosave"
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { exportProjectToText } from "@/lib/export/text-export"
 import {
   createScene,
@@ -47,7 +44,6 @@ function panelCount(elements: ScriptElement[]): number {
 }
 
 export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
-  const router = useRouter()
   const { user } = useAuth()
   const [pages, setPages] = useState(() => projectData.scenes ?? [])
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
@@ -167,43 +163,19 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
 
       {/* Main editor */}
       <div className="flex flex-col flex-1 min-w-0">
-        <header className="flex items-center justify-between px-6 py-3 border-b shrink-0">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push("/dashboard")}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div>
-              <h1 className="text-base font-semibold leading-tight">{projectData.title}</h1>
-              <p className="text-xs text-muted-foreground">Comic Script</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span>{pages.length} pages · {totalPanels} panels</span>
-            <span className={cn(
-              saveStatus === "saved" && "text-green-600 dark:text-green-400",
-              saveStatus === "saving" && "text-yellow-600 dark:text-yellow-400",
-            )}>
-              {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving…" : "Unsaved"}
-            </span>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
-                  <Download className="h-3.5 w-3.5" />
-                  Export
-                  <ChevronDown className="h-3 w-3 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportProjectToText({ ...projectData, scenes: pages })}>
-                  Export as Plain Text (.txt)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsAIChatOpen(o => !o)} title="Writing Buddy">
-              <Bot className="h-4 w-4" />
-            </Button>
-          </div>
-        </header>
+        <EditorHeader
+          title={projectData.title}
+          subtitle="Comic Script"
+          statRight={`${pages.length} pages · ${totalPanels} panels`}
+          saveStatus={saveStatus}
+          onToggleAI={() => setIsAIChatOpen(o => !o)}
+          exportItems={[
+            {
+              label: "Export as Plain Text (.txt)",
+              onClick: () => exportProjectToText({ ...projectData, scenes: pages }),
+            },
+          ]}
+        />
 
         <div className="flex flex-1 overflow-hidden">
         {/* Script scroll area */}
