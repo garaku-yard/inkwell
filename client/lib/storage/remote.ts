@@ -75,7 +75,6 @@ const REMOTE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   "collaboration",
   "realtime",
   "admin",
-  "ai.hosted",
   "ai.byo",
 ])
 

@@ -9,8 +9,8 @@
  *
  * The `capabilities` set declared at the bottom names only what this
  * implementation can honour. Anything else (`collaboration`, `realtime`,
- * `admin`, `ai.hosted`) throws {@link NotSupportedError} — the UI is
- * expected to probe `storage.capabilities.has(...)` and hide those affordances
+ * `admin`) throws {@link NotSupportedError} — the UI is expected to
+ * probe `storage.capabilities.has(...)` and hide those affordances
  * rather than call them.
  *
  * ## Auth model
@@ -2063,8 +2063,8 @@ const settings: SettingsStorage = {
 
 // ─── Root Storage ─────────────────────────────────────────────────────────
 
-/** Capabilities honoured by the local build. Notable omissions: `auth` (no
- *  real login), `collaboration`, `realtime`, `admin`, `ai.hosted`. BYO AI
+/** Capabilities honoured by the local build. Notable omissions: `auth`
+ *  (no real login), `collaboration`, `realtime`, `admin`. BYO AI
  *  providers are supported because we have the OS keychain and a direct
  *  client-side adapter library. */
 const LOCAL_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([

@@ -127,7 +127,6 @@ export type Capability =
   | "collaboration" // Shared projects, collaborators, invites, comments.
   | "realtime" // Presence + live cursors (never in local build).
   | "admin" // Billing admin endpoints (remote only).
-  | "ai.hosted" // Hosted AI service vs. direct provider calls.
   | "ai.byo" // BYO-key AI providers configurable in settings.
 
 // ─── Auth ─────────────────────────────────────────────────────────────────
