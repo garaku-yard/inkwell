@@ -16,6 +16,7 @@ import (
 
 	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
+	"inkwell/server/pkg/aiadapter"
 	aisettingspb "inkwell/server/pkg/grpc/aisettings"
 )
 
@@ -81,7 +82,7 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 // host isn't on the operator-supplied allowlist. Other kinds pass
 // through unchanged.
 func (h *AISettingsHandler) guardOpenAICompatible(kind, baseURL string) error {
-	if kind != "openai_compatible" {
+	if kind != string(aiadapter.KindOpenAICompatible) {
 		return nil
 	}
 	return validateOpenAICompatibleURL(baseURL, h.openAICompatibleHosts)
