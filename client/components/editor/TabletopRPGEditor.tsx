@@ -10,7 +10,8 @@ import { EditorHeader } from "./shared/EditorHeader"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
 import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
-import { createRPGKeymap } from "./ttrpg/keymap"
+import { createRPGKeymap, type RPGElementType } from "./ttrpg/keymap"
+import { SlashMenu } from "./ttrpg/SlashMenu"
 import { deleteScriptElement } from "@/services/editor"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import {
@@ -20,7 +21,6 @@ import {
   type FullProject,
 } from "@/services/project"
 
-type RPGElementType = "h2" | "body" | "stat_block" | "table" | "dice_table" | "callout" | "rule_box"
 
 // dice_table: a random-result table with an implied die type based on row count
 // Standard die sizes: d4 d6 d8 d10 d12 d20 d100
@@ -188,6 +188,67 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       })
     },
     [keyMap],
+  )
+
+  // Notion-style slash command menu — triggered when a body element's
+  // text starts with "/". The user types to filter, Enter inserts the
+  // chosen type as a new element after the current body and clears
+  // the slash from the body.
+  const [slashMenu, setSlashMenu] = useState<{
+    sectionId: string
+    elementId: string
+    elementIndex: number
+    query: string
+    position: { top: number; left: number }
+  } | null>(null)
+
+  const handleBodyInput = useCallback(
+    (
+      e: React.FormEvent<HTMLDivElement>,
+      sectionId: string,
+      el: ScriptElement,
+      elIdx: number,
+    ) => {
+      const text = e.currentTarget.textContent ?? ""
+      handleContentChange(el.id, text, false)
+      // Trigger only when the entire element starts with "/" — limits
+      // the slash menu to fresh / one-line bodies and keeps it from
+      // interfering with rules text that mentions slashes.
+      if (!text.startsWith("/") || text.includes("\n")) {
+        setSlashMenu(null)
+        return
+      }
+      const query = text.slice(1)
+      const node = e.currentTarget
+      const rect = node.getBoundingClientRect()
+      setSlashMenu({
+        sectionId,
+        elementId: el.id,
+        elementIndex: elIdx,
+        query,
+        position: { top: rect.bottom + 4, left: rect.left },
+      })
+    },
+    [handleContentChange],
+  )
+
+  const handleSlashSelect = useCallback(
+    (type: RPGElementType) => {
+      if (!slashMenu) return
+      const { sectionId, elementId, elementIndex } = slashMenu
+      // Clear the "/foo" text from the source body so it doesn't sit
+      // there next to the freshly-inserted element. Mutate textContent
+      // directly + dispatch input so React's state and the autosave
+      // pipeline both pick it up.
+      const sourceEl = document.getElementById(`el-${elementId}`)
+      if (sourceEl) {
+        sourceEl.textContent = ""
+        sourceEl.dispatchEvent(new Event("input", { bubbles: true }))
+      }
+      void handleAddElement(sectionId, type, elementIndex)
+      setSlashMenu(null)
+    },
+    [slashMenu],
   )
 
   const toggleCollapse = (id: string) =>
@@ -397,7 +458,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         id={`el-${el.id}`}
         contentEditable
         suppressContentEditableWarning
-        onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+        onInput={(e) => handleBodyInput(e, sectionId, el, elIdx)}
         onKeyDown={(e) => handleKeyDown(e, sectionId, el, elIdx)}
         className="text-base leading-relaxed outline-none min-h-[1.5rem] my-0.5 empty:before:content-['Write\00a0rules,\00a0lore,\00a0descriptions…'] empty:before:text-muted-foreground/25"
       >
@@ -546,6 +607,14 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
       </div>
+      {slashMenu && (
+        <SlashMenu
+          query={slashMenu.query}
+          position={slashMenu.position}
+          onSelect={handleSlashSelect}
+          onDismiss={() => setSlashMenu(null)}
+        />
+      )}
     </div>
   )
 }
