@@ -4,16 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   ArrowLeft,
-  ChevronDown,
-  ChevronRight,
   FileText,
   Folder,
   FolderOpen,
-  FolderPlus,
-  Hash,
   Link2,
   Network,
-  PanelRight,
   Plus,
   Search,
   Settings,
@@ -44,6 +39,10 @@ import { useVaultGraph } from "./vault/useVaultGraph"
 import { useVaultNotes } from "./vault/useVaultNotes"
 import { useVaultTags } from "./vault/useVaultTags"
 import { useVaultWatcher } from "./vault/useVaultWatcher"
+import { VaultBacklinksPane } from "./vault/VaultBacklinksPane"
+import { VaultNoteToolbar } from "./vault/VaultNoteToolbar"
+import { VaultSidebar } from "./vault/VaultSidebar"
+import { buildVaultTree } from "./vault/VaultTreeNode"
 
 interface VaultEditorProps {
   projectData: FullProject
@@ -141,7 +140,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     })
   }, [notes, search, tagFilterNotes])
 
-  const tree = useMemo(() => buildTree(filteredNotes), [filteredNotes])
+  const tree = useMemo(() => buildVaultTree(filteredNotes), [filteredNotes])
 
   // Auto-expand every ancestor of the selected note so it's visible in
   // the tree. Also expand everything when a search is active so matches
@@ -463,136 +462,29 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
 
       <div className="flex min-h-0 flex-1">
         {/* Sidebar */}
-        <aside className="flex w-64 shrink-0 flex-col border-r bg-muted/20">
-          <div className="flex shrink-0 items-center gap-1 p-3">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filter notes"
-                className="h-8 pl-8 text-xs"
-              />
-            </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8"
-              onClick={() => {
-                setNewFolderParent(null)
-                setNewFolderPath("")
-                setFolderDialogOpen(true)
-              }}
-              title="New folder"
-            >
-              <FolderPlus className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8"
-              onClick={() => openCreateDialog(null)}
-              title="New note"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-            {tree.length === 0 ? (
-              <div className="px-3 py-4 text-center text-xs text-muted-foreground">
-                {notes.length === 0
-                  ? "No notes yet."
-                  : `No notes match "${search}".`}
-              </div>
-            ) : (
-              <ul className="space-y-0.5 px-1.5">
-                {tree.map((node, i) => (
-                  <TreeNodeView
-                    key={nodeKey(node, i)}
-                    node={node}
-                    depth={0}
-                    selected={selected}
-                    expanded={expandedFolders}
-                    onToggle={toggleFolder}
-                    onSelect={(note) => void onSelectNote(note)}
-                    onNewNoteInFolder={(folderPath) => openCreateDialog(folderPath)}
-                    onNewSubfolder={(parentPath) => {
-                      setNewFolderParent(parentPath)
-                      setNewFolderPath("")
-                      setFolderDialogOpen(true)
-                    }}
-                  />
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {tags.length > 0 && (
-            <div className="shrink-0 border-t">
-              <button
-                type="button"
-                onClick={() => setTagsExpanded((v) => !v)}
-                className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
-              >
-                {tagsExpanded ? (
-                  <ChevronDown className="h-3 w-3" />
-                ) : (
-                  <ChevronRight className="h-3 w-3" />
-                )}
-                Tags
-                <span className="ml-auto text-[10px] font-normal normal-case">
-                  {tags.length}
-                </span>
-              </button>
-              {tagsExpanded && (
-                <div className="flex max-h-40 flex-wrap gap-1 overflow-y-auto px-2 pb-2">
-                  {tags.map((t) => {
-                    const active = tagFilter?.toLowerCase() === t.tag.toLowerCase()
-                    return (
-                      <button
-                        key={t.tag}
-                        type="button"
-                        onClick={() => onTagClick(t.tag)}
-                        className={cn(
-                          "flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] transition-colors",
-                          active
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
-                        )}
-                        title={`${t.count} ${t.count === 1 ? "note" : "notes"}`}
-                      >
-                        <Hash className="h-3 w-3" />
-                        <span>{t.tag}</span>
-                        <span className="text-[10px] opacity-70">{t.count}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex shrink-0 items-center justify-between gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
-            <span>
-              {filteredNotes.length}
-              {filteredNotes.length !== notes.length && ` / ${notes.length}`}{" "}
-              {notes.length === 1 ? "note" : "notes"}
-            </span>
-            {tagFilter && (
-              <button
-                type="button"
-                onClick={() => setTagFilter(null)}
-                className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary hover:bg-primary/15"
-                title="Clear tag filter"
-              >
-                <Hash className="h-3 w-3" />
-                {tagFilter}
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-        </aside>
+        <VaultSidebar
+          notes={notes}
+          tree={tree}
+          search={search}
+          onSearch={setSearch}
+          filteredCount={filteredNotes.length}
+          selected={selected}
+          expandedFolders={expandedFolders}
+          onToggleFolder={toggleFolder}
+          onSelectNote={(note) => void onSelectNote(note)}
+          onCreateNoteIn={openCreateDialog}
+          onCreateSubfolder={(parentPath) => {
+            setNewFolderParent(parentPath)
+            setNewFolderPath("")
+            setFolderDialogOpen(true)
+          }}
+          tags={tags}
+          tagFilter={tagFilter}
+          tagsExpanded={tagsExpanded}
+          setTagsExpanded={setTagsExpanded}
+          setTagFilter={setTagFilter}
+          onTagClick={onTagClick}
+        />
 
         {/* Main */}
         <main className="flex min-w-0 flex-1 flex-col">
@@ -613,60 +505,15 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
             </div>
           ) : (
             <>
-              {/* Note toolbar */}
-              <div className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-                {renameDraft === null ? (
-                  <button
-                    type="button"
-                    onClick={() => setRenameDraft(selected.title)}
-                    className="flex-1 truncate rounded px-1.5 py-1 text-left text-sm font-semibold hover:bg-accent/50"
-                    title="Click to rename"
-                  >
-                    {selected.title}
-                  </button>
-                ) : (
-                  <Input
-                    autoFocus
-                    value={renameDraft}
-                    onChange={(e) => setRenameDraft(e.target.value)}
-                    onFocus={(e) => e.currentTarget.select()}
-                    onBlur={() => void commitRename()}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault()
-                        void commitRename()
-                      } else if (e.key === "Escape") {
-                        e.preventDefault()
-                        setRenameDraft(null)
-                      }
-                    }}
-                    className="h-8 flex-1 text-sm font-semibold"
-                  />
-                )}
-
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className={cn(
-                    "h-8 w-8",
-                    showBacklinks && "bg-muted text-foreground",
-                  )}
-                  onClick={() => setShowBacklinks((v) => !v)}
-                  title="Toggle backlinks panel"
-                >
-                  <PanelRight className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => setDeleteOpen(true)}
-                  title="Delete note"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+              <VaultNoteToolbar
+                title={selected.title}
+                renameDraft={renameDraft}
+                setRenameDraft={setRenameDraft}
+                onCommitRename={commitRename}
+                showBacklinks={showBacklinks}
+                onToggleBacklinks={() => setShowBacklinks((v) => !v)}
+                onDelete={() => setDeleteOpen(true)}
+              />
 
               {/* Editor + optional backlinks pane */}
               <div className="relative flex min-h-0 flex-1">
@@ -680,51 +527,14 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
                 />
 
                 {showBacklinks && (
-                  <aside className="flex w-64 shrink-0 flex-col border-l bg-muted/20">
-                    <div className="flex items-center gap-2 border-b px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      <Link2 className="h-3.5 w-3.5" />
-                      Backlinks
-                      <span className="ml-auto text-[10px] font-normal normal-case">
-                        {backlinks.length}
-                      </span>
-                    </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                      {backlinks.length === 0 ? (
-                        <div className="px-2 py-3 text-xs text-muted-foreground">
-                          No other notes link to this one yet. Write{" "}
-                          <code className="rounded bg-muted px-1 py-0.5">
-                            [[{selected.title}]]
-                          </code>{" "}
-                          elsewhere to create one.
-                        </div>
-                      ) : (
-                        <ul className="space-y-1">
-                          {backlinks.map((bl) => (
-                            <li key={bl.filename}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const match = notes.find(
-                                    (n) => n.filename === bl.filename,
-                                  )
-                                  if (match) void onSelectNote(match)
-                                }}
-                                className="w-full rounded-md p-2 text-left text-xs transition-colors hover:bg-accent"
-                              >
-                                <div className="mb-0.5 flex items-center gap-1.5 text-sm font-medium text-foreground">
-                                  <FileText className="h-3 w-3 text-muted-foreground" />
-                                  {bl.title}
-                                </div>
-                                <div className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-                                  {bl.snippet}
-                                </div>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </aside>
+                  <VaultBacklinksPane
+                    backlinks={backlinks}
+                    currentTitle={selected.title}
+                    onSelectBacklink={(filename) => {
+                      const match = notes.find((n) => n.filename === filename)
+                      if (match) void onSelectNote(match)
+                    }}
+                  />
                 )}
 
                 {/* Floating status pill: stays out of the way but always
@@ -992,184 +802,5 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
       </Dialog>
     </div>
   )
-}
-
-// ─── Tree rendering ──────────────────────────────────────────────────────
-
-function nodeKey(node: TreeNode, index: number): string {
-  return node.type === "folder"
-    ? `folder:${node.path}`
-    : `file:${node.note.filename}#${index}`
-}
-
-interface TreeNodeViewProps {
-  node: TreeNode
-  depth: number
-  selected: VaultNote | null
-  expanded: Set<string>
-  onToggle: (path: string) => void
-  onSelect: (note: VaultNote) => void
-  onNewNoteInFolder: (folderPath: string) => void
-  onNewSubfolder: (parentPath: string) => void
-}
-
-/** Recursive tree row. Folders get a chevron + folder icon and toggle on
- *  click; hovering reveals inline actions for creating a note or
- *  subfolder inside. Files get a file icon + title. */
-function TreeNodeView({
-  node,
-  depth,
-  selected,
-  expanded,
-  onToggle,
-  onSelect,
-  onNewNoteInFolder,
-  onNewSubfolder,
-}: TreeNodeViewProps) {
-  if (node.type === "folder") {
-    const open = expanded.has(node.path)
-    return (
-      <li>
-        <div
-          className="group flex items-center gap-1 rounded-md pr-1 hover:bg-accent/50"
-          style={{ paddingLeft: `${depth * 12 + 4}px` }}
-        >
-          <button
-            type="button"
-            onClick={() => onToggle(node.path)}
-            className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-sm text-foreground/80"
-            title={node.path}
-          >
-            {open ? (
-              <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-            )}
-            {open ? (
-              <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            ) : (
-              <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            )}
-            <span className="truncate">{node.name}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onNewSubfolder(node.path)}
-            className="hidden h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground group-hover:flex"
-            title="New subfolder"
-          >
-            <FolderPlus className="h-3 w-3" />
-          </button>
-          <button
-            type="button"
-            onClick={() => onNewNoteInFolder(node.path)}
-            className="hidden h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground group-hover:flex"
-            title="New note in folder"
-          >
-            <Plus className="h-3 w-3" />
-          </button>
-        </div>
-        {open && node.children.length > 0 && (
-          <ul className="space-y-0.5">
-            {node.children.map((child, i) => (
-              <TreeNodeView
-                key={nodeKey(child, i)}
-                node={child}
-                depth={depth + 1}
-                selected={selected}
-                expanded={expanded}
-                onToggle={onToggle}
-                onSelect={onSelect}
-                onNewNoteInFolder={onNewNoteInFolder}
-                onNewSubfolder={onNewSubfolder}
-              />
-            ))}
-          </ul>
-        )}
-      </li>
-    )
-  }
-
-  const active = selected?.filename === node.note.filename
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={() => onSelect(node.note)}
-        style={{ paddingLeft: `${depth * 12 + 22}px` }}
-        className={cn(
-          "flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm transition-colors",
-          active
-            ? "bg-accent text-accent-foreground"
-            : "text-foreground/80 hover:bg-accent/50",
-        )}
-        title={node.note.filename}
-      >
-        <FileText
-          className={cn(
-            "h-3.5 w-3.5 shrink-0",
-            active ? "text-accent-foreground" : "text-muted-foreground",
-          )}
-        />
-        <span className="truncate">{node.note.title}</span>
-      </button>
-    </li>
-  )
-}
-
-// ─── Tree helpers ────────────────────────────────────────────────────────
-
-interface TreeFolderNode {
-  type: "folder"
-  name: string
-  path: string
-  children: TreeNode[]
-}
-interface TreeFileNode {
-  type: "file"
-  note: VaultNote
-}
-type TreeNode = TreeFolderNode | TreeFileNode
-
-/** Derives a collapsible tree from the flat VaultNote list by splitting
- *  `filename` on `/`. Sorted so folders surface first at each level,
- *  then files, each group alphabetical. */
-function buildTree(notes: VaultNote[]): TreeNode[] {
-  const root: TreeFolderNode = { type: "folder", name: "", path: "", children: [] }
-  for (const note of notes) {
-    const parts = note.filename.split("/")
-    const fileName = parts.pop()!
-    let cursor = root
-    let curPath = ""
-    for (const seg of parts) {
-      curPath = curPath ? `${curPath}/${seg}` : seg
-      let child = cursor.children.find(
-        (c) => c.type === "folder" && c.name === seg,
-      ) as TreeFolderNode | undefined
-      if (!child) {
-        child = { type: "folder", name: seg, path: curPath, children: [] }
-        cursor.children.push(child)
-      }
-      cursor = child
-    }
-    cursor.children.push({ type: "file", note })
-    // Prevent the unused-var lint fire in branches that don't consume
-    // `fileName` — it's the leaf we just attached.
-    void fileName
-  }
-  sortTree(root)
-  return root.children
-}
-
-function sortTree(folder: TreeFolderNode): void {
-  folder.children.sort((a, b) => {
-    if (a.type !== b.type) return a.type === "folder" ? -1 : 1
-    const aName = a.type === "folder" ? a.name : a.note.title
-    const bName = b.type === "folder" ? b.name : b.note.title
-    return aName.localeCompare(bName)
-  })
-  for (const child of folder.children) {
-    if (child.type === "folder") sortTree(child)
-  }
 }
 
