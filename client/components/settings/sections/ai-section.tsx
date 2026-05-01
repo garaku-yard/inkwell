@@ -54,6 +54,7 @@ import { getStorage } from "@/lib/storage"
 import type {
   AIProviderSettings,
   SaveProviderSettingsInput,
+  Storage,
 } from "@/lib/storage"
 import type { ProviderKind } from "@/lib/ai/providers"
 
@@ -149,24 +150,14 @@ function formFromSettings(settings: AIProviderSettings): FormState {
   }
 }
 
-/** Settings section for BYO AI providers.
- *
- *  Reads provider rows + keychain state through {@link Storage.ai}. Gated
- *  behind the `ai.byo` capability so a future build that ships without
- *  the BYO surface can hide the section entirely. */
-export function AISection() {
-  const storage = getStorage()
-  const supported = storage.capabilities.has("ai.byo")
-
+/** Owns the BYO provider list — fetches on mount, exposes a reload
+ *  hook so post-save / post-delete flows can refresh without remount.
+ *  Gated on the `ai.byo` capability so a future build that ships
+ *  without BYO doesn't make a doomed network call. */
+function useProviderList(storage: Storage, supported: boolean) {
   const [providers, setProviders] = useState<AIProviderSettings[]>([])
   const [loading, setLoading] = useState(supported)
   const [error, setError] = useState<string | null>(null)
-  const [editing, setEditing] = useState<FormState | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<AIProviderSettings | null>(null)
-  const [testingId, setTestingId] = useState<string | null>(null)
-  const [testResults, setTestResults] = useState<
-    Record<string, { ok: boolean; error?: string }>
-  >({})
 
   const reload = useCallback(async () => {
     if (!supported) return
@@ -186,8 +177,63 @@ export function AISection() {
     void reload()
   }, [reload])
 
+  return { providers, loading, error, reload }
+}
+
+/** Owns the per-row "test connection" state — which row is currently
+ *  spinning, plus a result-by-id map. The runTest helper handles the
+ *  full flip-spinner / await-result / cache-result lifecycle so the
+ *  ProviderRow can pass a single onTest callback. */
+function useProviderTestConnection(storage: Storage) {
+  const [testingId, setTestingId] = useState<string | null>(null)
+  const [testResults, setTestResults] = useState<
+    Record<string, { ok: boolean; error?: string }>
+  >({})
+
+  const runTest = useCallback(
+    async (id: string) => {
+      setTestingId(id)
+      try {
+        const result = await storage.ai.testProvider(id)
+        setTestResults((prev) => ({
+          ...prev,
+          [id]: result.ok ? { ok: true } : { ok: false, error: result.error },
+        }))
+      } finally {
+        setTestingId(null)
+      }
+    },
+    [storage],
+  )
+
+  return { testingId, testResults, runTest }
+}
+
+/** Settings section for BYO AI providers.
+ *
+ *  Reads provider rows + keychain state through {@link Storage.ai}. Gated
+ *  behind the `ai.byo` capability so a future build that ships without
+ *  the BYO surface can hide the section entirely. */
+export function AISection() {
+  const storage = getStorage()
+  const supported = storage.capabilities.has("ai.byo")
+
+  const { providers, loading, error, reload } = useProviderList(storage, supported)
+  const { testingId, testResults, runTest } = useProviderTestConnection(storage)
+
+  const [editing, setEditing] = useState<FormState | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<AIProviderSettings | null>(null)
+
   if (!supported) {
     return <UnsupportedPlaceholder />
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    const id = deleteTarget.id
+    setDeleteTarget(null)
+    await storage.ai.deleteProviderSettings(id)
+    await reload()
   }
 
   return (
@@ -234,15 +280,7 @@ export function AISection() {
                   testing={testingId === p.id}
                   onEdit={() => setEditing(formFromSettings(p))}
                   onDelete={() => setDeleteTarget(p)}
-                  onTest={async () => {
-                    setTestingId(p.id)
-                    const result = await storage.ai.testProvider(p.id)
-                    setTestResults((prev) => ({
-                      ...prev,
-                      [p.id]: result.ok ? { ok: true } : { ok: false, error: result.error },
-                    }))
-                    setTestingId(null)
-                  }}
+                  onTest={() => runTest(p.id)}
                 />
               ))}
             </ul>
@@ -274,17 +312,7 @@ export function AISection() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={async () => {
-                if (!deleteTarget) return
-                const id = deleteTarget.id
-                setDeleteTarget(null)
-                await storage.ai.deleteProviderSettings(id)
-                await reload()
-              }}
-            >
-              Remove
-            </AlertDialogAction>
+            <AlertDialogAction onClick={confirmDelete}>Remove</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
