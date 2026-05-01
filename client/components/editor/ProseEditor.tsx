@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useMemo, useRef } from "react"
 import { Plus, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -9,6 +9,8 @@ import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
 import { useElementAutosave } from "./shared/useElementAutosave"
+import { dispatchKey } from "@/lib/editor/keymap"
+import { createProseKeymap } from "./prose/keymap"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import {
   createScene,
@@ -16,6 +18,7 @@ import {
   type ScriptElement,
   type FullProject,
 } from "@/services/project"
+import { deleteScriptElement } from "@/services/editor"
 
 type ProseElementType = "chapter_heading" | "paragraph" | "scene_break"
 
@@ -84,17 +87,68 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     }, 50)
   }
 
-  const handleElementKeyDown = (
-    e: React.KeyboardEvent<HTMLDivElement>,
-    sceneId: string,
-    el: ScriptElement,
-    elIdx: number,
-  ) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleAddElement(sceneId, "paragraph", elIdx)
-    }
-  }
+  const handleDeleteElement = useCallback(
+    async (sceneId: string, elementId: string) => {
+      // Find the previous editable element id so we can land focus
+      // there after the row vanishes — otherwise the document scrolls
+      // to wherever React parks the next focusable element.
+      const ids: string[] = []
+      for (const s of scenes) {
+        for (const el of s.elements ?? []) {
+          if (el.element_type === "scene_break") continue
+          ids.push(el.id)
+        }
+      }
+      const idx = ids.indexOf(elementId)
+      const prevId = idx > 0 ? ids[idx - 1] : null
+
+      setScenes((prev) =>
+        prev.map((s) =>
+          s.id !== sceneId
+            ? s
+            : { ...s, elements: (s.elements ?? []).filter((el) => el.id !== elementId) },
+        ),
+      )
+      try {
+        await deleteScriptElement(elementId)
+      } catch (err) {
+        console.error("Failed to delete element:", err)
+      }
+      if (prevId) {
+        setTimeout(() => {
+          document.getElementById(`el-${prevId}`)?.focus()
+        }, 50)
+      }
+    },
+    [scenes],
+  )
+
+  const keyMap = useMemo(
+    () =>
+      createProseKeymap({
+        scenes,
+        insertParagraphAfter: (sceneId, afterIdx) =>
+          void handleAddElement(sceneId, "paragraph", afterIdx),
+        deleteEmptyElement: (sceneId, elementId) =>
+          void handleDeleteElement(sceneId, elementId),
+      }),
+    // handleAddElement is closed over scenes/user via useState/useAuth;
+    // recreating the keymap when scenes changes is cheap and keeps the
+    // navigation lookup honest.
+    [scenes, handleDeleteElement],
+  )
+
+  const handleElementKeyDown = useCallback(
+    (
+      e: React.KeyboardEvent<HTMLDivElement>,
+      sceneId: string,
+      el: ScriptElement,
+      elIdx: number,
+    ) => {
+      dispatchKey(e, keyMap, { sceneId, elementId: el.id, elementIndex: elIdx })
+    },
+    [keyMap],
+  )
 
   return (
     <div className="flex h-screen bg-background">
