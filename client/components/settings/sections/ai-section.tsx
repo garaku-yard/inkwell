@@ -565,10 +565,13 @@ function ProviderFormDialog({
                 onValueChange={(v) => {
                   const next = v as ProviderKind
                   const nextMeta = metaFor(next)
+                  const previousDefault = metaFor(state.kind).defaultLabel
+                  const labelIsUntouched =
+                    !state.label.trim() || state.label === previousDefault
                   onChange({
                     ...state,
                     kind: next,
-                    label: state.label || nextMeta.defaultLabel,
+                    label: labelIsUntouched ? nextMeta.defaultLabel : state.label,
                   })
                 }}
                 disabled={!isCreate}
