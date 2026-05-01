@@ -1,10 +1,32 @@
+import type React from "react"
+
 import {
   createElementNavigationKeymap,
   focusContentEditableAtEnd,
   focusContentEditableAtStart,
 } from "@/lib/editor/element-navigation"
-import { type Keymap } from "@/lib/editor/keymap"
+import { createDoubleTapDetector, type Keymap } from "@/lib/editor/keymap"
 import type { Scene } from "@/services/project"
+
+/** Prose element types — keep in sync with the union in
+ *  ProseEditor.tsx. */
+export type ProseElementType = "chapter_heading" | "paragraph" | "scene_break"
+
+/** mod+digit insert shortcuts. Paragraph on 1 because that's the
+ *  workhorse; chapter_heading on 2 for the obvious section break;
+ *  scene_break on 3 for the rare "* * *" separator. */
+const NUMBER_KEY_TO_ELEMENT: Record<string, ProseElementType> = {
+  "1": "paragraph",
+  "2": "chapter_heading",
+  "3": "scene_break",
+}
+
+/** Window for double-Enter detection. Two Enters within this many ms
+ *  start a fresh chapter; a single Enter falls through to the paragraph
+ *  insert flow after the same delay. The 300ms delay does mean a
+ *  single-Enter has a slight perceived lag — same trade-off the
+ *  screenplay editor's double-Enter-creates-scene gesture makes. */
+const DOUBLE_ENTER_THRESHOLD = 300
 
 /** Per-event context the prose keymap consumes. The editor passes
  *  these through from the contentEditable's onKeyDown. */
@@ -22,6 +44,11 @@ interface CreateProseKeymapOptions {
   /** Insert a fresh paragraph after the given index in the scene.
    *  Called on Enter. */
   insertParagraphAfter: (sceneId: string, afterIdx: number) => void
+  /** Insert any element type after the given index. Used by the
+   *  mod+digit shortcuts. */
+  insertElementAfter: (sceneId: string, type: ProseElementType, afterIdx: number) => void
+  /** Create a fresh chapter at the end. Triggered by double-Enter. */
+  insertNewChapter: () => void
   /** Delete an empty element (Enter never lands here — backspace on
    *  an empty contentEditable does). The implementation also focuses
    *  the previous element. */
@@ -52,6 +79,18 @@ function getElementNode(id: string): HTMLElement | null {
 }
 
 export function createProseKeymap(opts: CreateProseKeymapOptions): Keymap<ProseKeyContext> {
+  const enterDetector = createDoubleTapDetector(DOUBLE_ENTER_THRESHOLD)
+
+  const insertViaDigit = (type: ProseElementType) =>
+    (e: React.KeyboardEvent<HTMLDivElement>, ctx: ProseKeyContext) => {
+      e.preventDefault()
+      opts.insertElementAfter(ctx.sceneId, type, ctx.elementIndex)
+    }
+
+  const numberKeyEntries = Object.entries(NUMBER_KEY_TO_ELEMENT).map(
+    ([digit, type]) => [`mod+${digit}`, insertViaDigit(type)] as const,
+  )
+
   return {
     ...createElementNavigationKeymap<ProseKeyContext>({
       getNeighbour: (ctx, dir) => {
@@ -67,7 +106,15 @@ export function createProseKeymap(opts: CreateProseKeymapOptions): Keymap<ProseK
     enter: (e, ctx) => {
       if (e.shiftKey) return
       e.preventDefault()
-      opts.insertParagraphAfter(ctx.sceneId, ctx.elementIndex)
+      // Double-Enter starts a fresh chapter; single-Enter inserts a
+      // paragraph after a 300ms delay so we can tell the two apart.
+      const wasDouble = enterDetector.scheduleOrDoubleTap(() => {
+        opts.insertParagraphAfter(ctx.sceneId, ctx.elementIndex)
+      })
+      if (wasDouble) {
+        opts.insertNewChapter()
+      }
     },
+    ...Object.fromEntries(numberKeyEntries),
   }
 }

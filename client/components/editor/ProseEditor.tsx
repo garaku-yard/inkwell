@@ -129,6 +129,9 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         scenes,
         insertParagraphAfter: (sceneId, afterIdx) =>
           void handleAddElement(sceneId, "paragraph", afterIdx),
+        insertElementAfter: (sceneId, type, afterIdx) =>
+          void handleAddElement(sceneId, type, afterIdx),
+        insertNewChapter: () => void handleAddChapter(),
         deleteEmptyElement: (sceneId, elementId) =>
           void handleDeleteElement(sceneId, elementId),
       }),
