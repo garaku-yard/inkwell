@@ -1,3 +1,5 @@
+import type React from "react"
+
 import {
   createElementNavigationKeymap,
   focusContentEditableAtEnd,
@@ -14,10 +16,38 @@ export interface PoetryKeyContext {
   elementIndex: number
 }
 
+/** Lyrics `Shift+mod+digit` shortcuts. The `Shift+mod` prefix instead
+ *  of plain `mod+digit` is intentional: poets and lyricists
+ *  occasionally hold mod alone for editor commands and we don't want
+ *  the digit row to clash with line-number-driven gestures the format
+ *  may pick up later. The symbol fallbacks (`!`, `@`, `#`) cover the
+ *  US-layout case where Shift remaps the digit row. Non-US layouts
+ *  may need additional fallbacks if users report misses. */
+const LYRICS_SHIFT_MOD_KEYS: Record<string, "line" | "section_label" | "chord_row"> = {
+  "1": "line",
+  "!": "line",
+  "2": "section_label",
+  "@": "section_label",
+  "3": "chord_row",
+  "#": "chord_row",
+}
+
+/** Poetry has no chord_row / section_label, so the same prefix only
+ *  binds two slots: line on 1, stanza_break on 2. */
+const POETRY_SHIFT_MOD_KEYS: Record<string, "line" | "stanza_break"> = {
+  "1": "line",
+  "!": "line",
+  "2": "stanza_break",
+  "@": "stanza_break",
+}
+
 interface CreatePoetryKeymapOptions {
   scenes: Scene[]
+  isLyrics: boolean
   insertLineAfter: (sceneId: string, afterIdx: number) => void
   insertStanzaBreakAfter: (sceneId: string, afterIdx: number) => void
+  insertSectionLabelAfter: (sceneId: string, afterIdx: number) => void
+  insertChordRowAfter: (sceneId: string, afterIdx: number) => void
   deleteEmptyElement: (sceneId: string, elementId: string) => void
 }
 
@@ -42,6 +72,31 @@ function getElementNode(id: string): HTMLElement | null {
 }
 
 export function createPoetryKeymap(opts: CreatePoetryKeymapOptions): Keymap<PoetryKeyContext> {
+  const insertHandlerFor = (
+    type: "line" | "stanza_break" | "section_label" | "chord_row",
+  ) =>
+    (e: React.KeyboardEvent<HTMLDivElement>, ctx: PoetryKeyContext) => {
+      e.preventDefault()
+      switch (type) {
+        case "line":
+          opts.insertLineAfter(ctx.sceneId, ctx.elementIndex)
+          break
+        case "stanza_break":
+          opts.insertStanzaBreakAfter(ctx.sceneId, ctx.elementIndex)
+          break
+        case "section_label":
+          opts.insertSectionLabelAfter(ctx.sceneId, ctx.elementIndex)
+          break
+        case "chord_row":
+          opts.insertChordRowAfter(ctx.sceneId, ctx.elementIndex)
+          break
+      }
+    }
+
+  const shiftModEntries = Object.entries(
+    opts.isLyrics ? LYRICS_SHIFT_MOD_KEYS : POETRY_SHIFT_MOD_KEYS,
+  ).map(([key, type]) => [`shift+mod+${key}`, insertHandlerFor(type)] as const)
+
   return {
     ...createElementNavigationKeymap<PoetryKeyContext>({
       getNeighbour: (ctx, dir) => {
@@ -67,5 +122,6 @@ export function createPoetryKeymap(opts: CreatePoetryKeymapOptions): Keymap<Poet
       e.preventDefault()
       opts.insertStanzaBreakAfter(ctx.sceneId, ctx.elementIndex)
     },
+    ...Object.fromEntries(shiftModEntries),
   }
 }

@@ -154,12 +154,16 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     () =>
       createPoetryKeymap({
         scenes,
+        isLyrics,
         insertLineAfter: (sceneId, afterIdx) => void handleAddLine(sceneId, afterIdx),
         insertStanzaBreakAfter: (sceneId, afterIdx) =>
           void handleAddStanzaBreak(sceneId, afterIdx),
+        insertSectionLabelAfter: (sceneId, afterIdx) =>
+          void handleAddSectionLabel(sceneId, "Verse", afterIdx),
+        insertChordRowAfter: (sceneId, afterIdx) => void handleAddChordRow(sceneId, afterIdx),
         deleteEmptyElement: (sceneId, elementId) => void handleDeleteElement(sceneId, elementId),
       }),
-    [scenes, handleDeleteElement],
+    [scenes, isLyrics, handleDeleteElement],
   )
 
   const handleElementKeyDown = useCallback(
