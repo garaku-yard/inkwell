@@ -73,7 +73,7 @@ Legend: ✅ Working · ⚠️ Partial / buggy · ❌ Broken · 🔲 UI only (no 
 | Page pagination (US Letter layout) | ✅ | |
 | Comments panel | ⚠️ | UI exists, save/load works but `collaboration_invitations` error fixed — needs retest |
 | Import script dialog | ⚠️ | UI exists, import logic unknown |
-| AI Chat panel | ❌ | `ai-service` is unhealthy — starts but no API key configured, requests fail |
+| AI Chat panel | ✅ | BYO providers via Settings → AI Providers (desktop: OS keychain; hosted: encrypted server-side) |
 | Beat board link | ⚠️ | Links to `/projects/[id]/beat-board` — see below |
 | Outline editor link | ⚠️ | Links to `/projects/[id]/outline-editor` — see below |
 | Analytics link | ⚠️ | Links to `/analytics` — see below |
@@ -240,10 +240,12 @@ Legend: ✅ Working · ⚠️ Partial / buggy · ❌ Broken · 🔲 UI only (no 
 
 | Feature | Status | Notes |
 |---|---|---|
-| AI Chat panel (screenplay editor) | ❌ | `ai-service` starts but is `unhealthy` — no Anthropic/OpenAI key configured |
-| AI providers config | ❌ | Same |
-
-**Fix needed:** Set `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY`) env var for `ai-service` in `.env` or `docker-compose.yml`.
+| AI Chat panel (every editor) | ✅ | BYO providers, streaming, cancel-on-close |
+| AI providers config (Settings → AI Providers) | ✅ | OpenAI / Anthropic / Gemini / openai_compatible |
+| Desktop key storage | ✅ | OS keychain via `keyring` Rust crate |
+| Hosted key storage | ✅ | AES-256-GCM in Postgres via the `aisettings` gRPC service; gateway decrypts on dispatch |
+| `openai_compatible` on hosted path | ✅ | Operator allowlist via `AI_OPENAI_COMPATIBLE_HOSTS` env var |
+| `AI_ENCRYPTION_KEY` rotation | 🔲 | `key_version` column reserved; no re-encryption job yet |
 
 ---
 

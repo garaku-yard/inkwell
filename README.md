@@ -46,8 +46,11 @@ skip entirely.
 - **Analytics** per category — scene breakdown, dialogue balance, pacing,
   character voice, poem structure, whatever makes sense for each format.
 - **AI chat side-panel** in every editor. Bring your own provider key
-  (OpenAI, Anthropic, Gemini) — stored locally, never sent anywhere
-  else.
+  for OpenAI, Anthropic, Gemini, or any OpenAI-compatible endpoint
+  (Ollama, LM Studio, OpenRouter, your own LiteLLM proxy). Desktop
+  stores keys in your OS keychain and dispatches direct from your
+  machine; the optional hosted server encrypts keys at rest with
+  AES-256-GCM and decrypts only when calling the provider.
 - **Export** — PDF for screenplay, `.md` and `.txt` for everything else,
   with per-category industry conventions baked in.
 - **Collaboration** (optional) — invite by email or `@username#tag`,

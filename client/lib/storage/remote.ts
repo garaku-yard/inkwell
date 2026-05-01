@@ -77,7 +77,6 @@ const REMOTE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   "admin",
   "ai.hosted",
   "ai.byo",
-  "ai.byo.hosted",
 ])
 
 // ─── Auth ─────────────────────────────────────────────────────────────────

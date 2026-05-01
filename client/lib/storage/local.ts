@@ -2069,7 +2069,6 @@ const settings: SettingsStorage = {
  *  client-side adapter library. */
 const LOCAL_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   "ai.byo",
-  "ai.byo.hosted",
 ])
 
 /** Returns a Storage backed by local SQLite via `tauri-plugin-sql`. */

@@ -129,7 +129,6 @@ export type Capability =
   | "admin" // Billing admin endpoints (remote only).
   | "ai.hosted" // Hosted AI service vs. direct provider calls.
   | "ai.byo" // BYO-key AI providers configurable in settings.
-  | "ai.byo.hosted" // BYO for hosted providers (OpenAI/Anthropic/Gemini); desktop only until server-side key store ships.
 
 // ─── Auth ─────────────────────────────────────────────────────────────────
 

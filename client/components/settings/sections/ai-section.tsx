@@ -111,11 +111,6 @@ function metaFor(kind: ProviderKind): KindMeta {
   return KIND_META.find((m) => m.kind === kind) ?? KIND_META[0]
 }
 
-function availableKinds(hostedAllowed: boolean): KindMeta[] {
-  return hostedAllowed
-    ? KIND_META
-    : KIND_META.filter((m) => m.kind === "openai_compatible")
-}
 
 interface FormState {
   id?: string
@@ -128,8 +123,8 @@ interface FormState {
   replaceKey: boolean
 }
 
-function emptyForm(hostedAllowed: boolean): FormState {
-  const kind: ProviderKind = hostedAllowed ? "openai" : "openai_compatible"
+function emptyForm(): FormState {
+  const kind: ProviderKind = "openai"
   return {
     kind,
     label: metaFor(kind).defaultLabel,
@@ -156,14 +151,12 @@ function formFromSettings(settings: AIProviderSettings): FormState {
 
 /** Settings section for BYO AI providers.
  *
- *  Reads provider rows + keychain state through {@link Storage.ai}. Gates
- *  the whole section behind the `ai.byo` capability: the hosted web build
- *  renders a placeholder pointing at the desktop app until the server-side
- *  encrypted-key path ships (plan phase 4). */
+ *  Reads provider rows + keychain state through {@link Storage.ai}. Gated
+ *  behind the `ai.byo` capability so a future build that ships without
+ *  the BYO surface can hide the section entirely. */
 export function AISection() {
   const storage = getStorage()
   const supported = storage.capabilities.has("ai.byo")
-  const hostedAllowed = storage.capabilities.has("ai.byo.hosted")
 
   const [providers, setProviders] = useState<AIProviderSettings[]>([])
   const [loading, setLoading] = useState(supported)
@@ -199,7 +192,7 @@ export function AISection() {
 
   return (
     <div className="space-y-6">
-      <IntroCard hostedAllowed={hostedAllowed} />
+      <IntroCard />
 
       <Card>
         <CardHeader>
@@ -212,7 +205,7 @@ export function AISection() {
                 request is sent.
               </CardDescription>
             </div>
-            <Button onClick={() => setEditing(emptyForm(hostedAllowed))}>
+            <Button onClick={() => setEditing(emptyForm())}>
               <Plus className="mr-2 h-4 w-4" />
               Add provider
             </Button>
@@ -230,7 +223,7 @@ export function AISection() {
               {error}
             </div>
           ) : providers.length === 0 ? (
-            <EmptyState onAdd={() => setEditing(emptyForm(hostedAllowed))} />
+            <EmptyState onAdd={() => setEditing(emptyForm())} />
           ) : (
             <ul className="divide-y divide-border">
               {providers.map((p) => (
@@ -260,7 +253,6 @@ export function AISection() {
       {editing && (
         <ProviderFormDialog
           state={editing}
-          hostedAllowed={hostedAllowed}
           onChange={setEditing}
           onClose={() => setEditing(null)}
           onSaved={async () => {
@@ -300,7 +292,7 @@ export function AISection() {
   )
 }
 
-function IntroCard({ hostedAllowed }: { hostedAllowed: boolean }) {
+function IntroCard() {
   return (
     <Card>
       <CardHeader>
@@ -310,42 +302,14 @@ function IntroCard({ hostedAllowed }: { hostedAllowed: boolean }) {
           </div>
           <div className="space-y-2">
             <CardTitle>AI providers</CardTitle>
-            {hostedAllowed ? (
-              <CardDescription>
-                Bring your own keys for OpenAI, Anthropic, Gemini, or any
-                OpenAI-compatible endpoint (Ollama, LM Studio, OpenRouter,
-                custom deployments). Keys stay in your OS keychain. Chat
-                requests go directly from Inkwell to the provider — nothing
-                routes through our servers.
-              </CardDescription>
-            ) : (
-              <>
-                <CardDescription>
-                  On the web build you can wire up any OpenAI-compatible
-                  endpoint — local models on your own machine (Ollama, LM
-                  Studio, llama.cpp) or remote aggregators like OpenRouter.
-                  The chat request goes directly from your browser to the
-                  endpoint, never through our servers.
-                </CardDescription>
-                <CardDescription className="text-xs">
-                  BYO for OpenAI / Anthropic / Gemini on the web needs a
-                  server-side encrypted key store and is coming in a future
-                  update. For those today, use the{" "}
-                  <a
-                    className="underline underline-offset-2"
-                    href="https://github.com/l1roii/inkwell/releases"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    desktop app
-                  </a>{" "}
-                  (keys live in your OS keychain). Configuration + optional
-                  keys for local/compatible endpoints are stored in your
-                  browser — fine for keyless local models; treat OpenRouter-
-                  style keys as browser-exposed.
-                </CardDescription>
-              </>
-            )}
+            <CardDescription>
+              Bring your own keys for OpenAI, Anthropic, Gemini, or any
+              OpenAI-compatible endpoint (Ollama, LM Studio, OpenRouter,
+              custom deployments). On the desktop app keys stay in your OS
+              keychain and chat requests go directly from your machine to
+              the provider; on the hosted web build keys are encrypted at
+              rest and the gateway dispatches on your behalf.
+            </CardDescription>
           </div>
         </div>
       </CardHeader>
@@ -495,20 +459,18 @@ function renderTestError(raw: string, provider: AIProviderSettings): string {
 
 function ProviderFormDialog({
   state,
-  hostedAllowed,
   onChange,
   onClose,
   onSaved,
 }: {
   state: FormState
-  hostedAllowed: boolean
   onChange: (s: FormState) => void
   onClose: () => void
   onSaved: () => void
 }) {
   const storage = getStorage()
   const meta = metaFor(state.kind)
-  const kindOptions = availableKinds(hostedAllowed)
+  const kindOptions = KIND_META
   const isCreate = !state.id
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
