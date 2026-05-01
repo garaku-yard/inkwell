@@ -125,7 +125,8 @@ services:
       - COLLAB_SERVICE_URL=collab-service:50053
       - BILLING_SERVICE_URL=billing-service:50054
       - AI_SERVICE_URL=ai-service:50051
-      - REDIS_URL=redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - JWT_SECRET=dev-secret-key-change-in-production
     depends_on:
       - redis

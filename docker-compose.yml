@@ -405,7 +405,8 @@ services:
       - WORKSPACE_SERVICE_PORT=50056
       - AI_SETTINGS_SERVICE_HOST=aisettings-service
       - AI_SETTINGS_SERVICE_PORT=50057
-      - REDIS_URL=redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-redis}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
