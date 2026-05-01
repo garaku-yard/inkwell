@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useMemo, useRef } from "react"
 import { Plus, ChevronRight, ChevronDown, Table, Pencil, Dice6 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -9,6 +9,9 @@ import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
 import { useElementAutosave } from "./shared/useElementAutosave"
+import { dispatchKey } from "@/lib/editor/keymap"
+import { createRPGKeymap } from "./ttrpg/keymap"
+import { deleteScriptElement } from "@/services/editor"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import {
   createScene,
@@ -126,18 +129,66 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     if (el) setTimeout(() => document.getElementById(`el-${el.id}`)?.focus(), 50)
   }
 
-  const handleKeyDown = async (
-    e: React.KeyboardEvent<HTMLDivElement>,
-    sectionId: string,
-    el: ScriptElement,
-    elIdx: number,
-  ) => {
-    if (e.key === "Enter" && !e.shiftKey && el.element_type !== "stat_block" && el.element_type !== "table" && el.element_type !== "dice_table") {
-      e.preventDefault()
-      const next: RPGElementType = el.element_type === "h2" ? "body" : "body"
-      await handleAddElement(sectionId, next, elIdx)
-    }
-  }
+  const handleDeleteElement = useCallback(
+    async (sectionId: string, elementId: string) => {
+      const ids: string[] = []
+      for (const s of sections) {
+        for (const el of s.elements ?? []) {
+          ids.push(el.id)
+        }
+      }
+      const idx = ids.indexOf(elementId)
+      const prevId = idx > 0 ? ids[idx - 1] : null
+
+      setSections((prev) =>
+        prev.map((s) =>
+          s.id !== sectionId
+            ? s
+            : { ...s, elements: (s.elements ?? []).filter((el) => el.id !== elementId) },
+        ),
+      )
+      try {
+        await deleteScriptElement(elementId)
+      } catch (err) {
+        console.error("Failed to delete element:", err)
+      }
+      if (prevId) {
+        setTimeout(() => {
+          document.getElementById(`el-${prevId}`)?.focus()
+        }, 50)
+      }
+    },
+    [sections],
+  )
+
+  const keyMap = useMemo(
+    () =>
+      createRPGKeymap({
+        sections,
+        insertElementAfter: (sectionId, type, afterIdx) =>
+          void handleAddElement(sectionId, type, afterIdx),
+        deleteEmptyElement: (sectionId, elementId) =>
+          void handleDeleteElement(sectionId, elementId),
+      }),
+    [sections, handleDeleteElement],
+  )
+
+  const handleKeyDown = useCallback(
+    (
+      e: React.KeyboardEvent<HTMLDivElement>,
+      sectionId: string,
+      el: ScriptElement,
+      elIdx: number,
+    ) => {
+      dispatchKey(e, keyMap, {
+        sectionId,
+        elementId: el.id,
+        elementType: el.element_type as RPGElementType,
+        elementIndex: elIdx,
+      })
+    },
+    [keyMap],
+  )
 
   const toggleCollapse = (id: string) =>
     setCollapsed(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
