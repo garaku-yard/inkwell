@@ -153,7 +153,14 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err != nil {
+			// Headers are already flushed (200 OK), so we can't change
+			// the status. Surface the failure as a final NDJSON line
+			// the client parser is expecting on this stream — without
+			// it, an aborted upstream looks identical to a successful
+			// short reply.
 			log.Printf("ai stream error: %v", err)
+			_ = encoder.Encode(map[string]string{"error": redactStreamError(err)})
+			flusher.Flush()
 			return
 		}
 		if chunk.Delta != "" {
@@ -166,6 +173,18 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+// redactStreamError prepares an aiadapter error for the wire. Provider
+// payloads are already redacted by aiadapter.redact (so Bearer tokens
+// don't leak), but the error string still includes the kind prefix
+// which is fine to surface — it tells the user which provider failed.
+func redactStreamError(err error) string {
+	var perr *aiadapter.ErrProvider
+	if errors.As(err, &perr) {
+		return perr.Error()
+	}
+	return "stream interrupted"
 }
 
 // providerHTTPStatus maps a provider-layer error onto an HTTP status so

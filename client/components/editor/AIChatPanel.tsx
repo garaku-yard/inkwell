@@ -20,12 +20,47 @@ import { cn } from "@/lib/utils"
 import { getStorage } from "@/lib/storage"
 import type { AIProviderSettings } from "@/lib/storage"
 import { streamChatCompletion } from "@/services/ai"
+import { ApiError } from "@/lib/api"
+
+/** Translates a chat-flow error into copy a writer can act on. The
+ *  default message from the gateway ("Provider rejected the request")
+ *  is technically correct but uninformative; mapping common cases gives
+ *  the user a next step instead of a shrug. */
+function friendlyChatError(err: unknown): string {
+  if (err instanceof ApiError) {
+    switch (err.status) {
+      case 401:
+        return "Your saved API key was rejected. Open Settings → AI Providers and re-enter it."
+      case 403:
+        return "The provider blocked this request — usually a quota, region, or billing limit. Check the provider dashboard."
+      case 404:
+        return "Model not found. Pick a different one in Settings → AI Providers."
+      case 429:
+        return "Rate-limited by the provider. Wait a moment and try again."
+      case 502:
+      case 503:
+      case 504:
+        return "Couldn't reach the provider. Check your network or the provider's status page."
+      case 400:
+        // 400s are usually our own validation; pass them through verbatim.
+        return err.message
+    }
+  }
+  if (err instanceof Error && /network|fetch failed|failed to fetch/i.test(err.message)) {
+    return "Network error — can't reach Inkwell's gateway. Check your connection."
+  }
+  return err instanceof Error ? err.message : "Something went wrong."
+}
 
 interface Message {
   id: string
   type: "user" | "ai"
   content: string
   timestamp: Date
+  /** True when this bubble is reporting a chat failure rather than
+   *  carrying a real assistant reply. Renders with destructive styling
+   *  and an error icon so users don't mistake it for a model output. */
+  error?: boolean
 }
 
 const WELCOME: Record<string, string> = {
@@ -205,6 +240,8 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
       const reader = stream.getReader()
       const decoder = new TextDecoder()
 
+      let streamErrorMessage: string | null = null
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -215,7 +252,17 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
         for (const line of lines) {
           if (line.trim() === "") continue
           try {
-            const parsed = JSON.parse(line) as { response?: string; done?: boolean }
+            const parsed = JSON.parse(line) as {
+              response?: string
+              done?: boolean
+              error?: string
+            }
+            if (parsed.error) {
+              // Gateway emits {error} as the final NDJSON line when the
+              // upstream provider drops mid-stream. Capture and let the
+              // outer catch render it; partial response stays visible.
+              streamErrorMessage = parsed.error
+            }
             if (parsed.response) {
               setMessages((currentMessages) =>
                 currentMessages.map((msg) =>
@@ -230,6 +277,11 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
           }
         }
       }
+
+      if (streamErrorMessage) {
+        // Throw to take the unified error-rendering path below.
+        throw new Error(streamErrorMessage)
+      }
     } catch (error) {
       // Aborts are user-initiated — leave whatever partial response
       // arrived in place rather than overwriting it with an error.
@@ -237,13 +289,31 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
         (error instanceof DOMException && error.name === "AbortError") ||
         controller.signal.aborted
       if (!aborted) {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === aiMessageId
-              ? { ...msg, content: `Sorry — ${(error as Error).message}` }
-              : msg,
-          ),
-        )
+        const message = friendlyChatError(error)
+        setMessages((prev) => {
+          const target = prev.find((m) => m.id === aiMessageId)
+          // If the stream produced no text before failing, replace the
+          // empty AI bubble with an error bubble. If it produced
+          // partial text, append a separate error bubble so the partial
+          // reply stays visible.
+          if (target && target.content === "") {
+            return prev.map((msg) =>
+              msg.id === aiMessageId
+                ? { ...msg, content: message, error: true }
+                : msg,
+            )
+          }
+          return [
+            ...prev,
+            {
+              id: `${aiMessageId}-err`,
+              type: "ai",
+              content: message,
+              timestamp: new Date(),
+              error: true,
+            },
+          ]
+        })
       }
     } finally {
       setIsTyping(false)
@@ -349,9 +419,27 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
                     className={cn("flex gap-3.5 items-start", message.type === "user" ? "justify-end" : "justify-start")}
                   >
                     {message.type === "ai" && (
-                      <Avatar className="h-10 w-10 flex-shrink-0 ring-2 ring-primary/30 shadow-lg shadow-primary/10">
-                        <AvatarFallback className="bg-gradient-to-br from-primary/20 via-primary/15 to-primary/10 text-primary">
-                          <Bot className="h-4.5 w-4.5" />
+                      <Avatar
+                        className={cn(
+                          "h-10 w-10 flex-shrink-0 ring-2 shadow-lg",
+                          message.error
+                            ? "ring-destructive/40 shadow-destructive/10"
+                            : "ring-primary/30 shadow-primary/10",
+                        )}
+                      >
+                        <AvatarFallback
+                          className={cn(
+                            "bg-gradient-to-br",
+                            message.error
+                              ? "from-destructive/20 via-destructive/15 to-destructive/10 text-destructive"
+                              : "from-primary/20 via-primary/15 to-primary/10 text-primary",
+                          )}
+                        >
+                          {message.error ? (
+                            <AlertCircle className="h-4.5 w-4.5" />
+                          ) : (
+                            <Bot className="h-4.5 w-4.5" />
+                          )}
                         </AvatarFallback>
                       </Avatar>
                     )}
@@ -361,7 +449,9 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
                           "max-w-[340px] rounded-2xl px-5 py-3.5 shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-[1.02]",
                           message.type === "user"
                             ? "bg-gradient-to-br from-primary via-primary/95 to-primary/90 text-primary-foreground rounded-tr-sm shadow-primary/20"
-                            : "bg-gradient-to-br from-muted/95 via-muted/90 to-muted/85 border border-border/40 rounded-tl-sm",
+                            : message.error
+                              ? "bg-destructive/10 border border-destructive/30 text-destructive rounded-tl-sm shadow-destructive/10"
+                              : "bg-gradient-to-br from-muted/95 via-muted/90 to-muted/85 border border-border/40 rounded-tl-sm",
                         )}
                       >
                         <p className="text-sm leading-relaxed whitespace-pre-line font-medium">{message.content}</p>
