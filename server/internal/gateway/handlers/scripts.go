@@ -373,12 +373,12 @@ func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeRawError(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+		writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
 	if req.ProjectID == "" {
-		writeRawError(w, `{"error":"project_id is required"}`, http.StatusBadRequest)
+		writeError(w, "project_id is required", http.StatusBadRequest)
 		return
 	}
 
@@ -395,7 +395,7 @@ func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		writeRawError(w, `{"error":"Failed to create scene"}`, http.StatusInternalServerError)
+		writeError(w, "Failed to create scene", http.StatusInternalServerError)
 		return
 	}
 
@@ -417,7 +417,7 @@ func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request
 	userID := getUserIDFromContext(r)
 
 	if projectID == "" {
-		writeRawError(w, `{"error":"project_id is required"}`, http.StatusBadRequest)
+		writeError(w, "project_id is required", http.StatusBadRequest)
 		return
 	}
 	if userID == "" {
@@ -430,7 +430,7 @@ func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request
 
 	resolvedID, authErr := resolveProjectAccess(ctx, userID, projectID, h.scriptsClient, h.collabClient)
 	if authErr != nil {
-		writeRawError(w, `{"error":"Unauthorized"}`, http.StatusForbidden)
+		writeError(w, "Unauthorized", http.StatusForbidden)
 		return
 	}
 
@@ -440,7 +440,7 @@ func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request
 	})
 
 	if err != nil {
-		writeRawError(w, `{"error":"Failed to get scenes"}`, http.StatusInternalServerError)
+		writeError(w, "Failed to get scenes", http.StatusInternalServerError)
 		return
 	}
 
@@ -463,7 +463,7 @@ func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request
 func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	sceneID := chi.URLParam(r, "sceneId")
 	if sceneID == "" {
-		writeRawError(w, `{"error":"Scene ID is required"}`, http.StatusBadRequest)
+		writeError(w, "Scene ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -481,7 +481,7 @@ func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeRawError(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+		writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
@@ -497,7 +497,7 @@ func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		writeRawError(w, `{"error":"Failed to update scene"}`, http.StatusInternalServerError)
+		writeError(w, "Failed to update scene", http.StatusInternalServerError)
 		return
 	}
 
@@ -515,14 +515,14 @@ func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
 	sceneID := chi.URLParam(r, "sceneId")
 	if sceneID == "" {
-		writeRawError(w, `{"error":"Scene ID is required"}`, http.StatusBadRequest)
+		writeError(w, "Scene ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		writeRawError(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -536,7 +536,7 @@ func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		writeRawError(w, `{"error":"Failed to delete scene"}`, http.StatusInternalServerError)
+		writeError(w, "Failed to delete scene", http.StatusInternalServerError)
 		return
 	}
 
@@ -567,12 +567,12 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeRawError(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+		writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
 	if req.ProjectID == "" || req.ElementType == "" || req.SceneID == "" {
-		writeRawError(w, `{"error":"project_id, scene_id, and element_type are required"}`, http.StatusBadRequest)
+		writeError(w, "project_id, scene_id, and element_type are required", http.StatusBadRequest)
 		return
 	}
 
@@ -591,7 +591,7 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		writeRawError(w, `{"error":"Failed to create element"}`, http.StatusInternalServerError)
+		writeError(w, "Failed to create element", http.StatusInternalServerError)
 		return
 	}
 
@@ -610,7 +610,7 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 	elementID := chi.URLParam(r, "elementId")
 	if elementID == "" {
-		writeRawError(w, `{"error":"Element ID is required"}`, http.StatusBadRequest)
+		writeError(w, "Element ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -626,13 +626,13 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeRawError(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+		writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
 	// At least one field must be provided for update
 	if req.Content == nil && req.ElementType == nil {
-		writeRawError(w, `{"error":"Either content or elementType must be provided"}`, http.StatusBadRequest)
+		writeError(w, "Either content or elementType must be provided", http.StatusBadRequest)
 		return
 	}
 
@@ -660,7 +660,7 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 		response, err = h.scriptsClient.UpdateElement(ctx, updateReq)
 	}
 	if err != nil {
-		writeRawError(w, `{"error":"Failed to update element"}`, http.StatusInternalServerError)
+		writeError(w, "Failed to update element", http.StatusInternalServerError)
 		return
 	}
 
@@ -678,14 +678,14 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
 	elementID := chi.URLParam(r, "elementId")
 	if elementID == "" {
-		writeRawError(w, `{"error":"Element ID is required"}`, http.StatusBadRequest)
+		writeError(w, "Element ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
 	userID := getUserIDFromContext(r)
 	if userID == "" {
-		writeRawError(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+		writeError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -699,7 +699,7 @@ func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		writeRawError(w, `{"error":"Failed to delete element"}`, http.StatusInternalServerError)
+		writeError(w, "Failed to delete element", http.StatusInternalServerError)
 		return
 	}
 
@@ -719,7 +719,7 @@ func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request
 	userID := getUserIDFromContext(r)
 
 	if sceneID == "" {
-		writeRawError(w, `{"error":"scene_id is required"}`, http.StatusBadRequest)
+		writeError(w, "scene_id is required", http.StatusBadRequest)
 		return
 	}
 	if userID == "" {
@@ -742,7 +742,7 @@ func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request
 			UserId:  "",
 		})
 		if err != nil {
-			writeRawError(w, `{"error":"Failed to get elements"}`, http.StatusInternalServerError)
+			writeError(w, "Failed to get elements", http.StatusInternalServerError)
 			return
 		}
 	}

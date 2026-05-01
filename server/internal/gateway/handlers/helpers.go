@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -15,15 +14,6 @@ import (
 // front-end callers can branch on.
 func writeError(w http.ResponseWriter, message string, status int) {
 	apierror.WriteStatus(w, status, codeForHTTPStatus(status), message)
-}
-
-// writeRawError writes a pre-formatted JSON body as an application/json error response.
-// Retained for legacy callers that already produced a valid JSON string; prefer
-// writeError or apierror.Write for new code.
-func writeRawError(w http.ResponseWriter, body string, status int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	fmt.Fprint(w, body)
 }
 
 // handleGRPCError converts a gRPC error into a structured envelope and writes
