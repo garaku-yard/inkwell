@@ -1,3 +1,5 @@
+import type React from "react"
+
 import {
   createElementNavigationKeymap,
   focusContentEditableAtEnd,
@@ -29,6 +31,22 @@ const NEXT_ELEMENT_AFTER_ENTER: Partial<Record<RPGElementType, RPGElementType>> 
   rule_box: "body",
 }
 
+/** mod+digit inserts a specific element type. Covers the seven types
+ *  the format ships — multi-line types (stat_block, table, dice_table)
+ *  are present too because the shortcut is the only ergonomic way to
+ *  drop one of those without mousing to the toolbar. The default
+ *  content for those types is seeded by the editor's handleAddElement,
+ *  not the keymap. */
+const NUMBER_KEY_TO_ELEMENT: Record<string, RPGElementType> = {
+  "1": "body",
+  "2": "h2",
+  "3": "stat_block",
+  "4": "table",
+  "5": "dice_table",
+  "6": "callout",
+  "7": "rule_box",
+}
+
 export interface RPGKeyContext {
   sectionId: string
   elementId: string
@@ -58,6 +76,16 @@ function getElementNode(id: string): HTMLElement | null {
 }
 
 export function createRPGKeymap(opts: CreateRPGKeymapOptions): Keymap<RPGKeyContext> {
+  const insertViaDigit = (type: RPGElementType) =>
+    (e: React.KeyboardEvent<HTMLDivElement>, ctx: RPGKeyContext) => {
+      e.preventDefault()
+      opts.insertElementAfter(ctx.sectionId, type, ctx.elementIndex)
+    }
+
+  const numberKeyEntries = Object.entries(NUMBER_KEY_TO_ELEMENT).map(
+    ([digit, type]) => [`mod+${digit}`, insertViaDigit(type)] as const,
+  )
+
   return {
     ...createElementNavigationKeymap<RPGKeyContext>({
       getNeighbour: (ctx, dir) => {
@@ -77,5 +105,6 @@ export function createRPGKeymap(opts: CreateRPGKeymapOptions): Keymap<RPGKeyCont
       e.preventDefault()
       opts.insertElementAfter(ctx.sectionId, next, ctx.elementIndex)
     },
+    ...Object.fromEntries(numberKeyEntries),
   }
 }
