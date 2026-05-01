@@ -20,7 +20,6 @@ import {
   Trash2,
   X,
 } from "lucide-react"
-import { useDebouncedCallback } from "use-debounce"
 import { isTauri } from "@tauri-apps/api/core"
 
 import { Button } from "@/components/ui/button"
@@ -44,6 +43,7 @@ import { cn } from "@/lib/utils"
 import type { FullProject } from "@/services/project"
 import { MarkdownEditor } from "./markdown/MarkdownEditor"
 import { VaultGraph } from "./VaultGraph"
+import { useVaultAutosave } from "./vault/useVaultAutosave"
 import { useVaultNotes } from "./vault/useVaultNotes"
 
 interface VaultEditorProps {
@@ -183,31 +183,21 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     })
   }
 
-  // Autosave — 600 ms after the last keystroke.
-  const debouncedSave = useDebouncedCallback(
-    async (filename: string, body: string) => {
-      try {
-        await storage.vault.writeNote(projectId, filename, body)
-        setDirty(false)
-      } catch (err) {
-        console.error("Vault writeNote failed:", err)
-        setError("Autosave failed. Check that the vault folder is writable.")
-      }
-    },
-    600,
-  )
-
-  const flushPending = useCallback(async () => {
-    if (!dirty || !selected) return
-    debouncedSave.cancel()
-    await storage.vault.writeNote(projectId, selected.filename, content)
-    setDirty(false)
-  }, [content, debouncedSave, dirty, projectId, selected, storage])
+  const { scheduleSave, flushPending, cancelPending } = useVaultAutosave({
+    projectId,
+    storage,
+    selected,
+    content,
+    dirty,
+    setDirty,
+    setError,
+    selectedFilenameRef,
+  })
 
   const onContentChange = (next: string) => {
     setContent(next)
     setDirty(true)
-    if (selectedFilenameRef.current) debouncedSave(selectedFilenameRef.current, next)
+    if (selectedFilenameRef.current) scheduleSave(selectedFilenameRef.current, next)
   }
 
   const onSelectNote = async (note: VaultNote) => {
@@ -301,7 +291,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   const confirmDeleteNote = async () => {
     if (!selected) return
     setActionBusy(true)
-    debouncedSave.cancel()
+    cancelPending()
     try {
       await storage.vault.deleteNote(projectId, selected.filename)
       selectedFilenameRef.current = null
@@ -580,17 +570,6 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     }
   }
 
-  // Ctrl/Cmd+S forces an immediate save. Ctrl/Cmd+N creates a note.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault()
-        void flushPending()
-      }
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [flushPending])
 
   if (isLoading) {
     return (
