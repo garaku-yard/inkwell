@@ -1,3 +1,5 @@
+import type React from "react"
+
 import {
   createElementNavigationKeymap,
   focusContentEditableAtEnd,
@@ -9,6 +11,26 @@ import type { Scene } from "@/services/project"
 /** Interactive Fiction element types — keep in sync with the union in
  *  InteractiveFictionEditor.tsx. */
 export type IFElementType = "body" | "choice" | "conditional" | "set" | "note"
+
+/** Tab cycles between body and choice — the two most-frequently
+ *  alternating types when laying out a branch. Other types ignore Tab
+ *  (no obvious counterpart and we don't want Tab to mean "insert
+ *  random other type"). */
+const NEXT_ELEMENT_ON_TAB: Partial<Record<IFElementType, IFElementType>> = {
+  body: "choice",
+  choice: "body",
+}
+
+/** mod+digit shortcuts for the five element types. body on 1 because
+ *  it's the most common; choice on 2 because branches are the next
+ *  most common; conditional / set / note round out 3-5. */
+const NUMBER_KEY_TO_ELEMENT: Record<string, IFElementType> = {
+  "1": "body",
+  "2": "choice",
+  "3": "conditional",
+  "4": "set",
+  "5": "note",
+}
 
 export interface IFKeyContext {
   passageId: string
@@ -40,6 +62,16 @@ function getElementNode(id: string): HTMLElement | null {
 }
 
 export function createIFKeymap(opts: CreateIFKeymapOptions): Keymap<IFKeyContext> {
+  const insertViaDigit = (type: IFElementType) =>
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      opts.insertElementAtEnd(type)
+    }
+
+  const numberKeyEntries = Object.entries(NUMBER_KEY_TO_ELEMENT).map(
+    ([digit, type]) => [`mod+${digit}`, insertViaDigit(type)] as const,
+  )
+
   return {
     ...createElementNavigationKeymap<IFKeyContext>({
       getNeighbour: (ctx, dir) => {
@@ -59,5 +91,12 @@ export function createIFKeymap(opts: CreateIFKeymapOptions): Keymap<IFKeyContext
       // the most common follow-up after notes/sets/conditionals.
       opts.insertElementAtEnd(ctx.elementType === "body" ? "body" : "choice")
     },
+    tab: (e, ctx) => {
+      const next = NEXT_ELEMENT_ON_TAB[ctx.elementType]
+      if (!next) return
+      e.preventDefault()
+      opts.insertElementAtEnd(next)
+    },
+    ...Object.fromEntries(numberKeyEntries),
   }
 }
