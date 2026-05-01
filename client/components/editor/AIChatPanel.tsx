@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Bot, Send, Square, User, Sparkles, X, AlertCircle } from "lucide-react"
 
@@ -17,51 +17,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { getStorage } from "@/lib/storage"
-import type { AIProviderSettings } from "@/lib/storage"
-import { streamChatCompletion } from "@/services/ai"
-import { ApiError } from "@/lib/api"
 
-/** Translates a chat-flow error into copy a writer can act on. The
- *  default message from the gateway ("Provider rejected the request")
- *  is technically correct but uninformative; mapping common cases gives
- *  the user a next step instead of a shrug. */
-function friendlyChatError(err: unknown): string {
-  if (err instanceof ApiError) {
-    switch (err.status) {
-      case 401:
-        return "Your saved API key was rejected. Open Settings → AI Providers and re-enter it."
-      case 403:
-        return "The provider blocked this request — usually a quota, region, or billing limit. Check the provider dashboard."
-      case 404:
-        return "Model not found. Pick a different one in Settings → AI Providers."
-      case 429:
-        return "Rate-limited by the provider. Wait a moment and try again."
-      case 502:
-      case 503:
-      case 504:
-        return "Couldn't reach the provider. Check your network or the provider's status page."
-      case 400:
-        // 400s are usually our own validation; pass them through verbatim.
-        return err.message
-    }
-  }
-  if (err instanceof Error && /network|fetch failed|failed to fetch/i.test(err.message)) {
-    return "Network error — can't reach Inkwell's gateway. Check your connection."
-  }
-  return err instanceof Error ? err.message : "Something went wrong."
-}
-
-interface Message {
-  id: string
-  type: "user" | "ai"
-  content: string
-  timestamp: Date
-  /** True when this bubble is reporting a chat failure rather than
-   *  carrying a real assistant reply. Renders with destructive styling
-   *  and an error icon so users don't mistake it for a model output. */
-  error?: boolean
-}
+import { useAIProviders } from "./ai-chat/useAIProviders"
+import { useAIChatStream, type ChatMessage } from "./ai-chat/useAIChatStream"
 
 const WELCOME: Record<string, string> = {
   screenplay:           "Ask me anything about your script — scenes, dialogue, structure.",
@@ -74,43 +32,6 @@ const WELCOME: Record<string, string> = {
   ttrpg:                "Ask me anything about your game — rules, lore, encounters.",
 }
 
-const SELECTION_KEY_PREFIX = "inkwell.ai.selection"
-
-interface StoredSelection {
-  providerId: string
-  model?: string
-}
-
-/** Storage key for a given project's provider selection. Falls back to a
- *  shared global key when the panel is mounted outside any project, so
- *  the selection still persists across sessions. */
-function selectionKeyFor(projectId?: string): string {
-  return projectId ? `${SELECTION_KEY_PREFIX}.${projectId}` : SELECTION_KEY_PREFIX
-}
-
-function readSelection(projectId?: string): StoredSelection | null {
-  if (typeof window === "undefined") return null
-  try {
-    const raw = window.localStorage.getItem(selectionKeyFor(projectId))
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as StoredSelection
-    if (typeof parsed.providerId !== "string") return null
-    return parsed
-  } catch {
-    return null
-  }
-}
-
-function writeSelection(projectId: string | undefined, selection: StoredSelection | null) {
-  if (typeof window === "undefined") return
-  const key = selectionKeyFor(projectId)
-  if (selection === null) {
-    window.localStorage.removeItem(key)
-    return
-  }
-  window.localStorage.setItem(key, JSON.stringify(selection))
-}
-
 interface AIChatPanelProps {
   isOpen: boolean
   onClose: () => void
@@ -121,10 +42,8 @@ interface AIChatPanelProps {
 }
 
 export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }: AIChatPanelProps) => {
-  const storage = getStorage()
-
   const welcome = WELCOME[category ?? ""] ?? "Ask me anything about your writing."
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
       type: "ai",
@@ -135,13 +54,23 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
   const [inputValue, setInputValue] = useState("")
   const [isTyping, setIsTyping] = useState(false)
 
-  const [providers, setProviders] = useState<AIProviderSettings[]>([])
-  const [providersLoaded, setProvidersLoaded] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const abortRef = useRef<AbortController | null>(null)
-
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const {
+    providers,
+    providersLoaded,
+    selectedProvider,
+    selectedId,
+    selectProvider,
+  } = useAIProviders(projectId, isOpen)
+
+  const { sendMessage, stop } = useAIChatStream({
+    selectedProvider,
+    setMessages,
+    setIsTyping,
+    isTyping,
+  })
 
   useEffect(() => {
     if (isOpen) {
@@ -153,184 +82,19 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, isTyping])
 
-  // Cancel any in-flight stream when the panel unmounts so we don't keep
-  // burning tokens / bandwidth after the user has moved on.
-  useEffect(() => {
-    return () => {
-      abortRef.current?.abort()
-    }
-  }, [])
-
-  const loadProviders = useCallback(async () => {
-    try {
-      const rows = await storage.ai.listProviderSettings()
-      const usable = rows.filter((p) => p.enabled && (p.hasKey || p.kind === "openai_compatible"))
-      setProviders(usable)
-      const stored = readSelection(projectId)
-      const fallback = usable[0]?.id ?? null
-      const next =
-        stored && usable.some((p) => p.id === stored.providerId)
-          ? stored.providerId
-          : fallback
-      setSelectedId(next)
-      if (next && (!stored || stored.providerId !== next)) {
-        writeSelection(projectId, { providerId: next })
-      }
-    } catch {
-      setProviders([])
-      setSelectedId(null)
-    } finally {
-      setProvidersLoaded(true)
-    }
-  }, [storage, projectId])
-
-  useEffect(() => {
-    if (isOpen) void loadProviders()
-  }, [isOpen, loadProviders])
-
-  const selectedProvider = useMemo(
-    () => providers.find((p) => p.id === selectedId) ?? null,
-    [providers, selectedId],
-  )
-
   const canSend = selectedProvider !== null
 
-  const handleStop = () => {
-    abortRef.current?.abort()
-  }
-
-  const handleSendMessage = async (content: string) => {
-    if (!content.trim() || isTyping) return
-    if (!selectedProvider) return
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: "user",
-      content: content.trim(),
-      timestamp: new Date(),
-    }
-
-    setMessages((prev) => [...prev, userMessage])
+  const handleSend = (content: string) => {
+    if (!content.trim()) return
     setInputValue("")
-    setIsTyping(true)
-
-    const aiMessageId = (Date.now() + 1).toString()
-    setMessages((prev) => [
-      ...prev,
-      { id: aiMessageId, type: "ai", content: "", timestamp: new Date() },
-    ])
-
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    try {
-      const request = {
-        messages: [...messages, userMessage].map((msg) => ({
-          role: (msg.type === "user" ? "user" : "assistant") as "user" | "assistant",
-          content: msg.content,
-        })),
-        providerId: selectedProvider.id,
-        model: selectedProvider.defaultModel,
-        stream: true,
-      }
-
-      const stream = await streamChatCompletion(request, { signal: controller.signal })
-      if (!stream) throw new Error("Stream is null")
-
-      const reader = stream.getReader()
-      const decoder = new TextDecoder()
-
-      let streamErrorMessage: string | null = null
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value)
-        const lines = chunk.split("\n")
-
-        for (const line of lines) {
-          if (line.trim() === "") continue
-          try {
-            const parsed = JSON.parse(line) as {
-              response?: string
-              done?: boolean
-              error?: string
-            }
-            if (parsed.error) {
-              // Gateway emits {error} as the final NDJSON line when the
-              // upstream provider drops mid-stream. Capture and let the
-              // outer catch render it; partial response stays visible.
-              streamErrorMessage = parsed.error
-            }
-            if (parsed.response) {
-              setMessages((currentMessages) =>
-                currentMessages.map((msg) =>
-                  msg.id === aiMessageId
-                    ? { ...msg, content: msg.content + parsed.response }
-                    : msg,
-                ),
-              )
-            }
-          } catch {
-            // Non-JSON line — ignore; upstream parsers can emit framing bytes.
-          }
-        }
-      }
-
-      if (streamErrorMessage) {
-        // Throw to take the unified error-rendering path below.
-        throw new Error(streamErrorMessage)
-      }
-    } catch (error) {
-      // Aborts are user-initiated — leave whatever partial response
-      // arrived in place rather than overwriting it with an error.
-      const aborted =
-        (error instanceof DOMException && error.name === "AbortError") ||
-        controller.signal.aborted
-      if (!aborted) {
-        const message = friendlyChatError(error)
-        setMessages((prev) => {
-          const target = prev.find((m) => m.id === aiMessageId)
-          // If the stream produced no text before failing, replace the
-          // empty AI bubble with an error bubble. If it produced
-          // partial text, append a separate error bubble so the partial
-          // reply stays visible.
-          if (target && target.content === "") {
-            return prev.map((msg) =>
-              msg.id === aiMessageId
-                ? { ...msg, content: message, error: true }
-                : msg,
-            )
-          }
-          return [
-            ...prev,
-            {
-              id: `${aiMessageId}-err`,
-              type: "ai",
-              content: message,
-              timestamp: new Date(),
-              error: true,
-            },
-          ]
-        })
-      }
-    } finally {
-      setIsTyping(false)
-      abortRef.current = null
-    }
+    void sendMessage(content, messages)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      handleSendMessage(inputValue)
+      handleSend(inputValue)
     }
-  }
-
-  const handleSelectProvider = (id: string) => {
-    setSelectedId(id)
-    writeSelection(projectId, { providerId: id })
   }
 
   const showEmptyState = providersLoaded && providers.length === 0
@@ -377,7 +141,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
 
             {providers.length > 0 && (
               <div className="relative">
-                <Select value={selectedId ?? undefined} onValueChange={handleSelectProvider}>
+                <Select value={selectedId ?? undefined} onValueChange={selectProvider}>
                   <SelectTrigger className="h-9 bg-background/70 text-sm">
                     <SelectValue placeholder="Pick a provider" />
                   </SelectTrigger>
@@ -518,7 +282,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
               {isTyping ? (
                 <Button
                   size="icon"
-                  onClick={handleStop}
+                  onClick={stop}
                   className="h-11 w-11 flex-shrink-0 shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-200 rounded-xl bg-gradient-to-br from-destructive/90 to-destructive"
                   aria-label="Stop response"
                 >
@@ -527,7 +291,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
               ) : (
                 <Button
                   size="icon"
-                  onClick={() => handleSendMessage(inputValue)}
+                  onClick={() => handleSend(inputValue)}
                   disabled={!inputValue.trim() || !canSend}
                   className="h-11 w-11 flex-shrink-0 shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-200 rounded-xl bg-gradient-to-br from-primary to-primary/90"
                 >
