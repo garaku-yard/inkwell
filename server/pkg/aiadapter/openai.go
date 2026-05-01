@@ -12,9 +12,9 @@ import (
 
 const openAIDefaultBaseURL = "https://api.openai.com/v1"
 
-// OpenAIAdapter speaks the `/chat/completions` contract. It's used for
-// OpenAI itself; the gateway doesn't use it for `openai_compatible`
-// endpoints (those stay client-side — see package doc).
+// OpenAIAdapter speaks the OpenAI `/chat/completions` contract against
+// api.openai.com (or any explicit BaseURL the caller provides — used for
+// proxy fronts and the openai_compatible adapter, which delegates here).
 type OpenAIAdapter struct{}
 
 // Kind implements Adapter.
@@ -22,12 +22,24 @@ func (OpenAIAdapter) Kind() ProviderKind { return KindOpenAI }
 
 // StreamChat implements Adapter.
 func (a OpenAIAdapter) StreamChat(ctx context.Context, in Input) (Stream, error) {
+	return streamOpenAIShape(ctx, in, KindOpenAI, openAIDefaultBaseURL)
+}
+
+// streamOpenAIShape opens an SSE chat stream against any endpoint that
+// speaks OpenAI's `/chat/completions` contract. `kind` is reflected back
+// in error envelopes so callers can tell OpenAI from openai_compatible
+// failures; `defaultBaseURL` is used when the input doesn't override it
+// (empty string means no fallback — caller must supply BaseURL).
+func streamOpenAIShape(ctx context.Context, in Input, kind ProviderKind, defaultBaseURL string) (Stream, error) {
 	if in.APIKey == "" {
-		return nil, &ErrProvider{Kind: KindOpenAI, Message: "missing API key"}
+		return nil, &ErrProvider{Kind: kind, Message: "missing API key"}
 	}
 	baseURL := strings.TrimRight(in.BaseURL, "/")
 	if baseURL == "" {
-		baseURL = openAIDefaultBaseURL
+		baseURL = defaultBaseURL
+	}
+	if baseURL == "" {
+		return nil, &ErrProvider{Kind: kind, Message: "baseUrl required"}
 	}
 
 	body, err := json.Marshal(map[string]any{
@@ -36,12 +48,12 @@ func (a OpenAIAdapter) StreamChat(ctx context.Context, in Input) (Stream, error)
 		"stream":   true,
 	})
 	if err != nil {
-		return nil, &ErrProvider{Kind: KindOpenAI, Message: err.Error()}
+		return nil, &ErrProvider{Kind: kind, Message: err.Error()}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return nil, &ErrProvider{Kind: KindOpenAI, Message: err.Error()}
+		return nil, &ErrProvider{Kind: kind, Message: err.Error()}
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+in.APIKey)
@@ -53,18 +65,33 @@ func (a OpenAIAdapter) StreamChat(ctx context.Context, in Input) (Stream, error)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, &ErrProvider{Kind: KindOpenAI, Message: err.Error()}
+		return nil, &ErrProvider{Kind: kind, Message: err.Error()}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
-		return nil, &ErrProvider{Kind: KindOpenAI, Status: resp.StatusCode, Message: redact(string(msg))}
+		return nil, &ErrProvider{Kind: kind, Status: resp.StatusCode, Message: redact(string(msg))}
 	}
 
-	return &openAIStream{scanner: newSSEScanner(resp.Body)}, nil
+	return &openAIStream{kind: kind, scanner: newSSEScanner(resp.Body)}, nil
+}
+
+// OpenAICompatibleAdapter speaks the same wire contract as the OpenAI
+// adapter but requires an explicit BaseURL — there's no public default,
+// since the operator has to allowlist the host first (see package doc
+// and gateway config field OpenAICompatibleHosts).
+type OpenAICompatibleAdapter struct{}
+
+// Kind implements Adapter.
+func (OpenAICompatibleAdapter) Kind() ProviderKind { return KindOpenAICompatible }
+
+// StreamChat implements Adapter.
+func (OpenAICompatibleAdapter) StreamChat(ctx context.Context, in Input) (Stream, error) {
+	return streamOpenAIShape(ctx, in, KindOpenAICompatible, "")
 }
 
 type openAIStream struct {
+	kind    ProviderKind
 	scanner *sseScanner
 	done    bool
 }
@@ -100,10 +127,10 @@ func (s *openAIStream) Next(ctx context.Context) (Chunk, error) {
 		}
 		var c openAIChunk
 		if err := json.Unmarshal([]byte(data), &c); err != nil {
-			return Chunk{}, &ErrProvider{Kind: KindOpenAI, Message: fmt.Sprintf("malformed chunk: %v", err)}
+			return Chunk{}, &ErrProvider{Kind: s.kind, Message: fmt.Sprintf("malformed chunk: %v", err)}
 		}
 		if c.Error != nil {
-			return Chunk{}, &ErrProvider{Kind: KindOpenAI, Message: redact(c.Error.Message)}
+			return Chunk{}, &ErrProvider{Kind: s.kind, Message: redact(c.Error.Message)}
 		}
 		if len(c.Choices) == 0 {
 			continue

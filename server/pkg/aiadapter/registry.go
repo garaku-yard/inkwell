@@ -10,6 +10,8 @@ func Get(kind ProviderKind) (Adapter, error) {
 		return AnthropicAdapter{}, nil
 	case KindGemini:
 		return GeminiAdapter{}, nil
+	case KindOpenAICompatible:
+		return OpenAICompatibleAdapter{}, nil
 	default:
 		return nil, ErrUnsupportedKind
 	}

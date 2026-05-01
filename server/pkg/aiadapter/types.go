@@ -1,13 +1,19 @@
 // Package aiadapter is the server-side mirror of the TypeScript adapter
 // library in `client/lib/ai/providers/`. It exposes a common interface
-// over the three hosted provider contracts (OpenAI, Anthropic, Gemini) so
-// the gateway can fan out to whichever one the user configured without
-// the surrounding code caring which SDK is being spoken underneath.
+// over the supported provider contracts (OpenAI, Anthropic, Gemini, plus
+// any OpenAI-compatible endpoint the operator has allowlisted) so the
+// gateway can fan out to whichever one the user configured without the
+// surrounding code caring which SDK is being spoken underneath.
 //
-// This package deliberately does NOT cover `openai_compatible` (Ollama,
-// LM Studio, llama.cpp-server): the gateway cannot reach the user's
-// localhost from inside the container, so local-model traffic stays on
-// the browser-side adapter path.
+// `openai_compatible` is gated by the AI_OPENAI_COMPATIBLE_HOSTS env var
+// on the gateway. The list is empty by default, which makes the kind
+// inactive on the hosted path — clients can still create rows but the
+// gateway refuses to dispatch them. Operators of self-hosted or
+// company-internal Inkwell installs add their LLM hosts (e.g.
+// `ollama.internal:11434`) to opt those endpoints in. The check is
+// applied at both Create/Update time (clear error early) and at chat
+// dispatch (defense in depth, in case a row was saved before the list
+// tightened).
 package aiadapter
 
 import (
@@ -21,9 +27,10 @@ type ProviderKind string
 
 // Hosted provider kinds.
 const (
-	KindOpenAI    ProviderKind = "openai"
-	KindAnthropic ProviderKind = "anthropic"
-	KindGemini    ProviderKind = "gemini"
+	KindOpenAI             ProviderKind = "openai"
+	KindAnthropic          ProviderKind = "anthropic"
+	KindGemini             ProviderKind = "gemini"
+	KindOpenAICompatible   ProviderKind = "openai_compatible"
 )
 
 // Message is one turn in a chat. Anthropic and Gemini accept "system"
@@ -39,9 +46,10 @@ type Input struct {
 	Messages []Message
 	Model    string
 	APIKey   string
-	// BaseURL overrides the provider's public endpoint. Supported by the
-	// OpenAI adapter for proxy / self-hosted deployments; ignored by
-	// Anthropic and Gemini.
+	// BaseURL overrides the provider's public endpoint. Optional for the
+	// OpenAI adapter (defaults to api.openai.com), required for the
+	// openai_compatible adapter (which has no public default), and
+	// ignored by Anthropic and Gemini.
 	BaseURL string
 	// HTTPClient overrides the default client — useful for tests. nil
 	// means use http.DefaultClient.

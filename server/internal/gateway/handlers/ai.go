@@ -27,8 +27,9 @@ import (
 //     Python AI service using server-managed keys (the current hosted
 //     default).
 type AIHandler struct {
-	aiChatServiceURL string
-	aiSettings       aisettingspb.AISettingsServiceClient
+	aiChatServiceURL      string
+	aiSettings            aisettingspb.AISettingsServiceClient
+	openAICompatibleHosts []string
 }
 
 // NewAIHandler creates an AIHandler with both the Python proxy URL and
@@ -36,8 +37,9 @@ type AIHandler struct {
 // instead of assembled locally so test doubles can be injected.
 func NewAIHandler(cfg *config.Config, clients *grpcclient.Registry) (*AIHandler, error) {
 	return &AIHandler{
-		aiChatServiceURL: fmt.Sprintf("http://%s:%s", cfg.AIChatService.Host, cfg.AIChatService.Port),
-		aiSettings:       clients.AISettings,
+		aiChatServiceURL:      fmt.Sprintf("http://%s:%s", cfg.AIChatService.Host, cfg.AIChatService.Port),
+		aiSettings:            clients.AISettings,
+		openAICompatibleHosts: cfg.OpenAICompatibleHosts,
 	}, nil
 }
 
@@ -134,6 +136,16 @@ func (h *AIHandler) chatBYO(w http.ResponseWriter, r *http.Request, req *ChatReq
 	if err != nil {
 		writeError(w, fmt.Sprintf("Provider kind %q not supported on this build", setting.Kind), http.StatusBadRequest)
 		return
+	}
+
+	// Re-check the openai_compatible allowlist at dispatch time —
+	// defense in depth in case the row was created when a wider list
+	// was configured. Other kinds skip this check.
+	if setting.Kind == string(aiadapter.KindOpenAICompatible) {
+		if err := validateOpenAICompatibleURL(setting.BaseUrl, h.openAICompatibleHosts); err != nil {
+			writeError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 
 	messages := make([]aiadapter.Message, len(req.Messages))

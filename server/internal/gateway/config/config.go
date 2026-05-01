@@ -36,6 +36,16 @@ type Config struct {
 	RateLimitRPM     int `env:"RATE_LIMIT_RPM" default:"120"`
 	AuthRateLimitRPM int `env:"AUTH_RATE_LIMIT_RPM" default:"10"`
 	AIRateLimitRPM   int `env:"AI_RATE_LIMIT_RPM" default:"30"`
+
+	// OpenAICompatibleHosts allowlists `host[:port]` values that
+	// `openai_compatible` provider rows are allowed to dispatch to. Empty
+	// (the default) disables the kind on the hosted path entirely; rows
+	// can still be created but the gateway refuses to call them. Operators
+	// of self-hosted or company-internal Inkwell installs add their LLM
+	// endpoints (e.g. `ollama.internal:11434`) here. Match is exact
+	// against the URL's Host field — provide entries with the port the
+	// users will configure with.
+	OpenAICompatibleHosts []string `env:"AI_OPENAI_COMPATIBLE_HOSTS" default:""`
 }
 
 // RedisConfig holds Redis connection settings for the gateway.
@@ -134,6 +144,18 @@ func Load() (*Config, error) {
 	// Parse allowed origins
 	originsEnv := getEnvOrDefault("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001")
 	config.AllowedOrigins = strings.Split(originsEnv, ",")
+
+	// Parse openai_compatible host allowlist. Empty env var means the
+	// kind is off on the hosted path; we filter empty entries so a
+	// trailing comma doesn't accidentally create an empty allowlist
+	// entry that matches a URL whose host couldn't be parsed.
+	if hosts := os.Getenv("AI_OPENAI_COMPATIBLE_HOSTS"); hosts != "" {
+		for _, h := range strings.Split(hosts, ",") {
+			if trimmed := strings.TrimSpace(h); trimmed != "" {
+				config.OpenAICompatibleHosts = append(config.OpenAICompatibleHosts, trimmed)
+			}
+		}
+	}
 
 	return config, nil
 }

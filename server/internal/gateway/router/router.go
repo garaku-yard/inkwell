@@ -93,7 +93,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	aiSettingsHandler := handlers.NewAISettingsHandler(clients)
+	aiSettingsHandler := handlers.NewAISettingsHandler(clients, cfg.OpenAICompatibleHosts)
 
 	// Auth middleware — shared across all protected route groups.
 	identityServiceURL := cfg.IdentityService.Host + ":" + cfg.IdentityService.Port

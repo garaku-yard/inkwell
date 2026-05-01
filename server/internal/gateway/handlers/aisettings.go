@@ -21,12 +21,18 @@ import (
 
 // AISettingsHandler handles `/api/ai/settings` CRUD + key endpoints.
 type AISettingsHandler struct {
-	client aisettingspb.AISettingsServiceClient
+	client                aisettingspb.AISettingsServiceClient
+	openAICompatibleHosts []string
 }
 
 // NewAISettingsHandler wires the HTTP layer to the AI settings gRPC client.
-func NewAISettingsHandler(clients *grpcclient.Registry) *AISettingsHandler {
-	return &AISettingsHandler{client: clients.AISettings}
+// openAICompatibleHosts is the operator-supplied allowlist (host[:port])
+// used to gate `openai_compatible` provider rows at create/update time.
+func NewAISettingsHandler(clients *grpcclient.Registry, openAICompatibleHosts []string) *AISettingsHandler {
+	return &AISettingsHandler{
+		client:                clients.AISettings,
+		openAICompatibleHosts: openAICompatibleHosts,
+	}
 }
 
 // ── DTOs ────────────────────────────────────────────────────────────────────
@@ -71,6 +77,16 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
+// guardOpenAICompatible rejects openai_compatible rows whose baseUrl
+// host isn't on the operator-supplied allowlist. Other kinds pass
+// through unchanged.
+func (h *AISettingsHandler) guardOpenAICompatible(kind, baseURL string) error {
+	if kind != "openai_compatible" {
+		return nil
+	}
+	return validateOpenAICompatibleURL(baseURL, h.openAICompatibleHosts)
+}
+
 // ── Endpoints ───────────────────────────────────────────────────────────────
 
 // List handles GET /api/ai/settings.
@@ -104,6 +120,10 @@ func (h *AISettingsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
+	if err := h.guardOpenAICompatible(in.Kind, in.BaseURL); err != nil {
+		writeError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	resp, err := h.client.CreateProviderSetting(r.Context(), &aisettingspb.CreateProviderSettingRequest{
 		UserId:       userID,
 		Kind:         in.Kind,
@@ -130,6 +150,10 @@ func (h *AISettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var in saveInputDTO
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if err := h.guardOpenAICompatible(in.Kind, in.BaseURL); err != nil {
+		writeError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	resp, err := h.client.UpdateProviderSetting(r.Context(), &aisettingspb.UpdateProviderSettingRequest{
