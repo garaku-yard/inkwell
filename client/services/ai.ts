@@ -1,5 +1,8 @@
-/** AI service — chat completion streaming and provider discovery. Thin
- *  wrappers around the Storage abstraction. */
+/** AI service — chat completion streaming. Thin wrapper around the
+ *  Storage abstraction; every storage impl handles dispatch (desktop:
+ *  via the keychain-backed adapter library, web: via the gateway's BYO
+ *  endpoint). Provider discovery is no longer a separate API — the user
+ *  picks from rows they configured under Settings → AI Providers. */
 import { getStorage } from "@/lib/storage"
 
 export interface ChatMessage {
@@ -9,55 +12,15 @@ export interface ChatMessage {
 
 export interface AIChatRequest {
   messages: ChatMessage[]
-  /** Provider kind (e.g. "openai", "anthropic"). Used by the server-side
-   *  dispatch path; ignored by the desktop path, which looks the kind up
-   *  from the row identified by `providerId`. Kept for back-compat with
-   *  the existing gateway schema. */
-  provider?: string
-  /** Stable id of a configured {@link AIProviderSettings} row. Required
-   *  for the desktop BYO path; optional on the hosted web path, which
-   *  falls back to `provider` + server-held keys. */
-  providerId?: string
+  /** Stable id of a configured AI provider row. Required — every chat
+   *  request dispatches through one of the user's BYO providers. */
+  providerId: string
   model?: string
   stream?: boolean
 }
 
-/** @deprecated Use `AIChatRequest` with a `messages` array instead. */
-export interface LegacyAIChatRequest {
-  prompt: string
-  model: string
-}
-
-export interface AIProvidersResponse {
-  providers: string[]
-  config: Record<string, { default_model: string }>
-}
-
-export const getAvailableAIProviders = (): Promise<AIProvidersResponse> =>
-  getStorage().ai.listProviders()
-
 export const streamChatCompletion = (
-  data: AIChatRequest | LegacyAIChatRequest,
+  data: AIChatRequest,
   options?: { signal?: AbortSignal },
-): Promise<ReadableStream<Uint8Array>> => {
-  // Fold the legacy single-prompt shape into the current messages format so
-  // older callsites keep working while they migrate.
-  const request: AIChatRequest =
-    "prompt" in data
-      ? {
-          messages: [{ role: "user", content: data.prompt }],
-          provider: "openai",
-          model: data.model,
-          stream: true,
-        }
-      : { stream: true, ...data }
-  return getStorage().ai.streamChat(request, options)
-}
-
-/** @deprecated Use `getAvailableAIProviders` and select a model from its `config` map. */
-export const getAvailableAIModels = async () => {
-  const providers = await getAvailableAIProviders()
-  return Object.entries(providers.config).map(([provider, config]) => ({
-    name: `${provider}:${config.default_model}`,
-  }))
-}
+): Promise<ReadableStream<Uint8Array>> =>
+  getStorage().ai.streamChat({ stream: true, ...data }, options)

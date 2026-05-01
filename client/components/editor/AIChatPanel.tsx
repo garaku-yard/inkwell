@@ -87,7 +87,6 @@ interface AIChatPanelProps {
 
 export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }: AIChatPanelProps) => {
   const storage = getStorage()
-  const byoMode = storage.capabilities.has("ai.byo")
 
   const welcome = WELCOME[category ?? ""] ?? "Ask me anything about your writing."
   const [messages, setMessages] = useState<Message[]>([
@@ -102,7 +101,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
   const [isTyping, setIsTyping] = useState(false)
 
   const [providers, setProviders] = useState<AIProviderSettings[]>([])
-  const [providersLoaded, setProvidersLoaded] = useState(!byoMode)
+  const [providersLoaded, setProvidersLoaded] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -128,7 +127,6 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
   }, [])
 
   const loadProviders = useCallback(async () => {
-    if (!byoMode) return
     try {
       const rows = await storage.ai.listProviderSettings()
       const usable = rows.filter((p) => p.enabled && (p.hasKey || p.kind === "openai_compatible"))
@@ -149,7 +147,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
     } finally {
       setProvidersLoaded(true)
     }
-  }, [storage, byoMode, projectId])
+  }, [storage, projectId])
 
   useEffect(() => {
     if (isOpen) void loadProviders()
@@ -160,7 +158,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
     [providers, selectedId],
   )
 
-  const canSend = byoMode ? selectedProvider !== null : true
+  const canSend = selectedProvider !== null
 
   const handleStop = () => {
     abortRef.current?.abort()
@@ -168,7 +166,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isTyping) return
-    if (byoMode && !selectedProvider) return
+    if (!selectedProvider) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -191,25 +189,15 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
     abortRef.current = controller
 
     try {
-      const request = byoMode
-        ? {
-            messages: [...messages, userMessage].map((msg) => ({
-              role: (msg.type === "user" ? "user" : "assistant") as "user" | "assistant",
-              content: msg.content,
-            })),
-            providerId: selectedProvider!.id,
-            model: selectedProvider!.defaultModel,
-            stream: true,
-          }
-        : {
-            messages: [...messages, userMessage].map((msg) => ({
-              role: (msg.type === "user" ? "user" : "assistant") as "user" | "assistant",
-              content: msg.content,
-            })),
-            provider: "ollama",
-            model: "llama3.2:3b",
-            stream: true,
-          }
+      const request = {
+        messages: [...messages, userMessage].map((msg) => ({
+          role: (msg.type === "user" ? "user" : "assistant") as "user" | "assistant",
+          content: msg.content,
+        })),
+        providerId: selectedProvider.id,
+        model: selectedProvider.defaultModel,
+        stream: true,
+      }
 
       const stream = await streamChatCompletion(request, { signal: controller.signal })
       if (!stream) throw new Error("Stream is null")
@@ -275,8 +263,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
     writeSelection(projectId, { providerId: id })
   }
 
-  const showEmptyState =
-    byoMode && providersLoaded && providers.length === 0
+  const showEmptyState = providersLoaded && providers.length === 0
 
   return (
     <div
@@ -318,7 +305,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
               </Button>
             </div>
 
-            {byoMode && providers.length > 0 && (
+            {providers.length > 0 && (
               <div className="relative">
                 <Select value={selectedId ?? undefined} onValueChange={handleSelectProvider}>
                   <SelectTrigger className="h-9 bg-background/70 text-sm">

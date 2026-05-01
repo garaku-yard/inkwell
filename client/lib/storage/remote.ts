@@ -54,7 +54,6 @@ import type {
   BillingAuditLog,
   DataDeletionRequest,
   UpdateProfileResponse,
-  AIProvidersResponse,
   AIChatRequest,
   AIProviderSettings,
   SaveProviderSettingsInput,
@@ -824,9 +823,6 @@ function locateRow(id: string): "local" | "hosted" {
 }
 
 const ai: AiStorage = {
-  listProviders: () =>
-    apiClient<AIProvidersResponse>("api/ai/providers", { method: "GET" }),
-
   async streamChat(
     request: AIChatRequest,
     options?: { signal?: AbortSignal },

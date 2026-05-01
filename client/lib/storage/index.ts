@@ -59,10 +59,7 @@ import type {
   CreateElementRequest,
   UpdateElementRequest,
 } from "@/services/editor"
-import type {
-  AIChatRequest,
-  AIProvidersResponse,
-} from "@/services/ai"
+import type { AIChatRequest } from "@/services/ai"
 import type { ProviderKind } from "@/lib/ai/providers"
 import type { Invitation } from "@/services/invites"
 import type {
@@ -85,7 +82,6 @@ export * from "./errors"
 export type {
   Act,
   AIChatRequest,
-  AIProvidersResponse,
   AuthResponse,
   Beat,
   BeatBoardData,
@@ -488,11 +484,10 @@ export interface StreamChatOptions {
 }
 
 export interface AiStorage {
-  /** List providers the user has keys for (desktop) or the server has keys
-   *  for (web). Desktop reads from OS keychain; web calls the AI service. */
-  listProviders(): Promise<AIProvidersResponse>
   /** NDJSON streaming chat completion. Desktop calls the provider directly
-   *  with the user's BYO key; web delegates to the AI service. */
+   *  with the user's BYO key; web delegates to the gateway's BYO endpoint
+   *  which decrypts the key server-side. Both paths require the request
+   *  to name a provider row by id. */
   streamChat(
     request: AIChatRequest,
     options?: StreamChatOptions,

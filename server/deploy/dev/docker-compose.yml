@@ -124,7 +124,6 @@ services:
       - SCRIPTS_SERVICE_URL=scripts-service:50052
       - COLLAB_SERVICE_URL=collab-service:50053
       - BILLING_SERVICE_URL=billing-service:50054
-      - AI_SERVICE_URL=ai-service:50051
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_SECRET=dev-secret-key-change-in-production
@@ -134,7 +133,6 @@ services:
       - scripts-service
       - collab-service
       - billing-service
-      - ai-service
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -256,25 +254,6 @@ services:
         condition: service_started
     healthcheck:
       test: ["CMD", "grpc_health_probe", "-addr=localhost:50054"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  ai-service:
-    build:
-      context: services/ai
-      dockerfile: Dockerfile
-    ports:
-      - "50055:50051"
-    environment:
-      - AI_SERVICE_PORT=50051
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - KAFKA_BROKERS=kafka:29092
-    depends_on:
-      kafka:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import grpc; grpc.insecure_channel('localhost:50051').get_state()"]
       interval: 30s
       timeout: 10s
       retries: 3

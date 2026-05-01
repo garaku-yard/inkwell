@@ -242,8 +242,6 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			// AI — chat goes through the per-user limiter because provider
 			// bills accrue per account, not per IP.
 			r.Post("/ai/chat", aiLimit(aiHandler.Chat))
-			r.Get("/ai/providers", aiHandler.GetProviders)
-			r.Get("/ai/health", aiHandler.Health)
 
 			// AI provider BYO settings — CRUD + key management. Plaintext
 			// keys accepted on SetKey only; all other responses omit them.
@@ -401,8 +399,6 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 
 		r.Post("/ai/chat", aiHandler.Chat)
 		r.Post("/api/ai/chat", aiHandler.Chat)
-		r.Get("/api/ai/providers", aiHandler.GetProviders)
-		r.Get("/api/ai/health", aiHandler.Health)
 
 		r.Get("/categories", workspaceHandler.ListCategories)
 

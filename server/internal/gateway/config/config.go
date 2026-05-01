@@ -17,12 +17,10 @@ type Config struct {
 	AllowedOrigins []string `env:"ALLOWED_ORIGINS" default:"http://localhost:3000"`
 
 	// Service configurations
-	IdentityService  ServiceConfig
-	ScriptsService   ServiceConfig
-	CollabService    ServiceConfig
-	BillingService   ServiceConfig
-	AIService         ServiceConfig
-	AIChatService     ServiceConfig
+	IdentityService   ServiceConfig
+	ScriptsService    ServiceConfig
+	CollabService     ServiceConfig
+	BillingService    ServiceConfig
 	WorkspaceService  ServiceConfig
 	AISettingsService ServiceConfig
 
@@ -114,14 +112,6 @@ func Load() (*Config, error) {
 		BillingService: ServiceConfig{
 			Host: getEnvOrDefault("BILLING_SERVICE_HOST", "localhost"),
 			Port: getEnvOrDefault("BILLING_SERVICE_PORT", "50054"),
-		},
-		AIService: ServiceConfig{
-			Host: getEnvOrDefault("AI_SERVICE_HOST", "localhost"),
-			Port: getEnvOrDefault("AI_SERVICE_PORT", "50055"),
-		},
-		AIChatService: ServiceConfig{
-			Host: getEnvOrDefault("AI_CHAT_SERVICE_HOST", "localhost"),
-			Port: getEnvOrDefault("AI_CHAT_SERVICE_PORT", "50054"),
 		},
 		WorkspaceService: ServiceConfig{
 			Host: getEnvOrDefault("WORKSPACE_SERVICE_HOST", "localhost"),

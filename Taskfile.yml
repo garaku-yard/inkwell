@@ -106,11 +106,6 @@ tasks:
     cmds:
       - "{{.DOCKER_COMPOSE}} build billing-service"
 
-  docker:build:ai:
-    desc: Build AI Service image only (no start)
-    cmds:
-      - "{{.DOCKER_COMPOSE}} build ai-service"
-
   docker:build:workspace:
     desc: Build Workspace Service image only (no start)
     cmds:
@@ -158,12 +153,6 @@ tasks:
       - "{{.DOCKER_COMPOSE}} build billing-service"
       - "{{.DOCKER_COMPOSE}} up -d billing-service"
 
-  docker:rebuild:ai:
-    desc: Rebuild and restart AI Service (use `task docker:logs:ai` to tail)
-    cmds:
-      - "{{.DOCKER_COMPOSE}} build ai-service"
-      - "{{.DOCKER_COMPOSE}} up -d ai-service"
-
   docker:rebuild:workspace:
     desc: Rebuild and restart Workspace Service (use `task docker:logs:workspace` to tail)
     cmds:
@@ -200,11 +189,6 @@ tasks:
     desc: Tail logs for Billing Service
     cmds:
       - "{{.DOCKER_COMPOSE}} logs -f billing-service"
-
-  docker:logs:ai:
-    desc: Tail logs for AI Service
-    cmds:
-      - "{{.DOCKER_COMPOSE}} logs -f ai-service"
 
   docker:logs:workspace:
     desc: Tail logs for Workspace Service
@@ -414,7 +398,6 @@ tasks:
       - task: proto:gen:billing
       - task: proto:gen:workspace
       - task: proto:gen:aisettings
-      - task: proto:gen:ai
 
   proto:gen:common:
     desc: Generate protobuf code for Common types
@@ -457,12 +440,6 @@ tasks:
     dir: server
     cmds:
       - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative aisettings/aisettings.proto
-
-  proto:gen:ai:
-    desc: Generate protobuf code for AI service
-    dir: server
-    cmds:
-      - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative ai/ai.proto
 
   # ====================
   # Service-Specific Operations

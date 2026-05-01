@@ -105,9 +105,6 @@ logs-collab:
 logs-billing:
 	@docker-compose -f deploy/dev/docker-compose.yml logs -f billing-service
 
-logs-ai:
-	@docker-compose -f deploy/dev/docker-compose.yml logs -f ai-service
-
 # Database migrations
 migrate-up-identity:
 	@echo "Running Identity service migrations..."

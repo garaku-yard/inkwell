@@ -354,31 +354,6 @@ services:
     networks:
       - inkwell-network
 
-  # ai-service — LEGACY. The Python service handled all AI chat in the
-  # pre-BYO era. The gateway now dispatches BYO-hosted traffic server-side
-  # via `server/pkg/aiadapter`; the Python service is only hit on the
-  # legacy fallback path (no `providerId` in the chat request). It's kept
-  # running so existing deployments don't break; new features should go
-  # into the Go-side adapter. Safe to remove once we drop the fallback
-  # endpoint entirely.
-  ai-service:
-    build:
-      context: ./server/services/ai
-      dockerfile: Dockerfile
-    container_name: inkwell-ai-service
-    restart: unless-stopped
-    ports:
-      - "50055:50051"
-    environment:
-      - AI_SERVICE_PORT=50051
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - KAFKA_BROKERS=kafka:29092
-    depends_on:
-      kafka:
-        condition: service_healthy
-    networks:
-      - inkwell-network
-
   api-gateway:
     build:
       context: ./server
@@ -397,10 +372,6 @@ services:
       - COLLAB_SERVICE_PORT=50053
       - BILLING_SERVICE_HOST=billing-service
       - BILLING_SERVICE_PORT=50054
-      - AI_SERVICE_HOST=ai-service
-      - AI_SERVICE_PORT=50051
-      - AI_CHAT_SERVICE_HOST=ai-service
-      - AI_CHAT_SERVICE_PORT=50054
       - WORKSPACE_SERVICE_HOST=workspace-service
       - WORKSPACE_SERVICE_PORT=50056
       - AI_SETTINGS_SERVICE_HOST=aisettings-service
@@ -417,7 +388,6 @@ services:
       - scripts-service
       - collab-service
       - billing-service
-      - ai-service
       - workspace-service
       - aisettings-service
     networks:

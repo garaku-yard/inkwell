@@ -42,7 +42,6 @@ import type {
   AdminBillingStorage,
   AIChatRequest,
   AIProviderSettings,
-  AIProvidersResponse,
   AiStorage,
   AuthResponse,
   AuthStorage,
@@ -1266,24 +1265,6 @@ function chunkStreamToNDJSON(
 }
 
 const ai: AiStorage = {
-  async listProviders(): Promise<AIProvidersResponse> {
-    // Legacy shape kept for callers still on the old API. Each enabled
-    // configured row surfaces under its id + default model; callers that
-    // want full settings (label, kind, hasKey) should use
-    // `listProviderSettings` instead.
-    const settings = await loadProviderSettings()
-    const providers: string[] = []
-    const config: Record<string, { default_model: string }> = {}
-    for (const s of settings) {
-      if (!s.enabled) continue
-      providers.push(s.id)
-      if (s.defaultModel) {
-        config[s.id] = { default_model: s.defaultModel }
-      }
-    }
-    return { providers, config }
-  },
-
   async streamChat(
     request: AIChatRequest,
     options?: { signal?: AbortSignal },
