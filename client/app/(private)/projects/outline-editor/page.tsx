@@ -10,6 +10,7 @@ import { useDebouncedCallback } from 'use-debounce';
 import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLanes";
 import { OutlineDocument } from '@/components/outline-editor/OutlineDocument';
 import { PaneSpinner } from "@/components/shared/PaneSpinner";
+import { useProjectLoader } from "@/hooks/useProjectLoader";
 
 import { getFullProject, type FullProject } from "@/services/project";
 import { getBeatBoardForProject, updateBeat, type Beat } from '@/services/beat';
@@ -44,12 +45,24 @@ export default function OutlineEditorPage() {
   const projectId = searchParams.get("id") ?? "";
   const { user } = useAuth();
 
-  const [project, setProject] = useState<FullProject | null>(null);
+  const {
+    project,
+    isLoading: projectLoading,
+    error: projectError,
+  } = useProjectLoader<FullProject>(projectId, user?.id, getFullProject)
+
   const [beats, setBeats] = useState<Beat[]>([]);
   const [outlineItems, setOutlineItems] = useState<OutlineItem[]>([]);
   const [lanes, setLanes] = useState<Lane[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Beat-board fetch is keyed off the loaded project, so it serializes
+  // after the project resolves. The pre-extraction code parallelised
+  // both with Promise.all; the trade is one extra round-trip on first
+  // load for a much simpler control flow.
+  const [boardLoading, setBoardLoading] = useState(true);
+  const [boardError, setBoardError] = useState<string | null>(null);
+
+  const isLoading = projectLoading || boardLoading;
+  const error = projectError ?? boardError;
 
   const [activeElementId, setActiveElementId] = useState<string | null>(null);
 
@@ -58,16 +71,13 @@ export default function OutlineEditorPage() {
   const [draggedLaneItem, setDraggedLaneItem] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!projectId || !user?.id) return;
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const [projectData, beatBoardData] = await Promise.all([
-          getFullProject(projectId, user.id),
-          getBeatBoardForProject(projectId)
-        ]);
-        setProject(projectData);
+    if (!project?.id) return;
+    let cancelled = false;
+    setBoardLoading(true);
+    setBoardError(null);
+    getBeatBoardForProject(project.id)
+      .then((beatBoardData) => {
+        if (cancelled) return;
         const beats = beatBoardData.beats || [];
         setBeats(beats);
         setLanes((beatBoardData.lanes || []).sort((a, b) => a.order - b.order));
@@ -98,11 +108,19 @@ export default function OutlineEditorPage() {
         });
 
         setOutlineItems(syncedOutlineItems);
-      } catch (err) { console.error("Failed to load data", err); setError("Failed to load project data."); }
-      finally { setIsLoading(false); }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("beat-board load failed", err);
+        setBoardError("Failed to load project data.");
+      })
+      .finally(() => {
+        if (!cancelled) setBoardLoading(false);
+      });
+    return () => {
+      cancelled = true;
     };
-    fetchData();
-  }, [projectId, user?.id]);
+  }, [project?.id]);
 
   const transformedStructure = useMemo((): StructureElement[] => {
     if (lanes.length === 0 || beats.length === 0 || outlineItems.length === 0) return [];

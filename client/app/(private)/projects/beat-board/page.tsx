@@ -16,21 +16,34 @@ import { type Lane, type OutlineItem, updateLane, updateLaneOrder, createOutline
 import { getProjectById, type FullProject } from "@/services/project"
 import { useAuth } from "@/lib/AuthContext"
 import { getCategoryStructure } from "@/lib/helpers/category-structure"
+import { useProjectLoader } from "@/hooks/useProjectLoader"
 
 export type ConnectionSide = "top" | "right" | "bottom" | "left";
 
 export default function BeatBoardPage() {
   const { user } = useAuth()
-  const [project, setProject] = useState<FullProject | null>(null);
+  const searchParams = useSearchParams()
+  const projectId = searchParams.get("id") ?? ""
+
+  const {
+    project,
+    isLoading: projectLoading,
+    error: projectError,
+  } = useProjectLoader<FullProject>(projectId, user?.id, getProjectById)
+
   const [beats, setBeats] = useState<Beat[]>([])
   const [outlineItems, setOutlineItems] = useState<OutlineItem[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
   const [lanes, setLanes] = useState<Lane[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // Beat-board fetch — separate from the project fetch so the hook stays
+  // simple. Trades a single round-trip for two on initial load (the
+  // project must resolve before this effect fires); negligible since
+  // both go to the same gateway.
+  const [boardLoading, setBoardLoading] = useState(true)
+  const [boardError, setBoardError] = useState<string | null>(null)
 
-  const searchParams = useSearchParams()
-  const projectId = searchParams.get("id") ?? ""
+  const isLoading = projectLoading || boardLoading
+  const error = projectError ?? boardError
 
   const [editingField, setEditingField] = useState<{ beatId: string; field: keyof Beat } | null>(null)
   const [draggedBeat, setDraggedBeat] = useState<string | null>(null)
@@ -49,31 +62,30 @@ export default function BeatBoardPage() {
   const [draggedLaneId, setDraggedLaneId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!projectId || !user?.id) return;
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const [projectData, beatBoardData] = await Promise.all([
-          getProjectById(projectId, user.id),
-          getBeatBoardForProject(projectId)
-        ]);
-
-        setProject(projectData);
-        setBeats(beatBoardData.beats || []);
-        setConnections(beatBoardData.connections || []);
-        setLanes(beatBoardData.lanes || []);
-        setOutlineItems(beatBoardData.outlineItems || []);
-
-      } catch (err) {
-        setError("Failed to load beat board data.");
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
-  }, [projectId]);
+    if (!project?.id) return
+    let cancelled = false
+    setBoardLoading(true)
+    setBoardError(null)
+    getBeatBoardForProject(project.id)
+      .then((beatBoardData) => {
+        if (cancelled) return
+        setBeats(beatBoardData.beats || [])
+        setConnections(beatBoardData.connections || [])
+        setLanes(beatBoardData.lanes || [])
+        setOutlineItems(beatBoardData.outlineItems || [])
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error("beat-board load failed", err)
+        setBoardError("Failed to load beat board data.")
+      })
+      .finally(() => {
+        if (!cancelled) setBoardLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [project?.id])
 
   const structure = useMemo(() => getCategoryStructure(project?.category), [project?.category]);
 
