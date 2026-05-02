@@ -10,6 +10,7 @@ import { AddWorkspaceDialog } from "./AddWorkspaceDialog"
 import { CreateOrgWorkspaceDialog } from "./CreateOrgWorkspaceDialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Workspace } from "@/services/workspace"
+import { getStorage } from "@/lib/storage"
 import { CategoryIcon } from "./CategoryIcon"
 
 function workspaceInitials(name: string): string {
@@ -122,6 +123,11 @@ export function WorkspaceSwitcher() {
 
   const allPersonal = workspaces.personal ?? []
   const allOrg = workspaces.org ?? []
+  // Hide the "Shared with me" rail icon on local-first builds where
+  // the storage backend doesn't bind the collaboration capability —
+  // there's no remote graph to receive shares from, so the icon
+  // would lead to a permanently-empty page.
+  const hasCollaboration = getStorage().capabilities.has("collaboration")
   const ownedOrgs = allOrg.filter((ws) => ws.owner_id === user?.id)
   const invitedOrgs = allOrg.filter((ws) => ws.owner_id !== user?.id)
 
@@ -216,24 +222,28 @@ export function WorkspaceSwitcher() {
         {/* Spacer pushes the buttons to the bottom */}
         <div className="flex-1" />
 
-        {/* Shared with me */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => router.push("/shared")}
-              className={cn(
-                "flex h-10 w-10 items-center justify-center rounded-[14px] border border-border",
-                "text-muted-foreground transition-all duration-150 hover:rounded-[10px] hover:border-primary hover:text-primary"
-              )}
-              aria-label="Shared with me"
-            >
-              <Users className="h-4 w-4" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            <p>Shared with me</p>
-          </TooltipContent>
-        </Tooltip>
+        {/* Shared with me — only relevant when the backend supports
+            collaboration. Local-first / desktop-only storage hides
+            this entirely. */}
+        {hasCollaboration && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => router.push("/shared")}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-[14px] border border-border",
+                  "text-muted-foreground transition-all duration-150 hover:rounded-[10px] hover:border-primary hover:text-primary"
+                )}
+                aria-label="Shared with me"
+              >
+                <Users className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Shared with me</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
 
         {/* Add workspace */}
         <Tooltip>
