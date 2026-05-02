@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Bot, Download, ChevronDown } from "lucide-react"
+import { ArrowLeft, Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Bot, Download, ChevronDown, Play, RotateCcw, ChevronLeft } from "lucide-react"
 import { PassageGraph } from "./PassageGraph"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -44,6 +44,29 @@ function parseLinks(text: string): string[] {
   return targets
 }
 
+// Tokenize a body string into alternating plain-text + link segments
+// for the play-mode renderer. Mirrors parseLinks but keeps the
+// surrounding text and the visible label so the player can render
+// inline clickable spans rather than just listing targets.
+type BodySegment =
+  | { kind: "text"; value: string }
+  | { kind: "link"; label: string; target: string }
+function tokenizeBody(text: string): BodySegment[] {
+  const re = /\[\[(?:([^\]]*?)\s*->\s*)?([^\]|>]+?)(?:\s*\|[^\]]*)?\]\]/g
+  const out: BodySegment[] = []
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push({ kind: "text", value: text.slice(last, m.index) })
+    const target = m[2].trim()
+    const label = (m[1]?.trim() || target)
+    out.push({ kind: "link", label, target })
+    last = re.lastIndex
+  }
+  if (last < text.length) out.push({ kind: "text", value: text.slice(last) })
+  return out
+}
+
 function wordCount(text: string) {
   return text.trim().split(/\s+/).filter(Boolean).length
 }
@@ -60,7 +83,12 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     () => (projectData.scenes ?? [])[0]?.id ?? null
   )
   const [search, setSearch] = useState("")
-  const [view, setView] = useState<"write" | "graph">("write")
+  const [view, setView] = useState<"write" | "graph" | "play">("write")
+  // Play-mode state: cursor passage + back-stack of previously visited
+  // passage ids. Resets when the user re-enters play mode from the
+  // toolbar so each playthrough starts from the start passage.
+  const [playCursor, setPlayCursor] = useState<string | null>(null)
+  const [playHistory, setPlayHistory] = useState<string[]>([])
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
@@ -475,6 +503,22 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               >
                 <GitBranch className="h-3 w-3" /> Graph
               </button>
+              <button
+                onClick={() => {
+                  // Reset to the first passage so each playthrough starts
+                  // from the canonical entry point regardless of which
+                  // passage was being edited.
+                  setPlayCursor(passages[0]?.id ?? null)
+                  setPlayHistory([])
+                  setView("play")
+                }}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 transition-colors",
+                  view === "play" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                )}
+              >
+                <Play className="h-3 w-3" /> Play
+              </button>
             </div>
           </div>
         </header>
@@ -490,6 +534,140 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             />
           </div>
         )}
+
+        {/* Play view — runtime preview. Renders the cursor passage
+            with [[links]] turned into clickable choices and a
+            back-stack for stepping out of dead ends. */}
+        {view === "play" && (() => {
+          const cursor = passages.find(p => p.id === playCursor) ?? null
+          const navigateTo = (target: string) => {
+            const next = passages.find(
+              p => p.scene_heading.toLowerCase().trim() === target.toLowerCase().trim(),
+            )
+            if (!next || !playCursor) return
+            setPlayHistory(prev => [...prev, playCursor])
+            setPlayCursor(next.id)
+          }
+          const goBack = () => {
+            setPlayHistory(prev => {
+              if (prev.length === 0) return prev
+              const previous = prev[prev.length - 1]
+              setPlayCursor(previous)
+              return prev.slice(0, -1)
+            })
+          }
+          const restart = () => {
+            setPlayCursor(passages[0]?.id ?? null)
+            setPlayHistory([])
+          }
+          return (
+            <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
+              <div className="max-w-[660px] mx-auto px-8 py-10">
+                {/* Player toolbar */}
+                <div className="flex items-center justify-between mb-6 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1 text-xs"
+                      onClick={goBack}
+                      disabled={playHistory.length === 0}
+                    >
+                      <ChevronLeft className="h-3 w-3" /> Back
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={restart}>
+                      <RotateCcw className="h-3 w-3" /> Restart
+                    </Button>
+                  </div>
+                  <span>
+                    {playHistory.length === 0 ? "Start" : `Step ${playHistory.length + 1}`}
+                  </span>
+                </div>
+
+                {!cursor ? (
+                  <div className="text-center py-16">
+                    <p className="text-muted-foreground text-sm mb-4">
+                      No passages to play yet.
+                    </p>
+                    <Button size="sm" onClick={() => { setView("write"); handleAddPassage("Start") }}>
+                      Create the first passage
+                    </Button>
+                  </div>
+                ) : (
+                  <article className="prose prose-sm dark:prose-invert max-w-none">
+                    <h2 className="text-xl font-semibold mb-6">
+                      {cursor.scene_heading || "Untitled"}
+                    </h2>
+                    {(cursor.elements ?? []).map((el) => {
+                      // Skip author-only elements at runtime.
+                      if (el.element_type === "note" || el.element_type === "set") return null
+                      // `conditional` elements aren't fully evaluated yet —
+                      // we render them inert in muted styling so authors
+                      // still see them flagged in the preview.
+                      if (el.element_type === "conditional") {
+                        return (
+                          <div key={el.id} className="my-3 px-3 py-2 rounded border border-dashed text-xs text-muted-foreground">
+                            <span className="font-mono">{el.content}</span>
+                            <p className="mt-1 not-italic">Conditionals aren't evaluated in preview yet — both branches are reachable from the writer's view.</p>
+                          </div>
+                        )
+                      }
+                      // body and choice both tokenize identically; the
+                      // difference is presentation. Choice elements
+                      // bunch into a button stack at the end of the
+                      // passage; body elements get inline links.
+                      const segments = tokenizeBody(el.content)
+                      if (el.element_type === "choice") {
+                        return (
+                          <div key={el.id} className="my-2">
+                            {segments.map((seg, i) =>
+                              seg.kind === "link" ? (
+                                <Button
+                                  key={i}
+                                  variant="outline"
+                                  className="block w-full justify-start text-left mb-2 h-auto whitespace-normal py-2"
+                                  disabled={!passages.find(p => p.scene_heading.toLowerCase().trim() === seg.target.toLowerCase().trim())}
+                                  onClick={() => navigateTo(seg.target)}
+                                >
+                                  → {seg.label}
+                                </Button>
+                              ) : (
+                                seg.value.trim() && (
+                                  <span key={i} className="text-sm text-muted-foreground block mb-2">
+                                    {seg.value}
+                                  </span>
+                                )
+                              ),
+                            )}
+                          </div>
+                        )
+                      }
+                      // body — inline rendering with clickable links.
+                      return (
+                        <p key={el.id} className="my-3 leading-relaxed">
+                          {segments.map((seg, i) =>
+                            seg.kind === "link" ? (
+                              <button
+                                key={i}
+                                className="underline text-primary hover:text-primary/80 disabled:text-muted-foreground/50 disabled:no-underline"
+                                disabled={!passages.find(p => p.scene_heading.toLowerCase().trim() === seg.target.toLowerCase().trim())}
+                                onClick={() => navigateTo(seg.target)}
+                              >
+                                {seg.label}
+                              </button>
+                            ) : (
+                              <span key={i}>{seg.value}</span>
+                            ),
+                          )}
+                        </p>
+                      )
+                    })}
+                  </article>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Write view */}
         {view === "write" && (
