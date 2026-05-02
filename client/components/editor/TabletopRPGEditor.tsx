@@ -6,6 +6,7 @@ import { StatBlockTemplatePicker } from "./ttrpg/StatBlockTemplatePicker"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
@@ -84,6 +85,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
   const { toast } = useToast()
+  const { editorFontStack } = useTheme()
 
   const totalWords = sections.reduce((acc, s) =>
     acc + (s.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0), 0)
@@ -603,7 +605,10 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
 
         <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
-          <div className="inkwell-editor-content max-w-[720px] mx-auto px-10 py-12">
+          <div
+            className="inkwell-editor-content max-w-[720px] mx-auto px-10 py-12"
+            style={{ fontFamily: editorFontStack("ttrpg") }}
+          >
             {sections.length === 0 ? (
               <EmptyEditorState
                 message="No sections yet."

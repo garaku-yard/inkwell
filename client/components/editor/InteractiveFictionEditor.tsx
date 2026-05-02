@@ -6,6 +6,7 @@ import { PassageGraph } from "./PassageGraph"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
@@ -99,6 +100,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
   const { toast } = useToast()
+  const { editorFontStack } = useTheme()
 
   const activePassage = passages.find(p => p.id === activePassageId) ?? null
   const activeElements = activePassage?.elements ?? []
@@ -679,7 +681,10 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                 </Button>
               </div>
             ) : (
-              <div className="inkwell-editor-content max-w-[660px] mx-auto px-8 py-10">
+              <div
+                className="inkwell-editor-content max-w-[660px] mx-auto px-8 py-10"
+                style={{ fontFamily: editorFontStack("if") }}
+              >
                 {/* Passage title */}
                 <div className="mb-1">
                   {passages.findIndex(p => p.id === activePassageId) === 0 && (

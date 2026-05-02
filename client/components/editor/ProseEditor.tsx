@@ -5,6 +5,7 @@ import { Plus, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
@@ -49,6 +50,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
   const { toast } = useToast()
+  const { editorFontStack } = useTheme()
   const activeChapterId = useScrollSpy({
     refs: chapterRefs,
     orderedIds: scenes.map((s) => s.id),
@@ -265,7 +267,10 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         <div className="flex flex-1 overflow-hidden">
         {/* Manuscript scroll area */}
         <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
-          <div className="inkwell-editor-content max-w-[680px] mx-auto px-10 py-16">
+          <div
+            className="inkwell-editor-content max-w-[680px] mx-auto px-10 py-16"
+            style={{ fontFamily: editorFontStack("prose") }}
+          >
             {scenes.length === 0 ? (
               <EmptyEditorState
                 message="No chapters yet."

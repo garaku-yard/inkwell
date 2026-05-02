@@ -5,6 +5,7 @@ import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
@@ -49,6 +50,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
   const { toast } = useToast()
+  const { editorFontStack } = useTheme()
 
   const totalPanels = pages.reduce((acc, p) => acc + panelCount(p.elements ?? []), 0)
 
@@ -247,7 +249,10 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
         <div className="flex flex-1 overflow-hidden">
         {/* Script scroll area */}
         <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
-          <div className="inkwell-editor-content max-w-[680px] mx-auto px-10 py-12 font-mono">
+          <div
+            className="inkwell-editor-content max-w-[680px] mx-auto px-10 py-12"
+            style={{ fontFamily: editorFontStack("comic") }}
+          >
             {pages.length === 0 ? (
               <EmptyEditorState
                 message="No pages yet."

@@ -4,8 +4,17 @@ import { Palette, Type, Layout, Monitor, Moon, Sun, Check } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useTheme, type ColorMode, type ThemeName, THEME_OPTIONS } from "@/lib/ThemeContext"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  useTheme,
+  type ColorMode,
+  type EditorKind,
+  type ThemeName,
+  EDITOR_KIND_LABEL,
+  THEME_OPTIONS,
+  ALL_EDITOR_FONT_OPTIONS,
+  SANS_FONT_OPTIONS,
+} from "@/lib/ThemeContext"
 import { cn } from "@/lib/utils"
 
 /** Per-theme accent swatches — mirror the values in globals.css so the
@@ -21,7 +30,7 @@ const THEME_SWATCHES: Record<ThemeName, { light: string; dark: string }> = {
 }
 
 export function AppearanceSection() {
-  const { prefs, setColorMode, setTheme, setEditorFont, setUiFont, setEditorLineHeight, theme: resolvedMode } = useTheme()
+  const { prefs, setColorMode, setTheme, setEditorFontFor, setUiFont, setEditorLineHeight, theme: resolvedMode } = useTheme()
 
   const colorModes: { id: ColorMode; label: string; icon: React.ReactNode }[] = [
     { id: "light", label: "Light", icon: <Sun className="h-5 w-5" /> },
@@ -29,21 +38,17 @@ export function AppearanceSection() {
     { id: "system", label: "System", icon: <Monitor className="h-5 w-5" /> },
   ]
 
-  const editorFonts = [
-    { value: "courier",       label: "Courier New" },
-    { value: "courier-prime", label: "Courier Prime" },
-    { value: "monaco",        label: "Monaco" },
-    { value: "consolas",      label: "Consolas" },
-    { value: "source-code",   label: "Source Code Pro" },
-    { value: "jetbrains",     label: "JetBrains Mono" },
-  ]
-
-  const uiFonts = [
-    { value: "inter",      label: "Inter" },
-    { value: "system",     label: "System Default" },
-    { value: "roboto",     label: "Roboto" },
-    { value: "open-sans",  label: "Open Sans" },
-    { value: "lato",       label: "Lato" },
+  // Editor kinds rendered in the per-editor font picker. Order is
+  // tuned to put the formats writers configure most frequently at
+  // the top.
+  const editorKinds: EditorKind[] = [
+    "prose",
+    "screenplay",
+    "poetry",
+    "vault",
+    "comic",
+    "ttrpg",
+    "if",
   ]
 
   return (
@@ -157,21 +162,9 @@ export function AppearanceSection() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="editorFont">Editor Font</Label>
-            <Select value={prefs.editorFont} onValueChange={setEditorFont}>
-              <SelectTrigger id="editorFont">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {editorFonts.map(f => (
-                  <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">Applied to all writing editors.</p>
-          </div>
-
+          {/* Interface font — the system font that drives the dashboard,
+              menus, sidebars, settings forms. Editor surfaces have
+              their own per-format prefs further down. */}
           <div className="space-y-2">
             <Label htmlFor="uiFont">Interface Font</Label>
             <Select value={prefs.uiFont} onValueChange={setUiFont}>
@@ -179,11 +172,55 @@ export function AppearanceSection() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {uiFonts.map(f => (
+                {SANS_FONT_OPTIONS.map(f => (
                   <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-sm text-muted-foreground">Drives the rest of the app outside the editor canvas.</p>
+          </div>
+
+          {/* Per-editor fonts. Each writing format gets its own pick so
+              writers can keep Courier locked to screenplay while
+              choosing a serif for prose, a mono for IF, etc. */}
+          <div className="space-y-3 pt-4 border-t border-border">
+            <div>
+              <Label>Editor Fonts</Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                One pick per writing format. Defaults follow each format's typographic conventions.
+              </p>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {editorKinds.map((kind) => (
+                <div key={kind} className="space-y-1.5">
+                  <Label htmlFor={`font-${kind}`} className="text-xs uppercase tracking-wider text-muted-foreground">
+                    {EDITOR_KIND_LABEL[kind]}
+                  </Label>
+                  <Select
+                    value={prefs.editorFonts[kind]}
+                    onValueChange={(value) => setEditorFontFor(kind, value)}
+                  >
+                    <SelectTrigger id={`font-${kind}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ALL_EDITOR_FONT_OPTIONS.map((group) => (
+                        <SelectGroup key={group.group}>
+                          <SelectLabel className="text-xs uppercase tracking-wider text-muted-foreground/70">
+                            {group.group}
+                          </SelectLabel>
+                          {group.options.map((f) => (
+                            <SelectItem key={f.value} value={f.value}>
+                              {f.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-2 pt-4 border-t border-border">

@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label"
 import { type VaultNote } from "@/lib/storage"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { useTheme } from "@/lib/ThemeContext"
 import { AppHeaderActions } from "@/components/AppHeaderActions"
 import { ProjectNavMenu } from "./shared/ProjectNavMenu"
 import type { FullProject } from "@/services/project"
@@ -90,6 +91,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
   // can read at their own pace; the toast guarantees they notice
   // the failure even if they're scrolled deep inside a long note.
   const { toast } = useToast()
+  const { editorFontStack } = useTheme()
   useEffect(() => {
     if (!error) return
     toast({
@@ -663,8 +665,13 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
                 onAttach={isTauri() ? handleAttach : undefined}
               />
 
-              {/* Editor + optional backlinks pane */}
-              <div className="relative flex min-h-0 flex-1">
+              {/* Editor + optional backlinks pane.
+                  --inkwell-vault-font feeds the CodeMirror theme's
+                  font-family rule (see markdown/theme.ts). */}
+              <div
+                className="relative flex min-h-0 flex-1"
+                style={{ ['--inkwell-vault-font' as string]: editorFontStack("vault") }}
+              >
                 <MarkdownEditor
                   value={content}
                   onChange={onContentChange}

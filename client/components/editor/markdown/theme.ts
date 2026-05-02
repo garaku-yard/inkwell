@@ -11,7 +11,10 @@ export const inkwellTheme = EditorView.theme(
       height: "100%",
       color: "var(--foreground)",
       backgroundColor: "transparent",
-      fontFamily: "var(--font-sans)",
+      // Vault font is per-editor user-configurable. The wrapper in
+      // VaultEditor sets `--inkwell-vault-font` inline; the fallback
+      // chain catches the case where ThemeContext isn't mounted yet.
+      fontFamily: "var(--inkwell-vault-font, var(--font-sans))",
       fontSize: "15px",
       lineHeight: "1.7",
     },

@@ -4,6 +4,7 @@ import React, { useRef, useImperativeHandle, useEffect, useMemo } from "react"
 import type { Scene, ScriptElement } from "@/services/project"
 import { EditableElement } from "./EditableElement"
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
+import { useTheme } from "@/lib/ThemeContext"
 
 type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ScriptElement }
 
@@ -42,6 +43,8 @@ export const EditorPane = React.memo(
     const contentOnlyRef = useRef<HTMLDivElement>(null)
     const lastEnterTimeRef = useRef<number>(0)
     const DOUBLE_ENTER_THRESHOLD = 300
+    const { editorFontStack } = useTheme()
+    const screenplayFont = editorFontStack("screenplay")
 
     const handleEmptyEditorKeyDown = (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && onAddNewScene) {
@@ -122,12 +125,16 @@ export const EditorPane = React.memo(
     return (
       <div ref={parentRef} className="flex-1 overflow-auto p-8 bg-secondary dark:bg-background">
         {/* Multiple US Letter pages (standard screenplay format) */}
-        <div ref={pagesContainerRef} className="inkwell-editor-content mx-auto space-y-8">
+        <div
+          ref={pagesContainerRef}
+          className="inkwell-editor-content mx-auto space-y-8"
+          style={{ fontFamily: screenplayFont }}
+        >
           {pages.length === 0 ? (
             // Empty state - show a placeholder page that allows double-enter to create a scene
             <div
               ref={scriptContainerRef}
-              className="bg-card dark:bg-card shadow-lg relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
+              className="bg-card dark:bg-card shadow-lg relative text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
               style={{
                 width: '8.5in',
                 height: '11in',
@@ -159,7 +166,7 @@ export const EditorPane = React.memo(
               key={pageIndex}
               id={`page-${pageIndex}`}
               ref={pageIndex === 0 ? scriptContainerRef : undefined}
-              className="bg-card dark:bg-card shadow-lg relative font-mono text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
+              className="bg-card dark:bg-card shadow-lg relative text-[12pt] leading-[1.5] mx-auto overflow-hidden box-border"
               style={{
                 width: '8.5in',
                 height: '11in',

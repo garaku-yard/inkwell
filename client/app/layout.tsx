@@ -6,6 +6,8 @@ import {
   Roboto,
   Open_Sans,
   Lato,
+  Lora,
+  Merriweather,
   Courier_Prime,
   Source_Code_Pro,
   JetBrains_Mono,
@@ -32,6 +34,9 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "sw
 const roboto = Roboto({ variable: "--font-roboto", subsets: ["latin"], weight: ["400", "500", "700"], display: "swap" });
 const openSans = Open_Sans({ variable: "--font-open-sans", subsets: ["latin"], display: "swap" });
 const lato = Lato({ variable: "--font-lato", subsets: ["latin"], weight: ["400", "700"], display: "swap" });
+// Long-form-reading serifs for prose / poetry / TTRPG editors.
+const lora = Lora({ variable: "--font-lora", subsets: ["latin"], display: "swap" });
+const merriweather = Merriweather({ variable: "--font-merriweather", subsets: ["latin"], weight: ["400", "700"], display: "swap" });
 
 // Editor fonts. Courier New / Monaco / Consolas stay system-only —
 // they're standard on Linux/macOS/Windows respectively, so loading
@@ -47,6 +52,8 @@ const FONT_VARIABLES = [
   roboto.variable,
   openSans.variable,
   lato.variable,
+  lora.variable,
+  merriweather.variable,
   courierPrime.variable,
   sourceCodePro.variable,
   jetbrainsMono.variable,

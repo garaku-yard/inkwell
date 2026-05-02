@@ -20,10 +20,47 @@ export const THEME_OPTIONS: { id: ThemeName; label: string; description: string 
   { id: "rose",     label: "Rose",     description: "Dusty rose accent" },
 ]
 
+/** One pref per editor type. Each format has its own typographic
+ *  conventions — screenplay locks to Courier, comic scripts run mono,
+ *  prose-shaped editors look better in serif — so storing a single
+ *  global "editor font" was a poor fit. Per-kind prefs let users
+ *  override format conventions without dragging every editor along. */
+export type EditorKind =
+  | "screenplay"
+  | "prose"
+  | "poetry"
+  | "comic"
+  | "ttrpg"
+  | "if"
+  | "vault"
+
+export const EDITOR_KIND_LABEL: Record<EditorKind, string> = {
+  screenplay: "Screenplay",
+  prose: "Prose & Memoir",
+  poetry: "Poetry & Lyrics",
+  comic: "Comic Script",
+  ttrpg: "Tabletop RPG",
+  if: "Interactive Fiction",
+  vault: "Vault (Markdown)",
+}
+
+/** Format-conventional defaults. New users see typography that
+ *  matches each format's industry expectations. */
+const EDITOR_FONT_DEFAULTS: Record<EditorKind, string> = {
+  screenplay: "courier",
+  comic: "courier",
+  prose: "lora",
+  poetry: "lora",
+  ttrpg: "lora",
+  if: "inter",
+  vault: "inter",
+}
+
 export interface AppearancePrefs {
   colorMode: ColorMode
   theme: ThemeName
-  editorFont: string
+  /** Per-editor font picks. Each value is a font ID from EDITOR_FONTS. */
+  editorFonts: Record<EditorKind, string>
   uiFont: string
   editorLineHeight: string
 }
@@ -31,20 +68,28 @@ export interface AppearancePrefs {
 const DEFAULTS: AppearancePrefs = {
   colorMode: "system",
   theme: "forest",
-  editorFont: "courier",
+  editorFonts: EDITOR_FONT_DEFAULTS,
   uiFont: "inter",
   editorLineHeight: "1.6",
 }
 
-/** Font-family stacks for each picker option. The `--font-*`
- *  variables are injected by `next/font/google` declarations in
- *  `app/layout.tsx`; if a font isn't loaded there, its var is
- *  undefined and the stack falls through to the system fallback —
- *  but every entry below that names a `--font-*` variable IS
- *  loaded today. System-only fonts (Courier New, Monaco, Consolas,
- *  system-ui) skip the variable because they're guaranteed
- *  installed on the corresponding OS. */
-const EDITOR_FONTS: Record<string, string> = {
+/** Font-family stacks shared by both UI and editor pickers. The
+ *  `--font-*` variables are injected by `next/font/google`
+ *  declarations in `app/layout.tsx`. System-only fonts (Courier New,
+ *  Monaco, Consolas, system-ui, Georgia) skip the variable because
+ *  they're guaranteed installed on the corresponding OS. */
+const FONT_STACKS: Record<string, string> = {
+  // Sans / UI
+  inter: "var(--font-inter), Inter, system-ui, sans-serif",
+  system: "system-ui, sans-serif",
+  roboto: "var(--font-roboto), Roboto, system-ui, sans-serif",
+  "open-sans": "var(--font-open-sans), 'Open Sans', system-ui, sans-serif",
+  lato: "var(--font-lato), Lato, system-ui, sans-serif",
+  // Serif (long-form reading)
+  lora: "var(--font-lora), Lora, Georgia, 'Times New Roman', serif",
+  merriweather: "var(--font-merriweather), Merriweather, Georgia, serif",
+  georgia: "Georgia, 'Times New Roman', serif",
+  // Mono
   courier: "'Courier New', Courier, monospace",
   "courier-prime": "var(--font-courier-prime), 'Courier Prime', 'Courier New', monospace",
   monaco: "Monaco, 'Courier New', monospace",
@@ -53,13 +98,45 @@ const EDITOR_FONTS: Record<string, string> = {
   jetbrains: "var(--font-jetbrains), 'JetBrains Mono', Menlo, monospace",
 }
 
-const UI_FONTS: Record<string, string> = {
-  inter: "var(--font-inter), Inter, system-ui, sans-serif",
-  system: "system-ui, sans-serif",
-  roboto: "var(--font-roboto), Roboto, system-ui, sans-serif",
-  "open-sans": "var(--font-open-sans), 'Open Sans', system-ui, sans-serif",
-  lato: "var(--font-lato), Lato, system-ui, sans-serif",
+/** Resolve a font id to its CSS font-family stack. Falls back to a
+ *  sensible system stack when the id isn't recognised — keeps the
+ *  app from rendering blank if a stale localStorage entry survives a
+ *  rename. */
+export function getFontStack(fontId: string): string {
+  return FONT_STACKS[fontId] ?? FONT_STACKS.inter
 }
+
+/** Picker categories — the Settings UI groups options for clarity. */
+export const SANS_FONT_OPTIONS = [
+  { value: "inter",      label: "Inter" },
+  { value: "system",     label: "System Default" },
+  { value: "roboto",     label: "Roboto" },
+  { value: "open-sans",  label: "Open Sans" },
+  { value: "lato",       label: "Lato" },
+] as const
+
+export const SERIF_FONT_OPTIONS = [
+  { value: "lora",          label: "Lora" },
+  { value: "merriweather",  label: "Merriweather" },
+  { value: "georgia",       label: "Georgia (system)" },
+] as const
+
+export const MONO_FONT_OPTIONS = [
+  { value: "courier",       label: "Courier New" },
+  { value: "courier-prime", label: "Courier Prime" },
+  { value: "monaco",        label: "Monaco" },
+  { value: "consolas",      label: "Consolas" },
+  { value: "source-code",   label: "Source Code Pro" },
+  { value: "jetbrains",     label: "JetBrains Mono" },
+] as const
+
+/** Every font option, flattened — used as the editor-font picker
+ *  source so writers can mix categories (e.g. JetBrains for prose). */
+export const ALL_EDITOR_FONT_OPTIONS = [
+  { group: "Serif", options: SERIF_FONT_OPTIONS },
+  { group: "Sans",  options: SANS_FONT_OPTIONS },
+  { group: "Mono",  options: MONO_FONT_OPTIONS },
+] as const
 
 const STORAGE_KEY = "inkwell:appearance"
 
@@ -76,8 +153,10 @@ function applyPrefs(prefs: AppearancePrefs) {
   } else {
     root.setAttribute("data-theme", prefs.theme)
   }
-  root.style.setProperty("--inkwell-editor-font", EDITOR_FONTS[prefs.editorFont] ?? EDITOR_FONTS.courier)
-  root.style.setProperty("--inkwell-ui-font", UI_FONTS[prefs.uiFont] ?? UI_FONTS.inter)
+  // UI font applies globally; editor fonts are set per-wrapper by
+  // each editor's render so different routes can render different
+  // typography simultaneously.
+  root.style.setProperty("--inkwell-ui-font", getFontStack(prefs.uiFont))
   root.style.setProperty("--inkwell-editor-lh", prefs.editorLineHeight)
 }
 
@@ -85,9 +164,13 @@ interface ThemeContextType {
   prefs: AppearancePrefs
   setColorMode: (mode: ColorMode) => void
   setTheme: (theme: ThemeName) => void
-  setEditorFont: (font: string) => void
+  setEditorFontFor: (kind: EditorKind, font: string) => void
   setUiFont: (font: string) => void
   setEditorLineHeight: (lh: string) => void
+  /** Resolve the font-family stack for the given editor kind.
+   *  Editors call this once per render to set their wrapper's
+   *  fontFamily. */
+  editorFontStack: (kind: EditorKind) => string
   // legacy compat
   theme: "light" | "dark"
   toggleTheme: () => void
@@ -103,8 +186,25 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setMounted(true)
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
-      const loaded: AppearancePrefs = stored ? { ...DEFAULTS, ...JSON.parse(stored) } : DEFAULTS
-      // migrate old "theme" key
+      const parsed = stored ? JSON.parse(stored) : null
+      const loaded: AppearancePrefs = {
+        ...DEFAULTS,
+        ...(parsed ?? {}),
+        // editorFonts merges the format-conventional defaults with
+        // any user overrides — so a user who saved {"prose": "inter"}
+        // before "ttrpg" was a kind still gets the ttrpg default,
+        // not undefined.
+        editorFonts: { ...EDITOR_FONT_DEFAULTS, ...(parsed?.editorFonts ?? {}) },
+      }
+      // Migrate the old single-editor-font shape into per-kind prefs:
+      // if the user ever picked an editor font under the old schema,
+      // mirror it across every kind so they don't lose their choice.
+      if (parsed && typeof parsed.editorFont === "string" && !parsed.editorFonts) {
+        for (const kind of Object.keys(EDITOR_FONT_DEFAULTS) as EditorKind[]) {
+          loaded.editorFonts[kind] = parsed.editorFont
+        }
+      }
+      // Migrate old standalone "theme" key (light/dark)
       const oldTheme = localStorage.getItem("theme") as "light" | "dark" | null
       if (!stored && oldTheme) loaded.colorMode = oldTheme
       setPrefs(loaded)
@@ -134,9 +234,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setColorMode = useCallback((mode: ColorMode) => update({ colorMode: mode }), [update])
   const setTheme = useCallback((theme: ThemeName) => update({ theme }), [update])
-  const setEditorFont = useCallback((editorFont: string) => update({ editorFont }), [update])
+  const setEditorFontFor = useCallback((kind: EditorKind, font: string) => {
+    setPrefs((prev) => {
+      const next: AppearancePrefs = {
+        ...prev,
+        editorFonts: { ...prev.editorFonts, [kind]: font },
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+      applyPrefs(next)
+      return next
+    })
+  }, [])
   const setUiFont = useCallback((uiFont: string) => update({ uiFont }), [update])
   const setEditorLineHeight = useCallback((editorLineHeight: string) => update({ editorLineHeight }), [update])
+  const editorFontStack = useCallback(
+    (kind: EditorKind) => getFontStack(prefs.editorFonts[kind] ?? EDITOR_FONT_DEFAULTS[kind]),
+    [prefs.editorFonts],
+  )
 
   const toggleTheme = useCallback(() => {
     const current = prefs.colorMode === "system"
@@ -156,9 +270,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       prefs,
       setColorMode,
       setTheme,
-      setEditorFont,
+      setEditorFontFor,
       setUiFont,
       setEditorLineHeight,
+      editorFontStack,
       theme: resolvedTheme,
       toggleTheme,
     }}>

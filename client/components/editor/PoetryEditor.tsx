@@ -6,6 +6,7 @@ import { syllable } from "syllable"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
@@ -50,6 +51,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id, debounceMs: 1200 })
   const runExport = useExportToast()
   const { toast } = useToast()
+  const { editorFontStack } = useTheme()
   const activePoemId = useScrollSpy({
     refs: poemRefs,
     orderedIds: scenes.map((s) => s.id),
@@ -309,7 +311,10 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
         <div className="flex flex-1 overflow-hidden">
         {/* Scroll area */}
         <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
-          <div className="inkwell-editor-content max-w-[600px] mx-auto px-8 py-16">
+          <div
+            className="inkwell-editor-content max-w-[600px] mx-auto px-8 py-16"
+            style={{ fontFamily: editorFontStack("poetry") }}
+          >
             {scenes.length === 0 ? (
               <EmptyEditorState
                 message={`No ${isLyrics ? "songs" : "poems"} yet.`}

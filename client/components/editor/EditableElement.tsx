@@ -118,7 +118,7 @@ export const EditableElement = React.memo(
     return (
       <div
         className={cn(
-          "outline-none w-full py-1 font-['Courier_New',Courier,monospace] text-[12pt] relative block",
+          "outline-none w-full py-1 text-[12pt] relative block",
           config.editorClasses,
           {
             "bg-blue-50 dark:bg-blue-900/20": isActive,
