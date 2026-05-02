@@ -554,7 +554,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           refreshTrigger={refreshTrigger}
         />
 
-        <div className={cn("flex-1 flex flex-col overflow-hidden", isAIChatOpen && "border-r border-border/40")}>
+        <div className={cn("flex-1 flex flex-col overflow-hidden", isAIChatOpen && "border-r")}>
           <Toolbar
             ref={toolbarRef}
             onInsertElement={handleInsertElement}

@@ -23,7 +23,7 @@ interface AIChatHeaderProps {
  *  hooks so the panel can compose all three pieces in one import. */
 export function AIChatHeader({ providers, selectedId, onSelect, onClose }: AIChatHeaderProps) {
   return (
-    <div className="relative p-6 border-b border-border/40 flex-shrink-0 space-y-4 overflow-hidden">
+    <div className="relative p-6 border-b flex-shrink-0 space-y-4 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
       <div className="relative flex items-center justify-between">
         <div className="flex items-center gap-3.5">

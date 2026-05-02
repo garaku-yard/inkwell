@@ -84,16 +84,16 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
   return (
     <div
       className={cn(
-        "h-full flex flex-col border-l border-border/40 bg-background",
+        "h-full flex flex-col border-l bg-background",
         "transition-all duration-300 ease-out overflow-hidden",
         isOpen ? "w-[420px]" : "w-0",
       )}
     >
-      <div className="h-[57px] flex-shrink-0 border-b border-border/40" />
+      <div className="h-[57px] flex-shrink-0 border-b" />
 
       <div
         className={cn(
-          "flex-1 flex flex-col border-t border-border/40",
+          "flex-1 flex flex-col border-t",
           !isOpen && "invisible",
         )}
       >
