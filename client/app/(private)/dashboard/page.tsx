@@ -227,7 +227,9 @@ export default function DashboardPage() {
                     <p className="text-muted-foreground mt-2">
                       {searchQuery
                         ? "Try a different search term"
-                        : `No ${activeWorkspace?.name ?? "projects"} yet. Create your first project to get started.`}
+                        : activeWorkspace?.name
+                          ? `No projects in ${activeWorkspace.name} yet. Create your first project to get started.`
+                          : "No projects yet. Create your first project to get started."}
                     </p>
                   </div>
                 )}

@@ -1,21 +1,18 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Bot, Download, ChevronDown, Play, RotateCcw, ChevronLeft } from "lucide-react"
+import { Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Play, RotateCcw, ChevronLeft } from "lucide-react"
 import { PassageGraph } from "./PassageGraph"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { AIChatPanel } from "./AIChatPanel"
+import { EditorHeader } from "./shared/EditorHeader"
 import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createIFKeymap } from "./if/keymap"
 import { PassageAutocomplete } from "./if/PassageAutocomplete"
 import { deleteScriptElement } from "@/services/editor"
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToTwee } from "@/lib/export/if-twee"
 import { useExportToast } from "@/lib/export/use-export-toast"
@@ -77,7 +74,6 @@ interface InteractiveFictionEditorProps {
 }
 
 export function InteractiveFictionEditor({ projectData }: InteractiveFictionEditorProps) {
-  const router = useRouter()
   const { user } = useAuth()
   const [passages, setPassages] = useState(() => projectData.scenes ?? [])
   const [activePassageId, setActivePassageId] = useState<string | null>(
@@ -442,61 +438,42 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
 
       {/* Main editor */}
       <div className="flex flex-col flex-1 min-w-0">
-        <header className="flex items-center justify-between px-6 py-3 border-b shrink-0">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push("/dashboard")}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div>
-              <h1 className="text-base font-semibold leading-tight">{projectData.title}</h1>
-              <p className="text-xs text-muted-foreground">Interactive Fiction</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        <EditorHeader
+          title={projectData.title}
+          subtitle="Interactive Fiction"
+          statRight={
+            <span className="flex items-center gap-3">
               <span>{passages.length} passages</span>
               <span className="flex items-center gap-1">
                 <Link2 className="h-3 w-3" />{totalLinks}
               </span>
-              <span className={cn(
-                saveStatus === "saved" && "text-green-600 dark:text-green-400",
-                saveStatus === "saving" && "text-yellow-600 dark:text-yellow-400",
-              )}>
-                {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving…" : "Unsaved"}
-              </span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
-                    <Download className="h-3.5 w-3.5" />
-                    Export
-                    <ChevronDown className="h-3 w-3 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => void runExport({
-                    extension: "txt",
-                    projectTitle: projectData.title,
-                    run: () => exportProjectToText({ ...projectData, scenes: passages }),
-                  })}>
-                    Export as Plain Text (.txt)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void runExport({
-                    extension: "twee",
-                    projectTitle: projectData.title,
-                    run: () => exportProjectToTwee({ ...projectData, scenes: passages }),
-                  })}>
-                    Export as Twee 3 (.twee)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsAIChatOpen(o => !o)} title="Writing Buddy">
-                <Bot className="h-4 w-4" />
-              </Button>
-            </div>
-            {/* View toggle */}
-            <div className="flex items-center rounded-md border overflow-hidden text-xs">
+            </span>
+          }
+          saveStatus={saveStatus}
+          onToggleAI={() => setIsAIChatOpen(o => !o)}
+          exportItems={[
+            {
+              label: "Export as Plain Text (.txt)",
+              onClick: () => void runExport({
+                extension: "txt",
+                projectTitle: projectData.title,
+                run: () => exportProjectToText({ ...projectData, scenes: passages }),
+              }),
+            },
+            {
+              label: "Export as Twee 3 (.twee)",
+              onClick: () => void runExport({
+                extension: "twee",
+                projectTitle: projectData.title,
+                run: () => exportProjectToTwee({ ...projectData, scenes: passages }),
+              }),
+            },
+          ]}
+          extras={
+            <div role="group" aria-label="View mode" className="flex items-center rounded-md border overflow-hidden text-xs">
               <button
                 onClick={() => setView("write")}
+                aria-pressed={view === "write"}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 transition-colors",
                   view === "write" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
@@ -506,6 +483,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               </button>
               <button
                 onClick={() => setView("graph")}
+                aria-pressed={view === "graph"}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 transition-colors",
                   view === "graph" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
@@ -522,6 +500,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                   setPlayHistory([])
                   setView("play")
                 }}
+                aria-pressed={view === "play"}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 transition-colors",
                   view === "play" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
@@ -530,8 +509,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                 <Play className="h-3 w-3" /> Play
               </button>
             </div>
-          </div>
-        </header>
+          }
+        />
 
         <div className="flex flex-1 overflow-hidden">
         {/* Graph view */}

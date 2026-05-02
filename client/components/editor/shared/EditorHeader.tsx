@@ -39,11 +39,10 @@ interface EditorHeaderProps {
 }
 
 /** Shared header for the simpler format editors (Prose, Poetry, Comic,
- *  TabletopRPG). Screenplay and Vault have structurally different
- *  headers (different button sets, different chrome) and stay inline.
- *  IF's view toggle sits outside the right-side cluster as a sibling
- *  block, so it also stays inline; folding it in would push a
- *  `rightSlot` prop nobody else wants. */
+ *  TabletopRPG, Interactive Fiction). Screenplay and Vault have
+ *  structurally different headers (different button sets, different
+ *  chrome) and stay inline. IF threads its Write/Graph/Play view
+ *  toggle through the `extras` slot. */
 export function EditorHeader({
   title,
   subtitle,
