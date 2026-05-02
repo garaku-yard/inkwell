@@ -1,4 +1,4 @@
-import { PanelRight, Trash2 } from "lucide-react"
+import { Paperclip, PanelRight, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,10 @@ interface VaultNoteToolbarProps {
   showBacklinks: boolean
   onToggleBacklinks: () => void
   onDelete: () => void
+  /** Open a file picker, copy the chosen file into the vault's
+   *  `attachments/` folder, and append a markdown link/image to the
+   *  current note. Disabled on the web build. */
+  onAttach?: () => void
 }
 
 /** Toolbar above the markdown editor — clickable / inline-editable
@@ -28,6 +32,7 @@ export function VaultNoteToolbar({
   showBacklinks,
   onToggleBacklinks,
   onDelete,
+  onAttach,
 }: VaultNoteToolbarProps) {
   return (
     <div className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
@@ -58,6 +63,18 @@ export function VaultNoteToolbar({
           }}
           className="h-8 flex-1 text-sm font-semibold"
         />
+      )}
+
+      {onAttach && (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          onClick={onAttach}
+          title="Attach a file"
+        >
+          <Paperclip className="h-4 w-4" />
+        </Button>
       )}
 
       <Button

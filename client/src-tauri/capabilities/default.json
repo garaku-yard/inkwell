@@ -44,6 +44,7 @@
     "fs:allow-mkdir",
     "fs:allow-exists",
     "fs:allow-rename",
+    "fs:allow-copy-file",
     "fs:allow-watch",
     "fs:allow-unwatch",
     "fs:scope-home-recursive",
@@ -51,6 +52,8 @@
     "fs:scope-desktop-recursive",
     "fs:scope-download-recursive",
     "opener:default",
-    "opener:allow-open-url"
+    "opener:allow-open-url",
+    "opener:allow-open-path",
+    "opener:allow-reveal-item-in-dir"
   ]
 }

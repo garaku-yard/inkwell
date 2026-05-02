@@ -376,23 +376,111 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     [flushPending, notes, openNote, projectId, refreshNotes, storage],
   )
 
-  // Open a plain markdown link (`[text](url)` / `<https://…>`) in the
-  // OS browser. Inside Tauri we hand off to the opener plugin so the
-  // webview doesn't try to navigate itself; on web we fall back to a
-  // standard `window.open`. URL schemes outside the safe set are
-  // ignored to prevent `javascript:` from leaking through user content.
-  const onLinkClick = useCallback((rawUrl: string) => {
-    const trimmed = rawUrl.trim()
-    if (!trimmed) return
-    if (!/^(https?:|mailto:)/i.test(trimmed)) return
-    if (isTauri()) {
+  // Resolve a vault-relative path against the active vault root.
+  // Mirrors live-preview.ts's joinVaultPath but kept inline because
+  // this hook only needs a tiny portion of that logic.
+  const resolveVaultRelative = useCallback(
+    (rel: string): string | null => {
+      if (!vaultPath) return null
+      const sep = /\\/.test(vaultPath) && !/\//.test(vaultPath) ? "\\" : "/"
+      return `${vaultPath.replace(/[\\/]+$/, "")}${sep}${rel}`
+    },
+    [vaultPath],
+  )
+
+  // Open a plain markdown link from a vault note. Three flavours:
+  //   - http/https/mailto → OS browser (Tauri opener plugin or
+  //     window.open on the web)
+  //   - non-image vault-relative path → OS default app via the opener
+  //     plugin's openPath (PDFs, audio, docs — the "attachments
+  //     beyond images" scenario)
+  //   - anything with a `javascript:` / `file:` / similar scheme is
+  //     dropped silently to keep user content from smuggling in
+  //     active content
+  const onLinkClick = useCallback(
+    (rawUrl: string) => {
+      const trimmed = rawUrl.trim()
+      if (!trimmed) return
+
+      if (/^(https?:|mailto:)/i.test(trimmed)) {
+        if (isTauri()) {
+          void import("@tauri-apps/plugin-opener")
+            .then(({ openUrl }) => openUrl(trimmed))
+            .catch((err) => console.error("Failed to open URL:", err))
+        } else {
+          window.open(trimmed, "_blank", "noopener,noreferrer")
+        }
+        return
+      }
+
+      // Reject any other URL scheme (`javascript:`, `file:`, custom
+      // protocols) — only relative paths get the attachment treatment.
+      if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return
+
+      if (!isTauri()) return
+      const absolute = resolveVaultRelative(trimmed)
+      if (!absolute) return
       void import("@tauri-apps/plugin-opener")
-        .then(({ openUrl }) => openUrl(trimmed))
-        .catch((err) => console.error("Failed to open URL:", err))
-    } else {
-      window.open(trimmed, "_blank", "noopener,noreferrer")
+        .then(({ openPath }) => openPath(absolute))
+        .catch((err) => console.error("Failed to open attachment:", err))
+    },
+    [resolveVaultRelative],
+  )
+
+  // Pick a file from disk, copy it into the vault's `attachments/`
+  // folder, and append a markdown link to the current note. Images
+  // get the `![alt](path)` shape so live-preview renders them inline;
+  // everything else lands as a plain `[file](path)` link that the
+  // attachment click handler above opens via the OS default app.
+  const handleAttach = useCallback(async () => {
+    if (!isTauri() || !vaultPath || !selected) {
+      setError("Attachments need an open desktop vault.")
+      return
     }
-  }, [])
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog")
+      const { copyFile, exists, mkdir } = await import("@tauri-apps/plugin-fs")
+      const picked = await open({ multiple: false })
+      if (!picked || typeof picked !== "string") return
+
+      const sep = /\\/.test(vaultPath) && !/\//.test(vaultPath) ? "\\" : "/"
+      const root = vaultPath.replace(/[\\/]+$/, "")
+      const attachmentsDir = `${root}${sep}attachments`
+      if (!(await exists(attachmentsDir))) {
+        await mkdir(attachmentsDir, { recursive: true })
+      }
+
+      const sourceBasename = picked.split(/[\\/]/).pop() ?? "attachment"
+      const safeBasename = sourceBasename.replace(/[^a-zA-Z0-9._-]/g, "_")
+      let destBasename = safeBasename
+      let dest = `${attachmentsDir}${sep}${destBasename}`
+      // Resolve filename collisions by appending `-1`, `-2`, … before
+      // the extension. Don't overwrite an existing attachment.
+      let n = 1
+      while (await exists(dest)) {
+        const dot = safeBasename.lastIndexOf(".")
+        const stem = dot === -1 ? safeBasename : safeBasename.slice(0, dot)
+        const ext = dot === -1 ? "" : safeBasename.slice(dot)
+        destBasename = `${stem}-${n}${ext}`
+        dest = `${attachmentsDir}${sep}${destBasename}`
+        n += 1
+      }
+      await copyFile(picked, dest)
+
+      const isImage = /\.(png|jpe?g|gif|webp|svg|avif|bmp)$/i.test(destBasename)
+      const linkPath = `attachments/${destBasename}`
+      const label = destBasename.replace(/\.[^.]+$/, "")
+      const snippet = isImage
+        ? `\n\n![${label}](${linkPath})\n`
+        : `\n\n[${label}](${linkPath})\n`
+
+      await flushPending()
+      onContentChange((content ?? "") + snippet)
+    } catch (err) {
+      console.error("Attach failed:", err)
+      setError(err instanceof Error ? err.message : "Could not attach file.")
+    }
+  }, [content, flushPending, onContentChange, selected, vaultPath])
 
   const onPickFolder = async () => {
     if (!isTauri()) {
@@ -531,6 +619,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
                 showBacklinks={showBacklinks}
                 onToggleBacklinks={() => setShowBacklinks((v) => !v)}
                 onDelete={() => setDeleteOpen(true)}
+                onAttach={isTauri() ? handleAttach : undefined}
               />
 
               {/* Editor + optional backlinks pane */}
