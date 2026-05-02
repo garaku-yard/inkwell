@@ -30,7 +30,8 @@ import {
 // Standard die sizes: d4 d6 d8 d10 d12 d20 d100
 const DIE_FOR_ROWS: Record<number, string> = { 4: "d4", 6: "d6", 8: "d8", 10: "d10", 12: "d12", 20: "d20", 100: "d100" }
 
-function wordCount(text: string) {
+function wordCount(text: string | null | undefined) {
+  if (!text) return 0
   return text.trim().split(/\s+/).filter(Boolean).length
 }
 

@@ -155,8 +155,10 @@ function toScene(row: SceneRow): Scene {
     id: row.id,
     project_id: row.project_id,
     outline_unit_id: row.outline_unit_id ?? undefined,
-    scene_heading: row.scene_heading,
-    content: row.content,
+    // Same nil-coercion contract as toElement: every downstream
+    // consumer can call string methods on these without null checks.
+    scene_heading: row.scene_heading ?? "",
+    content: row.content ?? "",
     order_index: row.order_index,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -188,7 +190,11 @@ function toElement(row: ElementRow): ScriptElement {
     project_id: row.project_id,
     scene_id: row.scene_id ?? undefined,
     element_type: row.element_type,
-    content: row.content,
+    // SQLite may return NULL for content (especially on rows created
+    // by older migrations or external edits). Coerce to empty string
+    // here so every downstream consumer can safely call .trim() /
+    // .toLowerCase() / .split() without nil checks.
+    content: row.content ?? "",
     character_id: row.character_id ?? undefined,
     line_number: row.line_number,
     formatting,

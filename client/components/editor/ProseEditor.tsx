@@ -36,7 +36,8 @@ interface ProseEditorProps {
   projectData: FullProject
 }
 
-function wordCount(text: string): number {
+function wordCount(text: string | null | undefined): number {
+  if (!text) return 0
   return text.trim().split(/\s+/).filter(Boolean).length
 }
 
