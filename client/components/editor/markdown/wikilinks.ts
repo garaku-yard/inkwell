@@ -106,6 +106,66 @@ export function wikilinkClickExtension(
 }
 
 /**
+ * CodeMirror extension that routes clicks on rendered `[label](url)` and
+ * autolink (`<https://…>`) spans back into React. Mirrors the wikilink
+ * shape: callers pass a stable getter so they can swap the URL handler
+ * (open in OS browser on desktop, `window.open` on web) without
+ * recreating the editor.
+ *
+ * Behaviour:
+ *  - Finds the nearest `.cm-md-link` element under the click.
+ *  - Resolves the document position to a `Link` or `Autolink` syntax node.
+ *  - Pulls the URL out of the `URL` child (Link) or the body text
+ *    minus angle brackets (Autolink).
+ *  - Invokes the handler with the raw URL string.
+ *
+ * Modifier-click is left alone so the user can still click into the link
+ * text to edit it (Cmd/Ctrl + click → caret placement, plain click → open).
+ */
+export function linkClickExtension(
+  getHandler: () => ((url: string) => void) | undefined,
+): Extension {
+  return EditorView.domEventHandlers({
+    mousedown(event, view) {
+      if (event.button !== 0) return false
+      if (event.metaKey || event.ctrlKey || event.altKey) return false
+      const handler = getHandler()
+      if (!handler) return false
+      const el = event.target as HTMLElement | null
+      if (!el || !el.closest(".cm-md-link")) return false
+
+      const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+      if (pos == null) return false
+
+      let node: SyntaxNode | null = syntaxTree(view.state).resolve(pos, 1)
+      while (node && node.name !== "Link" && node.name !== "Autolink") {
+        node = node.parent
+      }
+      if (!node) return false
+
+      let url = ""
+      if (node.name === "Autolink") {
+        // `<https://example.com>` — strip the angle brackets.
+        const raw = view.state.doc.sliceString(node.from, node.to)
+        url = raw.replace(/^<|>$/g, "").trim()
+      } else {
+        // `[label](url)` — Lezer emits a `URL` child inside the Link.
+        const urlNode = node.node.getChild("URL")
+        if (urlNode) {
+          url = view.state.doc.sliceString(urlNode.from, urlNode.to).trim()
+        }
+      }
+      if (!url) return false
+
+      event.preventDefault()
+      event.stopPropagation()
+      handler(url)
+      return true
+    },
+  })
+}
+
+/**
  * Mirror of `wikilinkClickExtension` for `#tag` inline spans. The tag
  * text (without the `#`) is handed to the consumer so callers can
  * filter notes, scroll a sidebar, etc.

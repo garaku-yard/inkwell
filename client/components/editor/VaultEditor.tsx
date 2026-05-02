@@ -376,6 +376,24 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     [flushPending, notes, openNote, projectId, refreshNotes, storage],
   )
 
+  // Open a plain markdown link (`[text](url)` / `<https://…>`) in the
+  // OS browser. Inside Tauri we hand off to the opener plugin so the
+  // webview doesn't try to navigate itself; on web we fall back to a
+  // standard `window.open`. URL schemes outside the safe set are
+  // ignored to prevent `javascript:` from leaking through user content.
+  const onLinkClick = useCallback((rawUrl: string) => {
+    const trimmed = rawUrl.trim()
+    if (!trimmed) return
+    if (!/^(https?:|mailto:)/i.test(trimmed)) return
+    if (isTauri()) {
+      void import("@tauri-apps/plugin-opener")
+        .then(({ openUrl }) => openUrl(trimmed))
+        .catch((err) => console.error("Failed to open URL:", err))
+    } else {
+      window.open(trimmed, "_blank", "noopener,noreferrer")
+    }
+  }, [])
+
   const onPickFolder = async () => {
     if (!isTauri()) {
       setError("Folder selection is only available in the desktop app.")
@@ -522,6 +540,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
                   onChange={onContentChange}
                   onWikilinkClick={(target) => void onWikilinkClick(target)}
                   onTagClick={onTagClick}
+                  onLinkClick={onLinkClick}
                   vaultPath={vaultPath}
                   className="min-w-0 flex-1 overflow-hidden"
                 />

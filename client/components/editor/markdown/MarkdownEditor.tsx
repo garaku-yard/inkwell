@@ -9,6 +9,7 @@ import { Compartment, EditorState } from "@codemirror/state"
 import { EditorView, highlightActiveLine, keymap } from "@codemirror/view"
 
 import {
+  linkClickExtension,
   tagClickExtension,
   wikilinkClickExtension,
   wikilinkParser,
@@ -31,6 +32,11 @@ interface MarkdownEditorProps {
    *  inline `#tag` span. Typically filters the sidebar to notes tagged
    *  with that value. */
   onTagClick?: (tag: string) => void
+  /** Called with the URL when the user clicks a plain markdown link
+   *  (`[label](url)`) or autolink (`<https://…>`). Implementers
+   *  typically open the URL in the OS browser. Modifier-clicks are
+   *  ignored so the user can still place the caret inside link text. */
+  onLinkClick?: (url: string) => void
   /** Absolute path to the enclosing vault folder, used to resolve
    *  relative image paths. null/undefined disables local image rendering
    *  — HTTP(S) images still work. */
@@ -56,6 +62,7 @@ export function MarkdownEditor({
   onChange,
   onWikilinkClick,
   onTagClick,
+  onLinkClick,
   vaultPath,
   placeholder,
   className,
@@ -70,6 +77,8 @@ export function MarkdownEditor({
   onWikilinkRef.current = onWikilinkClick
   const onTagRef = useRef(onTagClick)
   onTagRef.current = onTagClick
+  const onLinkRef = useRef(onLinkClick)
+  onLinkRef.current = onLinkClick
 
   // Reconfigure target for vault path — swapping the folder mid-session
   // (via the Settings dialog) should re-resolve image paths without
@@ -98,6 +107,7 @@ export function MarkdownEditor({
         vaultPathCompartment.current.of(vaultPathFacet.of(vaultPath ?? null)),
         wikilinkClickExtension(() => onWikilinkRef.current),
         tagClickExtension(() => onTagRef.current),
+        linkClickExtension(() => onLinkRef.current),
         EditorView.lineWrapping,
         highlightActiveLine(),
         inkwellTheme,

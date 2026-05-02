@@ -49,6 +49,8 @@
     "fs:scope-home-recursive",
     "fs:scope-document-recursive",
     "fs:scope-desktop-recursive",
-    "fs:scope-download-recursive"
+    "fs:scope-download-recursive",
+    "opener:default",
+    "opener:allow-open-url"
   ]
 }
