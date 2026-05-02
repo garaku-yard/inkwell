@@ -20,7 +20,12 @@ import {
 } from "@/services/project"
 import { deleteScriptElement } from "@/services/editor"
 
-type ProseElementType = "chapter_heading" | "paragraph" | "scene_break"
+type ProseElementType =
+  | "chapter_heading"
+  | "paragraph"
+  | "dialogue"
+  | "scene_break"
+  | "scene_heading_stinger"
 
 interface ProseEditorProps {
   projectData: FullProject
@@ -287,6 +292,48 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                           )
                         }
 
+                        if (el.element_type === "scene_heading_stinger") {
+                          // Bolder stage-direction-style opener: small caps,
+                          // wider letter-spacing, italic, with a hairline rule
+                          // beneath. Used for "Three weeks later." or
+                          // "MEANWHILE, ACROSS TOWN" style transitions.
+                          return (
+                            <div
+                              key={el.id}
+                              id={`el-${el.id}`}
+                              contentEditable
+                              suppressContentEditableWarning
+                              onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                              onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+                              className="mt-12 mb-6 italic text-base tracking-wider uppercase text-foreground/80 border-b border-border/40 pb-2 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30 empty:before:not-italic empty:before:normal-case empty:before:tracking-normal"
+                              data-placeholder="Stinger…"
+                            >
+                              {el.content}
+                            </div>
+                          )
+                        }
+
+                        if (el.element_type === "dialogue") {
+                          // Distinct from a paragraph: hanging indent for
+                          // multi-line dialogue, opening curly quote in
+                          // place of the first-line indent, slightly
+                          // tighter line-height to set it apart visually.
+                          return (
+                            <div
+                              key={el.id}
+                              id={`el-${el.id}`}
+                              contentEditable
+                              suppressContentEditableWarning
+                              onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                              onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+                              className="outline-none min-h-[1.75rem] pl-10 -indent-6 leading-relaxed before:content-['“'] before:mr-1 before:text-muted-foreground/60 empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30 empty:before:pl-0 empty:before:mr-0"
+                              data-placeholder="Dialogue…"
+                            >
+                              {el.content}
+                            </div>
+                          )
+                        }
+
                         // paragraph — standard first-line indent, no gap between consecutive paragraphs
                         return (
                           <div
@@ -298,8 +345,16 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                             onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
                             className={cn(
                               "outline-none min-h-[1.75rem]",
-                              // First paragraph after chapter title or a section heading has no indent
-                              elIdx === 0 || (scene.elements ?? [])[elIdx - 1]?.element_type === "chapter_heading"
+                              // First paragraph after chapter title, section
+                              // heading, or stinger sits flush left — every
+                              // other paragraph gets the standard first-line
+                              // indent. Dialogue + scene_break above also
+                              // reset the indent because they break the
+                              // visual flow of consecutive prose.
+                              elIdx === 0 ||
+                                ["chapter_heading", "scene_heading_stinger", "dialogue", "scene_break"].includes(
+                                  (scene.elements ?? [])[elIdx - 1]?.element_type ?? "",
+                                )
                                 ? ""
                                 : "pl-10",
                               "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30 empty:before:pl-0",
@@ -319,8 +374,14 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                     <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(scene.id, "paragraph")}>
                       Paragraph
                     </Button>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(scene.id, "dialogue")}>
+                      Dialogue
+                    </Button>
                     <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(scene.id, "chapter_heading")}>
                       Section
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(scene.id, "scene_heading_stinger")}>
+                      Stinger
                     </Button>
                     <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(scene.id, "scene_break")}>
                       Scene break

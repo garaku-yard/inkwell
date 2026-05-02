@@ -10,15 +10,24 @@ import type { Scene } from "@/services/project"
 
 /** Prose element types — keep in sync with the union in
  *  ProseEditor.tsx. */
-export type ProseElementType = "chapter_heading" | "paragraph" | "scene_break"
+export type ProseElementType =
+  | "chapter_heading"
+  | "paragraph"
+  | "dialogue"
+  | "scene_break"
+  | "scene_heading_stinger"
 
 /** mod+digit insert shortcuts. Paragraph on 1 because that's the
  *  workhorse; chapter_heading on 2 for the obvious section break;
- *  scene_break on 3 for the rare "* * *" separator. */
+ *  scene_break on 3 for the rare "* * *" separator; dialogue on 4
+ *  for run-on dialogue blocks; stinger on 5 for the "Three weeks
+ *  later." opening line that needs more punch than a heading. */
 const NUMBER_KEY_TO_ELEMENT: Record<string, ProseElementType> = {
   "1": "paragraph",
   "2": "chapter_heading",
   "3": "scene_break",
+  "4": "dialogue",
+  "5": "scene_heading_stinger",
 }
 
 /** Window for double-Enter detection. Two Enters within this many ms
