@@ -33,8 +33,13 @@ import {
 // note        — author note, never shown in-game
 type IFElementType = "body" | "choice" | "conditional" | "set" | "note"
 
-// Parse all [[text -> target]] or [[target]] links from a string
-function parseLinks(text: string): string[] {
+// Parse all [[text -> target]] or [[target]] links from a string.
+// Tolerant of null/undefined content because elements loaded from the
+// database (or freshly created via handleAddElement) can have an
+// empty content field that arrives as undefined through the storage
+// abstraction in some code paths.
+function parseLinks(text: string | null | undefined): string[] {
+  if (!text) return []
   const re = /\[\[(?:[^\]]*?->\s*)?([^\]|>]+?)(?:\s*\|[^\]]*)?\]\]/g
   const targets: string[] = []
   let m
@@ -67,7 +72,8 @@ function tokenizeBody(text: string): BodySegment[] {
   return out
 }
 
-function wordCount(text: string) {
+function wordCount(text: string | null | undefined) {
+  if (!text) return 0
   return text.trim().split(/\s+/).filter(Boolean).length
 }
 
@@ -147,10 +153,11 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     }))
     setTimeout(() => {
       const div = document.getElementById(`el-${el.id}`)
-      div?.focus()
+      if (!div) return
+      div.focus()
       if (type !== "body" && type !== "note") {
         const range = document.createRange()
-        range.selectNodeContents(div!)
+        range.selectNodeContents(div)
         window.getSelection()?.removeAllRanges()
         window.getSelection()?.addRange(range)
       }
