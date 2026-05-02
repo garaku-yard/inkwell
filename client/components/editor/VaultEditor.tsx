@@ -558,20 +558,39 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
         <div className="flex-1 truncate text-sm font-medium">
           {projectData.title}
         </div>
-        <Button
-          size="icon"
-          variant="ghost"
-          className={cn(
-            "h-8 w-8",
-            graphOpen && "bg-muted text-foreground",
-          )}
-          onClick={() => setGraphOpen((v) => !v)}
-          aria-label="Toggle graph view"
-          aria-pressed={graphOpen}
-          title="Toggle graph view"
+        {/* View toggle — Notes vs Graph. Segmented control reads more
+            honestly than a single toggle icon: the writer can see at
+            a glance which mode is active, and one click swaps. */}
+        <div
+          role="group"
+          aria-label="Vault view"
+          className="flex items-center rounded-md border overflow-hidden text-xs"
         >
-          <Network className="h-4 w-4" />
-        </Button>
+          <button
+            onClick={() => setGraphOpen(false)}
+            aria-pressed={!graphOpen}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 transition-colors",
+              !graphOpen
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-muted text-muted-foreground",
+            )}
+          >
+            <FileText className="h-3 w-3" /> Notes
+          </button>
+          <button
+            onClick={() => setGraphOpen(true)}
+            aria-pressed={graphOpen}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 transition-colors",
+              graphOpen
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-muted text-muted-foreground",
+            )}
+          >
+            <Network className="h-3 w-3" /> Graph
+          </button>
+        </div>
         <Button
           size="icon"
           variant="ghost"
