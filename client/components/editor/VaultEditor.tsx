@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { type VaultNote } from "@/lib/storage"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 import type { FullProject } from "@/services/project"
 import { MarkdownEditor } from "./markdown/MarkdownEditor"
 import { VaultGraph } from "./VaultGraph"
@@ -81,6 +82,20 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     refresh: refreshNotes,
     openNote,
   } = useVaultNotes(projectId)
+
+  // Surface vault errors via toast in addition to the persistent
+  // bottom bar. The bar stays visible until dismissed so the user
+  // can read at their own pace; the toast guarantees they notice
+  // the failure even if they're scrolled deep inside a long note.
+  const { toast } = useToast()
+  useEffect(() => {
+    if (!error) return
+    toast({
+      title: "Vault error",
+      description: error,
+      variant: "destructive",
+    })
+  }, [error, toast])
 
   const [search, setSearch] = useState<string>("")
   const [createOpen, setCreateOpen] = useState(false)
@@ -687,7 +702,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
       </div>
 
       {error && (
-        <div className="flex shrink-0 items-center justify-between border-t bg-destructive/10 px-4 py-2 text-sm text-destructive">
+        <div role="alert" className="flex shrink-0 items-center justify-between border-t bg-destructive/10 px-4 py-2 text-sm text-destructive">
           <span>{error}</span>
           <button
             type="button"
