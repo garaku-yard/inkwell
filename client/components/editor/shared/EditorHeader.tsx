@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Bot, ChevronDown, Download } from "lucide-react"
 
+import { AppHeaderActions } from "@/components/AppHeaderActions"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -119,6 +120,8 @@ export function EditorHeader({
         >
           <Bot className="h-4 w-4" />
         </Button>
+        <div className="h-5 w-px bg-border mx-1" aria-hidden="true" />
+        <AppHeaderActions />
       </div>
     </header>
   )

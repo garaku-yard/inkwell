@@ -5,6 +5,7 @@ import { useState, useRef, useCallback, useMemo, useEffect } from "react"
 import Link from "next/link"
 import { Download, FileText, ArrowLeft, Bot, FilePlus2Icon, BarChart3, ChevronDown } from "lucide-react"
 import { useDebouncedCallback } from "use-debounce"
+import { AppHeaderActions } from "@/components/AppHeaderActions"
 import { Button } from "@/components/ui/button"
 import { Toolbar } from "./Toolbar"
 import { SidePanel } from "./SidePanel"
@@ -529,6 +530,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
               <FilePlus2Icon className="h-4 w-4" />
               Import
             </Button>
+            <div className="h-6 w-px bg-border mx-1" aria-hidden="true" />
+            <AppHeaderActions />
           </div>
         </div>
       </header>

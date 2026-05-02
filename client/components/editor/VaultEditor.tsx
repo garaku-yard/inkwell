@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label"
 import { type VaultNote } from "@/lib/storage"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { AppHeaderActions } from "@/components/AppHeaderActions"
 import type { FullProject } from "@/services/project"
 import { MarkdownEditor } from "./markdown/MarkdownEditor"
 import { VaultGraph } from "./VaultGraph"
@@ -600,6 +601,8 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
         >
           <Settings className="h-4 w-4" />
         </Button>
+        <div className="h-5 w-px bg-border mx-1" aria-hidden="true" />
+        <AppHeaderActions />
       </header>
 
       <div className="flex min-h-0 flex-1">
