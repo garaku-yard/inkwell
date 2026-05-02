@@ -162,7 +162,7 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
         </DialogHeader>
 
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" role="alert">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
@@ -174,6 +174,7 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
             <Label htmlFor="project-name">Project Name</Label>
             <Input
               id="project-name"
+              autoFocus
               placeholder="Enter project name"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
