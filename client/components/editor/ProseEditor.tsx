@@ -15,6 +15,7 @@ import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-
 import { exportProseToEpub } from "@/lib/export/prose-epub"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   createScene,
   createSceneElement,
@@ -45,6 +46,10 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const chapterRefs = useRef<Map<string, HTMLElement | null>>(new Map())
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
+  const activeChapterId = useScrollSpy({
+    refs: chapterRefs,
+    orderedIds: scenes.map((s) => s.id),
+  })
 
   const totalWords = scenes.reduce((acc, scene) => {
     return acc + (scene.elements ?? []).reduce((s, el) => s + wordCount(el.content), 0)
@@ -174,15 +179,23 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
           {scenes.map((scene, i) => {
             const chWords = (scene.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0)
+            const isActive = scene.id === activeChapterId
             return (
               <button
                 key={scene.id}
                 onClick={() => chapterRefs.current.get(scene.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                className="w-full text-left px-3 py-2 rounded-md text-sm transition-colors hover:bg-accent group"
+                aria-current={isActive ? "true" : undefined}
+                className={cn(
+                  "w-full text-left px-3 py-2 rounded-md text-sm transition-colors group",
+                  isActive ? "bg-muted text-foreground" : "hover:bg-accent",
+                )}
               >
                 <div className="flex items-baseline gap-1.5 min-w-0">
-                  <span className="text-xs text-muted-foreground/50 shrink-0">{i + 1}</span>
-                  <span className="truncate text-muted-foreground group-hover:text-foreground transition-colors">
+                  <span className={cn("text-xs shrink-0", isActive ? "text-muted-foreground" : "text-muted-foreground/50")}>{i + 1}</span>
+                  <span className={cn(
+                    "truncate transition-colors",
+                    isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
+                  )}>
                     {scene.scene_heading || "Untitled"}
                   </span>
                 </div>

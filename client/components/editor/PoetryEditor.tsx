@@ -16,6 +16,7 @@ import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToChordPro } from "@/lib/export/chordpro"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   createScene,
   createSceneElement,
@@ -47,6 +48,10 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   // lyrics/poem lines are short and the longer delay felt sluggish.
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id, debounceMs: 1200 })
   const runExport = useExportToast()
+  const activePoemId = useScrollSpy({
+    refs: poemRefs,
+    orderedIds: scenes.map((s) => s.id),
+  })
 
   const totalLines = scenes.reduce((acc, s) => acc + countLines(s.elements ?? []), 0)
 
@@ -197,15 +202,24 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
           <span className="text-sm font-medium">{isLyrics ? "Songs" : "Poems"}</span>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-          {scenes.map((scene, i) => (
+          {scenes.map((scene, i) => {
+            const isActive = scene.id === activePoemId
+            return (
             <button
               key={scene.id}
               onClick={() => poemRefs.current.get(scene.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              className="w-full text-left px-3 py-2 rounded-md text-sm transition-colors hover:bg-accent group"
+              aria-current={isActive ? "true" : undefined}
+              className={cn(
+                "w-full text-left px-3 py-2 rounded-md text-sm transition-colors group",
+                isActive ? "bg-muted text-foreground" : "hover:bg-accent",
+              )}
             >
               <div className="flex items-baseline gap-1.5 min-w-0">
-                <span className="text-xs text-muted-foreground/50 shrink-0">{i + 1}</span>
-                <span className="truncate text-muted-foreground group-hover:text-foreground transition-colors">
+                <span className={cn("text-xs shrink-0", isActive ? "text-muted-foreground" : "text-muted-foreground/50")}>{i + 1}</span>
+                <span className={cn(
+                  "truncate transition-colors",
+                  isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
+                )}>
                   {scene.scene_heading || "Untitled"}
                 </span>
               </div>
@@ -215,7 +229,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                 </p>
               )}
             </button>
-          ))}
+            )
+          })}
         </div>
         <div className="p-2 border-t">
           <Button variant="ghost" size="sm" className="w-full gap-2 justify-start text-xs" onClick={handleAddPoem}>
