@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { Plus, ChevronRight, ChevronDown, Table, Pencil, Dice6 } from "lucide-react"
+import { Plus, ChevronRight, ChevronDown, Table, Pencil, Dice6, Library } from "lucide-react"
+import { StatBlockTemplatePicker } from "./ttrpg/StatBlockTemplatePicker"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
@@ -70,6 +71,11 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   // the table itself is the source of truth, the result is just a UI
   // affordance that helps GMs sanity-check distributions during prep.
   const [diceRoll, setDiceRoll] = useState<Record<string, { roll: number; result: string }>>({})
+  // Element id of the stat_block whose template loader is currently open,
+  // or null when the dialog is closed. We thread this through state
+  // (rather than letting the dialog own its own visibility) so the
+  // editor knows which element to apply the picked template to.
+  const [templatePickerFor, setTemplatePickerFor] = useState<string | null>(null)
   const sectionRefs = useRef<Map<string, HTMLElement | null>>(new Map())
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
 
@@ -261,6 +267,19 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const toggleTableMode = (id: string) =>
     setTableMode(prev => ({ ...prev, [id]: prev[id] === "preview" ? "edit" : "preview" }))
 
+  // Replace a stat_block's content with a template body. Two writes
+  // are needed: state via handleContentChange (so save fires + the
+  // collapsed/preview branches show the new text), and a direct DOM
+  // textContent set so the open contentEditable visually catches up —
+  // React doesn't re-sync contentEditable children after first mount.
+  const loadStatBlockTemplate = (elementId: string, body: string) => {
+    handleContentChange(elementId, body, false)
+    setTimeout(() => {
+      const node = document.getElementById(`el-${elementId}`)
+      if (node) node.textContent = body
+    }, 0)
+  }
+
   const rollDiceTable = (id: string, rows: [string, string][]) => {
     if (rows.length === 0) return
     const idx = Math.floor(Math.random() * rows.length)
@@ -291,14 +310,25 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     if (el.element_type === "stat_block") {
       return (
         <div key={el.id} className="my-4 rounded-lg border-2 border-amber-700/40 dark:border-amber-500/30 overflow-hidden">
-          <div
-            className="flex items-center justify-between px-3 py-1.5 bg-amber-700/10 dark:bg-amber-500/10 cursor-pointer select-none"
-            onClick={() => toggleCollapse(el.id)}
-          >
-            <span className="text-xs font-bold uppercase tracking-widest text-amber-700 dark:text-amber-500">Stat Block</span>
-            {isCollapsed
-              ? <ChevronRight className="h-3.5 w-3.5 text-amber-700/60 dark:text-amber-500/60" />
-              : <ChevronDown className="h-3.5 w-3.5 text-amber-700/60 dark:text-amber-500/60" />}
+          <div className="flex items-center justify-between px-3 py-1.5 bg-amber-700/10 dark:bg-amber-500/10 select-none">
+            <button
+              className="flex items-center gap-1.5 cursor-pointer flex-1 text-left"
+              onClick={() => toggleCollapse(el.id)}
+            >
+              <span className="text-xs font-bold uppercase tracking-widest text-amber-700 dark:text-amber-500">Stat Block</span>
+              {isCollapsed
+                ? <ChevronRight className="h-3.5 w-3.5 text-amber-700/60 dark:text-amber-500/60" />
+                : <ChevronDown className="h-3.5 w-3.5 text-amber-700/60 dark:text-amber-500/60" />}
+            </button>
+            {!isCollapsed && (
+              <button
+                onClick={() => setTemplatePickerFor(el.id)}
+                className="flex items-center gap-1 text-xs text-amber-700/80 dark:text-amber-500/80 hover:text-amber-700 dark:hover:text-amber-500 transition-colors px-2 py-0.5 rounded hover:bg-amber-700/10"
+                title="Load template"
+              >
+                <Library className="h-3 w-3" /> Template
+              </button>
+            )}
           </div>
           {!isCollapsed && (
             <div
@@ -656,6 +686,13 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
           onDismiss={() => setSlashMenu(null)}
         />
       )}
+      <StatBlockTemplatePicker
+        open={templatePickerFor !== null}
+        onOpenChange={(next) => { if (!next) setTemplatePickerFor(null) }}
+        onPick={(body) => {
+          if (templatePickerFor) loadStatBlockTemplate(templatePickerFor, body)
+        }}
+      />
     </div>
   )
 }
