@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/pkg/grpc/identity"
 	workspacepb "inkwell/server/pkg/grpc/workspace"
@@ -41,56 +42,58 @@ func (h *WorkspaceHandler) ListCategories(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(resp.Categories)
 }
 
+// listUserWorkspacesResponse partitions workspace listings by ownership type.
+type listUserWorkspacesResponse struct {
+	Personal any `json:"personal"`
+	Org      any `json:"org"`
+}
+
 // ListUserWorkspaces returns the authenticated user's personal and organisation
 // workspaces as two separate lists. Requires a userID from the request context.
 func (h *WorkspaceHandler) ListUserWorkspaces(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
-	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	resp, err := h.client.ListUserWorkspaces(r.Context(), &workspacepb.ListUserWorkspacesRequest{UserId: userID})
-	if err != nil {
-		handleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"personal": resp.Personal,
-		"org":      resp.Org,
-	})
+	Endpoint[struct{}, listUserWorkspacesResponse]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*listUserWorkspacesResponse, error) {
+			resp, err := h.client.ListUserWorkspaces(r.Context(), &workspacepb.ListUserWorkspacesRequest{UserId: userID})
+			if err != nil {
+				return nil, err
+			}
+			return &listUserWorkspacesResponse{Personal: resp.Personal, Org: resp.Org}, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// createPersonalWorkspacesBody is the JSON body for CreatePersonalWorkspaces.
+type createPersonalWorkspacesBody struct {
+	CategorySlugs []string `json:"category_slugs"`
+}
+
+// workspacesResponse wraps a list of workspaces.
+type workspacesResponse struct {
+	Workspaces any `json:"workspaces"`
 }
 
 // CreatePersonalWorkspaces provisions one personal workspace per category slug
 // provided. Typically called during onboarding to seed the user's initial workspace set.
 func (h *WorkspaceHandler) CreatePersonalWorkspaces(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
-	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var body struct {
-		CategorySlugs []string `json:"category_slugs"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := h.client.CreatePersonalWorkspaces(r.Context(), &workspacepb.CreatePersonalWorkspacesRequest{
-		UserId:        userID,
-		CategorySlugs: body.CategorySlugs,
-	})
-	if err != nil {
-		handleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"workspaces": resp.Workspaces,
-	})
+	Endpoint[createPersonalWorkspacesBody, workspacesResponse]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		Decode:        JSONBody[createPersonalWorkspacesBody],
+		SuccessStatus: http.StatusCreated,
+		Handle: func(r *http.Request, userID string, body *createPersonalWorkspacesBody) (*workspacesResponse, error) {
+			resp, err := h.client.CreatePersonalWorkspaces(r.Context(), &workspacepb.CreatePersonalWorkspacesRequest{
+				UserId:        userID,
+				CategorySlugs: body.CategorySlugs,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &workspacesResponse{Workspaces: resp.Workspaces}, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // CreateOrgWorkspace creates a new organisation workspace owned by the authenticated
@@ -176,57 +179,73 @@ func (h *WorkspaceHandler) UpdateWorkspace(w http.ResponseWriter, r *http.Reques
 // DeleteWorkspace permanently removes a workspace. Requires a userID from the
 // request context; the workspace service enforces that only the owner may delete.
 func (h *WorkspaceHandler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceId")
-	userID := getUserIDFromContext(r)
-	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+	Endpoint[struct{}, struct{}]{
+		Method:        http.MethodDelete,
+		Auth:          true,
+		Decode:        NoBody[struct{}],
+		SuccessStatus: http.StatusNoContent,
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
+			workspaceID := chi.URLParam(r, "workspaceId")
+			if workspaceID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "workspace ID is required")
+			}
+			if _, err := h.client.DeleteWorkspace(r.Context(), &workspacepb.DeleteWorkspaceRequest{
+				WorkspaceId: workspaceID,
+				UserId:      userID,
+			}); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
+}
 
-	_, err := h.client.DeleteWorkspace(r.Context(), &workspacepb.DeleteWorkspaceRequest{
-		WorkspaceId: workspaceID,
-		UserId:      userID,
-	})
-	if err != nil {
-		handleGRPCError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+// workspaceEnvelope wraps a single workspace as the response body. Used by
+// the category enable/disable endpoints which return the updated workspace.
+type workspaceEnvelope struct{ Workspace any }
+
+func (e workspaceEnvelope) MarshalJSON() ([]byte, error) {
+	// EnableCategory / DisableCategory historically returned the bare
+	// workspace object (not wrapped in a `{ "workspace": … }` envelope).
+	// Keep that wire format so existing clients keep working.
+	return json.Marshal(e.Workspace)
 }
 
 // EnableCategory adds a content category to a workspace by slug, making it
 // available for organising projects within that workspace.
 func (h *WorkspaceHandler) EnableCategory(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceId")
-	slug := chi.URLParam(r, "slug")
-
-	resp, err := h.client.EnableCategory(r.Context(), &workspacepb.EnableCategoryRequest{
-		WorkspaceId:  workspaceID,
-		CategorySlug: slug,
-	})
-	if err != nil {
-		handleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp.Workspace)
+	Endpoint[struct{}, workspaceEnvelope]{
+		Method: http.MethodPost,
+		Decode: NoBody[struct{}],
+		Handle: func(r *http.Request, _ string, _ *struct{}) (*workspaceEnvelope, error) {
+			resp, err := h.client.EnableCategory(r.Context(), &workspacepb.EnableCategoryRequest{
+				WorkspaceId:  chi.URLParam(r, "workspaceId"),
+				CategorySlug: chi.URLParam(r, "slug"),
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &workspaceEnvelope{Workspace: resp.Workspace}, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // DisableCategory removes a content category from a workspace by slug.
 func (h *WorkspaceHandler) DisableCategory(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceId")
-	slug := chi.URLParam(r, "slug")
-
-	resp, err := h.client.DisableCategory(r.Context(), &workspacepb.DisableCategoryRequest{
-		WorkspaceId:  workspaceID,
-		CategorySlug: slug,
-	})
-	if err != nil {
-		handleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp.Workspace)
+	Endpoint[struct{}, workspaceEnvelope]{
+		Method: http.MethodDelete,
+		Decode: NoBody[struct{}],
+		Handle: func(r *http.Request, _ string, _ *struct{}) (*workspaceEnvelope, error) {
+			resp, err := h.client.DisableCategory(r.Context(), &workspacepb.DisableCategoryRequest{
+				WorkspaceId:  chi.URLParam(r, "workspaceId"),
+				CategorySlug: chi.URLParam(r, "slug"),
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &workspaceEnvelope{Workspace: resp.Workspace}, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // ListMembers returns all current members of a workspace.

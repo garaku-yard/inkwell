@@ -142,79 +142,64 @@ func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// deleteProjectResponse is the JSON shape returned by DeleteProject.
+type deleteProjectResponse struct {
+	Success bool `json:"success"`
+}
+
 // DeleteProject removes a project. It requires a userID from the request context
 // and delegates ownership enforcement to the scripts service.
 func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	Endpoint[struct{}, deleteProjectResponse]{
+		Method: http.MethodDelete,
+		Auth:   true,
+		Decode: NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*deleteProjectResponse, error) {
+			projectID := chi.URLParam(r, "projectId")
+			if projectID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project ID is required")
+			}
 
-	projectID := chi.URLParam(r, "projectId")
-	if projectID == "" {
-		writeError(w, "Project ID is required", http.StatusBadRequest)
-		return
-	}
+			resp, err := h.scriptsClient.DeleteProject(r.Context(), &scriptspb.DeleteProjectRequest{
+				ProjectId: projectID,
+				UserId:    userID,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &deleteProjectResponse{Success: resp.Success}, nil
+		},
+	}.ServeHTTP(w, r)
+}
 
-	userID := getUserIDFromContext(r)
-	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Call Scripts service
-	resp, err := h.scriptsClient.DeleteProject(r.Context(), &scriptspb.DeleteProjectRequest{
-		ProjectId: projectID,
-		UserId:    userID,
-	})
-	if err != nil {
-		handleGRPCError(w, err)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": resp.Success,
-	})
+// projectResponse is shared by endpoints that return a single project envelope.
+type projectResponse struct {
+	Project any `json:"project"`
 }
 
 // ToggleProjectStar flips the starred state of a project for the authenticated
 // user. Requires a userID from the request context.
 func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	Endpoint[struct{}, projectResponse]{
+		Method: http.MethodPatch,
+		Auth:   true,
+		Decode: NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*projectResponse, error) {
+			projectID := chi.URLParam(r, "projectId")
+			if projectID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project ID is required")
+			}
 
-	projectID := chi.URLParam(r, "projectId")
-	if projectID == "" {
-		writeError(w, "Project ID is required", http.StatusBadRequest)
-		return
-	}
-
-	userID := getUserIDFromContext(r)
-	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Call Scripts service
-	resp, err := h.scriptsClient.ToggleProjectStar(r.Context(), &scriptspb.ToggleProjectStarRequest{
-		ProjectId: projectID,
-		UserId:    userID,
-	})
-	if err != nil {
-		handleGRPCError(w, err)
-		return
-	}
-
-	// Convert response
-	project := convertProjectFromProto(resp.Project)
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"project": project,
-	})
+			resp, err := h.scriptsClient.ToggleProjectStar(r.Context(), &scriptspb.ToggleProjectStarRequest{
+				ProjectId: projectID,
+				UserId:    userID,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &projectResponse{Project: convertProjectFromProto(resp.Project)}, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // GetUserProjects returns a paginated list of projects owned by the authenticated
