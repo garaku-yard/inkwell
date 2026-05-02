@@ -12,6 +12,7 @@ import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createComicKeymap, type ComicElementType as KeymapComicElementType } from "./comic/keymap"
 import { exportProjectToText } from "@/lib/export/text-export"
+import { exportComicToCBZ } from "@/lib/export/comic-cbz"
 import {
   createScene,
   createSceneElement,
@@ -214,6 +215,10 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
             {
               label: "Export as Plain Text (.txt)",
               onClick: () => exportProjectToText({ ...projectData, scenes: pages }),
+            },
+            {
+              label: "Export as Comic Book Zip (.cbz)",
+              onClick: () => exportComicToCBZ({ ...projectData, scenes: pages }),
             },
           ]}
         />
