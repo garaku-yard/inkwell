@@ -411,7 +411,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                     </div>
 
                     {/* Insert toolbar */}
-                    <div className="flex items-center gap-1 mt-8 flex-wrap opacity-0 hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 mt-8 flex-wrap opacity-60 hover:opacity-100 transition-opacity">
                       <span className="text-xs text-muted-foreground/60 mr-1">Insert</span>
                       <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddLine(scene.id)}>
                         Line

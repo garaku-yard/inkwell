@@ -645,7 +645,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                     )}
 
                     {/* Insert toolbar */}
-                    <div className="flex flex-wrap items-center gap-1.5 mt-10 pt-6 border-t border-border/40 opacity-0 hover:opacity-100 transition-opacity">
+                    <div className="flex flex-wrap items-center gap-1.5 mt-10 pt-6 border-t border-border/40 opacity-60 hover:opacity-100 transition-opacity">
                       <span className="text-xs text-muted-foreground/60 mr-1 w-full mb-0.5">Insert</span>
                       <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(section.id, "body")}>
                         Body

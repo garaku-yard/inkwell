@@ -867,7 +867,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                 </div>
 
                 {/* Insert toolbar */}
-                <div className="flex items-center gap-1.5 pt-8 mt-6 border-t border-border/40 flex-wrap opacity-0 hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1.5 pt-8 mt-6 border-t border-border/40 flex-wrap opacity-60 hover:opacity-100 transition-opacity">
                   <span className="text-xs text-muted-foreground/60 mr-1">Insert</span>
                   <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement("body")}>
                     Body

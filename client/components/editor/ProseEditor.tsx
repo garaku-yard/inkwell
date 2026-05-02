@@ -374,7 +374,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                   </div>
 
                   {/* Insert toolbar — shown faintly below each chapter body */}
-                  <div className="flex items-center gap-1 mt-8 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 mt-8 opacity-60 hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <span className="text-xs text-muted-foreground/60 mr-1">Insert</span>
                     <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(scene.id, "paragraph")}>
                       Paragraph
