@@ -332,9 +332,19 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     if (target) setActivePassageId(target.id)
   }
 
-  const filteredPassages = passages.filter(p =>
-    !search || p.scene_heading.toLowerCase().includes(search.toLowerCase())
-  )
+  // Filter passages by name OR body content (full-text). Matching against
+  // each element's content lets writers find a line of dialogue / a
+  // specific link target without remembering which passage holds it.
+  const filteredPassages = (() => {
+    if (!search) return passages
+    const needle = search.toLowerCase()
+    return passages.filter((p) => {
+      if (p.scene_heading.toLowerCase().includes(needle)) return true
+      return (p.elements ?? []).some((el) =>
+        el.content.toLowerCase().includes(needle),
+      )
+    })
+  })()
 
   return (
     <div className="flex h-screen bg-background">
@@ -348,7 +358,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             ref={searchRef}
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search…"
+            placeholder="Search names + body…"
             className="w-full text-xs rounded-md border border-border bg-muted/40 px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-muted-foreground/50"
           />
         </div>
