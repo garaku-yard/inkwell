@@ -169,6 +169,19 @@ export const updateProject = (
 export const toggleProjectStar = (projectId: string, userId: string): Promise<Project> =>
   getStorage().projects.toggleStar(projectId, userId)
 
+/** Archive flag piggybacks on the project status field — no schema
+ *  change needed. "archived" hides the project from default
+ *  dashboard views; any other status (typically "active" or "draft")
+ *  shows it. */
+export const setProjectArchived = (
+  projectId: string,
+  userId: string,
+  archived: boolean,
+): Promise<Project> =>
+  getStorage().projects.update(projectId, userId, {
+    status: archived ? "archived" : "active",
+  })
+
 export const deleteProject = (projectId: string, userId: string): Promise<void> =>
   getStorage().projects.delete(projectId, userId)
 

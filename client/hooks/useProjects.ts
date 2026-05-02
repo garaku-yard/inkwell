@@ -9,6 +9,7 @@ import {
   getSharedProjects,
   updateProject,
   toggleProjectStar,
+  setProjectArchived,
   type Project,
 } from "@/services/project"
 import { getPendingInvites } from "@/services/invites"
@@ -24,7 +25,7 @@ interface UseProjectsOptions {
   authLoading: boolean;
   /**
    * Active sort/filter mode applied to the project list.
-   * Accepted values: `"lastUpdated"` | `"myProjects"` | `"collaborations"` | `"starred"`.
+   * Accepted values: `"lastUpdated"` | `"myProjects"` | `"collaborations"` | `"starred"` | `"archived"`.
    */
   activeFilter: string;
   /** Text the user has typed into the search box; filters projects by title. */
@@ -109,6 +110,16 @@ export function useProjects({
       ? projects.filter((p) => workspaceSlugs.includes(p.category))
       : projects
 
+    // Archive gate: every default view hides archived projects so a
+    // shipped screenplay or finished novel doesn't pollute Recent /
+    // Starred / Collaborations forever. The dedicated "archived"
+    // filter inverts the gate and shows only archived items.
+    if (activeFilter === "archived") {
+      result = result.filter((p) => p.status === "archived")
+    } else {
+      result = result.filter((p) => p.status !== "archived")
+    }
+
     switch (activeFilter) {
       case "lastUpdated":
         result = [...result].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
@@ -121,6 +132,11 @@ export function useProjects({
         break
       case "starred":
         result = result.filter((p) => p.is_starred)
+        break
+      case "archived":
+        // Sort archived list by most-recently-updated so what the
+        // writer just archived sits at the top.
+        result = [...result].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
         break
     }
 
@@ -210,6 +226,31 @@ export function useProjects({
     router.push(`/projects/editor?id=${projectId}`)
   }
 
+  /**
+   * Toggles the archived flag (status === "archived") on a project.
+   * Optimistic update; rolls back the local state if the server
+   * call fails.
+   */
+  const handleArchiveProject = async (projectId: string, archived: boolean) => {
+    if (!userId) return
+    const previous = projects
+    setProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, status: archived ? "archived" : "active" } : p)),
+    )
+    try {
+      await setProjectArchived(projectId, userId, archived)
+      toast({
+        title: archived ? "Project archived" : "Project restored",
+        description: archived
+          ? "Hidden from your default views — find it under Archived."
+          : "Back in your default views.",
+      })
+    } catch {
+      setProjects(previous)
+      toast({ title: "Error", description: "Could not update project. Please try again.", variant: "destructive" })
+    }
+  }
+
   return {
     projects,
     filteredProjects,
@@ -222,6 +263,7 @@ export function useProjects({
     handleStarProject,
     handleDeleteProject,
     handleRenameProject,
+    handleArchiveProject,
     handleProjectClick,
   }
 }

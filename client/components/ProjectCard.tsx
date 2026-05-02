@@ -44,6 +44,10 @@ interface ProjectCardProps {
   onManageCollaborators: (id: string, title: string) => void
   onDelete: (id: string, title: string) => void
   onRename: (id: string, title: string, description: string) => void
+  /** Archive / restore. The card decides which label to show based
+   *  on the project's current status. Optional — the /shared page
+   *  doesn't need it because only owners see the archive action. */
+  onArchive?: (id: string, archived: boolean) => void
   onClick: (id: string) => void
 }
 
@@ -54,8 +58,10 @@ export function ProjectCard({
   onManageCollaborators,
   onDelete,
   onRename,
+  onArchive,
   onClick,
 }: ProjectCardProps) {
+  const isArchived = project.status === "archived"
   const meta = CATEGORY_META[project.category] ?? DEFAULT_META
   const isOwner = project.owner_id === userId
 
@@ -120,6 +126,13 @@ export function ProjectCard({
                   >
                     Edit
                   </DropdownMenuItem>
+                  {onArchive && (
+                    <DropdownMenuItem
+                      onClick={(e) => { e.stopPropagation(); onArchive(project.id, !isArchived) }}
+                    >
+                      {isArchived ? "Restore from archive" : "Archive"}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     onClick={(e) => { e.stopPropagation(); onDelete(project.id, project.title) }}
                     className="text-destructive focus:text-destructive"

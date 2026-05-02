@@ -13,6 +13,7 @@ import {
   Folder,
   Briefcase,
   FilePlus2Icon,
+  Archive,
 } from "lucide-react"
 import { useAuth } from "@/lib/AuthContext"
 import { useWorkspace } from "@/lib/WorkspaceContext"
@@ -96,6 +97,7 @@ export default function DashboardPage() {
     handleStarProject,
     handleDeleteProject,
     handleRenameProject,
+    handleArchiveProject,
     handleProjectClick,
   } = useProjects({ userId, isAuthenticated, authLoading, activeFilter, searchQuery, activeWorkspace })
 
@@ -224,7 +226,7 @@ export default function DashboardPage() {
               </div>
 
               <Tabs value={activeFilter} onValueChange={setActiveFilter} className="w-full sm:w-auto">
-                <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4">
+                <TabsList className="w-full grid grid-cols-3 sm:grid-cols-5">
                   <TabsTrigger value="lastUpdated" className="w-full sm:w-auto gap-1">
                     <ArrowDownUp className="h-4 w-4" />
                     Recent
@@ -240,6 +242,10 @@ export default function DashboardPage() {
                   <TabsTrigger value="starred" className="w-full sm:w-auto gap-1">
                     <Star className="h-4 w-4" />
                     Starred
+                  </TabsTrigger>
+                  <TabsTrigger value="archived" className="w-full sm:w-auto gap-1">
+                    <Archive className="h-4 w-4" />
+                    Archived
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -267,6 +273,7 @@ export default function DashboardPage() {
                       onManageCollaborators={handleManageCollaborators}
                       onDelete={handleDeleteClick}
                       onRename={handleRenameClick}
+                      onArchive={handleArchiveProject}
                       onClick={handleProjectClick}
                     />
                   ))}
