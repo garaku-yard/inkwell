@@ -6,6 +6,7 @@ import { syllable } from "syllable"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
@@ -48,6 +49,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   // lyrics/poem lines are short and the longer delay felt sluggish.
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id, debounceMs: 1200 })
   const runExport = useExportToast()
+  const { toast } = useToast()
   const activePoemId = useScrollSpy({
     refs: poemRefs,
     orderedIds: scenes.map((s) => s.id),
@@ -151,6 +153,11 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
         await deleteScriptElement(elementId)
       } catch (err) {
         console.error("Failed to delete element:", err)
+        toast({
+          title: "Couldn't delete that line",
+          description: err instanceof Error ? err.message : "Try again, or refresh if it persists.",
+          variant: "destructive",
+        })
       }
       if (prevId) {
         setTimeout(() => {

@@ -5,6 +5,7 @@ import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
@@ -47,6 +48,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
   const pageRefs = useRef<Map<string, HTMLElement | null>>(new Map())
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
+  const { toast } = useToast()
 
   const totalPanels = pages.reduce((acc, p) => acc + panelCount(p.elements ?? []), 0)
 
@@ -131,6 +133,11 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
         await deleteScriptElement(elementId)
       } catch (err) {
         console.error("Failed to delete element:", err)
+        toast({
+          title: "Couldn't delete that element",
+          description: err instanceof Error ? err.message : "Try again, or refresh if it persists.",
+          variant: "destructive",
+        })
       }
       if (prevId) {
         setTimeout(() => {

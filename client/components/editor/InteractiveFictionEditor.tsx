@@ -6,6 +6,7 @@ import { PassageGraph } from "./PassageGraph"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
 import { useElementAutosave } from "./shared/useElementAutosave"
@@ -91,6 +92,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const searchRef = useRef<HTMLInputElement>(null)
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
+  const { toast } = useToast()
 
   const activePassage = passages.find(p => p.id === activePassageId) ?? null
   const activeElements = activePassage?.elements ?? []
@@ -174,6 +176,11 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
         await deleteScriptElement(elementId)
       } catch (err) {
         console.error("Failed to delete element:", err)
+        toast({
+          title: "Couldn't delete that element",
+          description: err instanceof Error ? err.message : "Try again, or refresh if it persists.",
+          variant: "destructive",
+        })
       }
       if (prevId) {
         setTimeout(() => {

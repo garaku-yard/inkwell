@@ -6,6 +6,7 @@ import { StatBlockTemplatePicker } from "./ttrpg/StatBlockTemplatePicker"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
@@ -81,6 +82,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const sectionRefs = useRef<Map<string, HTMLElement | null>>(new Map())
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
+  const { toast } = useToast()
 
   const totalWords = sections.reduce((acc, s) =>
     acc + (s.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0), 0)
@@ -164,6 +166,11 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         await deleteScriptElement(elementId)
       } catch (err) {
         console.error("Failed to delete element:", err)
+        toast({
+          title: "Couldn't delete that element",
+          description: err instanceof Error ? err.message : "Try again, or refresh if it persists.",
+          variant: "destructive",
+        })
       }
       if (prevId) {
         setTimeout(() => {

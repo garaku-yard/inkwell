@@ -5,6 +5,7 @@ import { Plus, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
+import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { EditorHeader } from "./shared/EditorHeader"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
@@ -46,6 +47,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const chapterRefs = useRef<Map<string, HTMLElement | null>>(new Map())
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
+  const { toast } = useToast()
   const activeChapterId = useScrollSpy({
     refs: chapterRefs,
     orderedIds: scenes.map((s) => s.id),
@@ -127,6 +129,11 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         await deleteScriptElement(elementId)
       } catch (err) {
         console.error("Failed to delete element:", err)
+        toast({
+          title: "Couldn't delete that element",
+          description: err instanceof Error ? err.message : "Try again, or refresh if it persists.",
+          variant: "destructive",
+        })
       }
       if (prevId) {
         setTimeout(() => {
