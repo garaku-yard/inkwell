@@ -4,6 +4,7 @@ import { ArrowLeft, Bot, ChevronDown, Download } from "lucide-react"
 
 import { AppHeaderActions } from "@/components/AppHeaderActions"
 import { Button } from "@/components/ui/button"
+import { ProjectNavMenu } from "./ProjectNavMenu"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +41,11 @@ interface EditorHeaderProps {
    *  — used by Poetry for its center-align toggle. Most editors leave
    *  this undefined. */
   extras?: ReactNode
+  /** Project id + category drive the cross-feature nav menu under
+   *  the title (Editor / Beat Board / Outline / Analytics). When
+   *  omitted the menu is hidden — useful in tests or while loading. */
+  projectId?: string
+  category?: string
 }
 
 /** Shared header for the simpler format editors (Prose, Poetry, Comic,
@@ -56,6 +62,8 @@ export function EditorHeader({
   isAIOpen,
   exportItems,
   extras,
+  projectId,
+  category,
 }: EditorHeaderProps) {
   const router = useRouter()
   return (
@@ -69,9 +77,14 @@ export function EditorHeader({
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-base font-semibold leading-tight">{title}</h1>
-          <p className="text-xs text-muted-foreground">{subtitle}</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-base font-semibold leading-tight">{title}</h1>
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
+          </div>
+          {projectId && (
+            <ProjectNavMenu projectId={projectId} category={category} current="editor" />
+          )}
         </div>
       </div>
       <div className="flex items-center gap-4 text-xs text-muted-foreground">

@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, PanelsTopLeft } from 'lucide-react';
+import { ProjectNavMenu } from "@/components/editor/shared/ProjectNavMenu";
 import { useDebouncedCallback } from 'use-debounce';
 
 import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLanes";
@@ -391,14 +392,21 @@ export default function OutlineEditorPage() {
       <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black z-10">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
-            <Link href={`/projects/beat-board?id=${projectId}`}>
-              <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back to Beat Board</Button>
+            <Link href="/dashboard">
+              <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Dashboard</Button>
             </Link>
             <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
             <div className="flex items-center gap-2">
               <PanelsTopLeft className="h-5 w-5 text-gray-700 dark:text-gray-300" />
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{project?.title} - Outline Editor</h1>
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{project?.title}</h1>
             </div>
+            {projectId && (
+              <ProjectNavMenu
+                projectId={projectId}
+                category={project?.category}
+                current="outline-editor"
+              />
+            )}
           </div>
         </div>
       </div>

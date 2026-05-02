@@ -452,6 +452,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
+          projectId={projectData.id}
+          category={projectData.category}
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",

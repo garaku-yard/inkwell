@@ -256,6 +256,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
+          projectId={projectData.id}
+          category={projectData.category}
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",

@@ -32,6 +32,7 @@ import { type VaultNote } from "@/lib/storage"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { AppHeaderActions } from "@/components/AppHeaderActions"
+import { ProjectNavMenu } from "./shared/ProjectNavMenu"
 import type { FullProject } from "@/services/project"
 import { MarkdownEditor } from "./markdown/MarkdownEditor"
 import { VaultGraph } from "./VaultGraph"
@@ -556,8 +557,9 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
           </Link>
         </Button>
         <div className="h-5 w-px bg-border" />
-        <div className="flex-1 truncate text-sm font-medium">
-          {projectData.title}
+        <div className="flex-1 flex items-center gap-3 min-w-0">
+          <span className="truncate text-sm font-medium">{projectData.title}</span>
+          <ProjectNavMenu projectId={projectData.id} category={projectData.category} current="editor" />
         </div>
         {/* View toggle — Notes vs Graph. Segmented control reads more
             honestly than a single toggle icon: the writer can see at

@@ -7,6 +7,7 @@ import { Download, FileText, ArrowLeft, Bot, FilePlus2Icon, BarChart3, ChevronDo
 import { useDebouncedCallback } from "use-debounce"
 import { AppHeaderActions } from "@/components/AppHeaderActions"
 import { Button } from "@/components/ui/button"
+import { ProjectNavMenu } from "./shared/ProjectNavMenu"
 import { Toolbar } from "./Toolbar"
 import { SidePanel } from "./SidePanel"
 import { EditorPane, type EditorPaneRef } from "./EditorPane"
@@ -472,6 +473,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             </Link>
             <FileText className="h-5 w-5" />
             <h1 className="text-lg font-medium">{project.title}</h1>
+            <ProjectNavMenu projectId={project.id} category={project.category} current="editor" />
           </div>
           <div className="flex items-center gap-3">
             {/* Save status — inline replacement for the floating chip

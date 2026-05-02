@@ -231,6 +231,8 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
+          projectId={projectData.id}
+          category={projectData.category}
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",

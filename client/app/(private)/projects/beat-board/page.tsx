@@ -5,8 +5,9 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useDebouncedCallback } from "use-debounce"
-import { ArrowLeft, LayoutGrid } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ProjectNavMenu } from "@/components/editor/shared/ProjectNavMenu"
 import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLanes";
 import { BeatCanvas } from "@/components/beat-board/BeatCanvas";
 import { PaneSpinner } from "@/components/shared/PaneSpinner";
@@ -241,15 +242,16 @@ export default function BeatBoardPage() {
       <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black z-10">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
-            <Link href={`/projects/editor?id=${projectId}`}><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back to Editor</Button></Link>
-            <Link href={`/projects/outline-editor?id=${projectId}`}>
-              <Button variant="outline" size="sm">
-                <LayoutGrid className="h-4 w-4 mr-2" />
-                Go to Outline Editor
-              </Button>
-            </Link>
+            <Link href="/dashboard"><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Dashboard</Button></Link>
             <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
             <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{project?.title || 'Beat Board'}</h1>
+            {projectId && (
+              <ProjectNavMenu
+                projectId={projectId}
+                category={project?.category}
+                current="beat-board"
+              />
+            )}
           </div>
         </div>
         <StoryLanes
