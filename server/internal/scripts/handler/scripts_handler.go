@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -588,21 +589,25 @@ func convertProjectToProto(project *domain.Project) *scriptspb.Project {
 	}
 }
 
-// handleServiceError maps domain DomainError codes to gRPC status codes so callers
-// receive meaningful error types rather than a blanket codes.Internal.
+// handleServiceError maps domain error sentinels to gRPC status codes so
+// callers receive meaningful error types rather than a blanket
+// codes.Internal. Uses errors.Is so wrapped errors (e.g. fmt.Errorf
+// chains in repository code) still resolve to the right code.
 func handleServiceError(err error) error {
-	if de, ok := err.(*domain.DomainError); ok {
-		switch de.Code {
-		case "PROJECT_NOT_FOUND", "SCENE_NOT_FOUND", "SCRIPT_ELEMENT_NOT_FOUND",
-			"CHARACTER_NOT_FOUND", "LOCATION_NOT_FOUND", "OUTLINE_UNIT_NOT_FOUND":
-			return status.Error(codes.NotFound, de.Error())
-		case "PROJECT_EXISTS":
-			return status.Error(codes.AlreadyExists, de.Error())
-		case "UNAUTHORIZED_ACCESS":
-			return status.Error(codes.PermissionDenied, de.Error())
-		case "INVALID_PROJECT_DATA":
-			return status.Error(codes.InvalidArgument, de.Error())
-		}
+	switch {
+	case errors.Is(err, domain.ErrProjectNotFound),
+		errors.Is(err, domain.ErrSceneNotFound),
+		errors.Is(err, domain.ErrScriptElementNotFound),
+		errors.Is(err, domain.ErrCharacterNotFound),
+		errors.Is(err, domain.ErrLocationNotFound),
+		errors.Is(err, domain.ErrOutlineUnitNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, domain.ErrProjectExists):
+		return status.Error(codes.AlreadyExists, err.Error())
+	case errors.Is(err, domain.ErrUnauthorizedAccess):
+		return status.Error(codes.PermissionDenied, err.Error())
+	case errors.Is(err, domain.ErrInvalidProjectData):
+		return status.Error(codes.InvalidArgument, err.Error())
 	}
 	return status.Errorf(codes.Internal, "internal server error: %v", err)
 }

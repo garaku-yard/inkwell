@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -86,34 +87,18 @@ type Location struct {
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
 
-// Domain errors
+// Domain errors. Use errors.Is(err, domain.ErrXXX) at call sites — the
+// handler maps each sentinel to the matching gRPC status code so client
+// callers receive meaningful error types rather than codes.Internal.
 var (
-	ErrProjectNotFound    = NewDomainError("project not found", "PROJECT_NOT_FOUND")
-	ErrProjectExists      = NewDomainError("project already exists", "PROJECT_EXISTS")
-	ErrUnauthorizedAccess = NewDomainError("unauthorized access to project", "UNAUTHORIZED_ACCESS")
-	ErrInvalidProjectData = NewDomainError("invalid project data", "INVALID_PROJECT_DATA")
+	ErrProjectNotFound    = errors.New("project not found")
+	ErrProjectExists      = errors.New("project already exists")
+	ErrUnauthorizedAccess = errors.New("unauthorized access to project")
+	ErrInvalidProjectData = errors.New("invalid project data")
 
-	ErrScriptElementNotFound = NewDomainError("script element not found", "SCRIPT_ELEMENT_NOT_FOUND")
-	ErrSceneNotFound         = NewDomainError("scene not found", "SCENE_NOT_FOUND")
-	ErrCharacterNotFound     = NewDomainError("character not found", "CHARACTER_NOT_FOUND")
-	ErrLocationNotFound      = NewDomainError("location not found", "LOCATION_NOT_FOUND")
-	ErrOutlineUnitNotFound   = NewDomainError("outline unit not found", "OUTLINE_UNIT_NOT_FOUND")
+	ErrScriptElementNotFound = errors.New("script element not found")
+	ErrSceneNotFound         = errors.New("scene not found")
+	ErrCharacterNotFound     = errors.New("character not found")
+	ErrLocationNotFound      = errors.New("location not found")
+	ErrOutlineUnitNotFound   = errors.New("outline unit not found")
 )
-
-// DomainError represents a domain-specific error
-type DomainError struct {
-	Message string `json:"message"`
-	Code    string `json:"code"`
-}
-
-func (e *DomainError) Error() string {
-	return e.Message
-}
-
-// NewDomainError creates a new domain error
-func NewDomainError(message, code string) *DomainError {
-	return &DomainError{
-		Message: message,
-		Code:    code,
-	}
-}
