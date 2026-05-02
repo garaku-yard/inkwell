@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { Plus, AlignCenter, AlignLeft, Music } from "lucide-react"
+import { Plus, AlignCenter, AlignLeft, Music, Hash } from "lucide-react"
+import { syllable } from "syllable"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
@@ -37,6 +38,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   const isLyrics = projectData.category === "lyrics"
   const [scenes, setScenes] = useState(() => projectData.scenes ?? [])
   const [centered, setCentered] = useState(false)
+  const [showSyllables, setShowSyllables] = useState(false)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const poemRefs = useRef<Map<string, HTMLElement | null>>(new Map())
   // Poetry uses a snappier debounce than the prose-shaped editors —
@@ -239,17 +241,28 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
             },
           ]}
           extras={
-            !isLyrics && (
+            <>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
-                onClick={() => setCentered(c => !c)}
-                title={centered ? "Left align" : "Center align"}
+                className={cn("h-7 w-7", showSyllables && "bg-muted text-foreground")}
+                onClick={() => setShowSyllables(v => !v)}
+                title={showSyllables ? "Hide syllable counts" : "Show syllable counts"}
               >
-                {centered ? <AlignLeft className="h-3.5 w-3.5" /> : <AlignCenter className="h-3.5 w-3.5" />}
+                <Hash className="h-3.5 w-3.5" />
               </Button>
-            )
+              {!isLyrics && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setCentered(c => !c)}
+                  title={centered ? "Left align" : "Center align"}
+                >
+                  {centered ? <AlignLeft className="h-3.5 w-3.5" /> : <AlignCenter className="h-3.5 w-3.5" />}
+                </Button>
+              )}
+            </>
           }
         />
 
@@ -359,12 +372,26 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                           // line — poetry/lyrics body line with optional line number
                           lineNumber++
                           const showLineNum = !isLyrics && !centered && lineNumber % 5 === 0
+                          const sylCount = showSyllables && el.content.trim()
+                            ? syllable(el.content)
+                            : null
 
                           return (
                             <div key={el.id} className="relative group/line">
                               {showLineNum && (
                                 <span className="absolute -right-8 top-0 text-xs text-muted-foreground/30 select-none leading-loose tabular-nums">
                                   {lineNumber}
+                                </span>
+                              )}
+                              {sylCount !== null && (
+                                <span
+                                  className={cn(
+                                    "absolute top-0 text-xs text-muted-foreground/40 select-none leading-loose tabular-nums",
+                                    showLineNum ? "-right-16" : "-right-8",
+                                  )}
+                                  title={`${sylCount} syllable${sylCount === 1 ? "" : "s"}`}
+                                >
+                                  {sylCount}σ
                                 </span>
                               )}
                               <div
