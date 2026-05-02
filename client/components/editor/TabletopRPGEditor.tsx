@@ -66,6 +66,10 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [tableMode, setTableMode] = useState<Record<string, "edit" | "preview">>({})
+  // Most recent in-memory roll per dice_table element. Not persisted —
+  // the table itself is the source of truth, the result is just a UI
+  // affordance that helps GMs sanity-check distributions during prep.
+  const [diceRoll, setDiceRoll] = useState<Record<string, { roll: number; result: string }>>({})
   const sectionRefs = useRef<Map<string, HTMLElement | null>>(new Map())
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
 
@@ -257,6 +261,13 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const toggleTableMode = (id: string) =>
     setTableMode(prev => ({ ...prev, [id]: prev[id] === "preview" ? "edit" : "preview" }))
 
+  const rollDiceTable = (id: string, rows: [string, string][]) => {
+    if (rows.length === 0) return
+    const idx = Math.floor(Math.random() * rows.length)
+    const [roll, result] = rows[idx]
+    setDiceRoll(prev => ({ ...prev, [id]: { roll: Number(roll) || idx + 1, result } }))
+  }
+
   const renderElement = (el: ScriptElement, sectionId: string, elIdx: number) => {
     const isCollapsed = collapsed.has(el.id)
 
@@ -318,14 +329,31 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
               {isCollapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" />}
             </div>
             {!isCollapsed && (
-              <button onClick={() => toggleTableMode(el.id)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-background/60">
-                {mode === "edit" ? <><Table className="h-3 w-3" /> Preview</> : <><Pencil className="h-3 w-3" /> Edit</>}
-              </button>
+              <div className="flex items-center gap-1">
+                {mode === "preview" && parsed && parsed.rows.length > 0 && (
+                  <button
+                    onClick={() => rollDiceTable(el.id, parsed.rows)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-background/60"
+                    title={`Roll ${parsed.die}`}
+                  >
+                    <Dice6 className="h-3 w-3" /> Roll
+                  </button>
+                )}
+                <button onClick={() => toggleTableMode(el.id)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-background/60">
+                  {mode === "edit" ? <><Table className="h-3 w-3" /> Preview</> : <><Pencil className="h-3 w-3" /> Edit</>}
+                </button>
+              </div>
             )}
           </div>
           {!isCollapsed && (
             mode === "preview" && parsed ? (
               <div className="overflow-x-auto">
+                {diceRoll[el.id] && (
+                  <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200/50 dark:border-amber-900/30 text-sm">
+                    <span className="font-mono text-xs text-amber-700 dark:text-amber-400 mr-2">Rolled {diceRoll[el.id].roll}</span>
+                    <span className="text-foreground">{diceRoll[el.id].result}</span>
+                  </div>
+                )}
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="bg-muted/60">
@@ -334,12 +362,25 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {parsed.rows.map(([roll, result], ri) => (
-                      <tr key={ri} className={cn("border-b border-border/50 last:border-0", ri % 2 === 0 ? "bg-background" : "bg-muted/20")}>
-                        <td className="px-3 py-2 font-mono text-muted-foreground text-sm">{roll}</td>
-                        <td className="px-3 py-2">{result}</td>
-                      </tr>
-                    ))}
+                    {parsed.rows.map(([roll, result], ri) => {
+                      const isRolled = diceRoll[el.id]?.roll === Number(roll)
+                      return (
+                        <tr
+                          key={ri}
+                          className={cn(
+                            "border-b border-border/50 last:border-0",
+                            isRolled
+                              ? "bg-amber-100/60 dark:bg-amber-900/30"
+                              : ri % 2 === 0
+                                ? "bg-background"
+                                : "bg-muted/20",
+                          )}
+                        >
+                          <td className="px-3 py-2 font-mono text-muted-foreground text-sm">{roll}</td>
+                          <td className="px-3 py-2">{result}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
