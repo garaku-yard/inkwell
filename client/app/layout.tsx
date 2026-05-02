@@ -35,10 +35,20 @@ export default function RootLayout({
         <StorageProvider>
           <ThemeProvider>
             <AuthProvider>
+              {/* Skip-link: visually hidden until focused. Lets keyboard
+                  users jump past the WorkspaceSwitcher rail straight to
+                  the page content. The target is the editor's <main>
+                  landmark or the layout's main content slot below. */}
+              <a
+                href="#main"
+                className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-1.5 focus:text-sm focus:shadow-md focus:outline-2 focus:outline-primary"
+              >
+                Skip to content
+              </a>
               <DesktopMenuBridge />
               <div className="flex h-screen flex-col">
                 <WindowTitlebar />
-                <div className="min-h-0 flex-1">{children}</div>
+                <div id="main" className="min-h-0 flex-1">{children}</div>
               </div>
             </AuthProvider>
           </ThemeProvider>
