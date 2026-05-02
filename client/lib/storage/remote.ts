@@ -288,9 +288,22 @@ const scenes: SceneStorage = {
 
 const elements: ElementStorage = {
   create: async (input) =>
-    apiClient<ScriptElement>(`scenes/${input.sceneId}/elements`, {
+    // Gateway POST /elements expects flat snake_case body with both
+    // scene_id and project_id (the gRPC contract requires both — the
+    // service doesn't derive project membership from scene id). The
+    // local SQLite impl ignores projectId and looks it up via SQL,
+    // so the desktop path doesn't depend on this contract.
+    apiClient<ScriptElement>(`elements`, {
       method: "POST",
-      body: input,
+      body: {
+        project_id: input.projectId,
+        scene_id: input.sceneId,
+        element_type: input.elementType,
+        content: input.content,
+        line_number: input.elementOrder,
+        character_id: input.characterId ?? "",
+        formatting: {},
+      },
     }),
 
   listForScene: (sceneId, userId) => projectsHelpers.listElementsForScene(sceneId, userId),

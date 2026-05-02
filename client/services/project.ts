@@ -204,7 +204,7 @@ export const updateSceneHeading = (
 // forwards to the Storage interface's element-create method, which expects
 // the editor-style `CreateElementRequest`.
 export const createElement = (
-  _projectId: string,
+  projectId: string,
   _userId: string,
   elementData: {
     scene_id: string
@@ -216,6 +216,7 @@ export const createElement = (
   },
 ): Promise<ScriptElement> =>
   getStorage().elements.create({
+    projectId,
     sceneId: elementData.scene_id,
     elementOrder: elementData.line_number ?? 0,
     elementType: elementData.element_type,
@@ -233,7 +234,7 @@ export const getSceneElements = (sceneId: string, userId: string): Promise<Scrip
   getStorage().elements.listForScene(sceneId, userId)
 
 export const createScriptElement = (
-  _projectId: string,
+  projectId: string,
   _userId: string,
   elementData: {
     scene_id: string
@@ -245,6 +246,7 @@ export const createScriptElement = (
   },
 ): Promise<ScriptElement> =>
   getStorage().elements.create({
+    projectId,
     sceneId: elementData.scene_id,
     elementOrder: elementData.line_number,
     elementType: elementData.element_type,
