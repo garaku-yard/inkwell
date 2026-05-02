@@ -119,6 +119,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
             isTyping={isTyping}
             canSend={canSend}
             emptyState={showEmptyState}
+            providerLabel={selectedProvider?.label}
           />
         </div>
       </div>
