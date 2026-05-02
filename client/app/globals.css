@@ -156,6 +156,71 @@ html.window-maximised body {
   --grid-color: #2d3530;
 }
 
+/* ───────────────────────────────────────────────────────────────────
+   Accent themes — Forest is the default, no override needed. The
+   four alternates only swap the four "accent" tokens (--primary,
+   --primary-foreground, --ring, --link); the warm-charcoal
+   background, muted text, and border tokens stay intact so contrast
+   remains AA across every theme.
+
+   Each theme has a light + dark pair. The .dark selector is added
+   to <html> by ThemeContext, and the [data-theme=X] attribute keys
+   the per-theme overrides — combined selectors win because they're
+   more specific than the bare :root and .dark blocks above.
+   ─────────────────────────────────────────────────────────────── */
+
+[data-theme="ocean"] {
+  --primary: oklch(0.42 0.110 230);              /* deep teal */
+  --primary-foreground: oklch(0.97 0.004 95);
+  --ring: oklch(0.55 0.10 225);
+  --link: oklch(0.45 0.115 225);
+}
+.dark[data-theme="ocean"] {
+  --primary: oklch(0.74 0.10 215);               /* soft teal on charcoal */
+  --primary-foreground: oklch(0.18 0.008 145);
+  --ring: oklch(0.55 0.10 215);
+  --link: oklch(0.78 0.09 215);
+}
+
+[data-theme="sunset"] {
+  --primary: oklch(0.52 0.16 40);                /* warm terracotta */
+  --primary-foreground: oklch(0.97 0.004 95);
+  --ring: oklch(0.55 0.14 50);
+  --link: oklch(0.50 0.13 50);
+}
+.dark[data-theme="sunset"] {
+  --primary: oklch(0.78 0.13 50);                /* soft warm peach */
+  --primary-foreground: oklch(0.18 0.008 145);
+  --ring: oklch(0.60 0.13 50);
+  --link: oklch(0.78 0.10 50);
+}
+
+[data-theme="midnight"] {
+  --primary: oklch(0.40 0.17 280);               /* deep indigo */
+  --primary-foreground: oklch(0.97 0.004 95);
+  --ring: oklch(0.50 0.15 280);
+  --link: oklch(0.46 0.15 280);
+}
+.dark[data-theme="midnight"] {
+  --primary: oklch(0.74 0.12 280);               /* soft lavender */
+  --primary-foreground: oklch(0.18 0.008 145);
+  --ring: oklch(0.55 0.12 280);
+  --link: oklch(0.78 0.10 280);
+}
+
+[data-theme="rose"] {
+  --primary: oklch(0.50 0.16 0);                 /* deep rose */
+  --primary-foreground: oklch(0.97 0.004 95);
+  --ring: oklch(0.55 0.14 0);
+  --link: oklch(0.50 0.13 0);
+}
+.dark[data-theme="rose"] {
+  --primary: oklch(0.76 0.10 10);                /* dusty rose */
+  --primary-foreground: oklch(0.18 0.008 145);
+  --ring: oklch(0.60 0.10 10);
+  --link: oklch(0.78 0.10 0);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

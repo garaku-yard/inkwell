@@ -1,15 +1,27 @@
 "use client"
 
-import { Palette, Type, Layout, Monitor, Moon, Sun } from "lucide-react"
+import { Palette, Type, Layout, Monitor, Moon, Sun, Check } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useTheme, type ColorMode } from "@/lib/ThemeContext"
+import { useTheme, type ColorMode, type ThemeName, THEME_OPTIONS } from "@/lib/ThemeContext"
 import { cn } from "@/lib/utils"
 
+/** Per-theme accent swatches — mirror the values in globals.css so the
+ *  tile previews show accurately regardless of which theme is
+ *  currently active. Light + dark pair; each tile picks the one that
+ *  matches the resolved color mode. */
+const THEME_SWATCHES: Record<ThemeName, { light: string; dark: string }> = {
+  forest:   { light: "oklch(0.34 0.048 145)", dark: "oklch(0.72 0.10 145)" },
+  ocean:    { light: "oklch(0.42 0.110 230)", dark: "oklch(0.74 0.10 215)" },
+  sunset:   { light: "oklch(0.52 0.16 40)",   dark: "oklch(0.78 0.13 50)" },
+  midnight: { light: "oklch(0.40 0.17 280)",  dark: "oklch(0.74 0.12 280)" },
+  rose:     { light: "oklch(0.50 0.16 0)",    dark: "oklch(0.76 0.10 10)" },
+}
+
 export function AppearanceSection() {
-  const { prefs, setColorMode, setEditorFont, setUiFont, setEditorLineHeight } = useTheme()
+  const { prefs, setColorMode, setTheme, setEditorFont, setUiFont, setEditorLineHeight, theme: resolvedMode } = useTheme()
 
   const colorModes: { id: ColorMode; label: string; icon: React.ReactNode }[] = [
     { id: "light", label: "Light", icon: <Sun className="h-5 w-5" /> },
@@ -70,7 +82,8 @@ export function AppearanceSection() {
         </CardContent>
       </Card>
 
-      {/* Color themes — not yet implemented */}
+      {/* Color themes — accent palettes that override --primary / --ring
+          / --link without touching the warm-charcoal background. */}
       <Card>
         <CardHeader>
           <div className="flex items-start gap-3">
@@ -79,14 +92,53 @@ export function AppearanceSection() {
             </div>
             <div>
               <CardTitle>Color Themes</CardTitle>
-              <CardDescription>Custom accent palettes — coming in a future release</CardDescription>
+              <CardDescription>Pick the accent palette that drives buttons, focus rings, and links.</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            <Badge variant="secondary" className="mb-3">Coming soon</Badge>
-            <p>Ocean, Forest, Sunset, Midnight, and Rose palettes are designed and on the roadmap.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {THEME_OPTIONS.map(({ id, label, description }) => {
+              const isActive = prefs.theme === id
+              const swatch = THEME_SWATCHES[id][resolvedMode === "dark" ? "dark" : "light"]
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setTheme(id)}
+                  aria-pressed={isActive}
+                  className={cn(
+                    "relative flex flex-col items-start gap-2 p-3 rounded-lg border-2 text-left transition-colors",
+                    isActive ? "border-foreground" : "border-border hover:border-border/80",
+                  )}
+                >
+                  {/* Accent swatch row — three sample chips at varied tints
+                      so the tile reads as a *palette* not a single color. */}
+                  <div className="flex items-center gap-1.5 w-full">
+                    <span
+                      aria-hidden="true"
+                      className="h-7 flex-1 rounded-md"
+                      style={{ backgroundColor: swatch }}
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="h-7 w-3 rounded-md opacity-60"
+                      style={{ backgroundColor: swatch }}
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="h-7 w-2 rounded-md opacity-30"
+                      style={{ backgroundColor: swatch }}
+                    />
+                  </div>
+                  <div className="flex items-baseline justify-between w-full">
+                    <span className="text-sm font-medium">{label}</span>
+                    {isActive && <Check className="h-3.5 w-3.5 text-foreground" aria-hidden="true" />}
+                  </div>
+                  <span className="text-xs text-muted-foreground">{description}</span>
+                </button>
+              )
+            })}
           </div>
         </CardContent>
       </Card>

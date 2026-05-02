@@ -4,8 +4,25 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 
 export type ColorMode = "light" | "dark" | "system"
 
+/** Available accent palettes. Forest is the brand default — its values
+ *  match the current `--primary` / `--ring` / `--link` tokens, so picking
+ *  it produces the same UI users had before themes shipped. The other
+ *  four (Ocean / Sunset / Midnight / Rose) override those three tokens
+ *  in both light and dark variants. The warm-charcoal background stays
+ *  the same across all themes; only the accent hue swaps. */
+export type ThemeName = "forest" | "ocean" | "sunset" | "midnight" | "rose"
+
+export const THEME_OPTIONS: { id: ThemeName; label: string; description: string }[] = [
+  { id: "forest",   label: "Forest",   description: "Sage green — the Inkwell default" },
+  { id: "ocean",    label: "Ocean",    description: "Cool teal accent on warm charcoal" },
+  { id: "sunset",   label: "Sunset",   description: "Warm terracotta accent" },
+  { id: "midnight", label: "Midnight", description: "Deep indigo accent" },
+  { id: "rose",     label: "Rose",     description: "Dusty rose accent" },
+]
+
 export interface AppearancePrefs {
   colorMode: ColorMode
+  theme: ThemeName
   editorFont: string
   uiFont: string
   editorLineHeight: string
@@ -13,6 +30,7 @@ export interface AppearancePrefs {
 
 const DEFAULTS: AppearancePrefs = {
   colorMode: "system",
+  theme: "forest",
   editorFont: "courier",
   uiFont: "inter",
   editorLineHeight: "1.6",
@@ -42,6 +60,14 @@ function applyPrefs(prefs: AppearancePrefs) {
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
   const dark = prefs.colorMode === "dark" || (prefs.colorMode === "system" && prefersDark)
   root.classList.toggle("dark", dark)
+  // Theme rules in globals.css key off the data-theme attribute. The
+  // default ("forest") clears it so the bare `:root` rules apply
+  // unmodified — matches the look users had before themes shipped.
+  if (prefs.theme === "forest") {
+    root.removeAttribute("data-theme")
+  } else {
+    root.setAttribute("data-theme", prefs.theme)
+  }
   root.style.setProperty("--inkwell-editor-font", EDITOR_FONTS[prefs.editorFont] ?? EDITOR_FONTS.courier)
   root.style.setProperty("--inkwell-ui-font", UI_FONTS[prefs.uiFont] ?? UI_FONTS.inter)
   root.style.setProperty("--inkwell-editor-lh", prefs.editorLineHeight)
@@ -50,6 +76,7 @@ function applyPrefs(prefs: AppearancePrefs) {
 interface ThemeContextType {
   prefs: AppearancePrefs
   setColorMode: (mode: ColorMode) => void
+  setTheme: (theme: ThemeName) => void
   setEditorFont: (font: string) => void
   setUiFont: (font: string) => void
   setEditorLineHeight: (lh: string) => void
@@ -98,6 +125,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const setColorMode = useCallback((mode: ColorMode) => update({ colorMode: mode }), [update])
+  const setTheme = useCallback((theme: ThemeName) => update({ theme }), [update])
   const setEditorFont = useCallback((editorFont: string) => update({ editorFont }), [update])
   const setUiFont = useCallback((uiFont: string) => update({ uiFont }), [update])
   const setEditorLineHeight = useCallback((editorLineHeight: string) => update({ editorLineHeight }), [update])
@@ -119,6 +147,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     <ThemeContext.Provider value={{
       prefs,
       setColorMode,
+      setTheme,
       setEditorFont,
       setUiFont,
       setEditorLineHeight,
