@@ -12,6 +12,7 @@ import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createPoetryKeymap } from "./poetry/keymap"
 import { exportProjectToText } from "@/lib/export/text-export"
+import { exportProjectToChordPro } from "@/lib/export/chordpro"
 import {
   createScene,
   createSceneElement,
@@ -231,6 +232,10 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
             {
               label: "Export as Plain Text (.txt)",
               onClick: () => exportProjectToText({ ...projectData, scenes }),
+            },
+            {
+              label: "Export as ChordPro (.cho)",
+              onClick: () => exportProjectToChordPro({ ...projectData, scenes }),
             },
           ]}
           extras={
