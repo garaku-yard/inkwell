@@ -44,7 +44,11 @@ export const inkwellTheme = EditorView.theme(
       backgroundColor: "var(--muted)",
     },
     ".cm-md-link": {
-      color: "var(--primary)",
+      // Uses the dedicated --link token (teal) rather than --primary so
+      // links stay distinct from body text in dark mode, where --primary
+      // collapses to near-white. Underline reinforces the affordance for
+      // colour-blind readers.
+      color: "var(--link)",
       textDecoration: "underline",
       textUnderlineOffset: "3px",
     },

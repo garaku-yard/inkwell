@@ -207,7 +207,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                 </span>
               </div>
               {countLines(scene.elements ?? []) > 0 && (
-                <p className="text-xs text-muted-foreground/40 pl-4 mt-0.5">
+                <p className="text-xs text-muted-foreground/60 pl-4 mt-0.5">
                   {countLines(scene.elements ?? [])} lines
                 </p>
               )}
@@ -294,7 +294,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                       onInput={(e) => handleContentChange(scene.id, e.currentTarget.textContent ?? "", true)}
                       className={cn(
                         "text-2xl font-semibold outline-none mb-1 min-h-[2rem]",
-                        "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30",
+                        "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50",
                         isLyrics ? "" : "text-center",
                       )}
                       data-placeholder={isLyrics ? "Song title" : "Poem title"}
@@ -308,7 +308,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                         contentEditable
                         suppressContentEditableWarning
                         onInput={(e) => handleContentChange(scene.id + ":meta", e.currentTarget.textContent ?? "", false)}
-                        className="text-xs text-muted-foreground/60 mb-10 outline-none empty:before:content-['Key\00a0•\00a0Tempo\00a0•\00a0Capo'] empty:before:text-muted-foreground/30"
+                        className="text-xs text-muted-foreground/60 mb-10 outline-none empty:before:content-['Key\00a0•\00a0Tempo\00a0•\00a0Capo'] empty:before:text-muted-foreground/50"
                       />
                     ) : (
                       <p className="text-xs text-muted-foreground/50 text-center mb-10">
@@ -322,7 +322,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                         <div
                           contentEditable
                           suppressContentEditableWarning
-                          className="outline-none leading-loose min-h-[1.5rem] text-base empty:before:content-['First\00a0line…'] empty:before:text-muted-foreground/30"
+                          className="outline-none leading-loose min-h-[1.5rem] text-base empty:before:content-['First\00a0line…'] empty:before:text-muted-foreground/50"
                           onKeyDown={async (e) => {
                             if (e.key === "Enter") { e.preventDefault(); await handleAddLine(scene.id) }
                           }}
@@ -357,7 +357,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                                 suppressContentEditableWarning
                                 onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                                 onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-                                className="font-mono text-xs text-primary/70 outline-none leading-tight min-h-[1rem] mt-1 empty:before:content-['Chords…'] empty:before:text-muted-foreground/20"
+                                className="font-mono text-xs text-primary/70 outline-none leading-tight min-h-[1rem] mt-1 empty:before:content-['Chords…'] empty:before:text-muted-foreground/50"
                               >
                                 {el.content}
                               </div>
@@ -379,14 +379,14 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                           return (
                             <div key={el.id} className="relative group/line">
                               {showLineNum && (
-                                <span className="absolute -right-8 top-0 text-xs text-muted-foreground/30 select-none leading-loose tabular-nums">
+                                <span className="absolute -right-8 top-0 text-xs text-muted-foreground/50 select-none leading-loose tabular-nums">
                                   {lineNumber}
                                 </span>
                               )}
                               {sylCount !== null && (
                                 <span
                                   className={cn(
-                                    "absolute top-0 text-xs text-muted-foreground/40 select-none leading-loose tabular-nums",
+                                    "absolute top-0 text-xs text-muted-foreground/60 select-none leading-loose tabular-nums",
                                     showLineNum ? "-right-16" : "-right-8",
                                   )}
                                   title={`${sylCount} syllable${sylCount === 1 ? "" : "s"}`}

@@ -251,7 +251,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                         contentEditable
                         suppressContentEditableWarning
                         onInput={(e) => handleContentChange(page.id, e.currentTarget.textContent ?? "", true)}
-                        className="text-sm font-bold uppercase tracking-widest outline-none inline empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30"
+                        className="text-sm font-bold uppercase tracking-widest outline-none inline empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
                         data-placeholder={`PAGE ${pageIdx + 1}`}
                       >
                         {page.scene_heading || ""}
@@ -288,7 +288,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                                   suppressContentEditableWarning
                                   onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                                   onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
-                                  className="outline-none text-sm leading-relaxed min-h-[1.4rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30 empty:before:not-italic"
+                                  className="outline-none text-sm leading-relaxed min-h-[1.4rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:not-italic"
                                   data-placeholder="Panel description…"
                                 >
                                   {el.content}
@@ -306,7 +306,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                                   suppressContentEditableWarning
                                   onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                                   onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
-                                  className="outline-none text-sm font-bold uppercase tracking-wide min-h-[1.2rem] empty:before:content-['CHARACTER'] empty:before:text-muted-foreground/20"
+                                  className="outline-none text-sm font-bold uppercase tracking-wide min-h-[1.2rem] empty:before:content-['CHARACTER'] empty:before:text-muted-foreground/50"
                                 >
                                   {el.content}
                                 </div>
@@ -323,7 +323,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                                   suppressContentEditableWarning
                                   onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                                   onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
-                                  className="outline-none text-sm leading-relaxed min-h-[1.4rem] empty:before:content-['Dialogue…'] empty:before:text-muted-foreground/25"
+                                  className="outline-none text-sm leading-relaxed min-h-[1.4rem] empty:before:content-['Dialogue…'] empty:before:text-muted-foreground/50"
                                 >
                                   {el.content}
                                 </div>
@@ -341,7 +341,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                                   suppressContentEditableWarning
                                   onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                                   onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
-                                  className="outline-none text-sm italic leading-relaxed min-h-[1.4rem] empty:before:content-['Caption\00a0text…'] empty:before:text-muted-foreground/25"
+                                  className="outline-none text-sm italic leading-relaxed min-h-[1.4rem] empty:before:content-['Caption\00a0text…'] empty:before:text-muted-foreground/50"
                                 >
                                   {el.content}
                                 </div>
@@ -359,7 +359,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                                   suppressContentEditableWarning
                                   onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                                   onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
-                                  className="outline-none text-base font-black uppercase tracking-wider min-h-[1.4rem] empty:before:content-['KRAKKK!!!'] empty:before:text-muted-foreground/20"
+                                  className="outline-none text-base font-black uppercase tracking-wider min-h-[1.4rem] empty:before:content-['KRAKKK!!!'] empty:before:text-muted-foreground/50"
                                 >
                                   {el.content}
                                 </div>
@@ -376,7 +376,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                                   suppressContentEditableWarning
                                   onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                                   onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
-                                  className="outline-none text-xs uppercase tracking-widest text-muted-foreground min-h-[1.2rem] empty:before:content-['CUT\00a0TO—'] empty:before:text-muted-foreground/25"
+                                  className="outline-none text-xs uppercase tracking-widest text-muted-foreground min-h-[1.2rem] empty:before:content-['CUT\00a0TO—'] empty:before:text-muted-foreground/50"
                                 >
                                   {el.content}
                                 </div>

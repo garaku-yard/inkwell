@@ -184,7 +184,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                   </span>
                 </div>
                 {chWords > 0 && (
-                  <p className="text-xs text-muted-foreground/40 pl-4 mt-0.5">{chWords.toLocaleString()}w</p>
+                  <p className="text-xs text-muted-foreground/60 pl-4 mt-0.5">{chWords.toLocaleString()}w</p>
                 )}
               </button>
             )
@@ -250,7 +250,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                     contentEditable
                     suppressContentEditableWarning
                     onInput={(e) => handleContentChange(scene.id, e.currentTarget.textContent ?? "", true)}
-                    className="text-center text-2xl font-semibold outline-none mb-14 min-h-[2rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30"
+                    className="text-center text-2xl font-semibold outline-none mb-14 min-h-[2rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
                     data-placeholder="Untitled"
                   >
                     {scene.scene_heading || ""}
@@ -262,7 +262,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                       <div
                         contentEditable
                         suppressContentEditableWarning
-                        className="outline-none pl-10 min-h-[1.75rem] empty:before:content-['Start\00a0writing…'] empty:before:text-muted-foreground/30 empty:before:pl-0"
+                        className="outline-none pl-10 min-h-[1.75rem] empty:before:content-['Start\00a0writing…'] empty:before:text-muted-foreground/50 empty:before:pl-0"
                         onKeyDown={async (e) => {
                           if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault()
@@ -289,7 +289,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                               suppressContentEditableWarning
                               onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                               onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-                              className="text-xl font-semibold mt-10 mb-3 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30"
+                              className="text-xl font-semibold mt-10 mb-3 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
                               data-placeholder="Section heading"
                             >
                               {el.content}
@@ -310,7 +310,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                               suppressContentEditableWarning
                               onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                               onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-                              className="mt-12 mb-6 italic text-base tracking-wider uppercase text-foreground/80 border-b border-border/40 pb-2 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30 empty:before:not-italic empty:before:normal-case empty:before:tracking-normal"
+                              className="mt-12 mb-6 italic text-base tracking-wider uppercase text-foreground/80 border-b border-border/40 pb-2 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:not-italic empty:before:normal-case empty:before:tracking-normal"
                               data-placeholder="Stinger…"
                             >
                               {el.content}
@@ -331,7 +331,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                               suppressContentEditableWarning
                               onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                               onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-                              className="outline-none min-h-[1.75rem] pl-10 -indent-6 leading-relaxed before:content-['“'] before:mr-1 before:text-muted-foreground/60 empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30 empty:before:pl-0 empty:before:mr-0"
+                              className="outline-none min-h-[1.75rem] pl-10 -indent-6 leading-relaxed before:content-['“'] before:mr-1 before:text-muted-foreground/60 empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0 empty:before:mr-0"
                               data-placeholder="Dialogue…"
                             >
                               {el.content}
@@ -362,7 +362,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                                 )
                                 ? ""
                                 : "pl-10",
-                              "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30 empty:before:pl-0",
+                              "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0",
                             )}
                             data-placeholder={elIdx === 0 ? "Start writing…" : ""}
                           >

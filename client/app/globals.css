@@ -71,6 +71,7 @@ html.window-maximised body {
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-link: var(--link);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -91,6 +92,7 @@ html.window-maximised body {
   --popover-foreground: oklch(0.147 0.004 49.25);
   --primary: oklch(0.34 0.048 145);          /* dark forest green — brand, clearly not black */
   --primary-foreground: oklch(0.97 0.004 95);
+  --link: oklch(0.42 0.090 230);             /* deep teal — distinct from body text and brand green */
   --secondary: oklch(0.938 0.008 95);        /* secondary surfaces */
   --secondary-foreground: oklch(0.34 0.048 145);
   --muted: oklch(0.938 0.008 95);
@@ -127,10 +129,11 @@ html.window-maximised body {
   --popover-foreground: oklch(0.92 0.004 106);
   --primary: oklch(0.88 0.004 106);          /* near-white for primary actions */
   --primary-foreground: oklch(0.18 0.008 145);
+  --link: oklch(0.78 0.085 200);             /* soft teal — distinct from body text on warm charcoal */
   --secondary: oklch(0.245 0.008 145);       /* interactive / hover surfaces */
   --secondary-foreground: oklch(0.92 0.004 106);
   --muted: oklch(0.245 0.008 145);
-  --muted-foreground: oklch(0.70 0.008 145); /* subdued labels — readable on charcoal */
+  --muted-foreground: oklch(0.76 0.008 145); /* subdued labels — AA at small sizes on charcoal */
   --accent: oklch(0.245 0.008 145);
   --accent-foreground: oklch(0.92 0.004 106);
   --destructive: oklch(0.704 0.191 22.216);

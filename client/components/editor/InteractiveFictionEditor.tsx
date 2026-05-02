@@ -420,7 +420,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                   </span>
                 </div>
                 {(wc > 0 || outLinks > 0) && (
-                  <p className="text-xs text-muted-foreground/40 mt-0.5 pl-0">
+                  <p className="text-xs text-muted-foreground/60 mt-0.5 pl-0">
                     {wc > 0 && `${wc}w`}{wc > 0 && outLinks > 0 && " · "}{outLinks > 0 && `${outLinks} link${outLinks !== 1 ? "s" : ""}`}
                   </p>
                 )}
@@ -692,7 +692,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                     contentEditable
                     suppressContentEditableWarning
                     onInput={(e) => handleContentChange(activePassageId, e.currentTarget.textContent ?? "", true)}
-                    className="text-xl font-bold outline-none pb-2 border-b empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30"
+                    className="text-xl font-bold outline-none pb-2 border-b empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
                     data-placeholder="Passage name"
                   >
                     {activePassage?.scene_heading || ""}
@@ -712,7 +712,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                     <div
                       contentEditable
                       suppressContentEditableWarning
-                      className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Write\00a0passage\00a0text…'] empty:before:text-muted-foreground/30"
+                      className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Write\00a0passage\00a0text…'] empty:before:text-muted-foreground/50"
                       onKeyDown={async (e) => {
                         if (e.key === "Enter") { e.preventDefault(); await handleAddElement("body") }
                       }}
@@ -728,7 +728,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                             suppressContentEditableWarning
                             onInput={(e) => handleBodyInput(e, el.id)}
                             onKeyDown={(e) => handleKeyDown(e, el)}
-                            className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Passage\00a0text…'] empty:before:text-muted-foreground/25"
+                            className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Passage\00a0text…'] empty:before:text-muted-foreground/50"
                           >
                             {el.content}
                           </div>
@@ -853,7 +853,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                               contentEditable
                               suppressContentEditableWarning
                               onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
-                              className="outline-none text-sm italic text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-3 py-1.5 min-h-[1.5rem] leading-relaxed empty:before:content-['Note\00a0(not\00a0shown\00a0in\00a0game)…'] empty:before:text-muted-foreground/30"
+                              className="outline-none text-sm italic text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-3 py-1.5 min-h-[1.5rem] leading-relaxed empty:before:content-['Note\00a0(not\00a0shown\00a0in\00a0game)…'] empty:before:text-muted-foreground/50"
                             >
                               {el.content}
                             </div>
