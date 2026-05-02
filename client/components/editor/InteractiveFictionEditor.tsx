@@ -17,6 +17,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { exportProjectToText } from "@/lib/export/text-export"
+import { exportProjectToTwee } from "@/lib/export/if-twee"
 import {
   createScene,
   createSceneElement,
@@ -444,6 +445,9 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => exportProjectToText({ ...projectData, scenes: passages })}>
                     Export as Plain Text (.txt)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportProjectToTwee({ ...projectData, scenes: passages })}>
+                    Export as Twee 3 (.twee)
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
