@@ -18,7 +18,11 @@ export const inkwellTheme = EditorView.theme(
     ".cm-content": {
       padding: "2.5rem 3rem 6rem",
       caretColor: "var(--primary)",
-      maxWidth: "48rem",
+      // 42rem ≈ 672px keeps line length around 65-70ch at 15px font
+      // size, which lands inside the long-form-reading sweet spot
+      // (BRANDBOOK pins prose at 680px). Was 48rem ≈ 768px which
+      // ran past the 75ch comfort ceiling.
+      maxWidth: "42rem",
       margin: "0 auto",
     },
     ".cm-scroller": {
