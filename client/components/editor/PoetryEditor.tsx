@@ -248,6 +248,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
           statRight={`${totalLines} lines`}
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
+          isAIOpen={isAIChatOpen}
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",
@@ -273,6 +274,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                 size="icon"
                 className={cn("h-7 w-7", showSyllables && "bg-muted text-foreground")}
                 onClick={() => setShowSyllables(v => !v)}
+                aria-label="Toggle syllable counts"
+                aria-pressed={showSyllables}
                 title={showSyllables ? "Hide syllable counts" : "Show syllable counts"}
               >
                 <Hash className="h-3.5 w-3.5" />
@@ -281,8 +284,10 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className={cn("h-7 w-7", centered && "bg-muted text-foreground")}
                   onClick={() => setCentered(c => !c)}
+                  aria-label="Toggle centered poem alignment"
+                  aria-pressed={centered}
                   title={centered ? "Left align" : "Center align"}
                 >
                   {centered ? <AlignLeft className="h-3.5 w-3.5" /> : <AlignCenter className="h-3.5 w-3.5" />}

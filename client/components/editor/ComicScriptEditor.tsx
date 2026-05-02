@@ -214,6 +214,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
           statRight={`${pages.length} pages · ${totalPanels} panels`}
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
+          isAIOpen={isAIChatOpen}
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",

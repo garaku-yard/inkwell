@@ -223,6 +223,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           statRight={`${totalWords.toLocaleString()} words`}
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
+          isAIOpen={isAIChatOpen}
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",

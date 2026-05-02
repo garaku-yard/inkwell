@@ -82,6 +82,8 @@ export function VaultNoteToolbar({
         variant="ghost"
         className={cn("h-8 w-8", showBacklinks && "bg-muted text-foreground")}
         onClick={onToggleBacklinks}
+        aria-label="Toggle backlinks panel"
+        aria-pressed={showBacklinks}
         title="Toggle backlinks panel"
       >
         <PanelRight className="h-4 w-4" />

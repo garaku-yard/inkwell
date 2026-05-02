@@ -551,6 +551,8 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
             graphOpen && "bg-muted text-foreground",
           )}
           onClick={() => setGraphOpen((v) => !v)}
+          aria-label="Toggle graph view"
+          aria-pressed={graphOpen}
           title="Toggle graph view"
         >
           <Network className="h-4 w-4" />

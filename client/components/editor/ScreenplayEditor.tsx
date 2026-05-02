@@ -485,7 +485,12 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             >
               {isSaving ? "Saving…" : ""}
             </span>
-            <Button variant="outline" className="gap-2 bg-transparent" onClick={toggleAIChat}>
+            <Button
+              variant="outline"
+              className="gap-2 bg-transparent"
+              onClick={toggleAIChat}
+              aria-pressed={isAIChatOpen}
+            >
               <Bot className="h-4 w-4" />
               Writing Buddy
             </Button>

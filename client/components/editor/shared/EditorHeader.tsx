@@ -29,6 +29,9 @@ interface EditorHeaderProps {
   statRight: ReactNode
   saveStatus: SaveStatus
   onToggleAI: () => void
+  /** Whether the Writing Buddy panel is currently open. Drives
+   *  aria-pressed so screen readers announce the toggle state. */
+  isAIOpen?: boolean
   /** Items that populate the Export dropdown menu. Pass an empty list
    *  to hide the menu entirely (no current call site does that). */
   exportItems: EditorHeaderExportItem[]
@@ -49,6 +52,7 @@ export function EditorHeader({
   statRight,
   saveStatus,
   onToggleAI,
+  isAIOpen,
   exportItems,
   extras,
 }: EditorHeaderProps) {
@@ -107,8 +111,10 @@ export function EditorHeader({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className={cn("h-8 w-8", isAIOpen && "bg-muted text-foreground")}
           onClick={onToggleAI}
+          aria-label="Toggle Writing Buddy"
+          aria-pressed={isAIOpen ?? false}
           title="Writing Buddy"
         >
           <Bot className="h-4 w-4" />
