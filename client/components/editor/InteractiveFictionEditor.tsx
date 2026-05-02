@@ -752,8 +752,9 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                                         "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer",
                                         exists
                                           ? "border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 hover:bg-green-500/10"
-                                          : "border-destructive/30 text-destructive bg-destructive/5 hover:bg-destructive/10"
+                                          : "border-destructive/40 text-destructive bg-destructive/5 hover:bg-destructive/10 font-semibold underline underline-offset-2"
                                       )}
+                                      aria-label={exists ? `Go to "${target}"` : `Missing passage "${target}" — click to create`}
                                       title={
                                         exists
                                           ? `Go to "${target}"`
@@ -763,6 +764,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                                       {exists
                                         ? <CheckCircle2 className="h-2.5 w-2.5" />
                                         : <AlertCircle className="h-2.5 w-2.5" />}
+                                      {!exists && <span className="sr-only">Missing: </span>}
                                       {target}
                                     </button>
                                   )
@@ -796,10 +798,12 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                                         "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors",
                                         exists
                                           ? "border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 hover:bg-green-500/10 cursor-pointer"
-                                          : "border-destructive/30 text-destructive bg-destructive/5 cursor-default"
+                                          : "border-destructive/40 text-destructive bg-destructive/5 cursor-default font-semibold underline underline-offset-2"
                                       )}
+                                      aria-label={exists ? `Go to "${target}"` : `Missing passage "${target}"`}
                                     >
                                       {exists ? <CheckCircle2 className="h-2.5 w-2.5" /> : <AlertCircle className="h-2.5 w-2.5" />}
+                                      {!exists && <span className="sr-only">Missing: </span>}
                                       {target}
                                     </button>
                                   )
