@@ -4,6 +4,7 @@ import { AuthProvider } from "@/lib/AuthContext";
 import { ThemeProvider } from "@/lib/ThemeContext";
 import { StorageProvider } from "@/lib/storage/StorageProvider";
 import { DesktopMenuBridge } from "@/components/desktop-menu-bridge";
+import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcutsDialog";
 import { WindowTitlebar } from "@/components/window-titlebar";
 import "./globals.css";
 
@@ -46,6 +47,7 @@ export default function RootLayout({
                 Skip to content
               </a>
               <DesktopMenuBridge />
+              <KeyboardShortcutsDialog />
               <div className="flex h-screen flex-col">
                 <WindowTitlebar />
                 <div id="main" className="min-h-0 flex-1">{children}</div>
