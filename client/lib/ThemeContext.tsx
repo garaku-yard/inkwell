@@ -36,21 +36,29 @@ const DEFAULTS: AppearancePrefs = {
   editorLineHeight: "1.6",
 }
 
+/** Font-family stacks for each picker option. The `--font-*`
+ *  variables are injected by `next/font/google` declarations in
+ *  `app/layout.tsx`; if a font isn't loaded there, its var is
+ *  undefined and the stack falls through to the system fallback —
+ *  but every entry below that names a `--font-*` variable IS
+ *  loaded today. System-only fonts (Courier New, Monaco, Consolas,
+ *  system-ui) skip the variable because they're guaranteed
+ *  installed on the corresponding OS. */
 const EDITOR_FONTS: Record<string, string> = {
   courier: "'Courier New', Courier, monospace",
-  "courier-prime": "'Courier Prime', 'Courier New', monospace",
+  "courier-prime": "var(--font-courier-prime), 'Courier Prime', 'Courier New', monospace",
   monaco: "Monaco, 'Courier New', monospace",
   consolas: "Consolas, 'Courier New', monospace",
-  "source-code": "'Source Code Pro', monospace",
-  jetbrains: "'JetBrains Mono', monospace",
+  "source-code": "var(--font-source-code), 'Source Code Pro', Menlo, monospace",
+  jetbrains: "var(--font-jetbrains), 'JetBrains Mono', Menlo, monospace",
 }
 
 const UI_FONTS: Record<string, string> = {
-  inter: "Inter, system-ui, sans-serif",
+  inter: "var(--font-inter), Inter, system-ui, sans-serif",
   system: "system-ui, sans-serif",
-  roboto: "Roboto, system-ui, sans-serif",
-  "open-sans": "'Open Sans', system-ui, sans-serif",
-  lato: "Lato, system-ui, sans-serif",
+  roboto: "var(--font-roboto), Roboto, system-ui, sans-serif",
+  "open-sans": "var(--font-open-sans), 'Open Sans', system-ui, sans-serif",
+  lato: "var(--font-lato), Lato, system-ui, sans-serif",
 }
 
 const STORAGE_KEY = "inkwell:appearance"
