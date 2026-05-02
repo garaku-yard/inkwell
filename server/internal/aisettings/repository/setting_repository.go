@@ -21,6 +21,10 @@ type SettingRepository interface {
 	UpdateMetadata(ctx context.Context, s *domain.ProviderSetting) error
 	UpdateKey(ctx context.Context, userID, id uuid.UUID, encrypted, nonce []byte, keyVersion int32) error
 	Delete(ctx context.Context, userID, id uuid.UUID) error
+	// ListAllWithKeys returns every row whose encrypted_api_key is set.
+	// Used by the key-rotation job — has no user scope by design and
+	// should never be called from a request-handling code path.
+	ListAllWithKeys(ctx context.Context) ([]domain.ProviderSetting, error)
 }
 
 type postgresRepo struct {
@@ -130,6 +134,27 @@ func (r *postgresRepo) UpdateKey(ctx context.Context, userID, id uuid.UUID, encr
 		return domain.ErrNotFound
 	}
 	return nil
+}
+
+func (r *postgresRepo) ListAllWithKeys(ctx context.Context) ([]domain.ProviderSetting, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT `+baseColumns+` FROM user_ai_providers
+		 WHERE encrypted_api_key IS NOT NULL ORDER BY key_version, created_at`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list all with keys: %w", err)
+	}
+	defer rows.Close()
+
+	out := []domain.ProviderSetting{}
+	for rows.Next() {
+		s, err := scanRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *s)
+	}
+	return out, rows.Err()
 }
 
 func (r *postgresRepo) Delete(ctx context.Context, userID, id uuid.UUID) error {

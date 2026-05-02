@@ -101,6 +101,18 @@ func (r *fakeRepo) Delete(_ context.Context, userID, id uuid.UUID) error {
 	return nil
 }
 
+func (r *fakeRepo) ListAllWithKeys(_ context.Context) ([]domain.ProviderSetting, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []domain.ProviderSetting
+	for _, s := range r.rows {
+		if len(s.EncryptedAPIKey) > 0 {
+			out = append(out, s)
+		}
+	}
+	return out, nil
+}
+
 func freshKey(t *testing.T) []byte {
 	t.Helper()
 	k := make([]byte, crypto.KeySize)
@@ -313,6 +325,80 @@ func TestClearKey_RemovesKey(t *testing.T) {
 	}
 	if got.HasKey() {
 		t.Fatal("HasKey() = true after ClearKey")
+	}
+}
+
+func TestReencryptAll_RotatesAcrossKeyVersions(t *testing.T) {
+	repo := newFakeRepo()
+
+	// Phase 1: write rows with the original key (version 1).
+	v1Key := freshKey(t)
+	v1Svc, err := NewWithRotation(repo, 1, v1Key, nil)
+	if err != nil {
+		t.Fatalf("v1 New: %v", err)
+	}
+	uid := uuid.New()
+	rowA, err := v1Svc.Create(context.Background(), CreateInput{UserID: uid, Kind: "openai", Label: "A", Enabled: true})
+	if err != nil {
+		t.Fatalf("Create A: %v", err)
+	}
+	rowB, err := v1Svc.Create(context.Background(), CreateInput{UserID: uid, Kind: "anthropic", Label: "B", Enabled: true})
+	if err != nil {
+		t.Fatalf("Create B: %v", err)
+	}
+	if err := v1Svc.SetKey(context.Background(), uid, rowA.ID, "secret-A"); err != nil {
+		t.Fatalf("SetKey A: %v", err)
+	}
+	if err := v1Svc.SetKey(context.Background(), uid, rowB.ID, "secret-B"); err != nil {
+		t.Fatalf("SetKey B: %v", err)
+	}
+
+	// Phase 2: spin up a service with a NEW current key (v2) and the
+	// old key registered as legacy. Re-run ReencryptAll.
+	v2Key := freshKey(t)
+	rotatingSvc, err := NewWithRotation(repo, 2, v2Key, []VersionedKey{{Version: 1, Key: v1Key}})
+	if err != nil {
+		t.Fatalf("v2 New: %v", err)
+	}
+	count, err := rotatingSvc.ReencryptAll(context.Background())
+	if err != nil {
+		t.Fatalf("ReencryptAll: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("ReencryptAll count = %d, want 2", count)
+	}
+
+	// Phase 3: verify decrypts work with the v2 service AND a clean
+	// v2-only service (no legacy key) — proving the rows have been
+	// fully migrated and the old key can be retired.
+	v2OnlySvc, err := NewWithRotation(repo, 2, v2Key, nil)
+	if err != nil {
+		t.Fatalf("v2-only New: %v", err)
+	}
+	_, plainA, err := v2OnlySvc.GetForDispatch(context.Background(), uid, rowA.ID)
+	if err != nil || plainA != "secret-A" {
+		t.Fatalf("GetForDispatch A: plaintext=%q err=%v", plainA, err)
+	}
+	_, plainB, err := v2OnlySvc.GetForDispatch(context.Background(), uid, rowB.ID)
+	if err != nil || plainB != "secret-B" {
+		t.Fatalf("GetForDispatch B: plaintext=%q err=%v", plainB, err)
+	}
+
+	// Phase 4: a second ReencryptAll is a no-op (idempotent retries).
+	count, err = rotatingSvc.ReencryptAll(context.Background())
+	if err != nil {
+		t.Fatalf("ReencryptAll second pass: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("ReencryptAll second pass count = %d, want 0", count)
+	}
+}
+
+func TestNewWithRotation_RejectsCollidingVersions(t *testing.T) {
+	repo := newFakeRepo()
+	k := freshKey(t)
+	if _, err := NewWithRotation(repo, 1, k, []VersionedKey{{Version: 1, Key: freshKey(t)}}); err == nil {
+		t.Fatal("expected error when legacy key collides with current version")
 	}
 }
 

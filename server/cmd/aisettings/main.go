@@ -7,11 +7,13 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/joho/godotenv"
@@ -29,6 +31,9 @@ import (
 )
 
 func main() {
+	rotateFlag := flag.Bool("rotate", false, "Re-encrypt all rows under the current AI_ENCRYPTION_KEY and exit. Requires AI_ENCRYPTION_KEY_OLD + AI_ENCRYPTION_KEY_OLD_VERSION when migrating away from a prior key.")
+	flag.Parse()
+
 	if err := godotenv.Load(); err != nil {
 		log.Printf("Warning: could not load .env: %v", err)
 	}
@@ -41,6 +46,36 @@ func main() {
 	encKey, err := crypto.KeyFromEnvBase64("AI_ENCRYPTION_KEY")
 	if err != nil {
 		log.Fatalf("AI_ENCRYPTION_KEY: %v", err)
+	}
+
+	// Current key version defaults to 1. Bump via env when rotating
+	// (e.g. AI_ENCRYPTION_KEY_VERSION=2 alongside the new key).
+	currentVersion := int32(1)
+	if v := os.Getenv("AI_ENCRYPTION_KEY_VERSION"); v != "" {
+		parsed, perr := strconv.Atoi(v)
+		if perr != nil || parsed < 1 {
+			log.Fatalf("AI_ENCRYPTION_KEY_VERSION: must be a positive integer, got %q", v)
+		}
+		currentVersion = int32(parsed)
+	}
+
+	// Optional legacy key — present during a rotation window so the
+	// service can decrypt rows that haven't been re-encrypted yet.
+	var legacy []service.VersionedKey
+	if os.Getenv("AI_ENCRYPTION_KEY_OLD") != "" {
+		oldKey, err := crypto.KeyFromEnvBase64("AI_ENCRYPTION_KEY_OLD")
+		if err != nil {
+			log.Fatalf("AI_ENCRYPTION_KEY_OLD: %v", err)
+		}
+		oldVersionStr := os.Getenv("AI_ENCRYPTION_KEY_OLD_VERSION")
+		if oldVersionStr == "" {
+			log.Fatal("AI_ENCRYPTION_KEY_OLD_VERSION is required when AI_ENCRYPTION_KEY_OLD is set")
+		}
+		oldVersion, err := strconv.Atoi(oldVersionStr)
+		if err != nil || oldVersion < 1 {
+			log.Fatalf("AI_ENCRYPTION_KEY_OLD_VERSION: must be a positive integer, got %q", oldVersionStr)
+		}
+		legacy = append(legacy, service.VersionedKey{Version: int32(oldVersion), Key: oldKey})
 	}
 
 	dbCfg := &database.Config{
@@ -63,10 +98,21 @@ func main() {
 	}
 
 	repo := repository.NewPostgresRepository(db)
-	svc, err := service.New(repo, encKey)
+	svc, err := service.NewWithRotation(repo, currentVersion, encKey, legacy)
 	if err != nil {
 		log.Fatalf("Failed to build service: %v", err)
 	}
+
+	if *rotateFlag {
+		log.Printf("Re-encrypting rows under key version %d (%d legacy key(s) available)", currentVersion, len(legacy))
+		count, err := svc.ReencryptAll(context.Background())
+		if err != nil {
+			log.Fatalf("ReencryptAll failed after %d row(s): %v", count, err)
+		}
+		log.Printf("Re-encrypted %d row(s); rotation complete. You can now drop AI_ENCRYPTION_KEY_OLD and restart the service.", count)
+		return
+	}
+
 	h := handler.New(svc)
 
 	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(loggingInterceptor))
