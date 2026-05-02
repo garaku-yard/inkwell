@@ -1,15 +1,17 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Users, TrendingUp, RefreshCw, Shield, Search } from "lucide-react"
+import { Users, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { getUserSubscriptions, syncSubscription, getUserUsage } from "@/services/admin-billing"
+import { getUserSubscriptions, syncSubscription } from "@/services/admin-billing"
 import type { UserSubscription } from "@/types/billing"
+
+const PAGE_SIZE = 20
 
 export function SubscriptionsOverview() {
   const [subscriptions, setSubscriptions] = useState<UserSubscription[]>([])
@@ -21,15 +23,19 @@ export function SubscriptionsOverview() {
   const { toast } = useToast()
 
   useEffect(() => {
+    setPage(1)
+  }, [statusFilter])
+
+  useEffect(() => {
     loadSubscriptions()
   }, [page, statusFilter])
 
   const loadSubscriptions = async () => {
     try {
       setIsLoading(true)
-      const filters: { page: number; limit: number; status?: string } = { page, limit: 20 }
+      const filters: { page: number; limit: number; status?: string } = { page, limit: PAGE_SIZE }
       if (statusFilter !== "all") filters.status = statusFilter
-      
+
       const data = await getUserSubscriptions(filters)
       setSubscriptions(data.subscriptions)
       setTotal(data.total)
@@ -39,6 +45,8 @@ export function SubscriptionsOverview() {
       setIsLoading(false)
     }
   }
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const handleSync = async (subscriptionId: string) => {
     try {
@@ -144,7 +152,7 @@ export function SubscriptionsOverview() {
                         <span className="font-medium capitalize">{subscription.gatewayId}</span>
                       </div>
                     </div>
-                    
+
                     <div className="mt-3 flex gap-4 text-xs">
                       <div>
                         <span className="text-gray-500">AI Tokens:</span>{" "}
@@ -160,7 +168,7 @@ export function SubscriptionsOverview() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -170,6 +178,34 @@ export function SubscriptionsOverview() {
                   </Button>
                 </div>
               ))}
+            </div>
+          )}
+
+          {!isLoading && total > PAGE_SIZE && (
+            <div className="flex items-center justify-between mt-6 pt-4 border-t">
+              <span className="text-sm text-gray-500">
+                Page {page} of {totalPages} · {total.toLocaleString()} total
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Edit, Trash2, GripVertical, AlertTriangle, Users, TrendingUp } from "lucide-react"
+import { Plus, Edit, Trash2, GripVertical, AlertTriangle, Users } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { getTiers, deleteTier, reorderTiers } from "@/services/admin-billing"
+import { getTiers, deleteTier } from "@/services/admin-billing"
 import type { SubscriptionTier } from "@/types/billing"
 import { TierEditorDialog } from "@/components/admin/billing/tier-editor-dialog"
 

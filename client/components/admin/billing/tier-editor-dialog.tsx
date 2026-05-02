@@ -40,7 +40,7 @@ const EXPORT_FORMATS = [
 export function TierEditorDialog({ open, onOpenChange, tier, onSave }: TierEditorDialogProps) {
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
-  
+
   // Form state
   const [name, setName] = useState("")
   const [slug, setSlug] = useState("")
@@ -49,7 +49,7 @@ export function TierEditorDialog({ open, onOpenChange, tier, onSave }: TierEdito
   const [yearlyPrice, setYearlyPrice] = useState("0")
   const [currency, setCurrency] = useState("USD")
   const [status, setStatus] = useState<"active" | "inactive" | "archived">("active")
-  
+
   // Limits
   const [aiTokens, setAiTokens] = useState("10000")
   const [aiTokensUnlimited, setAiTokensUnlimited] = useState(false)
@@ -59,7 +59,7 @@ export function TierEditorDialog({ open, onOpenChange, tier, onSave }: TierEdito
   const [maxCollaboratorsUnlimited, setMaxCollaboratorsUnlimited] = useState(false)
   const [storageGB, setStorageGB] = useState("5")
   const [storageUnlimited, setStorageUnlimited] = useState(false)
-  
+
   // Features
   const [selectedThemes, setSelectedThemes] = useState<string[]>(["default"])
   const [aiFeatures, setAiFeatures] = useState(false)
@@ -67,7 +67,7 @@ export function TierEditorDialog({ open, onOpenChange, tier, onSave }: TierEdito
   const [selectedExportFormats, setSelectedExportFormats] = useState<string[]>(["pdf", "fountain"])
   const [prioritySupport, setPrioritySupport] = useState(false)
   const [customBranding, setCustomBranding] = useState(false)
-  
+
   // Rules
   const [limitType, setLimitType] = useState<"soft" | "hard">("hard")
   const [overageHandling, setOverageHandling] = useState<"block" | "throttle" | "charge">("block")
@@ -83,7 +83,7 @@ export function TierEditorDialog({ open, onOpenChange, tier, onSave }: TierEdito
       setYearlyPrice(tier.price.yearly.toString())
       setCurrency(tier.price.currency)
       setStatus(tier.status)
-      
+
       setAiTokensUnlimited(tier.limits.aiTokens === "unlimited")
       setAiTokens(tier.limits.aiTokens === "unlimited" ? "10000" : tier.limits.aiTokens.toString())
       setMaxProjectsUnlimited(tier.limits.maxProjects === "unlimited")
@@ -92,14 +92,14 @@ export function TierEditorDialog({ open, onOpenChange, tier, onSave }: TierEdito
       setMaxCollaborators(tier.limits.maxCollaborators === "unlimited" ? "1" : tier.limits.maxCollaborators.toString())
       setStorageUnlimited(tier.limits.storageGB === "unlimited")
       setStorageGB(tier.limits.storageGB === "unlimited" ? "5" : tier.limits.storageGB.toString())
-      
+
       setSelectedThemes(tier.features.availableThemes)
       setAiFeatures(tier.features.aiFeatures)
       setCollaborationEnabled(tier.features.collaborationEnabled)
       setSelectedExportFormats(tier.features.exportFormats)
       setPrioritySupport(tier.features.prioritySupport)
       setCustomBranding(tier.features.customBranding)
-      
+
       setLimitType(tier.rules.limitType)
       setOverageHandling(tier.rules.overageHandling)
       setTrialDays(tier.rules.trialDays?.toString() || "")
