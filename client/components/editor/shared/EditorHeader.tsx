@@ -77,8 +77,11 @@ export function EditorHeader({
           aria-live="polite"
           aria-atomic="true"
           className={cn(
-            saveStatus === "saved" && "text-green-600 dark:text-green-400",
-            saveStatus === "saving" && "text-yellow-600 dark:text-yellow-400",
+            // BRANDBOOK semantic palette only sanctions success/error/info.
+            // Saving is a transient state, not an outcome — muted reads
+            // honestly. Unsaved (the failure-adjacent case) earns the
+            // destructive token so the writer notices it.
+            saveStatus === "unsaved" && "text-destructive",
           )}
         >
           {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving…" : "Unsaved"}

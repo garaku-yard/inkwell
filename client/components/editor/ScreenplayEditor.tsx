@@ -472,7 +472,19 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             <FileText className="h-5 w-5" />
             <h1 className="text-lg font-medium">{project.title}</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Save status — inline replacement for the floating chip
+                we used to render bottom-right. Reads as a quiet status
+                line, lives where every other editor's status lives, and
+                announces transitions to assistive tech via aria-live. */}
+            <span
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className="text-xs text-muted-foreground"
+            >
+              {isSaving ? "Saving…" : ""}
+            </span>
             <Button variant="outline" className="gap-2 bg-transparent" onClick={toggleAIChat}>
               <Bot className="h-4 w-4" />
               Writing Buddy
@@ -579,13 +591,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         onProjectImported={handleProjectImported}
       />
 
-      {/* Saving indicator */}
-      {isSaving && (
-        <div className="fixed bottom-4 right-4 bg-background/95 backdrop-blur-sm border rounded-lg shadow-lg px-4 py-2 flex items-center gap-2 z-50">
-          <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
-          <span className="text-sm text-muted-foreground">Saving...</span>
-        </div>
-      )}
     </div>
   )
 }
