@@ -42,6 +42,29 @@ export default function DashboardPage() {
 
   const [searchQuery, setSearchQuery] = useState("")
   const [activeFilter, setActiveFilter] = useState("lastUpdated")
+  // First-time-after-onboarding coach-mark. The onboarding page sets a
+  // localStorage flag on completion; we read it once here, render a
+  // dismissible hint about the workspace rail, and clear it on
+  // dismiss. Lives in state (not direct localStorage reads) so the
+  // dismiss is instant — the localStorage write is fire-and-forget.
+  const [showRailHint, setShowRailHint] = useState(false)
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("inkwell:show-rail-hint") === "1") {
+        setShowRailHint(true)
+      }
+    } catch {
+      /* private mode — skip */
+    }
+  }, [])
+  const dismissRailHint = () => {
+    setShowRailHint(false)
+    try {
+      window.localStorage.removeItem("inkwell:show-rail-hint")
+    } catch {
+      /* nothing to do */
+    }
+  }
 
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false)
   const [collaboratorsDialog, setCollaboratorsDialog] = useState({
@@ -147,6 +170,20 @@ export default function DashboardPage() {
 
         <main className="flex-grow flex flex-col items-center py-6 overflow-y-auto">
           <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+            {showRailHint && (
+              <div className="mb-6 flex items-start gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
+                <ArrowDownUp className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground -rotate-90" aria-hidden="true" />
+                <div className="flex-1">
+                  <p className="font-medium">Your workspaces live on the left.</p>
+                  <p className="mt-0.5 text-muted-foreground">
+                    Drag to reorder, click <span className="font-mono">+</span> to add an organisation workspace, click the gear to manage members + categories.
+                  </p>
+                </div>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={dismissRailHint}>
+                  Got it
+                </Button>
+              </div>
+            )}
             <div className="flex items-center justify-between mb-8">
               <div>
                 {activeWorkspace?.name && (

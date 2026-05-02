@@ -57,6 +57,14 @@ export default function OnboardingPage() {
     try {
       await createPersonalWorkspaces(user.id, Array.from(selected))
       await refetch()
+      // Flag the dashboard's first-time coach-mark. Cleared after the
+      // user dismisses it; a localStorage write is enough — no need
+      // to round-trip through the server for a one-time UI hint.
+      try {
+        window.localStorage.setItem("inkwell:show-rail-hint", "1")
+      } catch {
+        /* private mode / disabled storage — coach-mark just won't show */
+      }
       router.replace("/dashboard")
     } catch (err) {
       console.error("Failed to create workspaces:", err)
