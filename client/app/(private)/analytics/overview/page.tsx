@@ -23,7 +23,7 @@ export default function AnalyticsOverview() {
   const othersPercentage = analytics.characters.slice(4).reduce((sum, c) => sum + c.percentage, 0)
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-full overflow-y-auto bg-background">
       <header className="border-b border-border bg-card px-6 py-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-4">

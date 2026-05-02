@@ -211,7 +211,7 @@ export default function AnalyticsPage() {
     : ""
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/10">
+    <div className="h-full overflow-y-auto bg-gradient-to-b from-background via-background to-muted/10">
       <main className="flex-1">
         <div className="border-b border-border bg-background/95 backdrop-blur-sm">
           <div className="mx-auto max-w-6xl px-8 py-8">

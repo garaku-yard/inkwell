@@ -24,7 +24,7 @@ export default function SceneBreakdown() {
   const maxWords = Math.max(...analytics.scenes.map(s => s.wordCount), 1)
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-full overflow-y-auto bg-background">
       <header className="border-b border-border bg-card px-6 py-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-4">
