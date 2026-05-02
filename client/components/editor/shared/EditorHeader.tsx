@@ -74,6 +74,9 @@ export function EditorHeader({
         <span>{statRight}</span>
         {extras}
         <span
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
           className={cn(
             saveStatus === "saved" && "text-green-600 dark:text-green-400",
             saveStatus === "saving" && "text-yellow-600 dark:text-yellow-400",

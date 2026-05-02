@@ -299,6 +299,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
           id={`el-${el.id}`}
           contentEditable
           suppressContentEditableWarning
+          role="textbox"
+          aria-multiline="true"
           onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
           onKeyDown={(e) => handleKeyDown(e, sectionId, el, elIdx)}
           className="text-lg font-bold outline-none mt-7 mb-1.5 empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
@@ -337,6 +339,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
               id={`el-${el.id}`}
               contentEditable
               suppressContentEditableWarning
+              role="textbox"
+              aria-multiline="true"
               onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
               className="font-mono text-sm outline-none px-3 py-3 whitespace-pre-wrap min-h-[5rem] leading-relaxed"
             >
@@ -421,6 +425,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                 id={`el-${el.id}`}
                 contentEditable
                 suppressContentEditableWarning
+                role="textbox"
+                aria-multiline="true"
                 onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                 className="font-mono text-sm outline-none px-3 py-2 whitespace-pre-wrap min-h-[5rem] text-xs"
               >
@@ -477,6 +483,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                 id={`el-${el.id}`}
                 contentEditable
                 suppressContentEditableWarning
+                role="textbox"
+                aria-multiline="true"
                 onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                 className="font-mono text-sm outline-none px-3 py-2 whitespace-pre-wrap min-h-[3rem]"
               >
@@ -496,6 +504,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
             id={`el-${el.id}`}
             contentEditable
             suppressContentEditableWarning
+            role="textbox"
+            aria-multiline="true"
             onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
             onKeyDown={(e) => handleKeyDown(e, sectionId, el, elIdx)}
             className="text-sm italic outline-none leading-relaxed min-h-[1.5rem] empty:before:content-['Note…'] empty:before:text-muted-foreground/50"
@@ -514,6 +524,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
             id={`el-${el.id}`}
             contentEditable
             suppressContentEditableWarning
+            role="textbox"
+            aria-multiline="true"
             onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
             onKeyDown={(e) => handleKeyDown(e, sectionId, el, elIdx)}
             className="text-sm font-medium outline-none leading-relaxed min-h-[1.5rem] empty:before:content-['Rule\00a0text…'] empty:before:text-muted-foreground/50"
@@ -531,6 +543,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         id={`el-${el.id}`}
         contentEditable
         suppressContentEditableWarning
+        role="textbox"
+        aria-multiline="true"
         onInput={(e) => handleBodyInput(e, sectionId, el, elIdx)}
         onKeyDown={(e) => handleKeyDown(e, sectionId, el, elIdx)}
         className="text-base leading-relaxed outline-none min-h-[1.5rem] my-0.5 empty:before:content-['Write\00a0rules,\00a0lore,\00a0descriptions…'] empty:before:text-muted-foreground/50"
@@ -633,6 +647,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                     <div
                       contentEditable
                       suppressContentEditableWarning
+                      role="textbox"
+                      aria-multiline="true"
                       onInput={(e) => handleContentChange(section.id, e.currentTarget.textContent ?? "", true)}
                       className="text-3xl font-black uppercase tracking-wider outline-none mb-8 pb-3 border-b-2 border-foreground empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
                       data-placeholder="CHAPTER TITLE"
@@ -645,6 +661,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                       <div
                         contentEditable
                         suppressContentEditableWarning
+                        role="textbox"
+                        aria-multiline="true"
                         className="text-base outline-none leading-relaxed min-h-[1.5rem] empty:before:content-['Start\00a0writing…'] empty:before:text-muted-foreground/50"
                         onKeyDown={async (e) => {
                           if (e.key === "Enter") { e.preventDefault(); await handleAddElement(section.id, "body") }

@@ -168,6 +168,10 @@ export const EditableElement = React.memo(
           data-screenplay-text
           contentEditable
           suppressContentEditableWarning
+          role="textbox"
+          aria-multiline="true"
+          aria-label={isScene ? "Scene heading" : `${type.toLowerCase()} element`}
+          aria-placeholder={isScene ? "Scene heading..." : getPlaceholderText(type)}
           onInput={handleInput}
           onFocus={() => onFocus(element.id, type)}
           onBlur={(e) => {

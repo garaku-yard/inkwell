@@ -701,6 +701,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                   <div
                     contentEditable
                     suppressContentEditableWarning
+                    role="textbox"
+                    aria-multiline="true"
                     onInput={(e) => handleContentChange(activePassageId, e.currentTarget.textContent ?? "", true)}
                     className="text-xl font-bold outline-none pb-2 border-b empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
                     data-placeholder="Passage name"
@@ -722,6 +724,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                     <div
                       contentEditable
                       suppressContentEditableWarning
+                      role="textbox"
+                      aria-multiline="true"
                       className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Write\00a0passage\00a0text…'] empty:before:text-muted-foreground/50"
                       onKeyDown={async (e) => {
                         if (e.key === "Enter") { e.preventDefault(); await handleAddElement("body") }
@@ -736,6 +740,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                             id={`el-${el.id}`}
                             contentEditable
                             suppressContentEditableWarning
+                            role="textbox"
+                            aria-multiline="true"
                             onInput={(e) => handleBodyInput(e, el.id)}
                             onKeyDown={(e) => handleKeyDown(e, el)}
                             className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Passage\00a0text…'] empty:before:text-muted-foreground/50"
@@ -753,6 +759,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                               id={`el-${el.id}`}
                               contentEditable
                               suppressContentEditableWarning
+                              role="textbox"
+                              aria-multiline="true"
                               onInput={(e) => handleBodyInput(e, el.id)}
                               onKeyDown={(e) => handleKeyDown(e, el)}
                               className="outline-none font-mono text-sm text-primary bg-primary/5 border border-primary/20 rounded-md px-3 py-1.5 min-h-[2rem] leading-relaxed"
@@ -804,6 +812,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                               id={`el-${el.id}`}
                               contentEditable
                               suppressContentEditableWarning
+                              role="textbox"
+                              aria-multiline="true"
                               onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                               onKeyDown={(e) => handleKeyDown(e, el)}
                               className="outline-none font-mono text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-md px-3 py-2 min-h-[2rem] leading-relaxed"
@@ -844,6 +854,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                               id={`el-${el.id}`}
                               contentEditable
                               suppressContentEditableWarning
+                              role="textbox"
+                              aria-multiline="true"
                               onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                               onKeyDown={(e) => handleKeyDown(e, el)}
                               className="outline-none font-mono text-xs text-violet-700 dark:text-violet-400 bg-violet-500/5 border border-violet-500/20 rounded-md px-3 py-1.5 min-h-[1.5rem] leading-relaxed"
@@ -862,6 +874,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                               id={`el-${el.id}`}
                               contentEditable
                               suppressContentEditableWarning
+                              role="textbox"
+                              aria-multiline="true"
                               onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                               className="outline-none text-sm italic text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-3 py-1.5 min-h-[1.5rem] leading-relaxed empty:before:content-['Note\00a0(not\00a0shown\00a0in\00a0game)…'] empty:before:text-muted-foreground/50"
                             >

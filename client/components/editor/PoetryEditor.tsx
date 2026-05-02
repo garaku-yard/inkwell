@@ -301,6 +301,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                     <div
                       contentEditable
                       suppressContentEditableWarning
+                      role="textbox"
+                      aria-multiline="true"
                       onInput={(e) => handleContentChange(scene.id, e.currentTarget.textContent ?? "", true)}
                       className={cn(
                         "text-2xl font-semibold outline-none mb-1 min-h-[2rem]",
@@ -317,6 +319,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                       <div
                         contentEditable
                         suppressContentEditableWarning
+                        role="textbox"
+                        aria-multiline="true"
                         onInput={(e) => handleContentChange(scene.id + ":meta", e.currentTarget.textContent ?? "", false)}
                         className="text-xs text-muted-foreground/60 mb-10 outline-none empty:before:content-['Key\00a0•\00a0Tempo\00a0•\00a0Capo'] empty:before:text-muted-foreground/50"
                       />
@@ -332,6 +336,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                         <div
                           contentEditable
                           suppressContentEditableWarning
+                          role="textbox"
+                          aria-multiline="true"
                           className="outline-none leading-loose min-h-[1.5rem] text-base empty:before:content-['First\00a0line…'] empty:before:text-muted-foreground/50"
                           onKeyDown={async (e) => {
                             if (e.key === "Enter") { e.preventDefault(); await handleAddLine(scene.id) }
@@ -347,6 +353,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                                   id={`el-${el.id}`}
                                   contentEditable
                                   suppressContentEditableWarning
+                                  role="textbox"
+                                  aria-multiline="true"
                                   onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                                   onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
                                   className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground outline-none"
@@ -365,6 +373,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                                 id={`el-${el.id}`}
                                 contentEditable
                                 suppressContentEditableWarning
+                                role="textbox"
+                                aria-multiline="true"
                                 onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                                 onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
                                 className="font-mono text-xs text-primary/70 outline-none leading-tight min-h-[1rem] mt-1 empty:before:content-['Chords…'] empty:before:text-muted-foreground/50"
@@ -408,6 +418,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                                 id={`el-${el.id}`}
                                 contentEditable
                                 suppressContentEditableWarning
+                                role="textbox"
+                                aria-multiline="true"
                                 onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
                                 onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
                                 className="outline-none leading-loose text-base min-h-[1.5rem] empty:before:content-['\200b']"
