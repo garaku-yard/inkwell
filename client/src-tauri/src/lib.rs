@@ -1,6 +1,7 @@
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+mod open_file;
 mod secrets;
 
 /// Schema migrations applied to the local SQLite database on startup. Keep
@@ -57,10 +58,12 @@ pub fn run() {
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_opener::init())
+    .manage(open_file::PendingOpenFile::default())
     .invoke_handler(tauri::generate_handler![
       secrets::secret_set,
       secrets::secret_get,
       secrets::secret_delete,
+      open_file::consume_pending_open_file,
     ])
     .setup(|app| {
       // Make sure the window advertises the bundle icon on platforms that
@@ -73,6 +76,13 @@ pub fn run() {
         }
       }
 
+      // Windows + Linux deliver a double-clicked file as a CLI arg on
+      // launch. macOS uses RunEvent::Opened (handled below) once the
+      // event loop is running, so this scan is a no-op there.
+      if let Some(path) = open_file::detect_open_file_arg(std::env::args()) {
+        open_file::record_pending(&app.handle(), path);
+      }
+
       if cfg!(debug_assertions) {
         app.handle().plugin(
           tauri_plugin_log::Builder::default()
@@ -82,6 +92,23 @@ pub fn run() {
       }
       Ok(())
     })
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    .build(tauri::generate_context!())
+    .expect("error while building tauri application")
+    .run(|_app_handle, _event| {
+      // RunEvent::Opened fires on macOS / iOS when the user double-clicks
+      // an associated file for an already-running app. The variant is
+      // gated by Tauri behind those targets, so we only build the match
+      // arm there. Windows + Linux receive the path via CLI args and
+      // the setup() scan above is enough.
+      #[cfg(any(target_os = "macos", target_os = "ios"))]
+      if let tauri::RunEvent::Opened { urls } = _event {
+        for url in urls {
+          if let Ok(path) = url.to_file_path() {
+            if let Some(s) = path.to_str() {
+              open_file::record_pending(_app_handle, s.to_string());
+            }
+          }
+        }
+      }
+    });
 }

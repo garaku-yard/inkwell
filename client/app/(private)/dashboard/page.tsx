@@ -25,10 +25,12 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { NewProjectDialog } from "./new-project-dialog"
 import { CollaboratorsDialog } from "./collaborators-dialog"
+import { FdxImportDialog } from "./fdx-import-dialog"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { RenameProjectDialog } from "@/components/rename-project-dialog"
 import { useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { isTauri } from "@tauri-apps/api/core"
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -57,6 +59,7 @@ export default function DashboardPage() {
     projectName: "",
     projectDescription: "",
   })
+  const [importPath, setImportPath] = useState<string | null>(null)
 
   const {
     filteredProjects,
@@ -89,6 +92,39 @@ export default function DashboardPage() {
     }
   }, [searchParams, router])
 
+  // OS file-association → Inkwell. The Rust side stashes the path
+  // either at launch (CLI arg on Windows/Linux) or via RunEvent::Opened
+  // (macOS), and re-emits a live `open-file` event for already-running
+  // instances. We drain the slot once on mount and then keep listening.
+  useEffect(() => {
+    if (!isTauri()) return
+    let unlisten: (() => void) | undefined
+    let cancelled = false
+    ;(async () => {
+      const { listen } = await import("@tauri-apps/api/event")
+      const { invoke } = await import("@tauri-apps/api/core")
+      unlisten = await listen<string>("open-file", (e) => {
+        setImportPath(e.payload)
+      })
+      const initial = await invoke<string | null>("consume_pending_open_file")
+      if (!cancelled && initial) setImportPath(initial)
+    })()
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [])
+
+  const handleImportClick = async () => {
+    if (!isTauri()) return
+    const { open } = await import("@tauri-apps/plugin-dialog")
+    const picked = await open({
+      multiple: false,
+      filters: [{ name: "Final Draft", extensions: ["fdx"] }],
+    })
+    if (typeof picked === "string") setImportPath(picked)
+  }
+
   const handleManageCollaborators = (projectId: string, projectTitle: string) => {
     setCollaboratorsDialog({ open: true, projectId, projectName: projectTitle })
   }
@@ -117,7 +153,7 @@ export default function DashboardPage() {
                   <Plus className="h-4 w-4 mr-2" />
                   New Project
                 </Button>
-                <Button>
+                <Button onClick={handleImportClick} disabled={!isTauri()}>
                   <FilePlus2Icon className="h-4 w-4 mr-2" />
                   Import
                 </Button>
@@ -224,6 +260,11 @@ export default function DashboardPage() {
         }}
         projectName={deleteDialog.projectName}
         isDeleting={isDeleting}
+      />
+
+      <FdxImportDialog
+        filePath={importPath}
+        onCancel={() => setImportPath(null)}
       />
 
       <RenameProjectDialog
