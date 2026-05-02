@@ -12,6 +12,7 @@ import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createProseKeymap } from "./prose/keymap"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
+import { exportProseToEpub } from "@/lib/export/prose-epub"
 import {
   createScene,
   createSceneElement,
@@ -214,6 +215,10 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
             {
               label: "Export as Markdown (.md)",
               onClick: () => exportProjectToMarkdown({ ...projectData, scenes }),
+            },
+            {
+              label: "Export as EPUB 3 (.epub)",
+              onClick: () => exportProseToEpub({ ...projectData, scenes }),
             },
           ]}
         />
