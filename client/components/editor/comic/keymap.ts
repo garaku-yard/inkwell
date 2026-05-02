@@ -74,6 +74,35 @@ function flatNavigableIds(pages: Scene[]): string[] {
   return ids
 }
 
+/** Walks the full flat element list looking for the previous or next
+ *  panel relative to `fromId`. Skips the element itself when searching
+ *  forwards/backwards so the user can step from a panel onto the
+ *  surrounding one rather than hitting the same panel twice. */
+function findAdjacentPanel(
+  pages: Scene[],
+  fromId: string,
+  dir: "prev" | "next",
+): string | null {
+  const flat: { id: string; isPanel: boolean }[] = []
+  for (const page of pages) {
+    for (const el of page.elements ?? []) {
+      flat.push({ id: el.id, isPanel: el.element_type === "panel" })
+    }
+  }
+  const idx = flat.findIndex((e) => e.id === fromId)
+  if (idx === -1) return null
+  if (dir === "next") {
+    for (let i = idx + 1; i < flat.length; i++) {
+      if (flat[i].isPanel) return flat[i].id
+    }
+  } else {
+    for (let i = idx - 1; i >= 0; i--) {
+      if (flat[i].isPanel) return flat[i].id
+    }
+  }
+  return null
+}
+
 function getElementNode(id: string): HTMLElement | null {
   if (typeof document === "undefined") return null
   return document.getElementById(`el-${id}`)
@@ -89,6 +118,14 @@ export function createComicKeymap(opts: CreateComicKeymapOptions): Keymap<ComicK
   const numberKeyEntries = Object.entries(NUMBER_KEY_TO_ELEMENT).map(
     ([digit, type]) => [`mod+${digit}`, insertViaDigit(type)] as const,
   )
+
+  const jumpToPanel = (dir: "prev" | "next") =>
+    (e: React.KeyboardEvent<HTMLDivElement>, ctx: ComicKeyContext) => {
+      const target = findAdjacentPanel(opts.pages, ctx.elementId, dir)
+      if (!target) return
+      e.preventDefault()
+      focusContentEditableAtEnd(getElementNode(target))
+    }
 
   return {
     ...createElementNavigationKeymap<ComicKeyContext>({
@@ -114,5 +151,7 @@ export function createComicKeymap(opts: CreateComicKeymapOptions): Keymap<ComicK
       opts.insertElementAfter(ctx.pageId, next, ctx.elementIndex)
     },
     ...Object.fromEntries(numberKeyEntries),
+    "mod+arrowleft": jumpToPanel("prev"),
+    "mod+arrowright": jumpToPanel("next"),
   }
 }
