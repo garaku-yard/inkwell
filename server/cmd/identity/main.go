@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -21,6 +22,7 @@ import (
 	"inkwell/server/pkg/database"
 	"inkwell/server/pkg/events"
 	identitypb "inkwell/server/pkg/grpc/identity"
+	"inkwell/server/pkg/outbox"
 )
 
 func main() {
@@ -73,8 +75,17 @@ func main() {
 	}
 
 	userRepo := repository.NewUserRepository(db)
-	authService := service.NewAuthService(userRepo, cfg, publisher)
+	outboxStore := outbox.NewPostgresStore(db, "identity_outbox")
+	authService := service.NewAuthService(db, userRepo, cfg, publisher, outboxStore)
 	identityHandler := handler.NewIdentityHandler(authService)
+
+	// Outbox poller — flushes unpublished identity events to Kafka every 10 s.
+	pollerCtx, cancelPoller := context.WithCancel(context.Background())
+	defer cancelPoller()
+	go outbox.
+		NewPoller(outboxStore, publisher, 10*time.Second, 50).
+		WithLogger(slog.Default().With("component", "identity_outbox")).
+		Run(pollerCtx)
 
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),
@@ -102,6 +113,7 @@ func main() {
 	<-quit
 
 	slog.Info("shutting down identity service")
+	cancelPoller()
 	grpcServer.GracefulStop()
 	slog.Info("identity service stopped")
 }

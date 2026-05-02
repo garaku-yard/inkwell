@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"inkwell/server/internal/identity/domain"
 	"inkwell/server/internal/identity/repository"
 	"inkwell/server/pkg/events"
+	"inkwell/server/pkg/outbox"
 )
 
 // AuthService defines the interface for authentication business logic
@@ -125,18 +128,30 @@ type TokenClaims struct {
 
 // authService implements AuthService interface
 type authService struct {
+	db        *sql.DB
 	userRepo  repository.UserRepository
 	config    *config.Config
 	publisher events.Publisher
+	outbox    outbox.Store
 }
 
 // NewAuthService creates a new AuthService.
-// publisher receives domain events; pass &events.NoopPublisher{} in tests.
-func NewAuthService(userRepo repository.UserRepository, config *config.Config, publisher events.Publisher) AuthService {
+//
+// The service commits user creation together with a matching `user.created`
+// outbox event in a single database transaction so no event can be lost
+// if the process crashes after the row insert. db opens transactions;
+// store is the event store (typically outbox.NewPostgresStore(db,
+// "identity_outbox")); publisher is the best-effort Kafka emitter that
+// the background poller falls back to for reliability.
+//
+// In tests, pass an in-memory outbox.Store and &events.NoopPublisher{}.
+func NewAuthService(db *sql.DB, userRepo repository.UserRepository, config *config.Config, publisher events.Publisher, store outbox.Store) AuthService {
 	return &authService{
+		db:        db,
 		userRepo:  userRepo,
 		config:    config,
 		publisher: publisher,
+		outbox:    store,
 	}
 }
 
@@ -202,15 +217,33 @@ func (s *authService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 		UpdatedAt:    time.Now(),
 	}
 
-	if err := s.userRepo.CreateUser(ctx, user); err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	_ = s.publisher.Publish(ctx, events.EventTypeUserCreated, map[string]string{
+	payload, err := json.Marshal(map[string]string{
 		"user_id":  user.ID.String(),
 		"email":    user.Email,
 		"username": user.Username,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal user.created payload: %w", err)
+	}
+
+	// Commit the user row and its `user.created` outbox event in a single
+	// transaction so no event can be lost if the process crashes between
+	// the two writes. The inline Publish below is a best-effort fast path;
+	// the background outbox poller handles reliability.
+	err = outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
+		if err := s.userRepo.CreateUserTx(ctx, tx, user); err != nil {
+			return err
+		}
+		return s.outbox.EnqueueTx(ctx, tx, outbox.Event{
+			Type:    events.EventTypeUserCreated,
+			Payload: payload,
+		})
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	_ = s.publisher.Publish(ctx, events.EventTypeUserCreated, payload)
 
 	// Create session and tokens
 	tokenPair, session, err := s.createUserSession(ctx, user)

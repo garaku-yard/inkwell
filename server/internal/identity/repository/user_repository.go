@@ -16,6 +16,11 @@ import (
 type UserRepository interface {
 	// User operations
 	CreateUser(ctx context.Context, user *domain.User) error
+	// CreateUserTx inserts a user inside the given transaction, used by the
+	// service layer to atomically commit the row and its user.created
+	// outbox event. Returns the same domain errors as CreateUser
+	// (ErrEmailExists / ErrUsernameExists).
+	CreateUserTx(ctx context.Context, tx *sql.Tx, user *domain.User) error
 	GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*domain.User, error)
@@ -50,14 +55,33 @@ func NewUserRepository(db *sql.DB) UserRepository {
 	return &userRepository{db: db}
 }
 
+// userInsert is the shared SQL used by CreateUser and CreateUserTx so the
+// schema can't drift between the two paths.
+const userInsert = `
+	INSERT INTO users (user_id, email, username, user_tag, password_hash, first_name, last_name, avatar_url, role, is_active, is_verified, email_verified, created_at, updated_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+`
+
+// translateInsertError maps the lib/pq error envelope back into the
+// domain-level sentinels callers expect.
+func translateInsertError(err error) error {
+	if pqErr, ok := err.(*pq.Error); ok {
+		switch pqErr.Code {
+		case "23505": // unique_violation
+			if pqErr.Constraint == "users_email_key" {
+				return domain.ErrEmailExists
+			}
+			if pqErr.Constraint == "users_username_key" {
+				return domain.ErrUsernameExists
+			}
+		}
+	}
+	return fmt.Errorf("failed to create user: %w", err)
+}
+
 // CreateUser creates a new user in the database
 func (r *userRepository) CreateUser(ctx context.Context, user *domain.User) error {
-	query := `
-		INSERT INTO users (user_id, email, username, user_tag, password_hash, first_name, last_name, avatar_url, role, is_active, is_verified, email_verified, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-	`
-
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.ExecContext(ctx, userInsert,
 		user.ID,
 		user.Email,
 		user.Username,
@@ -73,22 +97,35 @@ func (r *userRepository) CreateUser(ctx context.Context, user *domain.User) erro
 		user.CreatedAt,
 		user.UpdatedAt,
 	)
-
 	if err != nil {
-		if pqErr, ok := err.(*pq.Error); ok {
-			switch pqErr.Code {
-			case "23505": // unique_violation
-				if pqErr.Constraint == "users_email_key" {
-					return domain.ErrEmailExists
-				}
-				if pqErr.Constraint == "users_username_key" {
-					return domain.ErrUsernameExists
-				}
-			}
-		}
-		return fmt.Errorf("failed to create user: %w", err)
+		return translateInsertError(err)
 	}
+	return nil
+}
 
+// CreateUserTx inserts a user inside the given transaction. The service
+// layer calls this alongside outbox.EnqueueTx so the user row and its
+// user.created event commit atomically.
+func (r *userRepository) CreateUserTx(ctx context.Context, tx *sql.Tx, user *domain.User) error {
+	_, err := tx.ExecContext(ctx, userInsert,
+		user.ID,
+		user.Email,
+		user.Username,
+		user.UserTag,
+		user.PasswordHash,
+		user.FirstName,
+		user.LastName,
+		user.AvatarURL,
+		user.Role,
+		user.IsActive,
+		user.IsVerified,
+		user.EmailVerified,
+		user.CreatedAt,
+		user.UpdatedAt,
+	)
+	if err != nil {
+		return translateInsertError(err)
+	}
 	return nil
 }
 
