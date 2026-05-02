@@ -144,6 +144,8 @@ export const SceneHeadingAutocomplete: React.FC<SceneHeadingAutocompleteProps> =
   return (
     <div
       ref={suggestionListRef}
+      role="listbox"
+      aria-label="Scene heading suggestions"
       className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto"
       style={{
         top: `${position.top}px`,
@@ -154,6 +156,8 @@ export const SceneHeadingAutocomplete: React.FC<SceneHeadingAutocompleteProps> =
       {suggestions.map((suggestion, index) => (
         <div
           key={suggestion}
+          role="option"
+          aria-selected={index === selectedIndex}
           className={cn(
             "px-3 py-2 cursor-pointer font-['Courier_New',Courier,monospace] text-sm",
             index === selectedIndex

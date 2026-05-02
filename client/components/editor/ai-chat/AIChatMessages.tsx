@@ -22,7 +22,11 @@ export const AIChatMessages = forwardRef<HTMLDivElement, AIChatMessagesProps>(
   function AIChatMessages({ messages, isTyping, showEmptyState }, anchorRef) {
     return (
       <ScrollArea className="flex-1 p-5 min-h-0">
-        <div className="space-y-7 p-1">
+        {/* aria-live="polite" so screen readers announce assistant
+            replies as they stream in without interrupting the user
+            mid-typing. atomic=false lets each new chunk be announced
+            on its own rather than re-reading the whole thread. */}
+        <div className="space-y-7 p-1" aria-live="polite" aria-atomic="false">
           {showEmptyState ? (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border/60 bg-muted/20 p-6 text-center">
               <AlertCircle className="h-5 w-5 text-muted-foreground" />

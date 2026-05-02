@@ -250,6 +250,8 @@ export const CharacterAutocomplete: React.FC<CharacterAutocompleteProps> = ({
   return (
     <div
       ref={suggestionListRef}
+      role="listbox"
+      aria-label="Character suggestions"
       className="fixed z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150"
       style={{
         top: `${position.top}px`,
@@ -271,6 +273,8 @@ export const CharacterAutocomplete: React.FC<CharacterAutocompleteProps> = ({
         {suggestions.map((suggestion, index) => (
           <div
             key={suggestion.name}
+            role="option"
+            aria-selected={index === selectedIndex}
             className={cn(
               "px-3 py-1.5 cursor-pointer flex items-center justify-between gap-3 transition-colors",
               index === selectedIndex
