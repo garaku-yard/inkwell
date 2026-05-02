@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"inkwell/server/internal/collab/config"
 	"inkwell/server/internal/collab/handlers"
@@ -16,6 +17,7 @@ import (
 	"inkwell/server/pkg/database"
 	"inkwell/server/pkg/events"
 	"inkwell/server/pkg/grpc/collab"
+	"inkwell/server/pkg/outbox"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -70,8 +72,17 @@ func main() {
 	}
 
 	repo := repository.NewPostgresCollaborationRepository(db)
-	collabService := service.NewCollaborationService(repo, publisher)
+	outboxStore := outbox.NewPostgresStore(db, "collab_outbox")
+	collabService := service.NewCollaborationService(db, repo, publisher, outboxStore)
 	handler := handlers.NewCollaborationHandler(collabService)
+
+	// Outbox poller — flushes unpublished collab events to Kafka every 10 s.
+	pollerCtx, cancelPoller := context.WithCancel(context.Background())
+	defer cancelPoller()
+	go outbox.
+		NewPoller(outboxStore, publisher, 10*time.Second, 50).
+		WithLogger(slog.Default().With("component", "collab_outbox")).
+		Run(pollerCtx)
 
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),
@@ -99,6 +110,7 @@ func main() {
 	<-quit
 
 	slog.Info("shutting down collaboration service")
+	cancelPoller()
 	grpcServer.GracefulStop()
 	slog.Info("collaboration service stopped")
 }

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"inkwell/server/internal/collab/domain"
 
 	"github.com/google/uuid"
@@ -11,6 +12,10 @@ import (
 type CollaborationRepository interface {
 	// Collaborator operations
 	CreateCollaborator(ctx context.Context, collaborator *domain.Collaborator) error
+	// CreateCollaboratorTx inserts a collaborator inside the given
+	// transaction, used by the service layer to atomically commit the
+	// row and its `collab.added` outbox event.
+	CreateCollaboratorTx(ctx context.Context, tx *sql.Tx, collaborator *domain.Collaborator) error
 	GetCollaboratorByID(ctx context.Context, id uuid.UUID) (*domain.Collaborator, error)
 	GetPendingCollaboratorByUserAndProject(ctx context.Context, userID, projectID uuid.UUID) (*domain.Collaborator, error)
 	GetProjectCollaborators(ctx context.Context, projectID uuid.UUID) ([]*domain.Collaborator, error)

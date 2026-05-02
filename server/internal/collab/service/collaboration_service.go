@@ -2,28 +2,44 @@ package service
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"time"
 
 	"inkwell/server/internal/collab/domain"
 	"inkwell/server/internal/collab/repository"
 	"inkwell/server/pkg/events"
+	"inkwell/server/pkg/outbox"
 
 	"github.com/google/uuid"
 )
 
 // CollaborationService handles business logic for collaboration.
 type CollaborationService struct {
+	db        *sql.DB
 	repo      repository.CollaborationRepository
 	publisher events.Publisher
+	outbox    outbox.Store
 }
 
 // NewCollaborationService creates a CollaborationService.
-// publisher is used to emit domain events; pass events.NoopPublisher{} in tests.
-func NewCollaborationService(repo repository.CollaborationRepository, publisher events.Publisher) *CollaborationService {
+//
+// The service commits collaborator additions together with a matching
+// `collab.added` outbox event in a single transaction so no event can
+// be lost if the process crashes between the row insert and the inline
+// Publish call. db opens transactions; store is the event store
+// (typically outbox.NewPostgresStore(db, "collab_outbox")); publisher
+// is the best-effort Kafka emitter the background poller falls back to.
+//
+// In tests, pass an in-memory outbox.Store and events.NoopPublisher{}.
+func NewCollaborationService(db *sql.DB, repo repository.CollaborationRepository, publisher events.Publisher, store outbox.Store) *CollaborationService {
 	return &CollaborationService{
+		db:        db,
 		repo:      repo,
 		publisher: publisher,
+		outbox:    store,
 	}
 }
 
@@ -126,16 +142,33 @@ func (s *CollaborationService) AddCollaborator(ctx context.Context, projectID, u
 		collaborator.JoinedAt = &collaborator.InvitedAt
 	}
 
-	if err := s.repo.CreateCollaborator(ctx, collaborator); err != nil {
-		return nil, err
-	}
-
-	_ = s.publisher.Publish(ctx, events.EventTypeCollabAdded, map[string]string{
+	payload, err := json.Marshal(map[string]string{
 		"project_id": projectID.String(),
 		"user_id":    userID.String(),
 		"role":       role,
 		"invited_by": invitedBy.String(),
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal collab.added payload: %w", err)
+	}
+
+	// Atomic commit: collaborator row + outbox event in one transaction.
+	// The inline Publish below is a best-effort fast path; the
+	// background outbox poller is the reliable channel.
+	err = outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
+		if err := s.repo.CreateCollaboratorTx(ctx, tx, collaborator); err != nil {
+			return err
+		}
+		return s.outbox.EnqueueTx(ctx, tx, outbox.Event{
+			Type:    events.EventTypeCollabAdded,
+			Payload: payload,
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	_ = s.publisher.Publish(ctx, events.EventTypeCollabAdded, payload)
 
 	return collaborator, nil
 }

@@ -19,13 +19,32 @@ func NewPostgresCollaborationRepository(db *sql.DB) CollaborationRepository {
 	return &PostgresCollaborationRepository{db: db}
 }
 
+// collaboratorInsert is the shared SQL used by CreateCollaborator and
+// CreateCollaboratorTx so the schema can't drift between the two paths.
+const collaboratorInsert = `
+	INSERT INTO collaborators (collaborator_id, project_id, user_id, role, status, invited_by, invited_at, joined_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+
 // Collaborator operations
 func (r *PostgresCollaborationRepository) CreateCollaborator(ctx context.Context, collaborator *domain.Collaborator) error {
-	query := `
-		INSERT INTO collaborators (collaborator_id, project_id, user_id, role, status, invited_by, invited_at, joined_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+	_, err := r.db.ExecContext(ctx, collaboratorInsert,
+		collaborator.ID,
+		collaborator.ProjectID,
+		collaborator.UserID,
+		collaborator.Role,
+		collaborator.Status,
+		collaborator.InvitedBy,
+		collaborator.InvitedAt,
+		collaborator.JoinedAt,
+	)
+	return err
+}
 
-	_, err := r.db.ExecContext(ctx, query,
+// CreateCollaboratorTx inserts a collaborator inside the given transaction.
+// Pairs with outbox.EnqueueTx in the service layer to keep the
+// collaborator row and its `collab.added` event atomic.
+func (r *PostgresCollaborationRepository) CreateCollaboratorTx(ctx context.Context, tx *sql.Tx, collaborator *domain.Collaborator) error {
+	_, err := tx.ExecContext(ctx, collaboratorInsert,
 		collaborator.ID,
 		collaborator.ProjectID,
 		collaborator.UserID,
