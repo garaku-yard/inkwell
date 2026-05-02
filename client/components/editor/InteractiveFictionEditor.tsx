@@ -16,6 +16,7 @@ import { deleteScriptElement } from "@/services/editor"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToTwee } from "@/lib/export/if-twee"
 import { useExportToast } from "@/lib/export/use-export-toast"
+import { StableContentEditable } from "./shared/StableContentEditable"
 import {
   createScene,
   createSceneElement,
@@ -270,14 +271,6 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
       }
     },
     [],
-  )
-
-  const handleBodyInput = useCallback(
-    (e: React.FormEvent<HTMLDivElement>, elementId: string) => {
-      handleContentChange(elementId, e.currentTarget.textContent ?? "", false)
-      setAutocomplete(computeAutocompleteContext(elementId))
-    },
-    [handleContentChange, computeAutocompleteContext],
   )
 
   const insertLinkAt = useCallback((elementId: string, name: string) => {
@@ -677,17 +670,12 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                       Start passage
                     </span>
                   )}
-                  <div
-                    contentEditable
-                    suppressContentEditableWarning
-                    role="textbox"
-                    aria-multiline="true"
-                    onInput={(e) => handleContentChange(activePassageId, e.currentTarget.textContent ?? "", true)}
+                  <StableContentEditable
+                    value={activePassage?.scene_heading ?? ""}
+                    onValueChange={(next) => activePassageId && handleContentChange(activePassageId, next, true)}
                     className="text-xl font-bold outline-none pb-2 border-b empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
                     data-placeholder="Passage name"
-                  >
-                    {activePassage?.scene_heading || ""}
-                  </div>
+                  />
                 </div>
 
                 <p className="text-xs text-muted-foreground/50 mb-8 mt-1.5">
@@ -700,11 +688,9 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                 {/* Elements */}
                 <div className="space-y-2">
                   {activeElements.length === 0 ? (
-                    <div
-                      contentEditable
-                      suppressContentEditableWarning
-                      role="textbox"
-                      aria-multiline="true"
+                    <StableContentEditable
+                      value=""
+                      onValueChange={() => { /* empty-state placeholder; first keystroke creates a body element */ }}
                       className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Write\00a0passage\00a0text…'] empty:before:text-muted-foreground/50"
                       onKeyDown={async (e) => {
                         if (e.key === "Enter") { e.preventDefault(); await handleAddElement("body") }
@@ -714,19 +700,17 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                     activeElements.map((el) => {
                       if (el.element_type === "body") {
                         return (
-                          <div
+                          <StableContentEditable
                             key={el.id}
                             id={`el-${el.id}`}
-                            contentEditable
-                            suppressContentEditableWarning
-                            role="textbox"
-                            aria-multiline="true"
-                            onInput={(e) => handleBodyInput(e, el.id)}
+                            value={el.content}
+                            onValueChange={(next) => {
+                              handleContentChange(el.id, next, false)
+                              setAutocomplete(computeAutocompleteContext(el.id))
+                            }}
                             onKeyDown={(e) => handleKeyDown(e, el)}
                             className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Passage\00a0text…'] empty:before:text-muted-foreground/50"
-                          >
-                            {el.content}
-                          </div>
+                          />
                         )
                       }
 
@@ -734,18 +718,16 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                         const targets = parseLinks(el.content)
                         return (
                           <div key={el.id} className="mt-1">
-                            <div
+                            <StableContentEditable
                               id={`el-${el.id}`}
-                              contentEditable
-                              suppressContentEditableWarning
-                              role="textbox"
-                              aria-multiline="true"
-                              onInput={(e) => handleBodyInput(e, el.id)}
+                              value={el.content}
+                              onValueChange={(next) => {
+                                handleContentChange(el.id, next, false)
+                                setAutocomplete(computeAutocompleteContext(el.id))
+                              }}
                               onKeyDown={(e) => handleKeyDown(e, el)}
                               className="outline-none font-mono text-sm text-primary bg-primary/5 border border-primary/20 rounded-md px-3 py-1.5 min-h-[2rem] leading-relaxed"
-                            >
-                              {el.content}
-                            </div>
+                            />
                             {/* Link resolution badges */}
                             {targets.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 mt-1.5 pl-1">
@@ -787,18 +769,13 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                         const targets = parseLinks(el.content)
                         return (
                           <div key={el.id} className="mt-1">
-                            <div
+                            <StableContentEditable
                               id={`el-${el.id}`}
-                              contentEditable
-                              suppressContentEditableWarning
-                              role="textbox"
-                              aria-multiline="true"
-                              onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                              value={el.content}
+                              onValueChange={(next) => handleContentChange(el.id, next, false)}
                               onKeyDown={(e) => handleKeyDown(e, el)}
                               className="outline-none font-mono text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-md px-3 py-2 min-h-[2rem] leading-relaxed"
-                            >
-                              {el.content}
-                            </div>
+                            />
                             {targets.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 mt-1.5 pl-1">
                                 {targets.map((target, i) => {
@@ -829,18 +806,13 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                         return (
                           <div key={el.id} className="mt-1">
                             <div className="text-[10px] uppercase tracking-widest text-muted-foreground/50 mb-0.5 pl-1 select-none">Variable</div>
-                            <div
+                            <StableContentEditable
                               id={`el-${el.id}`}
-                              contentEditable
-                              suppressContentEditableWarning
-                              role="textbox"
-                              aria-multiline="true"
-                              onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                              value={el.content}
+                              onValueChange={(next) => handleContentChange(el.id, next, false)}
                               onKeyDown={(e) => handleKeyDown(e, el)}
                               className="outline-none font-mono text-xs text-violet-700 dark:text-violet-400 bg-violet-500/5 border border-violet-500/20 rounded-md px-3 py-1.5 min-h-[1.5rem] leading-relaxed"
-                            >
-                              {el.content}
-                            </div>
+                            />
                           </div>
                         )
                       }
@@ -849,17 +821,12 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                         return (
                           <div key={el.id} className="mt-1 opacity-60 hover:opacity-100 transition-opacity">
                             <div className="text-[10px] uppercase tracking-widest text-muted-foreground/50 mb-0.5 pl-1 select-none">Author note</div>
-                            <div
+                            <StableContentEditable
                               id={`el-${el.id}`}
-                              contentEditable
-                              suppressContentEditableWarning
-                              role="textbox"
-                              aria-multiline="true"
-                              onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                              value={el.content}
+                              onValueChange={(next) => handleContentChange(el.id, next, false)}
                               className="outline-none text-sm italic text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-3 py-1.5 min-h-[1.5rem] leading-relaxed empty:before:content-['Note\00a0(not\00a0shown\00a0in\00a0game)…'] empty:before:text-muted-foreground/50"
-                            >
-                              {el.content}
-                            </div>
+                            />
                           </div>
                         )
                       }

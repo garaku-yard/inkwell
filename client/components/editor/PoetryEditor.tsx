@@ -15,6 +15,7 @@ import { createPoetryKeymap } from "./poetry/keymap"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToChordPro } from "@/lib/export/chordpro"
 import { useExportToast } from "@/lib/export/use-export-toast"
+import { StableContentEditable } from "./shared/StableContentEditable"
 import {
   createScene,
   createSceneElement,
@@ -298,30 +299,22 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                     className={cn("mb-20", poemIdx > 0 && "pt-16 border-t border-border/40")}
                   >
                     {/* Title */}
-                    <div
-                      contentEditable
-                      suppressContentEditableWarning
-                      role="textbox"
-                      aria-multiline="true"
-                      onInput={(e) => handleContentChange(scene.id, e.currentTarget.textContent ?? "", true)}
+                    <StableContentEditable
+                      value={scene.scene_heading ?? ""}
+                      onValueChange={(next) => handleContentChange(scene.id, next, true)}
                       className={cn(
                         "text-2xl font-semibold outline-none mb-1 min-h-[2rem]",
                         "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50",
                         isLyrics ? "" : "text-center",
                       )}
                       data-placeholder={isLyrics ? "Song title" : "Poem title"}
-                    >
-                      {scene.scene_heading || ""}
-                    </div>
+                    />
 
                     {/* Form label (poetry) or Key/Tempo (lyrics) */}
                     {isLyrics ? (
-                      <div
-                        contentEditable
-                        suppressContentEditableWarning
-                        role="textbox"
-                        aria-multiline="true"
-                        onInput={(e) => handleContentChange(scene.id + ":meta", e.currentTarget.textContent ?? "", false)}
+                      <StableContentEditable
+                        value=""
+                        onValueChange={(next) => handleContentChange(scene.id + ":meta", next, false)}
                         className="text-xs text-muted-foreground/60 mb-10 outline-none empty:before:content-['Key\00a0•\00a0Tempo\00a0•\00a0Capo'] empty:before:text-muted-foreground/50"
                       />
                     ) : (
@@ -333,11 +326,9 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                     {/* Elements */}
                     <div className={cn("space-y-0", centered && !isLyrics && "text-center")}>
                       {elements.length === 0 ? (
-                        <div
-                          contentEditable
-                          suppressContentEditableWarning
-                          role="textbox"
-                          aria-multiline="true"
+                        <StableContentEditable
+                          value=""
+                          onValueChange={() => { /* empty-state placeholder; first Enter creates a real line */ }}
                           className="outline-none leading-loose min-h-[1.5rem] text-base empty:before:content-['First\00a0line…'] empty:before:text-muted-foreground/50"
                           onKeyDown={async (e) => {
                             if (e.key === "Enter") { e.preventDefault(); await handleAddLine(scene.id) }
@@ -349,18 +340,13 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                           if (el.element_type === "section_label") {
                             return (
                               <div key={el.id} className={cn("mt-8 mb-2", elIdx === 0 && "mt-0")}>
-                                <div
+                                <StableContentEditable
                                   id={`el-${el.id}`}
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  role="textbox"
-                                  aria-multiline="true"
-                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  value={el.content}
+                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
                                   onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
                                   className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground outline-none"
-                                >
-                                  {el.content}
-                                </div>
+                                />
                               </div>
                             )
                           }
@@ -368,19 +354,14 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                           // chord_row — lyrics only, monospace, subdued
                           if (el.element_type === "chord_row") {
                             return (
-                              <div
+                              <StableContentEditable
                                 key={el.id}
                                 id={`el-${el.id}`}
-                                contentEditable
-                                suppressContentEditableWarning
-                                role="textbox"
-                                aria-multiline="true"
-                                onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                value={el.content}
+                                onValueChange={(next) => handleContentChange(el.id, next, false)}
                                 onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
                                 className="font-mono text-xs text-primary/70 outline-none leading-tight min-h-[1rem] mt-1 empty:before:content-['Chords…'] empty:before:text-muted-foreground/50"
-                              >
-                                {el.content}
-                              </div>
+                              />
                             )
                           }
 
@@ -414,18 +395,13 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                                   {sylCount}σ
                                 </span>
                               )}
-                              <div
+                              <StableContentEditable
                                 id={`el-${el.id}`}
-                                contentEditable
-                                suppressContentEditableWarning
-                                role="textbox"
-                                aria-multiline="true"
-                                onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                value={el.content}
+                                onValueChange={(next) => handleContentChange(el.id, next, false)}
                                 onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
                                 className="outline-none leading-loose text-base min-h-[1.5rem] empty:before:content-['\200b']"
-                              >
-                                {el.content}
-                              </div>
+                              />
                             </div>
                           )
                         })

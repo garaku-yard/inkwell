@@ -14,6 +14,7 @@ import { createComicKeymap, type ComicElementType as KeymapComicElementType } fr
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportComicToCBZ } from "@/lib/export/comic-cbz"
 import { useExportToast } from "@/lib/export/use-export-toast"
+import { StableContentEditable } from "./shared/StableContentEditable"
 import {
   createScene,
   createSceneElement,
@@ -257,17 +258,12 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                   >
                     {/* PAGE HEADER: PAGE X (N PANELS) */}
                     <div className="mb-6">
-                      <div
-                        contentEditable
-                        suppressContentEditableWarning
-                        role="textbox"
-                        aria-multiline="true"
-                        onInput={(e) => handleContentChange(page.id, e.currentTarget.textContent ?? "", true)}
+                      <StableContentEditable
+                        value={page.scene_heading ?? ""}
+                        onValueChange={(next) => handleContentChange(page.id, next, true)}
                         className="text-sm font-bold uppercase tracking-widest outline-none inline empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
                         data-placeholder={`PAGE ${pageIdx + 1}`}
-                      >
-                        {page.scene_heading || ""}
-                      </div>
+                      />
                       {pc > 0 && (
                         <span className="text-sm font-bold text-muted-foreground ml-2">
                           ({pc} {pc === 1 ? "PANEL" : "PANELS"})
@@ -294,19 +290,14 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                                   Panel {panelNum}
                                 </div>
                                 {/* Action/description line */}
-                                <div
+                                <StableContentEditable
                                   id={`el-${el.id}`}
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  role="textbox"
-                                  aria-multiline="true"
-                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  value={el.content}
+                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
                                   onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
                                   className="outline-none text-sm leading-relaxed min-h-[1.4rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:not-italic"
                                   data-placeholder="Panel description…"
-                                >
-                                  {el.content}
-                                </div>
+                                />
                               </div>
                             )
                           }
@@ -314,18 +305,13 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                           if (el.element_type === "character") {
                             return (
                               <div key={el.id} className="mt-4">
-                                <div
+                                <StableContentEditable
                                   id={`el-${el.id}`}
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  role="textbox"
-                                  aria-multiline="true"
-                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  value={el.content}
+                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
                                   onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
                                   className="outline-none text-sm font-bold uppercase tracking-wide min-h-[1.2rem] empty:before:content-['CHARACTER'] empty:before:text-muted-foreground/50"
-                                >
-                                  {el.content}
-                                </div>
+                                />
                               </div>
                             )
                           }
@@ -333,18 +319,13 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                           if (el.element_type === "balloon") {
                             return (
                               <div key={el.id} className="pl-4">
-                                <div
+                                <StableContentEditable
                                   id={`el-${el.id}`}
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  role="textbox"
-                                  aria-multiline="true"
-                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  value={el.content}
+                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
                                   onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
                                   className="outline-none text-sm leading-relaxed min-h-[1.4rem] empty:before:content-['Dialogue…'] empty:before:text-muted-foreground/50"
-                                >
-                                  {el.content}
-                                </div>
+                                />
                               </div>
                             )
                           }
@@ -353,18 +334,13 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                             return (
                               <div key={el.id} className="mt-3 pl-0 border-l-2 border-muted pl-3">
                                 <div className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-0.5 select-none">Caption</div>
-                                <div
+                                <StableContentEditable
                                   id={`el-${el.id}`}
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  role="textbox"
-                                  aria-multiline="true"
-                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  value={el.content}
+                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
                                   onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
                                   className="outline-none text-sm italic leading-relaxed min-h-[1.4rem] empty:before:content-['Caption\00a0text…'] empty:before:text-muted-foreground/50"
-                                >
-                                  {el.content}
-                                </div>
+                                />
                               </div>
                             )
                           }
@@ -373,18 +349,13 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                             return (
                               <div key={el.id} className="mt-3">
                                 <div className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-0.5 select-none">SFX</div>
-                                <div
+                                <StableContentEditable
                                   id={`el-${el.id}`}
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  role="textbox"
-                                  aria-multiline="true"
-                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  value={el.content}
+                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
                                   onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
                                   className="outline-none text-base font-black uppercase tracking-wider min-h-[1.4rem] empty:before:content-['KRAKKK!!!'] empty:before:text-muted-foreground/50"
-                                >
-                                  {el.content}
-                                </div>
+                                />
                               </div>
                             )
                           }
@@ -392,18 +363,13 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
                           if (el.element_type === "transition") {
                             return (
                               <div key={el.id} className="mt-4 text-right">
-                                <div
+                                <StableContentEditable
                                   id={`el-${el.id}`}
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  role="textbox"
-                                  aria-multiline="true"
-                                  onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                                  value={el.content}
+                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
                                   onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
                                   className="outline-none text-xs uppercase tracking-widest text-muted-foreground min-h-[1.2rem] empty:before:content-['CUT\00a0TO—'] empty:before:text-muted-foreground/50"
-                                >
-                                  {el.content}
-                                </div>
+                                />
                               </div>
                             )
                           }

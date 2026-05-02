@@ -14,6 +14,7 @@ import { createProseKeymap } from "./prose/keymap"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import { exportProseToEpub } from "@/lib/export/prose-epub"
 import { useExportToast } from "@/lib/export/use-export-toast"
+import { StableContentEditable } from "./shared/StableContentEditable"
 import {
   createScene,
   createSceneElement,
@@ -260,26 +261,19 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                   </p>
 
                   {/* Chapter title — centered, editable */}
-                  <div
-                    contentEditable
-                    suppressContentEditableWarning
-                    role="textbox"
-                    aria-multiline="true"
-                    onInput={(e) => handleContentChange(scene.id, e.currentTarget.textContent ?? "", true)}
+                  <StableContentEditable
+                    value={scene.scene_heading ?? ""}
+                    onValueChange={(next) => handleContentChange(scene.id, next, true)}
                     className="text-center text-2xl font-semibold outline-none mb-14 min-h-[2rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
                     data-placeholder="Untitled"
-                  >
-                    {scene.scene_heading || ""}
-                  </div>
+                  />
 
                   {/* Body elements */}
                   <div className="text-base leading-loose">
                     {(scene.elements ?? []).length === 0 ? (
-                      <div
-                        contentEditable
-                        suppressContentEditableWarning
-                        role="textbox"
-                        aria-multiline="true"
+                      <StableContentEditable
+                        value=""
+                        onValueChange={() => { /* empty-state placeholder; real input arrives once the first paragraph is created */ }}
                         className="outline-none pl-10 min-h-[1.75rem] empty:before:content-['Start\00a0writing…'] empty:before:text-muted-foreground/50 empty:before:pl-0"
                         onKeyDown={async (e) => {
                           if (e.key === "Enter" && !e.shiftKey) {
@@ -300,20 +294,15 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
 
                         if (el.element_type === "chapter_heading") {
                           return (
-                            <div
+                            <StableContentEditable
                               key={el.id}
                               id={`el-${el.id}`}
-                              contentEditable
-                              suppressContentEditableWarning
-                              role="textbox"
-                              aria-multiline="true"
-                              onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                              value={el.content}
+                              onValueChange={(next) => handleContentChange(el.id, next, false)}
                               onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
                               className="text-xl font-semibold mt-10 mb-3 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
                               data-placeholder="Section heading"
-                            >
-                              {el.content}
-                            </div>
+                            />
                           )
                         }
 
@@ -323,20 +312,15 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                           // beneath. Used for "Three weeks later." or
                           // "MEANWHILE, ACROSS TOWN" style transitions.
                           return (
-                            <div
+                            <StableContentEditable
                               key={el.id}
                               id={`el-${el.id}`}
-                              contentEditable
-                              suppressContentEditableWarning
-                              role="textbox"
-                              aria-multiline="true"
-                              onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                              value={el.content}
+                              onValueChange={(next) => handleContentChange(el.id, next, false)}
                               onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
                               className="mt-12 mb-6 italic text-base tracking-wider uppercase text-foreground/80 border-b border-border/40 pb-2 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:not-italic empty:before:normal-case empty:before:tracking-normal"
                               data-placeholder="Stinger…"
-                            >
-                              {el.content}
-                            </div>
+                            />
                           )
                         }
 
@@ -346,33 +330,25 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                           // place of the first-line indent, slightly
                           // tighter line-height to set it apart visually.
                           return (
-                            <div
+                            <StableContentEditable
                               key={el.id}
                               id={`el-${el.id}`}
-                              contentEditable
-                              suppressContentEditableWarning
-                              role="textbox"
-                              aria-multiline="true"
-                              onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                              value={el.content}
+                              onValueChange={(next) => handleContentChange(el.id, next, false)}
                               onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
                               className="outline-none min-h-[1.75rem] pl-10 -indent-6 leading-relaxed before:content-['“'] before:mr-1 before:text-muted-foreground/60 empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0 empty:before:mr-0"
                               data-placeholder="Dialogue…"
-                            >
-                              {el.content}
-                            </div>
+                            />
                           )
                         }
 
                         // paragraph — standard first-line indent, no gap between consecutive paragraphs
                         return (
-                          <div
+                          <StableContentEditable
                             key={el.id}
                             id={`el-${el.id}`}
-                            contentEditable
-                            suppressContentEditableWarning
-                            role="textbox"
-                            aria-multiline="true"
-                            onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                            value={el.content}
+                            onValueChange={(next) => handleContentChange(el.id, next, false)}
                             onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
                             className={cn(
                               "outline-none min-h-[1.75rem]",
@@ -391,9 +367,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                               "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0",
                             )}
                             data-placeholder={elIdx === 0 ? "Start writing…" : ""}
-                          >
-                            {el.content}
-                          </div>
+                          />
                         )
                       })
                     )}

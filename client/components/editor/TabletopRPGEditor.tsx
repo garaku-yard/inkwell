@@ -16,6 +16,7 @@ import { SlashMenu } from "./ttrpg/SlashMenu"
 import { deleteScriptElement } from "@/services/editor"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import { useExportToast } from "@/lib/export/use-export-toast"
+import { StableContentEditable } from "./shared/StableContentEditable"
 import {
   createScene,
   createSceneElement,
@@ -214,14 +215,13 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     position: { top: number; left: number }
   } | null>(null)
 
-  const handleBodyInput = useCallback(
+  const handleBodyChange = useCallback(
     (
-      e: React.FormEvent<HTMLDivElement>,
+      text: string,
       sectionId: string,
       el: ScriptElement,
       elIdx: number,
     ) => {
-      const text = e.currentTarget.textContent ?? ""
       handleContentChange(el.id, text, false)
       // Trigger only when the entire element starts with "/" — limits
       // the slash menu to fresh / one-line bodies and keeps it from
@@ -231,7 +231,10 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         return
       }
       const query = text.slice(1)
-      const node = e.currentTarget
+      // The body element renders with id="el-<elementId>" so we can
+      // look it up here without threading the DOM ref through state.
+      const node = document.getElementById(`el-${el.id}`)
+      if (!node) return
       const rect = node.getBoundingClientRect()
       setSlashMenu({
         sectionId,
@@ -269,17 +272,14 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const toggleTableMode = (id: string) =>
     setTableMode(prev => ({ ...prev, [id]: prev[id] === "preview" ? "edit" : "preview" }))
 
-  // Replace a stat_block's content with a template body. Two writes
-  // are needed: state via handleContentChange (so save fires + the
-  // collapsed/preview branches show the new text), and a direct DOM
-  // textContent set so the open contentEditable visually catches up —
-  // React doesn't re-sync contentEditable children after first mount.
+  // Replace a stat_block's content with a template body. The
+  // StableContentEditable primitive picks up the new value via its
+  // props sync (the user is focused on the dialog button when this
+  // fires, so the contentEditable isn't focused and accepts the
+  // sync). No imperative DOM write needed — when the primitive added
+  // its mount/sync effect this redundancy went away.
   const loadStatBlockTemplate = (elementId: string, body: string) => {
     handleContentChange(elementId, body, false)
-    setTimeout(() => {
-      const node = document.getElementById(`el-${elementId}`)
-      if (node) node.textContent = body
-    }, 0)
   }
 
   const rollDiceTable = (id: string, rows: [string, string][]) => {
@@ -294,20 +294,15 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
 
     if (el.element_type === "h2") {
       return (
-        <div
+        <StableContentEditable
           key={el.id}
           id={`el-${el.id}`}
-          contentEditable
-          suppressContentEditableWarning
-          role="textbox"
-          aria-multiline="true"
-          onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+          value={el.content}
+          onValueChange={(next) => handleContentChange(el.id, next, false)}
           onKeyDown={(e) => handleKeyDown(e, sectionId, el, elIdx)}
           className="text-lg font-bold outline-none mt-7 mb-1.5 empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
           data-placeholder="Subsection title"
-        >
-          {el.content}
-        </div>
+        />
       )
     }
 
@@ -335,17 +330,12 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
             )}
           </div>
           {!isCollapsed && (
-            <div
+            <StableContentEditable
               id={`el-${el.id}`}
-              contentEditable
-              suppressContentEditableWarning
-              role="textbox"
-              aria-multiline="true"
-              onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+              value={el.content}
+              onValueChange={(next) => handleContentChange(el.id, next, false)}
               className="font-mono text-sm outline-none px-3 py-3 whitespace-pre-wrap min-h-[5rem] leading-relaxed"
-            >
-              {el.content}
-            </div>
+            />
           )}
         </div>
       )
@@ -421,17 +411,12 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                 </table>
               </div>
             ) : (
-              <div
+              <StableContentEditable
                 id={`el-${el.id}`}
-                contentEditable
-                suppressContentEditableWarning
-                role="textbox"
-                aria-multiline="true"
-                onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                value={el.content}
+                onValueChange={(next) => handleContentChange(el.id, next, false)}
                 className="font-mono text-sm outline-none px-3 py-2 whitespace-pre-wrap min-h-[5rem] text-xs"
-              >
-                {el.content}
-              </div>
+              />
             )
           )}
         </div>
@@ -479,17 +464,12 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                 Use pipe syntax: <code className="font-mono">Col A | Col B</code> then <code className="font-mono">--- | ---</code>
               </div>
             ) : (
-              <div
+              <StableContentEditable
                 id={`el-${el.id}`}
-                contentEditable
-                suppressContentEditableWarning
-                role="textbox"
-                aria-multiline="true"
-                onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+                value={el.content}
+                onValueChange={(next) => handleContentChange(el.id, next, false)}
                 className="font-mono text-sm outline-none px-3 py-2 whitespace-pre-wrap min-h-[3rem]"
-              >
-                {el.content}
-              </div>
+              />
             )
           )}
         </div>
@@ -500,18 +480,13 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       return (
         <div key={el.id} className="my-4 rounded-lg border-l-4 border-primary bg-primary/5 px-4 py-3">
           <div className="text-xs font-bold uppercase tracking-widest text-primary mb-1.5">Designer Note</div>
-          <div
+          <StableContentEditable
             id={`el-${el.id}`}
-            contentEditable
-            suppressContentEditableWarning
-            role="textbox"
-            aria-multiline="true"
-            onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+            value={el.content}
+            onValueChange={(next) => handleContentChange(el.id, next, false)}
             onKeyDown={(e) => handleKeyDown(e, sectionId, el, elIdx)}
             className="text-sm italic outline-none leading-relaxed min-h-[1.5rem] empty:before:content-['Note…'] empty:before:text-muted-foreground/50"
-          >
-            {el.content}
-          </div>
+          />
         </div>
       )
     }
@@ -520,37 +495,27 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       return (
         <div key={el.id} className="my-4 rounded-lg border-2 border-border bg-muted/40 px-4 py-3">
           <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Rule</div>
-          <div
+          <StableContentEditable
             id={`el-${el.id}`}
-            contentEditable
-            suppressContentEditableWarning
-            role="textbox"
-            aria-multiline="true"
-            onInput={(e) => handleContentChange(el.id, e.currentTarget.textContent ?? "", false)}
+            value={el.content}
+            onValueChange={(next) => handleContentChange(el.id, next, false)}
             onKeyDown={(e) => handleKeyDown(e, sectionId, el, elIdx)}
             className="text-sm font-medium outline-none leading-relaxed min-h-[1.5rem] empty:before:content-['Rule\00a0text…'] empty:before:text-muted-foreground/50"
-          >
-            {el.content}
-          </div>
+          />
         </div>
       )
     }
 
     // body
     return (
-      <div
+      <StableContentEditable
         key={el.id}
         id={`el-${el.id}`}
-        contentEditable
-        suppressContentEditableWarning
-        role="textbox"
-        aria-multiline="true"
-        onInput={(e) => handleBodyInput(e, sectionId, el, elIdx)}
+        value={el.content}
+        onValueChange={(next) => handleBodyChange(next, sectionId, el, elIdx)}
         onKeyDown={(e) => handleKeyDown(e, sectionId, el, elIdx)}
         className="text-base leading-relaxed outline-none min-h-[1.5rem] my-0.5 empty:before:content-['Write\00a0rules,\00a0lore,\00a0descriptions…'] empty:before:text-muted-foreground/50"
-      >
-        {el.content}
-      </div>
+      />
     )
   }
 
@@ -644,25 +609,18 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                     className={cn("mb-20", sectionIdx > 0 && "pt-14 border-t border-border/40")}
                   >
                     {/* Chapter/section title */}
-                    <div
-                      contentEditable
-                      suppressContentEditableWarning
-                      role="textbox"
-                      aria-multiline="true"
-                      onInput={(e) => handleContentChange(section.id, e.currentTarget.textContent ?? "", true)}
+                    <StableContentEditable
+                      value={section.scene_heading ?? ""}
+                      onValueChange={(next) => handleContentChange(section.id, next, true)}
                       className="text-3xl font-black uppercase tracking-wider outline-none mb-8 pb-3 border-b-2 border-foreground empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
                       data-placeholder="CHAPTER TITLE"
-                    >
-                      {section.scene_heading || ""}
-                    </div>
+                    />
 
                     {/* Elements */}
                     {elements.length === 0 ? (
-                      <div
-                        contentEditable
-                        suppressContentEditableWarning
-                        role="textbox"
-                        aria-multiline="true"
+                      <StableContentEditable
+                        value=""
+                        onValueChange={() => { /* empty-state placeholder; first Enter creates a body element */ }}
                         className="text-base outline-none leading-relaxed min-h-[1.5rem] empty:before:content-['Start\00a0writing…'] empty:before:text-muted-foreground/50"
                         onKeyDown={async (e) => {
                           if (e.key === "Enter") { e.preventDefault(); await handleAddElement(section.id, "body") }
