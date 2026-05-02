@@ -82,13 +82,13 @@ export function WindowTitlebar() {
   return (
     <div
       data-tauri-drag-region
-      className="flex h-8 shrink-0 select-none items-center justify-between border-b bg-background text-xs"
+      className="flex h-9 shrink-0 select-none items-center justify-between border-b bg-background"
     >
       <div
         data-tauri-drag-region
         className="flex items-center gap-2 px-3 text-muted-foreground"
       >
-        <span data-tauri-drag-region className="font-semibold tracking-tight">
+        <span data-tauri-drag-region className="text-[13px] font-medium">
           Inkwell
         </span>
       </div>
@@ -129,7 +129,7 @@ function TitlebarButton({
       onClick={onClick}
       title={title}
       className={cn(
-        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted/40 transition-colors",
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-muted/40 transition-colors",
         destructive
           ? "text-muted-foreground/60 hover:border-red-800 hover:bg-red-800 hover:text-white"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
