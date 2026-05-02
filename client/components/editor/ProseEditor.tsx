@@ -13,6 +13,7 @@ import { dispatchKey } from "@/lib/editor/keymap"
 import { createProseKeymap } from "./prose/keymap"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import { exportProseToEpub } from "@/lib/export/prose-epub"
+import { useExportToast } from "@/lib/export/use-export-toast"
 import {
   createScene,
   createSceneElement,
@@ -42,6 +43,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const chapterRefs = useRef<Map<string, HTMLElement | null>>(new Map())
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
+  const runExport = useExportToast()
 
   const totalWords = scenes.reduce((acc, scene) => {
     return acc + (scene.elements ?? []).reduce((s, el) => s + wordCount(el.content), 0)
@@ -210,15 +212,27 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",
-              onClick: () => exportProjectToText({ ...projectData, scenes }),
+              onClick: () => void runExport({
+                extension: "txt",
+                projectTitle: projectData.title,
+                run: () => exportProjectToText({ ...projectData, scenes }),
+              }),
             },
             {
               label: "Export as Markdown (.md)",
-              onClick: () => exportProjectToMarkdown({ ...projectData, scenes }),
+              onClick: () => void runExport({
+                extension: "md",
+                projectTitle: projectData.title,
+                run: () => exportProjectToMarkdown({ ...projectData, scenes }),
+              }),
             },
             {
               label: "Export as EPUB 3 (.epub)",
-              onClick: () => exportProseToEpub({ ...projectData, scenes }),
+              onClick: () => void runExport({
+                extension: "epub",
+                projectTitle: projectData.title,
+                run: () => exportProseToEpub({ ...projectData, scenes }),
+              }),
             },
           ]}
         />

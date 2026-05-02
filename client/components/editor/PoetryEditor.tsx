@@ -14,6 +14,7 @@ import { dispatchKey } from "@/lib/editor/keymap"
 import { createPoetryKeymap } from "./poetry/keymap"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToChordPro } from "@/lib/export/chordpro"
+import { useExportToast } from "@/lib/export/use-export-toast"
 import {
   createScene,
   createSceneElement,
@@ -44,6 +45,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   // Poetry uses a snappier debounce than the prose-shaped editors —
   // lyrics/poem lines are short and the longer delay felt sluggish.
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id, debounceMs: 1200 })
+  const runExport = useExportToast()
 
   const totalLines = scenes.reduce((acc, s) => acc + countLines(s.elements ?? []), 0)
 
@@ -233,11 +235,19 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",
-              onClick: () => exportProjectToText({ ...projectData, scenes }),
+              onClick: () => void runExport({
+                extension: "txt",
+                projectTitle: projectData.title,
+                run: () => exportProjectToText({ ...projectData, scenes }),
+              }),
             },
             {
               label: "Export as ChordPro (.cho)",
-              onClick: () => exportProjectToChordPro({ ...projectData, scenes }),
+              onClick: () => void runExport({
+                extension: "cho",
+                projectTitle: projectData.title,
+                run: () => exportProjectToChordPro({ ...projectData, scenes }),
+              }),
             },
           ]}
           extras={

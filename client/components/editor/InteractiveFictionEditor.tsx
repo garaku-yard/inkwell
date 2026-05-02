@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToTwee } from "@/lib/export/if-twee"
+import { useExportToast } from "@/lib/export/use-export-toast"
 import {
   createScene,
   createSceneElement,
@@ -92,6 +93,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
+  const runExport = useExportToast()
 
   const activePassage = passages.find(p => p.id === activePassageId) ?? null
   const activeElements = activePassage?.elements ?? []
@@ -471,10 +473,18 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => exportProjectToText({ ...projectData, scenes: passages })}>
+                  <DropdownMenuItem onClick={() => void runExport({
+                    extension: "txt",
+                    projectTitle: projectData.title,
+                    run: () => exportProjectToText({ ...projectData, scenes: passages }),
+                  })}>
                     Export as Plain Text (.txt)
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => exportProjectToTwee({ ...projectData, scenes: passages })}>
+                  <DropdownMenuItem onClick={() => void runExport({
+                    extension: "twee",
+                    projectTitle: projectData.title,
+                    run: () => exportProjectToTwee({ ...projectData, scenes: passages }),
+                  })}>
                     Export as Twee 3 (.twee)
                   </DropdownMenuItem>
                 </DropdownMenuContent>

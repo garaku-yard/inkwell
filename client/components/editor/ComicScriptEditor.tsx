@@ -13,6 +13,7 @@ import { dispatchKey } from "@/lib/editor/keymap"
 import { createComicKeymap, type ComicElementType as KeymapComicElementType } from "./comic/keymap"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportComicToCBZ } from "@/lib/export/comic-cbz"
+import { useExportToast } from "@/lib/export/use-export-toast"
 import {
   createScene,
   createSceneElement,
@@ -44,6 +45,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const pageRefs = useRef<Map<string, HTMLElement | null>>(new Map())
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
+  const runExport = useExportToast()
 
   const totalPanels = pages.reduce((acc, p) => acc + panelCount(p.elements ?? []), 0)
 
@@ -214,11 +216,19 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",
-              onClick: () => exportProjectToText({ ...projectData, scenes: pages }),
+              onClick: () => void runExport({
+                extension: "txt",
+                projectTitle: projectData.title,
+                run: () => exportProjectToText({ ...projectData, scenes: pages }),
+              }),
             },
             {
               label: "Export as Comic Book Zip (.cbz)",
-              onClick: () => exportComicToCBZ({ ...projectData, scenes: pages }),
+              onClick: () => void runExport({
+                extension: "cbz",
+                projectTitle: projectData.title,
+                run: () => exportComicToCBZ({ ...projectData, scenes: pages }),
+              }),
             },
           ]}
         />

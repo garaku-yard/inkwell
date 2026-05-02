@@ -30,6 +30,7 @@ import { useScreenplayElements } from "./screenplay/useScreenplayElements"
 import { useAuth } from "@/lib/AuthContext"
 import { exportScreenplayToPDF } from "@/lib/export/screenplay-pdf"
 import { exportScreenplayToFDX } from "@/lib/export/screenplay-fdx"
+import { useExportToast } from "@/lib/export/use-export-toast"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +50,7 @@ interface ScreenplayEditorProps {
 export function ScreenplayEditor({ projectData: initialProjectData }: ScreenplayEditorProps) {
   const { user } = useAuth()
   const { toast } = useToast()
+  const runExport = useExportToast()
   const [project, setProject] = useState<FullProject>(initialProjectData)
   const [activeElementId, setActiveElementId] = useState<string | null>(null)
   const [activeElementType, setActiveElementType] = useState<ToolbarScriptElementType | "SCENE_HEADING" | null>(null)
@@ -490,10 +492,18 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportScreenplayToPDF(project)}>
+                <DropdownMenuItem onClick={() => void runExport({
+                  extension: "pdf",
+                  projectTitle: project.title,
+                  run: () => exportScreenplayToPDF(project),
+                })}>
                   Export as PDF
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportScreenplayToFDX(project)}>
+                <DropdownMenuItem onClick={() => void runExport({
+                  extension: "fdx",
+                  projectTitle: project.title,
+                  run: () => exportScreenplayToFDX(project),
+                })}>
                   Export as FDX (Final Draft)
                 </DropdownMenuItem>
               </DropdownMenuContent>

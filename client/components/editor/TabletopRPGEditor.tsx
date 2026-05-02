@@ -15,6 +15,7 @@ import { createRPGKeymap, type RPGElementType } from "./ttrpg/keymap"
 import { SlashMenu } from "./ttrpg/SlashMenu"
 import { deleteScriptElement } from "@/services/editor"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
+import { useExportToast } from "@/lib/export/use-export-toast"
 import {
   createScene,
   createSceneElement,
@@ -78,6 +79,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const [templatePickerFor, setTemplatePickerFor] = useState<string | null>(null)
   const sectionRefs = useRef<Map<string, HTMLElement | null>>(new Map())
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
+  const runExport = useExportToast()
 
   const totalWords = sections.reduce((acc, s) =>
     acc + (s.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0), 0)
@@ -592,11 +594,19 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",
-              onClick: () => exportProjectToText({ ...projectData, scenes: sections }),
+              onClick: () => void runExport({
+                extension: "txt",
+                projectTitle: projectData.title,
+                run: () => exportProjectToText({ ...projectData, scenes: sections }),
+              }),
             },
             {
               label: "Export as Markdown (.md)",
-              onClick: () => exportProjectToMarkdown({ ...projectData, scenes: sections }),
+              onClick: () => void runExport({
+                extension: "md",
+                projectTitle: projectData.title,
+                run: () => exportProjectToMarkdown({ ...projectData, scenes: sections }),
+              }),
             },
           ]}
         />
