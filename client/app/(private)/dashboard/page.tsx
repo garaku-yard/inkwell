@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import {
   FileText,
@@ -147,7 +148,21 @@ export default function DashboardPage() {
         <main className="flex-grow flex flex-col items-center py-6 overflow-y-auto">
           <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-3xl font-bold">My Projects</h2>
+              <div>
+                {activeWorkspace?.name && (
+                  <Button
+                    asChild
+                    variant="link"
+                    size="sm"
+                    className="-ml-3 -mb-1 h-auto px-3 py-0.5 text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground"
+                  >
+                    <Link href="/workspace/settings">
+                      {activeWorkspace.name}
+                    </Link>
+                  </Button>
+                )}
+                <h2 className="text-3xl font-bold">My Projects</h2>
+              </div>
               <div className="flex items-center gap-2">
                 <Button onClick={() => setIsNewProjectDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
