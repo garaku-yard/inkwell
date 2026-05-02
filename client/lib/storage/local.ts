@@ -84,6 +84,7 @@ import { NotSupportedError } from "./errors"
 import { getAdapter } from "@/lib/ai/providers"
 import type { AdapterMessage, ProviderKind, StreamChunk } from "@/lib/ai/providers"
 import { deleteSecret, getSecret, setSecret } from "@/lib/secrets"
+import { rewriteWikilinks } from "@/lib/vault/wikilink-sweep"
 
 // ─── Connection (lazy singleton) ──────────────────────────────────────────
 
@@ -1764,15 +1765,9 @@ const vault: VaultStorage = {
 
     await rename(oldPath, newPath)
 
-    // Sweep every other note for `[[oldTitle]]` or `[[oldTitle|alias]]`
-    // and rewrite the target. Alias segment (including the pipe) is
-    // preserved verbatim. Case-insensitive match; the replacement uses
-    // the new title's casing.
-    const escaped = oldTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    const sweepRegex = new RegExp(
-      `(\\[\\[\\s*)${escaped}(\\s*(?:\\|[^\\]]*)?\\s*\\]\\])`,
-      "gi",
-    )
+    // Sweep every other note's body for references to `oldTitle` and
+    // rewrite them to `sanitised`. See lib/vault/wikilink-sweep for the
+    // exact shapes covered (plain, alias, heading, heading+alias).
     const files = await walkMarkdownFiles(vaultRoot)
     for (const f of files) {
       if (f.rel === newRel) continue
@@ -1782,13 +1777,7 @@ const vault: VaultStorage = {
       } catch {
         continue
       }
-      sweepRegex.lastIndex = 0
-      if (!sweepRegex.test(body)) continue
-      sweepRegex.lastIndex = 0
-      const rewritten = body.replace(
-        sweepRegex,
-        (_m, open: string, close: string) => `${open}${sanitised}${close}`,
-      )
+      const rewritten = rewriteWikilinks(body, oldTitle, sanitised)
       if (rewritten !== body) {
         await writeTextFile(f.abs, rewritten)
         await reindexNoteLinks(projectId, f.rel, rewritten)
