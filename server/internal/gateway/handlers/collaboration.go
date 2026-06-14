@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/pkg/grpc/collab"
 	"inkwell/server/pkg/grpc/identity"
@@ -460,11 +459,6 @@ func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Req
 // deliberately no X-User-ID header fallback: trusting a client-supplied
 // header would silently bypass authentication if a future route skipped the
 // auth middleware.
-func getUserIDFromContext(r *http.Request) string {
-	id, _ := contextx.UserIDFrom(r.Context())
-	return id
-}
-
 // resolveEmailOrUserTag normalises an invitation target to an email address.
 // Accepts a plain email, an @username handle, or a username#tag discriminator.
 func (h *CollaborationHandler) resolveEmailOrUserTag(ctx context.Context, input string) (string, error) {
