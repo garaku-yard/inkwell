@@ -68,12 +68,14 @@ func (c *Client) Delete(ctx context.Context, keys ...string) error {
 	return c.rdb.Del(ctx, keys...).Err()
 }
 
-// Incr atomically increments a counter and sets its TTL if the key is new.
-// Useful for sliding-window rate limiting.
+// Incr atomically increments a counter and sets its TTL only when the key is
+// new (ExpireNX is a no-op once a TTL exists). This gives a true fixed window:
+// using a plain Expire would push the expiry forward on every increment, so a
+// steady stream of requests would keep the window from ever rolling over.
 func (c *Client) Incr(ctx context.Context, key string, ttl time.Duration) (int64, error) {
 	pipe := c.rdb.TxPipeline()
 	incr := pipe.Incr(ctx, key)
-	pipe.Expire(ctx, key, ttl)
+	pipe.ExpireNX(ctx, key, ttl)
 	if _, err := pipe.Exec(ctx); err != nil {
 		return 0, err
 	}
