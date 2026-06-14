@@ -41,6 +41,6 @@ func validateOpenAICompatibleURL(rawURL string, allowlist []string) error {
 }
 
 var (
-	errOpenAICompatibleDisabled  = errors.New("openai_compatible providers are not enabled on this server")
+	errOpenAICompatibleDisabled   = errors.New("openai_compatible providers are not enabled on this server")
 	errOpenAICompatibleHostDenied = errors.New("openai_compatible baseUrl host is not allowlisted on this server")
 )

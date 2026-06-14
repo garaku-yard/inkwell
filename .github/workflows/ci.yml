@@ -30,6 +30,9 @@ jobs:
       - name: Download modules
         run: go mod download
 
+      - name: Format check
+        run: test -z "$(gofmt -l .)" || { echo 'gofmt found unformatted files:'; gofmt -l .; exit 1; }
+
       - name: Build
         run: go build ./...
 

@@ -12,7 +12,7 @@ import "net/http"
 //     bootstrap scripts this will break at page load and the fix is to
 //     hash/nonce them rather than loosen the policy.
 //   - `connect-src 'self' https://api.anthropic.com https://api.openai.com
-//      https://generativelanguage.googleapis.com` — BYO direct-browser
+//     https://generativelanguage.googleapis.com` — BYO direct-browser
 //     calls go here. Add hosts as new hosted providers land; local-model
 //     endpoints need their own entries if you want a host allowlist.
 //   - `img-src 'self' data: blob:` — inline SVG data URLs + blob: for

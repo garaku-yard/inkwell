@@ -55,7 +55,7 @@ type UpdateInput struct {
 }
 
 type service struct {
-	repo    repository.SettingRepository
+	repo repository.SettingRepository
 	// keys maps key_version → raw 32-byte AES-256-GCM key. The
 	// version field below names which key the service writes new
 	// rows with; legacy versions are kept here only for decrypting

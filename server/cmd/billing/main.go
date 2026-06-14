@@ -118,7 +118,6 @@ func main() {
 	slog.Info("billing service stopped")
 }
 
-
 func loggingInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, h grpc.UnaryHandler) (any, error) {
 	slog.Info("grpc call", "method", info.FullMethod)
 	resp, err := h(ctx, req)

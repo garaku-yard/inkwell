@@ -61,12 +61,12 @@ func (h *BillingHandler) GetTiers(w http.ResponseWriter, r *http.Request) {
 			StorageGB        interface{} `json:"storageGB"`
 		} `json:"limits"`
 		Features struct {
-			AIFeatures            bool     `json:"aiFeatures"`
-			CollaborationEnabled  bool     `json:"collaborationEnabled"`
-			PrioritySupport       bool     `json:"prioritySupport"`
-			ExportFormats         []string `json:"exportFormats"`
-			AvailableThemes       []string `json:"availableThemes"`
-			CustomBranding        bool     `json:"customBranding"`
+			AIFeatures           bool     `json:"aiFeatures"`
+			CollaborationEnabled bool     `json:"collaborationEnabled"`
+			PrioritySupport      bool     `json:"prioritySupport"`
+			ExportFormats        []string `json:"exportFormats"`
+			AvailableThemes      []string `json:"availableThemes"`
+			CustomBranding       bool     `json:"customBranding"`
 		} `json:"features"`
 		Rules struct {
 			LimitType       string `json:"limitType"`
@@ -145,9 +145,9 @@ func (h *BillingHandler) GetAnalytics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type tierEntry struct {
-		TierID   string `json:"tierId"`
-		TierName string `json:"tierName"`
-		Count    int64  `json:"count,omitempty"`
+		TierID   string  `json:"tierId"`
+		TierName string  `json:"tierName"`
+		Count    int64   `json:"count,omitempty"`
 		Revenue  float64 `json:"revenue,omitempty"`
 	}
 	distribution := make([]tierEntry, 0, len(resp.TierDistribution))

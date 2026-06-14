@@ -21,16 +21,16 @@ type Code string
 // Canonical error codes. Add new values sparingly and never reuse old ones:
 // front-end code may switch on these.
 const (
-	CodeUnknown           Code = "UNKNOWN"
-	CodeInvalidArgument   Code = "INVALID_ARGUMENT"
-	CodeUnauthenticated   Code = "UNAUTHENTICATED"
-	CodePermissionDenied  Code = "PERMISSION_DENIED"
-	CodeNotFound          Code = "NOT_FOUND"
-	CodeAlreadyExists     Code = "ALREADY_EXISTS"
+	CodeUnknown            Code = "UNKNOWN"
+	CodeInvalidArgument    Code = "INVALID_ARGUMENT"
+	CodeUnauthenticated    Code = "UNAUTHENTICATED"
+	CodePermissionDenied   Code = "PERMISSION_DENIED"
+	CodeNotFound           Code = "NOT_FOUND"
+	CodeAlreadyExists      Code = "ALREADY_EXISTS"
 	CodeFailedPrecondition Code = "FAILED_PRECONDITION"
-	CodeInternal          Code = "INTERNAL"
-	CodeUnavailable       Code = "UNAVAILABLE"
-	CodeDeadlineExceeded  Code = "DEADLINE_EXCEEDED"
+	CodeInternal           Code = "INTERNAL"
+	CodeUnavailable        Code = "UNAVAILABLE"
+	CodeDeadlineExceeded   Code = "DEADLINE_EXCEEDED"
 )
 
 // Error is the envelope the gateway returns to HTTP clients on failure. It

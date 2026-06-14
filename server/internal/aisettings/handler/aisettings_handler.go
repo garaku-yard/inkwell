@@ -11,8 +11,8 @@ import (
 
 	"inkwell/server/internal/aisettings/domain"
 	"inkwell/server/internal/aisettings/service"
-	commonpb "inkwell/server/pkg/grpc/common"
 	aisettingspb "inkwell/server/pkg/grpc/aisettings"
+	commonpb "inkwell/server/pkg/grpc/common"
 )
 
 // Handler bridges the gRPC wire to the service layer.
