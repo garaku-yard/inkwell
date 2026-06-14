@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,8 +14,14 @@ import (
 
 // KafkaPublisher implements Publisher using segmentio/kafka-go.
 // One writer is created per topic on first use (lazy init via writerFor).
+//
+// Publish is called concurrently from request handlers (the inline best-effort
+// publish path) and from each service's background outbox poller, so the writer
+// cache is guarded by mu.
 type KafkaPublisher struct {
 	brokers []string
+
+	mu      sync.RWMutex
 	writers map[string]*kafkago.Writer
 }
 
@@ -63,8 +70,11 @@ func (p *KafkaPublisher) Publish(ctx context.Context, eventType string, payload 
 	return nil
 }
 
-// Close flushes and closes all open writers. Call on service shutdown.
+// Close flushes and closes all open writers. Call on service shutdown, after
+// the outbox poller has stopped so no Publish can race writerFor.
 func (p *KafkaPublisher) Close() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	var firstErr error
 	for topic, w := range p.writers {
 		if err := w.Close(); err != nil && firstErr == nil {
@@ -75,10 +85,21 @@ func (p *KafkaPublisher) Close() error {
 }
 
 func (p *KafkaPublisher) writerFor(topic string) *kafkago.Writer {
+	p.mu.RLock()
+	w, ok := p.writers[topic]
+	p.mu.RUnlock()
+	if ok {
+		return w
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	// Re-check: another goroutine may have created the writer between the
+	// RUnlock above and acquiring the write lock.
 	if w, ok := p.writers[topic]; ok {
 		return w
 	}
-	w := &kafkago.Writer{
+	w = &kafkago.Writer{
 		Addr:         kafkago.TCP(p.brokers...),
 		Topic:        topic,
 		Balancer:     &kafkago.LeastBytes{},

@@ -98,10 +98,10 @@ func main() {
 	// Outbox poller — flushes unpublished scripts events to Kafka every 10 s.
 	pollerCtx, cancelPoller := context.WithCancel(context.Background())
 	defer cancelPoller()
-	go outbox.
+	poller := outbox.
 		NewPoller(outboxStore, publisher, 10*time.Second, 50).
-		WithLogger(slog.Default().With("component", "scripts_outbox")).
-		Run(pollerCtx)
+		WithLogger(slog.Default().With("component", "scripts_outbox"))
+	go poller.Run(pollerCtx)
 
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),
@@ -129,6 +129,8 @@ func main() {
 	<-quit
 
 	slog.Info("shutting down scripts service")
+	cancelPoller()
+	poller.Wait()
 	grpcServer.GracefulStop()
 	slog.Info("scripts service stopped")
 }

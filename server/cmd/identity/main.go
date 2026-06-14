@@ -82,10 +82,10 @@ func main() {
 	// Outbox poller — flushes unpublished identity events to Kafka every 10 s.
 	pollerCtx, cancelPoller := context.WithCancel(context.Background())
 	defer cancelPoller()
-	go outbox.
+	poller := outbox.
 		NewPoller(outboxStore, publisher, 10*time.Second, 50).
-		WithLogger(slog.Default().With("component", "identity_outbox")).
-		Run(pollerCtx)
+		WithLogger(slog.Default().With("component", "identity_outbox"))
+	go poller.Run(pollerCtx)
 
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),
@@ -114,6 +114,7 @@ func main() {
 
 	slog.Info("shutting down identity service")
 	cancelPoller()
+	poller.Wait()
 	grpcServer.GracefulStop()
 	slog.Info("identity service stopped")
 }

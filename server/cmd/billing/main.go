@@ -81,10 +81,10 @@ func main() {
 	// Outbox poller — flushes unpublished billing events to Kafka every 10 s.
 	// Batch size of 50 mirrors the previous inline poller.
 	pollerCtx, cancelPoller := context.WithCancel(context.Background())
-	go outbox.
+	poller := outbox.
 		NewPoller(outboxStore, publisher, 10*time.Second, 50).
-		WithLogger(slog.Default().With("component", "billing_outbox")).
-		Run(pollerCtx)
+		WithLogger(slog.Default().With("component", "billing_outbox"))
+	go poller.Run(pollerCtx)
 
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),
@@ -113,6 +113,7 @@ func main() {
 
 	slog.Info("shutting down billing service")
 	cancelPoller()
+	poller.Wait()
 	grpcServer.GracefulStop()
 	slog.Info("billing service stopped")
 }

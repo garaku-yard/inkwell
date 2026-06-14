@@ -160,6 +160,7 @@ type Poller struct {
 	interval  time.Duration
 	batchSize int
 	logger    *slog.Logger
+	done      chan struct{}
 }
 
 // NewPoller constructs a Poller. interval is how often pending events are read;
@@ -172,6 +173,7 @@ func NewPoller(store Store, publisher events.Publisher, interval time.Duration, 
 		interval:  interval,
 		batchSize: batchSize,
 		logger:    slog.Default(),
+		done:      make(chan struct{}),
 	}
 }
 
@@ -187,8 +189,10 @@ func (p *Poller) WithLogger(logger *slog.Logger) *Poller {
 // Run blocks until ctx is cancelled, draining pending events every `interval`.
 // It is safe to call Run in its own goroutine. Individual publish/mark errors
 // are logged and the poller continues — failed events are retried on the next
-// tick since their published_at remains null.
+// tick since their published_at remains null. On return Run closes the done
+// channel so callers can join via Wait.
 func (p *Poller) Run(ctx context.Context) {
+	defer close(p.done)
 	ticker := time.NewTicker(p.interval)
 	defer ticker.Stop()
 
@@ -200,6 +204,13 @@ func (p *Poller) Run(ctx context.Context) {
 			p.drain(ctx)
 		}
 	}
+}
+
+// Wait blocks until a previously started Run has fully returned. Call it after
+// cancelling the poller's context and before closing the publisher, so no
+// in-flight drain races writer shutdown.
+func (p *Poller) Wait() {
+	<-p.done
 }
 
 // drain performs a single poll cycle.
