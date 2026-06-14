@@ -5,8 +5,17 @@ import (
 	"time"
 
 	"inkwell/server/internal/gateway/apierror"
+	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/pkg/grpc/common"
 )
+
+// getUserIDFromContext returns the authenticated user ID placed on the request
+// context by AuthMiddleware, or "" if absent. It is the shared convenience over
+// contextx.UserIDFrom for handlers that don't need the presence bool.
+func getUserIDFromContext(r *http.Request) string {
+	id, _ := contextx.UserIDFrom(r.Context())
+	return id
+}
 
 // writeError emits a structured JSON error envelope with the given HTTP status.
 // The message is carried in the envelope's `message` field and the envelope's
