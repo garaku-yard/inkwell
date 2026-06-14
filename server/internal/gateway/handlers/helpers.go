@@ -49,7 +49,6 @@ func codeForHTTPStatus(status int) apierror.Code {
 	}
 }
 
-
 // timestampToString converts a protobuf Timestamp to an RFC3339 UTC string.
 // Returns "" for nil timestamps.
 func timestampToString(ts *common.Timestamp) string {

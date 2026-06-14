@@ -27,10 +27,10 @@ type ProviderKind string
 
 // Hosted provider kinds.
 const (
-	KindOpenAI             ProviderKind = "openai"
-	KindAnthropic          ProviderKind = "anthropic"
-	KindGemini             ProviderKind = "gemini"
-	KindOpenAICompatible   ProviderKind = "openai_compatible"
+	KindOpenAI           ProviderKind = "openai"
+	KindAnthropic        ProviderKind = "anthropic"
+	KindGemini           ProviderKind = "gemini"
+	KindOpenAICompatible ProviderKind = "openai_compatible"
 )
 
 // Message is one turn in a chat. Anthropic and Gemini accept "system"

@@ -44,7 +44,7 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		GRPCPort: getEnv("BILLING_GRPC_PORT", "50054"),
+		GRPCPort:    getEnv("BILLING_GRPC_PORT", "50054"),
 		KafkaConfig: KafkaConfig{Brokers: brokers},
 		DatabaseConfig: DatabaseConfig{
 			Host:            getEnv("BILLING_DB_HOST", "localhost"),

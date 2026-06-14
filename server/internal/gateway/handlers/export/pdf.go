@@ -26,12 +26,12 @@ func (PDFExporter) FileExtension() string { return "pdf" }
 // Screenplay formatting constants (inches converted to mm by gofpdf's unit).
 // Values match Writer Duet / Final Draft defaults.
 const (
-	pdfMarginLeft      = 38.1 // 1.5" — wider left for binding
-	pdfMarginTop       = 25.4 // 1"
-	pdfMarginRight     = 25.4 // 1"
-	pdfMarginBottom    = 25.4 // 1"
-	pdfCourierPt       = 12.0
-	pdfLineHeight      = 4.8 // mm — roughly one line at 12pt Courier
+	pdfMarginLeft   = 38.1 // 1.5" — wider left for binding
+	pdfMarginTop    = 25.4 // 1"
+	pdfMarginRight  = 25.4 // 1"
+	pdfMarginBottom = 25.4 // 1"
+	pdfCourierPt    = 12.0
+	pdfLineHeight   = 4.8 // mm — roughly one line at 12pt Courier
 
 	// Per-element indents (from left margin, in mm). These offsets position
 	// dialogue / character / parenthetical blocks at their conventional columns.

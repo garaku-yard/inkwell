@@ -34,14 +34,14 @@ type SubscriptionTier struct {
 	MonthlyPrice float64   `db:"monthly_price"`
 	YearlyPrice  float64   `db:"yearly_price"`
 	// Features is a free-form JSON map of feature flags.
-	Features    map[string]interface{} `db:"features"`
+	Features map[string]interface{} `db:"features"`
 	// Limits is a free-form JSON map of usage limits (e.g. max_projects, ai_tokens).
-	Limits      map[string]interface{} `db:"limits"`
-	DisplayOrder int                   `db:"display_order"`
-	IsActive    bool                   `db:"is_active"`
-	IsPublic    bool                   `db:"is_public"`
-	CreatedAt   time.Time              `db:"created_at"`
-	UpdatedAt   time.Time              `db:"updated_at"`
+	Limits       map[string]interface{} `db:"limits"`
+	DisplayOrder int                    `db:"display_order"`
+	IsActive     bool                   `db:"is_active"`
+	IsPublic     bool                   `db:"is_public"`
+	CreatedAt    time.Time              `db:"created_at"`
+	UpdatedAt    time.Time              `db:"updated_at"`
 }
 
 // PaymentGateway represents a configured payment provider (Stripe, Paddle, …).
@@ -64,7 +64,7 @@ type UserSubscription struct {
 	GatewayID              uuid.UUID  `db:"gateway_id"`
 	ExternalSubscriptionID string     `db:"external_subscription_id"`
 	ExternalCustomerID     string     `db:"external_customer_id"`
-	Status                 string     `db:"status"` // "active", "trialing", "past_due", "canceled"
+	Status                 string     `db:"status"`        // "active", "trialing", "past_due", "canceled"
 	BillingCycle           string     `db:"billing_cycle"` // "monthly", "yearly"
 	CurrentPeriodStart     time.Time  `db:"current_period_start"`
 	CurrentPeriodEnd       time.Time  `db:"current_period_end"`

@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	anthropicBaseURL        = "https://api.anthropic.com/v1"
-	anthropicAPIVersion     = "2023-06-01"
-	anthropicDefaultMaxTok  = 4096
+	anthropicBaseURL       = "https://api.anthropic.com/v1"
+	anthropicAPIVersion    = "2023-06-01"
+	anthropicDefaultMaxTok = 4096
 )
 
 // AnthropicAdapter speaks the Messages API. System messages in the input
