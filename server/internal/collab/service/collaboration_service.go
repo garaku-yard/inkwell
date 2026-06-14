@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -76,13 +77,17 @@ func (s *CollaborationService) CheckPermission(ctx context.Context, userID, proj
 	// Note: Project ownership is verified at the gateway level via scripts service
 	// This only checks collaborator roles
 	userRole, err := s.repo.GetUserProjectRole(ctx, userID, projectID)
-	if err != nil {
-		// If user is not a collaborator, they might be the owner
-		// The gateway should have already verified project access
-		// So if we get here and they're not a collaborator, allow it
-		// (This handles the case where project owners haven't been added as collaborators)
+	if errors.Is(err, domain.ErrUnauthorized) {
+		// User is not a collaborator — they might be the project owner, whose
+		// access the gateway has already verified via the scripts service. Defer
+		// to that check rather than denying. (Owners aren't always added as
+		// collaborator rows.)
 		slog.Debug("CheckPermission: user not found as collaborator, assuming verified by gateway", "user_id", userID, "project_id", projectID)
 		return nil
+	}
+	if err != nil {
+		// A real lookup failure must fail closed — never grant on error.
+		return fmt.Errorf("check permission: %w", err)
 	}
 
 	// Define role hierarchy
@@ -220,11 +225,9 @@ func (s *CollaborationService) AddCollaboratorByEmail(ctx context.Context, proje
 }
 
 func (s *CollaborationService) GetProjectCollaborators(ctx context.Context, userID, projectID uuid.UUID) ([]*domain.Collaborator, error) {
-	// TODO: Re-enable permission check once auth middleware is properly implemented
-	// For now, allow any user to view collaborators for testing
-	// if err := s.CheckPermission(ctx, userID, projectID, "viewer"); err != nil {
-	// 	return nil, err
-	// }
+	if err := s.CheckPermission(ctx, userID, projectID, "viewer"); err != nil {
+		return nil, err
+	}
 
 	return s.repo.GetProjectCollaborators(ctx, projectID)
 }
