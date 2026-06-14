@@ -91,7 +91,7 @@ func (r *beatRepository) GetProjectBeats(ctx context.Context, projectID uuid.UUI
 		}
 		beats = append(beats, beat)
 	}
-	return beats, nil
+	return beats, rows.Err()
 }
 
 func (r *beatRepository) UpdateBeat(ctx context.Context, beat *domain.Beat) error {
@@ -210,7 +210,7 @@ func (r *connectionRepository) GetProjectConnections(ctx context.Context, projec
 		}
 		connections = append(connections, conn)
 	}
-	return connections, nil
+	return connections, rows.Err()
 }
 
 func (r *connectionRepository) DeleteConnection(ctx context.Context, connID uuid.UUID) error {
@@ -301,7 +301,7 @@ func (r *laneRepository) GetProjectLanes(ctx context.Context, projectID uuid.UUI
 		}
 		lanes = append(lanes, lane)
 	}
-	return lanes, nil
+	return lanes, rows.Err()
 }
 
 func (r *laneRepository) UpdateLane(ctx context.Context, lane *domain.Lane) error {
@@ -443,7 +443,7 @@ func (r *outlineItemRepository) GetProjectOutlineItems(ctx context.Context, proj
 		}
 		items = append(items, item)
 	}
-	return items, nil
+	return items, rows.Err()
 }
 
 func (r *outlineItemRepository) UpdateOutlineItem(ctx context.Context, item *domain.OutlineItem) error {

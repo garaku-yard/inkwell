@@ -285,7 +285,7 @@ func (r *projectRepository) GetProjectsByOwner(ctx context.Context, ownerID uuid
 		projects = append(projects, &project)
 	}
 
-	return projects, total, nil
+	return projects, total, rows.Err()
 }
 
 // UpdateProject updates an existing project
