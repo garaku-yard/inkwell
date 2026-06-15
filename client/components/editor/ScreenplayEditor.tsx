@@ -30,7 +30,6 @@ import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { AIChatPanel } from "./AIChatPanel"
 import { useScreenplayElements } from "./screenplay/useScreenplayElements"
 import { useAuth } from "@/lib/AuthContext"
-import { exportScreenplayToPDF } from "@/lib/export/screenplay-pdf"
 import { exportScreenplayToFDX } from "@/lib/export/screenplay-fdx"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import {
@@ -515,7 +514,11 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
                 <DropdownMenuItem onClick={() => void runExport({
                   extension: "pdf",
                   projectTitle: project.title,
-                  run: () => exportScreenplayToPDF(project),
+                  run: async () => {
+                    // jspdf is heavy — load it only when the user exports.
+                    const { exportScreenplayToPDF } = await import("@/lib/export/screenplay-pdf")
+                    await exportScreenplayToPDF(project)
+                  },
                 })}>
                   Export as PDF
                 </DropdownMenuItem>
