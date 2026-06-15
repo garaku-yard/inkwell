@@ -67,6 +67,12 @@ export function FdxImportDialog({ filePath, onCancel }: FdxImportDialogProps) {
     ;(async () => {
       try {
         const { readTextFile } = await import("@tauri-apps/plugin-fs")
+        // The .fdx lives outside any vault (it's whatever file the user
+        // opened); grant read on its folder before the app ships with no
+        // broad static fs scope.
+        const { allowFsDir } = await import("@/lib/tauri-scope")
+        const fdxDir = filePath.slice(0, Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\")))
+        if (fdxDir) await allowFsDir(fdxDir, false)
         const xml = await readTextFile(filePath)
         const out = parseFdx(xml)
         if (!cancelled) {
