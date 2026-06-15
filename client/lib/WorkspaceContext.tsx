@@ -57,7 +57,6 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [needsOnboarding, setNeedsOnboarding] = useState(false)
 
-  const allWorkspaces = [...(workspaces.personal ?? []), ...(workspaces.org ?? [])]
 
   const setActiveWorkspace = useCallback((workspace: Workspace) => {
     setActiveWorkspaceState(workspace)

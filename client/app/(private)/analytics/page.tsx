@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { BarChart3, Users, TrendingUp, Flame, MessageSquare, FileText, ChevronRight, ArrowLeft, Loader2, BookOpen, Mic2, Layers, GitBranch, Dices } from "lucide-react"
+import { BarChart3, Users, TrendingUp, Flame, MessageSquare, FileText, ChevronRight, ArrowLeft, Loader2, BookOpen, Layers, GitBranch, Dices } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useProjectAnalytics } from "@/hooks/useProjectAnalytics"
 import type { ScriptAnalytics } from "@/lib/analytics"

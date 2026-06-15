@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Clipboard, Film, Hash, MessageCircle } from "lucide-react"
 import type { FullProject, Scene, ScriptElement, Comment } from "@/services/project"
 import { getComments } from "@/services/project"
-import { SCRIPT_ELEMENT_CONFIG, type ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
+import { SCRIPT_ELEMENT_CONFIG } from "@/lib/helpers/screenplay-config"
 import { Separator } from "@/components/ui/separator"
 import { CommentPanel } from "./CommentPanel"
 
@@ -51,7 +51,7 @@ export const SidePanel = React.memo(
     ) => {
       const [activeTab, setActiveTab] = useState("scenes")
       const [allComments, setAllComments] = useState<Comment[]>([])
-      const [commentsLoading, setCommentsLoading] = useState(false)
+      const [, setCommentsLoading] = useState(false)
       const router = useRouter()
 
       useEffect(() => {

@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useCallback, useEffect, useMemo } from "react"
+import { useState, useRef, useMemo } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useDebouncedCallback } from "use-debounce"
@@ -12,8 +12,8 @@ import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLane
 import { BeatCanvas } from "@/components/beat-board/BeatCanvas";
 import { PaneSpinner } from "@/components/shared/PaneSpinner";
 
-import { createBeat, deleteBeat, updateBeat, deleteConnection, type Beat, type Connection } from "@/services/beat"
-import { type Lane, type OutlineItem, updateLane, updateLaneOrder, createOutlineItem, updateOutlineItem, createLane } from "@/services/beat-board";
+import { createBeat, deleteBeat, updateBeat, deleteConnection, type Beat } from "@/services/beat"
+import { type OutlineItem, updateOutlineItem } from "@/services/beat-board";
 import { getProjectById, type FullProject } from "@/services/project"
 import { useAuth } from "@/lib/AuthContext"
 import { getCategoryStructure } from "@/lib/helpers/category-structure"

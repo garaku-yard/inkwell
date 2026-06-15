@@ -1,19 +1,16 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   ArrowLeft,
   FileText,
-  Folder,
   FolderOpen,
   Link2,
   Network,
   Plus,
-  Search,
   Settings,
   Trash2,
-  X,
 } from "lucide-react"
 import { isTauri } from "@tauri-apps/api/core"
 

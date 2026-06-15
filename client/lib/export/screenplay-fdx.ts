@@ -63,8 +63,6 @@ export function exportScreenplayToFDX(project: FullProject): void {
     }
   }
 
-  const now = new Date().toISOString()
-
   const fdx = [
     `<?xml version="1.0" encoding="UTF-8" standalone="no" ?>`,
     `<FinalDraft DocumentType="Script" Template="No" Version="5">`,

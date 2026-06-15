@@ -41,7 +41,7 @@ export function ImportProjectDialog({ open, onOpenChange, onProjectImported }: I
   const router = useRouter()
   const [projectName, setProjectName] = useState("")
   const [projectType, setProjectType] = useState(projectTypes[0].value)
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([])
+  const [, setCollaborators] = useState<Collaborator[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
