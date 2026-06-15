@@ -2,9 +2,10 @@
 package config
 
 import (
-	"os"
 	"strconv"
 	"time"
+
+	"inkwell/server/pkg/env"
 )
 
 // Config holds all configuration for the Billing service.
@@ -34,35 +35,28 @@ type KafkaConfig struct {
 
 // Load reads configuration from environment variables with sensible defaults.
 func Load() (*Config, error) {
-	maxOpen, _ := strconv.Atoi(getEnv("BILLING_DB_MAX_OPEN_CONNS", "25"))
-	maxIdle, _ := strconv.Atoi(getEnv("BILLING_DB_MAX_IDLE_CONNS", "10"))
-	lifetime, _ := time.ParseDuration(getEnv("BILLING_DB_CONN_MAX_LIFETIME", "1h"))
+	maxOpen, _ := strconv.Atoi(env.String("BILLING_DB_MAX_OPEN_CONNS", "25"))
+	maxIdle, _ := strconv.Atoi(env.String("BILLING_DB_MAX_IDLE_CONNS", "10"))
+	lifetime, _ := time.ParseDuration(env.String("BILLING_DB_CONN_MAX_LIFETIME", "1h"))
 
 	brokers := []string{}
-	if b := getEnv("KAFKA_BROKERS", ""); b != "" {
+	if b := env.String("KAFKA_BROKERS", ""); b != "" {
 		brokers = []string{b}
 	}
 
 	return &Config{
-		GRPCPort:    getEnv("BILLING_GRPC_PORT", "50054"),
+		GRPCPort:    env.String("BILLING_GRPC_PORT", "50054"),
 		KafkaConfig: KafkaConfig{Brokers: brokers},
 		DatabaseConfig: DatabaseConfig{
-			Host:            getEnv("BILLING_DB_HOST", "localhost"),
-			Port:            getEnv("BILLING_DB_PORT", "5432"),
-			User:            getEnv("BILLING_DB_USER", "postgres"),
-			Password:        getEnv("BILLING_DB_PASSWORD", ""),
-			Name:            getEnv("BILLING_DB_NAME", "billing_db"),
-			SSLMode:         getEnv("BILLING_DB_SSLMODE", "disable"),
+			Host:            env.String("BILLING_DB_HOST", "localhost"),
+			Port:            env.String("BILLING_DB_PORT", "5432"),
+			User:            env.String("BILLING_DB_USER", "postgres"),
+			Password:        env.String("BILLING_DB_PASSWORD", ""),
+			Name:            env.String("BILLING_DB_NAME", "billing_db"),
+			SSLMode:         env.String("BILLING_DB_SSLMODE", "disable"),
 			MaxOpenConns:    maxOpen,
 			MaxIdleConns:    maxIdle,
 			ConnMaxLifetime: lifetime,
 		},
 	}, nil
-}
-
-func getEnv(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
 }
