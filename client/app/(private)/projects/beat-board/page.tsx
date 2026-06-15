@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useMemo } from "react"
+import { Suspense, useState, useRef, useMemo } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useDebouncedCallback } from "use-debounce"
@@ -24,10 +24,11 @@ import { useBeatDrag } from "@/components/beat-board/useBeatDrag"
 import { useBeatResize } from "@/components/beat-board/useBeatResize"
 import { useBeatConnections, type ConnectionSide } from "@/components/beat-board/useBeatConnections"
 import { useTimelineDnD } from "@/components/beat-board/useTimelineDnD"
+import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 
 export type { ConnectionSide };
 
-export default function BeatBoardPage() {
+function BeatBoardPageContent() {
   const { user } = useAuth()
   const searchParams = useSearchParams()
   const projectId = searchParams.get("id") ?? ""
@@ -296,5 +297,13 @@ export default function BeatBoardPage() {
         onImageDrop={handleImageDrop}
       />
     </div>
+  )
+}
+
+export default function BeatBoardPage() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <BeatBoardPageContent />
+    </Suspense>
   )
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
@@ -22,7 +23,7 @@ function intensityLabel(v: number) {
   return "Low"
 }
 
-export default function ConflictHeatmap() {
+function ConflictHeatmapContent() {
   const { projectId, analytics, isLoading, error } = useProjectAnalytics()
 
   if (isLoading) return <FullPageSpinner />
@@ -153,5 +154,13 @@ export default function ConflictHeatmap() {
         )}
       </main>
     </div>
+  )
+}
+
+export default function ConflictHeatmap() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <ConflictHeatmapContent />
+    </Suspense>
   )
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useProjectAnalytics } from "@/hooks/useProjectAnalytics"
 import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 
-export default function AnalyticsOverview() {
+function AnalyticsOverviewContent() {
   const { projectId, analytics, isLoading, error } = useProjectAnalytics()
 
   if (isLoading) return <FullPageSpinner />
@@ -226,5 +227,13 @@ export default function AnalyticsOverview() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function AnalyticsOverview() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <AnalyticsOverviewContent />
+    </Suspense>
   )
 }

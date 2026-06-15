@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { Suspense, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { AlertCircle } from "lucide-react"
 import { EditorFactory } from "@/components/editor/EditorFactory"
@@ -9,9 +9,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useAuth } from "@/lib/AuthContext"
 import { setWindowTitle } from "@/lib/desktop"
 import { PaneSpinner } from "@/components/shared/PaneSpinner"
+import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 import { useProjectLoader } from "@/hooks/useProjectLoader"
 
-export default function ProjectPage() {
+function ProjectPageContent() {
   const { user } = useAuth()
   const searchParams = useSearchParams()
   const projectId = searchParams.get("id") ?? ""
@@ -47,4 +48,12 @@ export default function ProjectPage() {
   }
 
   return <EditorFactory projectData={project} />
+}
+
+export default function ProjectPage() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <ProjectPageContent />
+    </Suspense>
+  )
 }
