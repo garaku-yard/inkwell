@@ -1,4 +1,4 @@
-package handlers
+package auth
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
+	"inkwell/server/internal/gateway/handlers"
 	"inkwell/server/internal/gateway/middleware"
 	identitypb "inkwell/server/pkg/grpc/identity"
 )
@@ -96,13 +97,13 @@ func userFromProto(u *identitypb.User) UserResponse {
 // round-trip. Returns 401 on bad credentials.
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -114,7 +115,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Password: req.Password,
 	})
 	if err != nil {
-		writeError(w, "Invalid credentials", http.StatusUnauthorized)
+		handlers.WriteError(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
@@ -137,19 +138,19 @@ type UpdateProfileRequest struct {
 // context carries no userID.
 func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	userID, ok := contextx.UserIDFrom(r.Context())
 	if !ok {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	var req UpdateProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -169,7 +170,7 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	grpcResp, err := h.identityClient.UpdateUser(ctx, grpcReq)
 	if err != nil {
 		slog.Error("UpdateProfile gRPC error", "error", err)
-		writeError(w, "Failed to update profile", http.StatusInternalServerError)
+		handlers.WriteError(w, "Failed to update profile", http.StatusInternalServerError)
 		return
 	}
 
@@ -183,13 +184,13 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 // service rejects the change (e.g. wrong current password).
 func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	userID, ok := contextx.UserIDFrom(r.Context())
 	if !ok {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -198,12 +199,12 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		NewPassword     string `json:"newPassword"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.CurrentPassword == "" || req.NewPassword == "" {
-		writeError(w, "currentPassword and newPassword are required", http.StatusBadRequest)
+		handlers.WriteError(w, "currentPassword and newPassword are required", http.StatusBadRequest)
 		return
 	}
 
@@ -217,7 +218,7 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		slog.Error("ChangePassword gRPC error", "error", err)
-		writeError(w, "Failed to change password", http.StatusBadRequest)
+		handlers.WriteError(w, "Failed to change password", http.StatusBadRequest)
 		return
 	}
 
@@ -230,14 +231,14 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 // a structured error envelope if registration fails (e.g. email already taken).
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		slog.Warn("failed to decode register request", "error", err)
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -255,7 +256,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		slog.Error("registration failed", "error", err)
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -271,13 +272,13 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 // auth state without having to read a JWT.
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	userID, ok := contextx.UserIDFrom(r.Context())
 	if !ok {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -287,7 +288,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	grpcResp, err := h.identityClient.GetUser(ctx, &identitypb.GetUserRequest{UserId: userID})
 	if err != nil {
 		slog.Error("Me gRPC error", "error", err)
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 

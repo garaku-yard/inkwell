@@ -1,4 +1,4 @@
-package handlers
+package scripts
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"inkwell/server/internal/gateway/handlers"
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 
 	"github.com/go-chi/chi/v5"
@@ -19,11 +20,11 @@ import (
 // CreateBeat handles POST /projects/{projectID}/beat-board/beats
 func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/beats")
 
 	var req struct {
@@ -51,7 +52,7 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Printf("CreateBeat: Error decoding request body: %v", err)
-		writeError(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -90,7 +91,7 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -102,11 +103,11 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 // GetProjectBeatBoard handles GET /projects/{projectID}/beat-board
 func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board")
 
 	resp, err := h.scriptsClient.GetProjectBeatBoard(r.Context(), &scriptspb.GetProjectBeatBoardRequest{
@@ -115,7 +116,7 @@ func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Requ
 	})
 
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -126,11 +127,11 @@ func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Requ
 // UpdateBeat handles PUT/PATCH /beats/{beatID}
 func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	beatID := getIDFromPath(r.URL.Path, "/beats/")
 
 	var req struct {
@@ -154,7 +155,7 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -211,7 +212,7 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.scriptsClient.UpdateBeat(r.Context(), grpcReq)
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -221,7 +222,7 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 
 // GetBeat handles GET /beats/{beatID}
 func (h *ScriptsHandler) GetBeat(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	beatID := chi.URLParam(r, "beatId")
 
 	resp, err := h.scriptsClient.GetBeat(r.Context(), &scriptspb.GetBeatRequest{
@@ -230,7 +231,7 @@ func (h *ScriptsHandler) GetBeat(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -241,11 +242,11 @@ func (h *ScriptsHandler) GetBeat(w http.ResponseWriter, r *http.Request) {
 // DeleteBeat handles DELETE /beats/{beatID}
 func (h *ScriptsHandler) DeleteBeat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	beatID := getIDFromPath(r.URL.Path, "/beats/")
 
 	_, err := h.scriptsClient.DeleteBeat(r.Context(), &scriptspb.DeleteBeatRequest{
@@ -254,7 +255,7 @@ func (h *ScriptsHandler) DeleteBeat(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -264,11 +265,11 @@ func (h *ScriptsHandler) DeleteBeat(w http.ResponseWriter, r *http.Request) {
 // CreateConnection handles POST /projects/{projectID}/beat-board/connections
 func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/connections")
 
 	var req struct {
@@ -279,7 +280,7 @@ func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -293,7 +294,7 @@ func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request
 	})
 
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -305,11 +306,11 @@ func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request
 // DeleteConnection handles DELETE /connections/{connectionID}
 func (h *ScriptsHandler) DeleteConnection(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	connectionID := getIDFromPath(r.URL.Path, "/connections/")
 
 	_, err := h.scriptsClient.DeleteConnection(r.Context(), &scriptspb.DeleteConnectionRequest{
@@ -318,7 +319,7 @@ func (h *ScriptsHandler) DeleteConnection(w http.ResponseWriter, r *http.Request
 	})
 
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -328,11 +329,11 @@ func (h *ScriptsHandler) DeleteConnection(w http.ResponseWriter, r *http.Request
 // CreateLane handles POST /projects/{projectID}/beat-board/lanes
 func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes")
 
 	var req struct {
@@ -342,7 +343,7 @@ func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -355,7 +356,7 @@ func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -367,11 +368,11 @@ func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
 // GetProjectLanes handles GET /projects/{projectID}/beat-board/lanes
 func (h *ScriptsHandler) GetProjectLanes(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes")
 
 	resp, err := h.scriptsClient.GetProjectLanes(r.Context(), &scriptspb.GetProjectLanesRequest{
@@ -380,7 +381,7 @@ func (h *ScriptsHandler) GetProjectLanes(w http.ResponseWriter, r *http.Request)
 	})
 
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -398,11 +399,11 @@ func (h *ScriptsHandler) GetProjectLanes(w http.ResponseWriter, r *http.Request)
 // UpdateLane handles PUT /lanes/{laneID}
 func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	laneID := getIDFromPath(r.URL.Path, "/lanes/")
 
 	var req struct {
@@ -412,7 +413,7 @@ func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -433,7 +434,7 @@ func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.scriptsClient.UpdateLane(r.Context(), grpcReq)
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -444,11 +445,11 @@ func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 // UpdateLaneOrder handles PUT /projects/{projectID}/beat-board/lanes/order
 func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes/order")
 
 	var req struct {
@@ -457,7 +458,7 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -473,7 +474,7 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 	})
 
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -483,11 +484,11 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 // DeleteLane handles DELETE /lanes/{laneID}
 func (h *ScriptsHandler) DeleteLane(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	laneID := getIDFromPath(r.URL.Path, "/lanes/")
 
 	_, err := h.scriptsClient.DeleteLane(r.Context(), &scriptspb.DeleteLaneRequest{
@@ -496,7 +497,7 @@ func (h *ScriptsHandler) DeleteLane(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -506,11 +507,11 @@ func (h *ScriptsHandler) DeleteLane(w http.ResponseWriter, r *http.Request) {
 // CreateOutlineItem handles POST /projects/{projectID}/beat-board/outline-items
 func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/outline-items")
 
 	var req struct {
@@ -522,7 +523,7 @@ func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -537,7 +538,7 @@ func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Reques
 	})
 
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -549,11 +550,11 @@ func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Reques
 // UpdateOutlineItem handles PUT /outline-items/{outlineItemID}
 func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	outlineItemID := getIDFromPath(r.URL.Path, "/outline-items/")
 
 	var req struct {
@@ -565,7 +566,7 @@ func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -592,7 +593,7 @@ func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Reques
 
 	resp, err := h.scriptsClient.UpdateOutlineItem(r.Context(), grpcReq)
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -603,11 +604,11 @@ func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Reques
 // DeleteOutlineItem handles DELETE /outline-items/{outlineItemID}
 func (h *ScriptsHandler) DeleteOutlineItem(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	outlineItemID := getIDFromPath(r.URL.Path, "/outline-items/")
 
 	_, err := h.scriptsClient.DeleteOutlineItem(r.Context(), &scriptspb.DeleteOutlineItemRequest{
@@ -616,7 +617,7 @@ func (h *ScriptsHandler) DeleteOutlineItem(w http.ResponseWriter, r *http.Reques
 	})
 
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -651,7 +652,7 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 	log.Printf("UploadBeatImage: Request received")
 
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -662,7 +663,7 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 	// Parse the multipart form with 10MB max memory
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		log.Printf("UploadBeatImage: Error parsing form: %v", err)
-		writeError(w, "Failed to parse form", http.StatusBadRequest)
+		handlers.WriteError(w, "Failed to parse form", http.StatusBadRequest)
 		return
 	}
 	log.Printf("UploadBeatImage: Form parsed")
@@ -670,7 +671,7 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 	file, header, err := r.FormFile("image")
 	if err != nil {
 		log.Printf("UploadBeatImage: Error getting file: %v", err)
-		writeError(w, "No image provided", http.StatusBadRequest)
+		handlers.WriteError(w, "No image provided", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
@@ -693,7 +694,7 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 	log.Printf("UploadBeatImage: Creating directory: %s", uploadsDir)
 	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
 		log.Printf("UploadBeatImage: Error creating uploads directory: %v", err)
-		writeError(w, "Failed to save image", http.StatusInternalServerError)
+		handlers.WriteError(w, "Failed to save image", http.StatusInternalServerError)
 		return
 	}
 
@@ -706,7 +707,7 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 	dst, err := os.Create(filePath)
 	if err != nil {
 		log.Printf("UploadBeatImage: Error creating file: %v", err)
-		writeError(w, "Failed to save image", http.StatusInternalServerError)
+		handlers.WriteError(w, "Failed to save image", http.StatusInternalServerError)
 		return
 	}
 	defer dst.Close()
@@ -714,7 +715,7 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 	// Copy uploaded file to disk
 	if _, err := dst.ReadFrom(file); err != nil {
 		log.Printf("UploadBeatImage: Error copying file: %v", err)
-		writeError(w, "Failed to save image", http.StatusInternalServerError)
+		handlers.WriteError(w, "Failed to save image", http.StatusInternalServerError)
 		return
 	}
 

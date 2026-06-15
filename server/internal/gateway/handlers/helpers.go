@@ -9,33 +9,33 @@ import (
 	"inkwell/server/pkg/grpc/common"
 )
 
-// getUserIDFromContext returns the authenticated user ID placed on the request
+// GetUserIDFromContext returns the authenticated user ID placed on the request
 // context by AuthMiddleware, or "" if absent. It is the shared convenience over
 // contextx.UserIDFrom for handlers that don't need the presence bool.
-func getUserIDFromContext(r *http.Request) string {
+func GetUserIDFromContext(r *http.Request) string {
 	id, _ := contextx.UserIDFrom(r.Context())
 	return id
 }
 
-// writeError emits a structured JSON error envelope with the given HTTP status.
+// WriteError emits a structured JSON error envelope with the given HTTP status.
 // The message is carried in the envelope's `message` field and the envelope's
 // `code` is inferred from the HTTP status, producing a stable shape that
 // front-end callers can branch on.
-func writeError(w http.ResponseWriter, message string, status int) {
-	apierror.WriteStatus(w, status, codeForHTTPStatus(status), message)
+func WriteError(w http.ResponseWriter, message string, status int) {
+	apierror.WriteStatus(w, status, CodeForHTTPStatus(status), message)
 }
 
-// handleGRPCError converts a gRPC error into a structured envelope and writes
+// HandleGRPCError converts a gRPC error into a structured envelope and writes
 // it to w. It preserves the gRPC status code (NotFound, PermissionDenied, etc.)
 // and the server-provided message rather than collapsing everything to HTTP 500.
-func handleGRPCError(w http.ResponseWriter, err error) {
+func HandleGRPCError(w http.ResponseWriter, err error) {
 	apierror.Write(w, err)
 }
 
-// codeForHTTPStatus maps ad-hoc HTTP statuses emitted by handler-level
+// CodeForHTTPStatus maps ad-hoc HTTP statuses emitted by handler-level
 // validation to the matching apierror.Code so that responses created via
-// writeError carry the same envelope shape as those translated from gRPC.
-func codeForHTTPStatus(status int) apierror.Code {
+// WriteError carry the same envelope shape as those translated from gRPC.
+func CodeForHTTPStatus(status int) apierror.Code {
 	switch status {
 	case http.StatusBadRequest:
 		return apierror.CodeInvalidArgument
@@ -58,9 +58,9 @@ func codeForHTTPStatus(status int) apierror.Code {
 	}
 }
 
-// timestampToString converts a protobuf Timestamp to an RFC3339 UTC string.
+// TimestampToString converts a protobuf Timestamp to an RFC3339 UTC string.
 // Returns "" for nil timestamps.
-func timestampToString(ts *common.Timestamp) string {
+func TimestampToString(ts *common.Timestamp) string {
 	if ts == nil {
 		return ""
 	}

@@ -1,4 +1,4 @@
-package handlers
+package scripts
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"inkwell/server/internal/gateway/handlers"
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
 
@@ -39,27 +40,27 @@ type Paragraph struct {
 // scene. Requires a userID from the request context.
 func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	// Parse multipart form (10 MB limit — prevents unbounded memory use on malicious uploads).
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		slog.Warn("ImportFDX: error parsing form", "error", err)
-		writeError(w, "Failed to parse form", http.StatusBadRequest)
+		handlers.WriteError(w, "Failed to parse form", http.StatusBadRequest)
 		return
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		slog.Warn("ImportFDX: error getting file", "error", err)
-		writeError(w, "No file provided", http.StatusBadRequest)
+		handlers.WriteError(w, "No file provided", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
@@ -71,7 +72,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	// filename extension too.
 	ext := strings.ToLower(filepath.Ext(header.Filename))
 	if ext != ".fdx" && ext != ".xml" {
-		writeError(w, "Only .fdx files are supported", http.StatusBadRequest)
+		handlers.WriteError(w, "Only .fdx files are supported", http.StatusBadRequest)
 		return
 	}
 
@@ -81,14 +82,14 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	projectType := r.FormValue("projectType")
 
 	if projectName == "" {
-		writeError(w, "Project name is required", http.StatusBadRequest)
+		handlers.WriteError(w, "Project name is required", http.StatusBadRequest)
 		return
 	}
 
 	fdxData, err := io.ReadAll(file)
 	if err != nil {
 		slog.Error("ImportFDX: error reading file", "error", err)
-		writeError(w, "Failed to read file", http.StatusInternalServerError)
+		handlers.WriteError(w, "Failed to read file", http.StatusInternalServerError)
 		return
 	}
 
@@ -97,7 +98,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 	decoder.Strict = true
 	if err := decoder.Decode(&fdx); err != nil {
 		slog.Warn("ImportFDX: error parsing FDX", "error", err)
-		writeError(w, "Invalid FDX file format", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid FDX file format", http.StatusBadRequest)
 		return
 	}
 
@@ -111,7 +112,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		slog.Error("ImportFDX: error creating project", "error", err)
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -151,7 +152,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 			})
 			if err != nil {
 				slog.Error("ImportFDX: error creating scene", "error", err)
-				writeError(w, "Failed to import scenes", http.StatusInternalServerError)
+				handlers.WriteError(w, "Failed to import scenes", http.StatusInternalServerError)
 				return
 			}
 			currentScene = sceneResp.Scene

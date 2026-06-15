@@ -1,4 +1,4 @@
-package handlers
+package collab
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"inkwell/server/internal/gateway/grpcclient"
+	"inkwell/server/internal/gateway/handlers"
 	"inkwell/server/pkg/grpc/collab"
 	"inkwell/server/pkg/grpc/identity"
 	"inkwell/server/pkg/grpc/scripts"
@@ -41,7 +42,7 @@ func NewCollaborationHandler(clients *grpcclient.Registry) *CollaborationHandler
 // being forwarded to the collab service.
 func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -52,7 +53,7 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -62,21 +63,21 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 		"viewer": true,
 	}
 	if !validRoles[req.Role] {
-		writeError(w, "Invalid role. Must be 'editor' or 'viewer'", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid role. Must be 'editor' or 'viewer'", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	// Resolve email or user tag to actual email address
 	actualEmail, err := h.resolveEmailOrUserTag(r.Context(), req.Email)
 	if err != nil {
-		writeError(w, "Failed to resolve user: "+err.Error(), http.StatusBadRequest)
+		handlers.WriteError(w, "Failed to resolve user: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -91,7 +92,7 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 		Role:      req.Role,
 	})
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -113,8 +114,8 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 		Email:     req.Email,
 		Role:      resp.Collaborator.Role,
 		Status:    resp.Collaborator.Status,
-		InvitedAt: timestampToString(resp.Collaborator.InvitedAt),
-		JoinedAt:  timestampToString(resp.Collaborator.JoinedAt),
+		InvitedAt: handlers.TimestampToString(resp.Collaborator.InvitedAt),
+		JoinedAt:  handlers.TimestampToString(resp.Collaborator.JoinedAt),
 		Message:   "Invitation sent successfully",
 	}
 
@@ -129,20 +130,20 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 // whose account may not yet exist.
 func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	projectID := r.URL.Query().Get("project_id")
 	if projectID == "" {
-		writeError(w, "project_id is required", http.StatusBadRequest)
+		handlers.WriteError(w, "project_id is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -155,7 +156,7 @@ func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r 
 		UserId:    userID,
 	})
 	if err != nil {
-		writeError(w, "Failed to get collaborators", http.StatusInternalServerError)
+		handlers.WriteError(w, "Failed to get collaborators", http.StatusInternalServerError)
 		return
 	}
 
@@ -169,8 +170,8 @@ func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r 
 			"user_id":    collab.UserId,
 			"role":       collab.Role,
 			"status":     collab.Status,
-			"invited_at": timestampToString(collab.InvitedAt),
-			"joined_at":  timestampToString(collab.JoinedAt),
+			"invited_at": handlers.TimestampToString(collab.InvitedAt),
+			"joined_at":  handlers.TimestampToString(collab.JoinedAt),
 		}
 
 		// For pending invitations (status = "pending"), lookup inviter details
@@ -241,7 +242,7 @@ func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r 
 // the identity service.
 func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -257,14 +258,14 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -284,7 +285,7 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 		ParentId:        req.ParentID,
 	})
 	if err != nil {
-		writeError(w, "Failed to add comment", http.StatusInternalServerError)
+		handlers.WriteError(w, "Failed to add comment", http.StatusInternalServerError)
 		return
 	}
 
@@ -314,8 +315,8 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 		"char_position":     resp.Comment.CharPosition,
 		"parent_id":         resp.Comment.ParentId,
 		"is_resolved":       resp.Comment.IsResolved,
-		"created_at":        timestampToString(resp.Comment.CreatedAt),
-		"updated_at":        timestampToString(resp.Comment.UpdatedAt),
+		"created_at":        handlers.TimestampToString(resp.Comment.CreatedAt),
+		"updated_at":        handlers.TimestampToString(resp.Comment.UpdatedAt),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -324,32 +325,32 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 }
 
 // GetComments returns all comments for a project, identified by screenplay_id.
-// Verifies the caller has access via resolveProjectAccess before fetching. Each
+// Verifies the caller has access via handlers.ResolveProjectAccess before fetching. Each
 // comment is enriched with the author's username from the identity service.
 func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	screenplayID := r.URL.Query().Get("screenplay_id")
 	if screenplayID == "" {
-		writeError(w, "screenplay_id is required", http.StatusBadRequest)
+		handlers.WriteError(w, "screenplay_id is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	if _, err := resolveProjectAccess(ctx, userID, screenplayID, h.scriptsClient, h.client); err != nil {
-		writeError(w, "Forbidden", http.StatusForbidden)
+	if _, err := handlers.ResolveProjectAccess(ctx, userID, screenplayID, h.scriptsClient, h.client); err != nil {
+		handlers.WriteError(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -359,7 +360,7 @@ func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Reques
 		UserId:       userID,
 	})
 	if err != nil {
-		writeError(w, "Failed to get comments", http.StatusInternalServerError)
+		handlers.WriteError(w, "Failed to get comments", http.StatusInternalServerError)
 		return
 	}
 
@@ -389,8 +390,8 @@ func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Reques
 			"char_position":     comment.CharPosition,
 			"parent_id":         comment.ParentId,
 			"is_resolved":       comment.IsResolved,
-			"created_at":        timestampToString(comment.CreatedAt),
-			"updated_at":        timestampToString(comment.UpdatedAt),
+			"created_at":        handlers.TimestampToString(comment.CreatedAt),
+			"updated_at":        handlers.TimestampToString(comment.UpdatedAt),
 		})
 	}
 
@@ -402,7 +403,7 @@ func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Reques
 // a project. Used by real-time collaboration features to show active editors.
 func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -413,14 +414,14 @@ func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -435,7 +436,7 @@ func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Req
 		CursorPosition: req.CursorPosition,
 	})
 	if err != nil {
-		writeError(w, "Failed to update presence", http.StatusInternalServerError)
+		handlers.WriteError(w, "Failed to update presence", http.StatusInternalServerError)
 		return
 	}
 
@@ -445,7 +446,7 @@ func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Req
 		"project_id":      resp.Presence.ProjectId,
 		"screenplay_id":   resp.Presence.ScreenplayId,
 		"cursor_position": resp.Presence.CursorPosition,
-		"last_seen":       timestampToString(resp.Presence.LastSeen),
+		"last_seen":       handlers.TimestampToString(resp.Presence.LastSeen),
 		"is_online":       resp.Presence.IsOnline,
 	}
 
@@ -453,7 +454,7 @@ func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(response)
 }
 
-// getUserIDFromContext extracts the authenticated user's ID from the request
+// handlers.GetUserIDFromContext extracts the authenticated user's ID from the request
 // context. Returns an empty string if no value is present, which callers
 // should treat as an unauthenticated request and respond with 401. There is
 // deliberately no X-User-ID header fallback: trusting a client-supplied
@@ -526,14 +527,14 @@ func (h *CollaborationHandler) getUserEmailByUsernameAndTag(ctx context.Context,
 // inviter's display name and the project title from their respective services.
 func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -545,12 +546,12 @@ func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http
 		UserId: userID,
 	})
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
 	if userResp.User == nil {
-		writeError(w, "User not found", http.StatusNotFound)
+		handlers.WriteError(w, "User not found", http.StatusNotFound)
 		return
 	}
 
@@ -561,7 +562,7 @@ func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http
 		Email: userEmail,
 	})
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -611,7 +612,7 @@ func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http
 			"invitedBy":   inviterName,
 			"invitedById": invitation.InvitedBy,
 			"status":      invitation.Status,
-			"createdAt":   timestampToString(invitation.InvitedAt),
+			"createdAt":   handlers.TimestampToString(invitation.InvitedAt),
 		})
 	}
 
@@ -624,7 +625,7 @@ func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http
 // id in the request body for client compatibility.
 func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -634,7 +635,7 @@ func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.R
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -645,14 +646,14 @@ func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.R
 	}
 
 	if collaboratorID == "" {
-		writeError(w, "collaborator_id or id is required", http.StatusBadRequest)
+		handlers.WriteError(w, "collaborator_id or id is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -662,7 +663,7 @@ func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.R
 		CollaboratorId: collaboratorID,
 	})
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -678,8 +679,8 @@ func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.R
 			"user_id":    resp.Collaborator.UserId,
 			"role":       resp.Collaborator.Role,
 			"status":     resp.Collaborator.Status,
-			"invited_at": timestampToString(resp.Collaborator.InvitedAt),
-			"joined_at":  timestampToString(resp.Collaborator.JoinedAt),
+			"invited_at": handlers.TimestampToString(resp.Collaborator.InvitedAt),
+			"joined_at":  handlers.TimestampToString(resp.Collaborator.JoinedAt),
 		}
 	}
 
@@ -692,7 +693,7 @@ func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.R
 // access. Accepts either collaborator_id or id in the request body for client compatibility.
 func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -702,7 +703,7 @@ func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -713,14 +714,14 @@ func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.
 	}
 
 	if collaboratorID == "" {
-		writeError(w, "collaborator_id or id is required", http.StatusBadRequest)
+		handlers.WriteError(w, "collaborator_id or id is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -730,7 +731,7 @@ func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.
 		CollaboratorId: collaboratorID,
 	})
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -749,7 +750,7 @@ func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.
 // ID is extracted from the URL path.
 func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -757,7 +758,7 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *
 	path := strings.TrimPrefix(r.URL.Path, "/collaborators/")
 	collaboratorID := strings.TrimSuffix(path, "/")
 	if collaboratorID == "" {
-		writeError(w, "Collaborator ID is required", http.StatusBadRequest)
+		handlers.WriteError(w, "Collaborator ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -766,7 +767,7 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -778,14 +779,14 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *
 		"REVIEWER": true,
 	}
 	if !validRoles[req.Role] {
-		writeError(w, "Invalid role. Must be 'OWNER', 'WRITER', 'EDITOR', or 'REVIEWER'", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid role. Must be 'OWNER', 'WRITER', 'EDITOR', or 'REVIEWER'", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -799,7 +800,7 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *
 		NewRole:        req.Role,
 	})
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -810,8 +811,8 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *
 		"user_id":    resp.Collaborator.UserId,
 		"role":       resp.Collaborator.Role,
 		"status":     resp.Collaborator.Status,
-		"invited_at": timestampToString(resp.Collaborator.InvitedAt),
-		"joined_at":  timestampToString(resp.Collaborator.JoinedAt),
+		"invited_at": handlers.TimestampToString(resp.Collaborator.InvitedAt),
+		"joined_at":  handlers.TimestampToString(resp.Collaborator.JoinedAt),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -823,7 +824,7 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *
 // extracted from the URL path. Requires a userID from the request context.
 func (h *CollaborationHandler) RemoveCollaborator(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -831,14 +832,14 @@ func (h *CollaborationHandler) RemoveCollaborator(w http.ResponseWriter, r *http
 	path := strings.TrimPrefix(r.URL.Path, "/collaborators/")
 	collaboratorID := strings.TrimSuffix(path, "/")
 	if collaboratorID == "" {
-		writeError(w, "Collaborator ID is required", http.StatusBadRequest)
+		handlers.WriteError(w, "Collaborator ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -851,7 +852,7 @@ func (h *CollaborationHandler) RemoveCollaborator(w http.ResponseWriter, r *http
 		CollaboratorId: collaboratorID,
 	})
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -869,7 +870,7 @@ func (h *CollaborationHandler) RemoveCollaborator(w http.ResponseWriter, r *http
 // are forwarded: content replaces the body text, and is_resolved marks the thread resolved.
 func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -877,14 +878,14 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 	path := strings.TrimPrefix(r.URL.Path, "/comments/")
 	commentID := strings.Split(path, "/")[0]
 	if commentID == "" {
-		writeError(w, "Comment ID is required", http.StatusBadRequest)
+		handlers.WriteError(w, "Comment ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -895,7 +896,7 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&updateData); err != nil {
-		writeError(w, "Invalid JSON body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
 
@@ -917,7 +918,7 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 
 	resp, err := h.client.UpdateComment(ctx, req)
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 
@@ -933,8 +934,8 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 		"char_position":     resp.Comment.CharPosition,
 		"parent_id":         resp.Comment.ParentId,
 		"is_resolved":       resp.Comment.IsResolved,
-		"created_at":        timestampToString(resp.Comment.CreatedAt),
-		"updated_at":        timestampToString(resp.Comment.UpdatedAt),
+		"created_at":        handlers.TimestampToString(resp.Comment.CreatedAt),
+		"updated_at":        handlers.TimestampToString(resp.Comment.UpdatedAt),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -944,7 +945,7 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 // DeleteComment removes a comment by ID. Requires a userID from the request context.
 func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -952,14 +953,14 @@ func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Requ
 	path := strings.TrimPrefix(r.URL.Path, "/comments/")
 	commentID := strings.Split(path, "/")[0]
 	if commentID == "" {
-		writeError(w, "Comment ID is required", http.StatusBadRequest)
+		handlers.WriteError(w, "Comment ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get user ID from context (set by auth middleware)
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -972,7 +973,7 @@ func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Requ
 		UserId:    userID,
 	})
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 

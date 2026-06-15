@@ -1,4 +1,4 @@
-package handlers
+package scripts
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"inkwell/server/internal/gateway/apierror"
+	"inkwell/server/internal/gateway/handlers"
 	"inkwell/server/internal/gateway/handlers/export"
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
@@ -23,7 +24,7 @@ import (
 // GetSceneElements in parallel to avoid sequential round-trips.
 //
 // Access control: the caller must be the project owner or an active
-// collaborator, enforced via the same resolveProjectAccess helper used by
+// collaborator, enforced via the same handlers.ResolveProjectAccess helper used by
 // GetProject. Authorization happens before any export work is attempted.
 func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -37,7 +38,7 @@ func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := getUserIDFromContext(r)
+	userID := handlers.GetUserIDFromContext(r)
 	if userID == "" {
 		apierror.WriteStatus(w, http.StatusUnauthorized, apierror.CodeUnauthenticated, "unauthorized")
 		return
@@ -53,7 +54,7 @@ func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resolvedID, authErr := resolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+	resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
 	if authErr != nil {
 		apierror.WriteStatus(w, http.StatusForbidden, apierror.CodePermissionDenied, "forbidden")
 		return
@@ -86,11 +87,11 @@ func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 	wg.Wait()
 
 	if projErr != nil {
-		handleGRPCError(w, projErr)
+		handlers.HandleGRPCError(w, projErr)
 		return
 	}
 	if scenesErr != nil {
-		handleGRPCError(w, scenesErr)
+		handlers.HandleGRPCError(w, scenesErr)
 		return
 	}
 
