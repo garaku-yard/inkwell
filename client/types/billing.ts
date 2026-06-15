@@ -17,7 +17,7 @@ export interface GatewayConfig {
     [key: string]: string | undefined
   }
   webhooksEnabled: boolean
-  settings: Record<string, any>
+  settings: Record<string, unknown>
 }
 
 export interface SubscriptionTier {
@@ -117,8 +117,8 @@ export interface IGatewayProvider {
   cancelSubscription(subscriptionId: string, immediate: boolean): Promise<void>
   
   // Webhooks
-  handleWebhook(payload: any, signature: string): Promise<WebhookResult>
-  verifyWebhookSignature(payload: any, signature: string): boolean
+  handleWebhook(payload: unknown, signature: string): Promise<WebhookResult>
+  verifyWebhookSignature(payload: unknown, signature: string): boolean
   
   // Sync
   syncSubscriptionStatus(externalSubscriptionId: string): Promise<SubscriptionStatus>
@@ -198,6 +198,6 @@ export interface BillingAuditLog {
   action: string
   resourceType: "tier" | "gateway" | "subscription" | "config"
   resourceId: string
-  changes: Record<string, any>
+  changes: Record<string, unknown>
   timestamp: Date
 }
