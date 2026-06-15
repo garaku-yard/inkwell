@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react"
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react"
 import { useAuth } from "@/lib/AuthContext"
 import { listUserWorkspaces, type Workspace, type WorkspacesResponse } from "@/services/workspace"
 
@@ -114,21 +114,22 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, authLoading, fetchWorkspaces])
 
-  return (
-    <WorkspaceContext.Provider
-      value={{
-        workspaces,
-        activeWorkspace,
-        setActiveWorkspace,
-        reorderWorkspaces,
-        isLoading,
-        needsOnboarding,
-        refetch: fetchWorkspaces,
-      }}
-    >
-      {children}
-    </WorkspaceContext.Provider>
+  // Memoised so consumers don't re-render whenever the provider re-renders for
+  // an unrelated reason; the callbacks are already stable via useCallback.
+  const value = useMemo<WorkspaceContextType>(
+    () => ({
+      workspaces,
+      activeWorkspace,
+      setActiveWorkspace,
+      reorderWorkspaces,
+      isLoading,
+      needsOnboarding,
+      refetch: fetchWorkspaces,
+    }),
+    [workspaces, activeWorkspace, setActiveWorkspace, reorderWorkspaces, isLoading, needsOnboarding, fetchWorkspaces],
   )
+
+  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
 }
 
 export function useWorkspace() {

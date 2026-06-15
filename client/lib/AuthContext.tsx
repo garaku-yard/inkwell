@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { SessionExpiryModal } from "@/components/session-expiry-modal"
@@ -110,6 +110,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => window.removeEventListener("session-expired", onExpired)
   }, [])
 
+  // Memoised so consumers don't re-render on every AuthProvider render; the
+  // callbacks are already stable via useCallback.
+  const value = useMemo<AuthContextType>(
+    () => ({
+      isAuthenticated: user !== null,
+      isLoading,
+      user,
+      login,
+      logout,
+      updateUser,
+      showSessionExpired,
+    }),
+    [user, isLoading, login, logout, updateUser, showSessionExpired],
+  )
+
   if (isLoading) {
     // Themed full-viewport spinner instead of an unstyled flash; it inherits
     // the active theme tokens already applied by ThemeProvider above us.
@@ -117,17 +132,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider
-      value={{
-        isAuthenticated: user !== null,
-        isLoading,
-        user,
-        login,
-        logout,
-        updateUser,
-        showSessionExpired,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
       <SessionExpiryModal
         isOpen={sessionExpired}
