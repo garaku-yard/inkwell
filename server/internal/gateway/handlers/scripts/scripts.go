@@ -3,6 +3,7 @@ package scripts
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -12,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"inkwell/server/internal/gateway/apierror"
-	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
 	"inkwell/server/pkg/grpc/collab"
@@ -102,45 +102,35 @@ func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 // request context and calls handlers.ResolveProjectAccess to verify the caller is either
 // the project owner or an active collaborator. Returns 403 if neither holds.
 func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, map[string]interface{}]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]interface{}, error) {
+			projectID := chi.URLParam(r, "projectId")
+			if projectID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Project ID is required")
+			}
 
-	projectID := chi.URLParam(r, "projectId")
-	if projectID == "" {
-		handlers.WriteError(w, "Project ID is required", http.StatusBadRequest)
-		return
-	}
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			if authErr != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+			}
 
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			resp, err := h.scriptsClient.GetProject(r.Context(), &scriptspb.GetProjectRequest{
+				ProjectId: projectID,
+				UserId:    resolvedID,
+			})
+			if err != nil {
+				return nil, err
+			}
 
-	resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
-	if authErr != nil {
-		handlers.WriteError(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	resp, err := h.scriptsClient.GetProject(r.Context(), &scriptspb.GetProjectRequest{
-		ProjectId: projectID,
-		UserId:    resolvedID,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	// Convert response
-	project := convertProjectFromProto(resp.Project)
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"project": project,
-	})
+			result := map[string]interface{}{
+				"project": convertProjectFromProto(resp.Project),
+			}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // deleteProjectResponse is the JSON shape returned by DeleteProject.
@@ -208,93 +198,87 @@ func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Reques
 // limit=20). For each project it issues a parallel gRPC call to the collab service
 // to fetch the collaborator count, avoiding N+1 HTTP round-trips from the client.
 func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, map[string]interface{}]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]interface{}, error) {
+			// Parse pagination parameters
+			pageStr := r.URL.Query().Get("page")
+			limitStr := r.URL.Query().Get("limit")
 
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			page := int32(1)
+			limit := int32(20) // default limit
 
-	// Parse pagination parameters
-	pageStr := r.URL.Query().Get("page")
-	limitStr := r.URL.Query().Get("limit")
+			if pageStr != "" {
+				if parsedPage, err := strconv.ParseInt(pageStr, 10, 32); err == nil && parsedPage > 0 {
+					page = int32(parsedPage)
+				}
+			}
 
-	page := int32(1)
-	limit := int32(20) // default limit
+			if limitStr != "" {
+				if parsedLimit, err := strconv.ParseInt(limitStr, 10, 32); err == nil && parsedLimit > 0 {
+					limit = int32(parsedLimit)
+				}
+			}
 
-	if pageStr != "" {
-		if parsedPage, err := strconv.ParseInt(pageStr, 10, 32); err == nil && parsedPage > 0 {
-			page = int32(parsedPage)
-		}
-	}
-
-	if limitStr != "" {
-		if parsedLimit, err := strconv.ParseInt(limitStr, 10, 32); err == nil && parsedLimit > 0 {
-			limit = int32(parsedLimit)
-		}
-	}
-
-	// Call Scripts service
-	resp, err := h.scriptsClient.GetUserProjects(r.Context(), &scriptspb.GetUserProjectsRequest{
-		UserId: userID,
-		Pagination: &common.PaginationRequest{
-			Page:  page,
-			Limit: limit,
-		},
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	// Fetch collaborator counts for all projects in parallel (one gRPC call per project).
-	// This keeps N+1 within the backend (cheap intra-datacenter gRPC) rather than
-	// forcing the frontend to make N separate HTTP calls.
-	type countResult struct {
-		index int
-		count int
-	}
-	counts := make([]int, len(resp.Projects))
-	resultCh := make(chan countResult, len(resp.Projects))
-	var wg sync.WaitGroup
-	for i, p := range resp.Projects {
-		wg.Add(1)
-		go func(idx int, projectID string) {
-			defer wg.Done()
-			collabResp, err := h.collabClient.GetProjectCollaborators(r.Context(), &collab.GetProjectCollaboratorsRequest{
-				ProjectId: projectID,
-				UserId:    userID,
+			// Call Scripts service
+			resp, err := h.scriptsClient.GetUserProjects(r.Context(), &scriptspb.GetUserProjectsRequest{
+				UserId: userID,
+				Pagination: &common.PaginationRequest{
+					Page:  page,
+					Limit: limit,
+				},
 			})
 			if err != nil {
-				resultCh <- countResult{index: idx, count: 0}
-				return
+				return nil, err
 			}
-			resultCh <- countResult{index: idx, count: len(collabResp.Collaborators)}
-		}(i, p.Id)
-	}
-	wg.Wait()
-	close(resultCh)
-	for cr := range resultCh {
-		counts[cr.index] = cr.count
-	}
 
-	projects := make([]map[string]interface{}, len(resp.Projects))
-	for i, project := range resp.Projects {
-		p := convertProjectFromProto(project)
-		p["collaborator_count"] = counts[i]
-		projects[i] = p
-	}
+			// Fetch collaborator counts for all projects in parallel (one gRPC call per project).
+			// This keeps N+1 within the backend (cheap intra-datacenter gRPC) rather than
+			// forcing the frontend to make N separate HTTP calls.
+			type countResult struct {
+				index int
+				count int
+			}
+			counts := make([]int, len(resp.Projects))
+			resultCh := make(chan countResult, len(resp.Projects))
+			var wg sync.WaitGroup
+			for i, p := range resp.Projects {
+				wg.Add(1)
+				go func(idx int, projectID string) {
+					defer wg.Done()
+					collabResp, err := h.collabClient.GetProjectCollaborators(r.Context(), &collab.GetProjectCollaboratorsRequest{
+						ProjectId: projectID,
+						UserId:    userID,
+					})
+					if err != nil {
+						resultCh <- countResult{index: idx, count: 0}
+						return
+					}
+					resultCh <- countResult{index: idx, count: len(collabResp.Collaborators)}
+				}(i, p.Id)
+			}
+			wg.Wait()
+			close(resultCh)
+			for cr := range resultCh {
+				counts[cr.index] = cr.count
+			}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"projects":   projects,
-		"pagination": convertPaginationFromProto(resp.Pagination),
-	})
+			projects := make([]map[string]interface{}, len(resp.Projects))
+			for i, project := range resp.Projects {
+				p := convertProjectFromProto(project)
+				p["collaborator_count"] = counts[i]
+				projects[i] = p
+			}
+
+			result := map[string]interface{}{
+				"projects":   projects,
+				"pagination": convertPaginationFromProto(resp.Pagination),
+			}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // GetSharedProjects returns projects where the authenticated user is an active
@@ -302,55 +286,49 @@ func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request)
 // active collaborations, then fetches each project using an empty userID bypass —
 // ownership checks are skipped because collaborator membership is already confirmed.
 func (h *ScriptsHandler) GetSharedProjects(w http.ResponseWriter, r *http.Request) {
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+	handlers.Endpoint[struct{}, map[string]interface{}]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]interface{}, error) {
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
+			// Get all active collaborations for this user from collab service
+			collabResp, err := h.collabClient.GetUserCollaborations(ctx, &collab.GetUserCollaborationsRequest{
+				UserId: userID,
+			})
+			if err != nil {
+				return nil, err
+			}
 
-	// Get all active collaborations for this user from collab service
-	collabResp, err := h.collabClient.GetUserCollaborations(ctx, &collab.GetUserCollaborationsRequest{
-		UserId: userID,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
+			// Fetch each project using the bypass (empty userId)
+			projects := make([]map[string]interface{}, 0, len(collabResp.Collaborations))
+			for _, c := range collabResp.Collaborations {
+				projResp, err := h.scriptsClient.GetProject(ctx, &scriptspb.GetProjectRequest{
+					ProjectId: c.ProjectId,
+					UserId:    "", // bypass — already verified as collaborator
+				})
+				if err != nil {
+					continue // skip projects that can't be fetched
+				}
+				project := convertProjectFromProto(projResp.Project)
+				projects = append(projects, project)
+			}
 
-	// Fetch each project using the bypass (empty userId)
-	projects := make([]map[string]interface{}, 0, len(collabResp.Collaborations))
-	for _, c := range collabResp.Collaborations {
-		projResp, err := h.scriptsClient.GetProject(ctx, &scriptspb.GetProjectRequest{
-			ProjectId: c.ProjectId,
-			UserId:    "", // bypass — already verified as collaborator
-		})
-		if err != nil {
-			continue // skip projects that can't be fetched
-		}
-		project := convertProjectFromProto(projResp.Project)
-		projects = append(projects, project)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"projects": projects,
-	})
+			result := map[string]interface{}{
+				"projects": projects,
+			}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // CreateScene adds a new scene to a project. The scene is always attributed
 // to the authenticated caller; a user_id field in the request body is ignored
 // to prevent impersonation.
 func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
-	userID, ok := contextx.UserIDFrom(r.Context())
-	if !ok {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var req struct {
+	type createSceneBody struct {
 		ProjectID     string `json:"project_id"`
 		OutlineUnitID string `json:"outline_unit_id,omitempty"`
 		SceneHeading  string `json:"scene_heading"`
@@ -358,191 +336,173 @@ func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
 		OrderIndex    int32  `json:"order_index"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[createSceneBody, map[string]interface{}]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: func(r *http.Request) (*createSceneBody, error) {
+			var req createSceneBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid JSON")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *createSceneBody) (*map[string]interface{}, error) {
+			if req.ProjectID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project_id is required")
+			}
 
-	if req.ProjectID == "" {
-		handlers.WriteError(w, "project_id is required", http.StatusBadRequest)
-		return
-	}
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
+			response, err := h.scriptsClient.CreateScene(ctx, &scriptspb.CreateSceneRequest{
+				ProjectId:     req.ProjectID,
+				UserId:        userID,
+				OutlineUnitId: &req.OutlineUnitID,
+				SceneHeading:  req.SceneHeading,
+				Content:       req.Content,
+				OrderIndex:    req.OrderIndex,
+			})
 
-	response, err := h.scriptsClient.CreateScene(ctx, &scriptspb.CreateSceneRequest{
-		ProjectId:     req.ProjectID,
-		UserId:        userID,
-		OutlineUnitId: &req.OutlineUnitID,
-		SceneHeading:  req.SceneHeading,
-		Content:       req.Content,
-		OrderIndex:    req.OrderIndex,
-	})
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to create scene")
+			}
 
-	if err != nil {
-		handlers.WriteError(w, "Failed to create scene", http.StatusInternalServerError)
-		return
-	}
-
-	// Convert response
-	scene := convertSceneFromProto(response.Scene)
-	result := map[string]interface{}{
-		"scene": scene,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+			result := map[string]interface{}{
+				"scene": convertSceneFromProto(response.Scene),
+			}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // GetProjectScenes returns all scenes for a project. Requires a userID from the
 // request context and verifies access via handlers.ResolveProjectAccess before fetching.
 func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request) {
-	projectID := r.URL.Query().Get("project_id")
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
+	handlers.Endpoint[struct{}, map[string]interface{}]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]interface{}, error) {
+			projectID := r.URL.Query().Get("project_id")
+			if projectID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project_id is required")
+			}
 
-	if projectID == "" {
-		handlers.WriteError(w, "project_id is required", http.StatusBadRequest)
-		return
-	}
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
+			resolvedID, authErr := handlers.ResolveProjectAccess(ctx, userID, projectID, h.scriptsClient, h.collabClient)
+			if authErr != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Unauthorized")
+			}
 
-	resolvedID, authErr := handlers.ResolveProjectAccess(ctx, userID, projectID, h.scriptsClient, h.collabClient)
-	if authErr != nil {
-		handlers.WriteError(w, "Unauthorized", http.StatusForbidden)
-		return
-	}
+			response, err := h.scriptsClient.GetProjectScenes(ctx, &scriptspb.GetProjectScenesRequest{
+				ProjectId: projectID,
+				UserId:    resolvedID,
+			})
 
-	response, err := h.scriptsClient.GetProjectScenes(ctx, &scriptspb.GetProjectScenesRequest{
-		ProjectId: projectID,
-		UserId:    resolvedID,
-	})
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to get scenes")
+			}
 
-	if err != nil {
-		handlers.WriteError(w, "Failed to get scenes", http.StatusInternalServerError)
-		return
-	}
+			scenes := make([]map[string]interface{}, len(response.Scenes))
+			for i, scene := range response.Scenes {
+				scenes[i] = convertSceneFromProto(scene)
+			}
 
-	scenes := make([]map[string]interface{}, len(response.Scenes))
-	for i, scene := range response.Scenes {
-		scenes[i] = convertSceneFromProto(scene)
-	}
-
-	result := map[string]interface{}{
-		"scenes": scenes,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+			result := map[string]interface{}{
+				"scenes": scenes,
+			}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // UpdateScene applies partial updates to a scene. The caller is identified
 // from the auth context; a user_id field in the body is ignored. Only non-nil
 // fields in the request body are forwarded to the scripts service.
 func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
-	sceneID := chi.URLParam(r, "sceneId")
-	if sceneID == "" {
-		handlers.WriteError(w, "Scene ID is required", http.StatusBadRequest)
-		return
-	}
-
-	userID, ok := contextx.UserIDFrom(r.Context())
-	if !ok {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var req struct {
+	type updateSceneBody struct {
 		SceneHeading  *string `json:"scene_heading,omitempty"`
 		Content       *string `json:"content,omitempty"`
 		OrderIndex    *int32  `json:"order_index,omitempty"`
 		OutlineUnitID *string `json:"outline_unit_id,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[updateSceneBody, map[string]interface{}]{
+		// Registered under both PUT and PATCH — leave Method empty so both verbs work.
+		Auth: true,
+		Decode: func(r *http.Request) (*updateSceneBody, error) {
+			var req updateSceneBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid JSON")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *updateSceneBody) (*map[string]interface{}, error) {
+			sceneID := chi.URLParam(r, "sceneId")
+			if sceneID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Scene ID is required")
+			}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
 
-	response, err := h.scriptsClient.UpdateScene(ctx, &scriptspb.UpdateSceneRequest{
-		SceneId:      sceneID,
-		UserId:       userID,
-		SceneHeading: req.SceneHeading,
-		Content:      req.Content,
-		OrderIndex:   req.OrderIndex,
-	})
+			response, err := h.scriptsClient.UpdateScene(ctx, &scriptspb.UpdateSceneRequest{
+				SceneId:      sceneID,
+				UserId:       userID,
+				SceneHeading: req.SceneHeading,
+				Content:      req.Content,
+				OrderIndex:   req.OrderIndex,
+			})
 
-	if err != nil {
-		handlers.WriteError(w, "Failed to update scene", http.StatusInternalServerError)
-		return
-	}
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to update scene")
+			}
 
-	// Convert response
-	scene := convertSceneFromProto(response.Scene)
-	result := map[string]interface{}{
-		"scene": scene,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+			result := map[string]interface{}{
+				"scene": convertSceneFromProto(response.Scene),
+			}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // DeleteScene removes a scene by ID. Requires a userID from the request context.
 func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
-	sceneID := chi.URLParam(r, "sceneId")
-	if sceneID == "" {
-		handlers.WriteError(w, "Scene ID is required", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[struct{}, map[string]string]{
+		Method: http.MethodDelete,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]string, error) {
+			sceneID := chi.URLParam(r, "sceneId")
+			if sceneID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Scene ID is required")
+			}
 
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
 
-	// Call Scripts service
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
+			_, err := h.scriptsClient.DeleteScene(ctx, &scriptspb.DeleteSceneRequest{
+				SceneId: sceneID,
+				UserId:  userID,
+			})
 
-	_, err := h.scriptsClient.DeleteScene(ctx, &scriptspb.DeleteSceneRequest{
-		SceneId: sceneID,
-		UserId:  userID,
-	})
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to delete scene")
+			}
 
-	if err != nil {
-		handlers.WriteError(w, "Failed to delete scene", http.StatusInternalServerError)
-		return
-	}
-
-	// Return success response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Scene deleted successfully"})
+			result := map[string]string{"message": "Scene deleted successfully"}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // CreateElement adds a new script element (e.g. dialogue, action, transition)
 // to a scene within a project. The element is attributed to the authenticated
 // caller; a user_id field in the request body is ignored.
 func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
-	userID, ok := contextx.UserIDFrom(r.Context())
-	if !ok {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var req struct {
+	type createElementBody struct {
 		ProjectID   string            `json:"project_id"`
 		SceneID     string            `json:"scene_id"`
 		ElementType string            `json:"element_type"`
@@ -552,147 +512,139 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 		Formatting  map[string]string `json:"formatting"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[createElementBody, map[string]interface{}]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: func(r *http.Request) (*createElementBody, error) {
+			var req createElementBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid JSON")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *createElementBody) (*map[string]interface{}, error) {
+			if req.ProjectID == "" || req.ElementType == "" || req.SceneID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project_id, scene_id, and element_type are required")
+			}
 
-	if req.ProjectID == "" || req.ElementType == "" || req.SceneID == "" {
-		handlers.WriteError(w, "project_id, scene_id, and element_type are required", http.StatusBadRequest)
-		return
-	}
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
+			response, err := h.scriptsClient.CreateElement(ctx, &scriptspb.CreateElementRequest{
+				ProjectId:   req.ProjectID,
+				UserId:      userID,
+				SceneId:     req.SceneID,
+				ElementType: req.ElementType,
+				Content:     req.Content,
+				CharacterId: &req.CharacterID,
+				LineNumber:  req.LineNumber,
+				Formatting:  req.Formatting,
+			})
 
-	response, err := h.scriptsClient.CreateElement(ctx, &scriptspb.CreateElementRequest{
-		ProjectId:   req.ProjectID,
-		UserId:      userID,
-		SceneId:     req.SceneID,
-		ElementType: req.ElementType,
-		Content:     req.Content,
-		CharacterId: &req.CharacterID,
-		LineNumber:  req.LineNumber,
-		Formatting:  req.Formatting,
-	})
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to create element")
+			}
 
-	if err != nil {
-		handlers.WriteError(w, "Failed to create element", http.StatusInternalServerError)
-		return
-	}
-
-	// Convert response
-	element := convertElementFromProto(response.Element)
-	result := map[string]interface{}{
-		"element": element,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+			result := map[string]interface{}{
+				"element": convertElementFromProto(response.Element),
+			}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // UpdateElement applies partial updates to a script element. At least one of
 // content or elementType must be provided in the request body.
 func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
-	elementID := chi.URLParam(r, "elementId")
-	if elementID == "" {
-		handlers.WriteError(w, "Element ID is required", http.StatusBadRequest)
-		return
-	}
-
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var req struct {
+	type updateElementBody struct {
 		Content     *string `json:"content"`
 		ElementType *string `json:"elementType"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[updateElementBody, map[string]interface{}]{
+		// Registered under both PUT and PATCH — leave Method empty so both verbs work.
+		Auth: true,
+		Decode: func(r *http.Request) (*updateElementBody, error) {
+			var req updateElementBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid JSON")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *updateElementBody) (*map[string]interface{}, error) {
+			elementID := chi.URLParam(r, "elementId")
+			if elementID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Element ID is required")
+			}
 
-	// At least one field must be provided for update
-	if req.Content == nil && req.ElementType == nil {
-		handlers.WriteError(w, "Either content or elementType must be provided", http.StatusBadRequest)
-		return
-	}
+			// At least one field must be provided for update
+			if req.Content == nil && req.ElementType == nil {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Either content or elementType must be provided")
+			}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
 
-	updateReq := &scriptspb.UpdateElementRequest{
-		ElementId: elementID,
-		UserId:    userID,
-	}
+			updateReq := &scriptspb.UpdateElementRequest{
+				ElementId: elementID,
+				UserId:    userID,
+			}
 
-	if req.Content != nil {
-		updateReq.Content = *req.Content
-	}
+			if req.Content != nil {
+				updateReq.Content = *req.Content
+			}
 
-	if req.ElementType != nil {
-		updateReq.Type = *req.ElementType
-	}
+			if req.ElementType != nil {
+				updateReq.Type = *req.ElementType
+			}
 
-	response, err := h.scriptsClient.UpdateElement(ctx, updateReq)
-	if err != nil {
-		// Retry with empty userID — collaborator access is confirmed by JWT auth;
-		// the user must have loaded the scene to know this element ID.
-		updateReq.UserId = ""
-		response, err = h.scriptsClient.UpdateElement(ctx, updateReq)
-	}
-	if err != nil {
-		handlers.WriteError(w, "Failed to update element", http.StatusInternalServerError)
-		return
-	}
+			response, err := h.scriptsClient.UpdateElement(ctx, updateReq)
+			if err != nil {
+				// Retry with empty userID — collaborator access is confirmed by JWT auth;
+				// the user must have loaded the scene to know this element ID.
+				updateReq.UserId = ""
+				response, err = h.scriptsClient.UpdateElement(ctx, updateReq)
+			}
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to update element")
+			}
 
-	// Convert response
-	element := convertElementFromProto(response.Element)
-	result := map[string]interface{}{
-		"element": element,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+			result := map[string]interface{}{
+				"element": convertElementFromProto(response.Element),
+			}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // DeleteElement removes a script element by ID. Requires a userID from the request context.
 func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
-	elementID := chi.URLParam(r, "elementId")
-	if elementID == "" {
-		handlers.WriteError(w, "Element ID is required", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[struct{}, map[string]string]{
+		Method: http.MethodDelete,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]string, error) {
+			elementID := chi.URLParam(r, "elementId")
+			if elementID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Element ID is required")
+			}
 
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
 
-	// Call Scripts service
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
+			_, err := h.scriptsClient.DeleteScriptElement(ctx, &scriptspb.DeleteScriptElementRequest{
+				ScriptElementId: elementID,
+				UserId:          userID,
+			})
 
-	_, err := h.scriptsClient.DeleteScriptElement(ctx, &scriptspb.DeleteScriptElementRequest{
-		ScriptElementId: elementID,
-		UserId:          userID,
-	})
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to delete element")
+			}
 
-	if err != nil {
-		handlers.WriteError(w, "Failed to delete element", http.StatusInternalServerError)
-		return
-	}
-
-	// Return success response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Element deleted successfully"})
+			result := map[string]string{"message": "Element deleted successfully"}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // GetSceneElements returns all elements for a scene. If the initial request fails
@@ -700,50 +652,46 @@ func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
 // that skips the ownership check. This handles collaborator access where project
 // membership is already verified by the auth middleware.
 func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request) {
-	sceneID := r.URL.Query().Get("scene_id")
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
+	handlers.Endpoint[struct{}, map[string]interface{}]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]interface{}, error) {
+			sceneID := r.URL.Query().Get("scene_id")
+			if sceneID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "scene_id is required")
+			}
 
-	if sceneID == "" {
-		handlers.WriteError(w, "scene_id is required", http.StatusBadRequest)
-		return
-	}
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
+			response, err := h.scriptsClient.GetSceneElements(ctx, &scriptspb.GetSceneElementsRequest{
+				SceneId: sceneID,
+				UserId:  userID,
+			})
+			if err != nil {
+				// Retry with empty userId — collaborator access is verified by JWT auth middleware
+				// and the user must have already loaded scenes successfully to know this scene_id
+				response, err = h.scriptsClient.GetSceneElements(ctx, &scriptspb.GetSceneElementsRequest{
+					SceneId: sceneID,
+					UserId:  "",
+				})
+				if err != nil {
+					return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to get elements")
+				}
+			}
 
-	response, err := h.scriptsClient.GetSceneElements(ctx, &scriptspb.GetSceneElementsRequest{
-		SceneId: sceneID,
-		UserId:  userID,
-	})
-	if err != nil {
-		// Retry with empty userId — collaborator access is verified by JWT auth middleware
-		// and the user must have already loaded scenes successfully to know this scene_id
-		response, err = h.scriptsClient.GetSceneElements(ctx, &scriptspb.GetSceneElementsRequest{
-			SceneId: sceneID,
-			UserId:  "",
-		})
-		if err != nil {
-			handlers.WriteError(w, "Failed to get elements", http.StatusInternalServerError)
-			return
-		}
-	}
+			elements := make([]map[string]interface{}, len(response.Elements))
+			for i, element := range response.Elements {
+				elements[i] = convertElementFromProto(element)
+			}
 
-	elements := make([]map[string]interface{}, len(response.Elements))
-	for i, element := range response.Elements {
-		elements[i] = convertElementFromProto(element)
-	}
-
-	result := map[string]interface{}{
-		"elements": elements,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+			result := map[string]interface{}{
+				"elements": elements,
+			}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // convertProjectFromProto converts a protobuf Project message to a JSON-serialisable map.

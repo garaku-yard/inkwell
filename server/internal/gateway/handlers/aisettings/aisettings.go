@@ -10,11 +10,12 @@ package aisettings
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
-	"inkwell/server/internal/gateway/contextx"
+	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
 	"inkwell/server/pkg/aiadapter"
@@ -73,10 +74,24 @@ func toDTO(s *aisettingspb.ProviderSetting) settingDTO {
 	}
 }
 
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
+// decodeSaveInput reproduces the legacy "Invalid JSON body" decode-error
+// message (the shared JSONBody helper would emit "invalid JSON" instead).
+func decodeSaveInput(r *http.Request) (*saveInputDTO, error) {
+	var in saveInputDTO
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		return nil, errors.New("Invalid JSON body")
+	}
+	return &in, nil
+}
+
+// decodeSetKey reproduces the legacy "Invalid JSON body" decode-error
+// message for the key-set body.
+func decodeSetKey(r *http.Request) (*setKeyDTO, error) {
+	var in setKeyDTO
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		return nil, errors.New("Invalid JSON body")
+	}
+	return &in, nil
 }
 
 // guardOpenAICompatible rejects openai_compatible rows whose baseUrl
@@ -93,147 +108,141 @@ func (h *AISettingsHandler) guardOpenAICompatible(kind, baseURL string) error {
 
 // List handles GET /api/ai/settings.
 func (h *AISettingsHandler) List(w http.ResponseWriter, r *http.Request) {
-	userID, ok := contextx.UserIDFrom(r.Context())
-	if !ok {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	resp, err := h.client.ListProviderSettings(r.Context(), &aisettingspb.ListProviderSettingsRequest{UserId: userID})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	out := make([]settingDTO, len(resp.Settings))
-	for i, s := range resp.Settings {
-		out[i] = toDTO(s)
-	}
-	writeJSON(w, http.StatusOK, out)
+	handlers.Endpoint[struct{}, []settingDTO]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]settingDTO, error) {
+			resp, err := h.client.ListProviderSettings(r.Context(), &aisettingspb.ListProviderSettingsRequest{UserId: userID})
+			if err != nil {
+				return nil, err
+			}
+			out := make([]settingDTO, len(resp.Settings))
+			for i, s := range resp.Settings {
+				out[i] = toDTO(s)
+			}
+			return &out, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // Create handles POST /api/ai/settings.
 func (h *AISettingsHandler) Create(w http.ResponseWriter, r *http.Request) {
-	userID, ok := contextx.UserIDFrom(r.Context())
-	if !ok {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	var in saveInputDTO
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		handlers.WriteError(w, "Invalid JSON body", http.StatusBadRequest)
-		return
-	}
-	if err := h.guardOpenAICompatible(in.Kind, in.BaseURL); err != nil {
-		handlers.WriteError(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	resp, err := h.client.CreateProviderSetting(r.Context(), &aisettingspb.CreateProviderSettingRequest{
-		UserId:       userID,
-		Kind:         in.Kind,
-		Label:        in.Label,
-		Enabled:      in.Enabled,
-		BaseUrl:      in.BaseURL,
-		DefaultModel: in.DefaultModel,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, toDTO(resp.Setting))
+	handlers.Endpoint[saveInputDTO, settingDTO]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: decodeSaveInput,
+		Handle: func(r *http.Request, userID string, in *saveInputDTO) (*settingDTO, error) {
+			if err := h.guardOpenAICompatible(in.Kind, in.BaseURL); err != nil {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, err.Error())
+			}
+			resp, err := h.client.CreateProviderSetting(r.Context(), &aisettingspb.CreateProviderSettingRequest{
+				UserId:       userID,
+				Kind:         in.Kind,
+				Label:        in.Label,
+				Enabled:      in.Enabled,
+				BaseUrl:      in.BaseURL,
+				DefaultModel: in.DefaultModel,
+			})
+			if err != nil {
+				return nil, err
+			}
+			dto := toDTO(resp.Setting)
+			return &dto, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
-// Update handles PUT /api/ai/settings/{id}.
+// Update handles PUT/PATCH /api/ai/settings/{id}.
 func (h *AISettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
-	userID, ok := contextx.UserIDFrom(r.Context())
-	if !ok {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	id := chi.URLParam(r, "id")
-	var in saveInputDTO
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		handlers.WriteError(w, "Invalid JSON body", http.StatusBadRequest)
-		return
-	}
-	if err := h.guardOpenAICompatible(in.Kind, in.BaseURL); err != nil {
-		handlers.WriteError(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	resp, err := h.client.UpdateProviderSetting(r.Context(), &aisettingspb.UpdateProviderSettingRequest{
-		UserId:       userID,
-		Id:           id,
-		Kind:         in.Kind,
-		Label:        in.Label,
-		Enabled:      in.Enabled,
-		BaseUrl:      in.BaseURL,
-		DefaultModel: in.DefaultModel,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, toDTO(resp.Setting))
+	handlers.Endpoint[saveInputDTO, settingDTO]{
+		// Registered for both PUT and PATCH; leave Method empty so the
+		// wrapper doesn't reject either verb.
+		Auth:   true,
+		Decode: decodeSaveInput,
+		Handle: func(r *http.Request, userID string, in *saveInputDTO) (*settingDTO, error) {
+			id := chi.URLParam(r, "id")
+			if err := h.guardOpenAICompatible(in.Kind, in.BaseURL); err != nil {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, err.Error())
+			}
+			resp, err := h.client.UpdateProviderSetting(r.Context(), &aisettingspb.UpdateProviderSettingRequest{
+				UserId:       userID,
+				Id:           id,
+				Kind:         in.Kind,
+				Label:        in.Label,
+				Enabled:      in.Enabled,
+				BaseUrl:      in.BaseURL,
+				DefaultModel: in.DefaultModel,
+			})
+			if err != nil {
+				return nil, err
+			}
+			dto := toDTO(resp.Setting)
+			return &dto, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // Delete handles DELETE /api/ai/settings/{id}.
 func (h *AISettingsHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	userID, ok := contextx.UserIDFrom(r.Context())
-	if !ok {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	id := chi.URLParam(r, "id")
-	if _, err := h.client.DeleteProviderSetting(r.Context(), &aisettingspb.DeleteProviderSettingRequest{
-		UserId: userID,
-		Id:     id,
-	}); err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handlers.Endpoint[struct{}, struct{}]{
+		Method:        http.MethodDelete,
+		Auth:          true,
+		Decode:        handlers.NoBody[struct{}],
+		SuccessStatus: http.StatusNoContent,
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
+			id := chi.URLParam(r, "id")
+			if _, err := h.client.DeleteProviderSetting(r.Context(), &aisettingspb.DeleteProviderSettingRequest{
+				UserId: userID,
+				Id:     id,
+			}); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // SetKey handles POST /api/ai/settings/{id}/key.
 func (h *AISettingsHandler) SetKey(w http.ResponseWriter, r *http.Request) {
-	userID, ok := contextx.UserIDFrom(r.Context())
-	if !ok {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	id := chi.URLParam(r, "id")
-	var in setKeyDTO
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		handlers.WriteError(w, "Invalid JSON body", http.StatusBadRequest)
-		return
-	}
-	if in.APIKey == "" {
-		handlers.WriteError(w, "apiKey required", http.StatusBadRequest)
-		return
-	}
-	if _, err := h.client.SetProviderKey(r.Context(), &aisettingspb.SetProviderKeyRequest{
-		UserId: userID,
-		Id:     id,
-		ApiKey: in.APIKey,
-	}); err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handlers.Endpoint[setKeyDTO, struct{}]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		Decode:        decodeSetKey,
+		SuccessStatus: http.StatusNoContent,
+		Handle: func(r *http.Request, userID string, in *setKeyDTO) (*struct{}, error) {
+			id := chi.URLParam(r, "id")
+			if in.APIKey == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "apiKey required")
+			}
+			if _, err := h.client.SetProviderKey(r.Context(), &aisettingspb.SetProviderKeyRequest{
+				UserId: userID,
+				Id:     id,
+				ApiKey: in.APIKey,
+			}); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // ClearKey handles DELETE /api/ai/settings/{id}/key.
 func (h *AISettingsHandler) ClearKey(w http.ResponseWriter, r *http.Request) {
-	userID, ok := contextx.UserIDFrom(r.Context())
-	if !ok {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	id := chi.URLParam(r, "id")
-	if _, err := h.client.ClearProviderKey(r.Context(), &aisettingspb.ClearProviderKeyRequest{
-		UserId: userID,
-		Id:     id,
-	}); err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handlers.Endpoint[struct{}, struct{}]{
+		Method:        http.MethodDelete,
+		Auth:          true,
+		Decode:        handlers.NoBody[struct{}],
+		SuccessStatus: http.StatusNoContent,
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
+			id := chi.URLParam(r, "id")
+			if _, err := h.client.ClearProviderKey(r.Context(), &aisettingspb.ClearProviderKeyRequest{
+				UserId: userID,
+				Id:     id,
+			}); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
 }
