@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react"
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react"
 
 export type ColorMode = "light" | "dark" | "system"
 
@@ -263,10 +263,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     ? (document.documentElement.classList.contains("dark") ? "dark" : "light")
     : "light"
 
-  if (!mounted) return <>{children}</>
-
-  return (
-    <ThemeContext.Provider value={{
+  // Memoised so a prefs change (e.g. dragging the line-height slider) doesn't
+  // hand every useTheme consumer a new object and re-render the whole tree.
+  const value = useMemo<ThemeContextType>(
+    () => ({
       prefs,
       setColorMode,
       setTheme,
@@ -276,10 +276,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       editorFontStack,
       theme: resolvedTheme,
       toggleTheme,
-    }}>
-      {children}
-    </ThemeContext.Provider>
+    }),
+    [prefs, setColorMode, setTheme, setEditorFontFor, setUiFont, setEditorLineHeight, editorFontStack, resolvedTheme, toggleTheme],
   )
+
+  if (!mounted) return <>{children}</>
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+
 }
 
 export function useTheme() {
