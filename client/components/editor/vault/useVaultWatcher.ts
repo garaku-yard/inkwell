@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react"
 import { isTauri } from "@tauri-apps/api/core"
 
 import type { Storage, VaultBacklink } from "@/lib/storage"
+import { allowFsDir } from "@/lib/tauri-scope"
 
 interface UseVaultWatcherOptions {
   vaultPath: string | null
@@ -60,6 +61,9 @@ export function useVaultWatcher({
 
     void (async () => {
       try {
+        // Ensure this process is allowed to watch the vault subtree (the app
+        // grants fs scope at runtime rather than statically).
+        await allowFsDir(vaultPath, true)
         // `watch` collects change events during `delayMs` and fires once —
         // cheaper than `watchImmediate` when a save touches several files
         // (e.g. our autosave + an editor tool running in parallel).

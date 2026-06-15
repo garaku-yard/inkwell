@@ -17,6 +17,7 @@ import type {
   VaultTag,
 } from "@/lib/storage"
 import { rewriteWikilinks } from "@/lib/vault/wikilink-sweep"
+import { allowFsDir } from "@/lib/tauri-scope"
 import { getDb, now } from "./shared"
 
 // ─── Vault (markdown notes on disk) ──────────────────────────────────────
@@ -207,6 +208,10 @@ async function getVaultPathOrThrow(projectId: string): Promise<string> {
       `Vault project ${projectId} has no folder attached. Pick one via the folder picker first.`,
     )
   }
+  // Grant this process read/write + asset access to the vault subtree before
+  // any caller touches it. Every vault fs operation resolves its folder here,
+  // so this is the one place that has to ensure the runtime scope.
+  await allowFsDir(path, true)
   return path
 }
 

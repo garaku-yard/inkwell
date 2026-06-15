@@ -2,6 +2,7 @@ use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod open_file;
+mod scope;
 mod secrets;
 
 /// Schema migrations applied to the local SQLite database on startup. Keep
@@ -64,6 +65,7 @@ pub fn run() {
       secrets::secret_get,
       secrets::secret_delete,
       open_file::consume_pending_open_file,
+      scope::allow_fs_dir,
     ])
     .setup(|app| {
       // Make sure the window advertises the bundle icon on platforms that

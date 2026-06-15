@@ -44,6 +44,7 @@ import { VaultBacklinksPane } from "./vault/VaultBacklinksPane"
 import { VaultNoteToolbar } from "./vault/VaultNoteToolbar"
 import { VaultSidebar } from "./vault/VaultSidebar"
 import { buildVaultTree } from "./vault/VaultTreeNode"
+import { allowFsDir } from "@/lib/tauri-scope"
 
 interface VaultEditorProps {
   projectData: FullProject
@@ -456,8 +457,14 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     try {
       const { open } = await import("@tauri-apps/plugin-dialog")
       const { copyFile, exists, mkdir } = await import("@tauri-apps/plugin-fs")
+      // Writing into the vault subtree (attachments dir) needs the vault scope.
+      await allowFsDir(vaultPath, true)
       const picked = await open({ multiple: false })
       if (!picked || typeof picked !== "string") return
+      // The picked source file lives outside the vault; grant read on its
+      // folder before copying it in.
+      const pickedDir = picked.slice(0, Math.max(picked.lastIndexOf("/"), picked.lastIndexOf("\\")))
+      if (pickedDir) await allowFsDir(pickedDir, false)
 
       const sep = /\\/.test(vaultPath) && !/\//.test(vaultPath) ? "\\" : "/"
       const root = vaultPath.replace(/[\\/]+$/, "")
