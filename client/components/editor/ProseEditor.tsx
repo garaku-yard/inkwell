@@ -14,7 +14,6 @@ import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createProseKeymap } from "./prose/keymap"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
-import { exportProseToEpub } from "@/lib/export/prose-epub"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import { StableContentEditable } from "./shared/StableContentEditable"
 import { useScrollSpy } from "./shared/useScrollSpy"
@@ -258,7 +257,11 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
               onClick: () => void runExport({
                 extension: "epub",
                 projectTitle: projectData.title,
-                run: () => exportProseToEpub({ ...projectData, scenes }),
+                run: async () => {
+                  // fflate is heavy — load it only when the user exports.
+                  const { exportProseToEpub } = await import("@/lib/export/prose-epub")
+                  await exportProseToEpub({ ...projectData, scenes })
+                },
               }),
             },
           ]}

@@ -14,7 +14,6 @@ import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createComicKeymap, type ComicElementType as KeymapComicElementType } from "./comic/keymap"
 import { exportProjectToText } from "@/lib/export/text-export"
-import { exportComicToCBZ } from "@/lib/export/comic-cbz"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import { StableContentEditable } from "./shared/StableContentEditable"
 import {
@@ -240,7 +239,11 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
               onClick: () => void runExport({
                 extension: "cbz",
                 projectTitle: projectData.title,
-                run: () => exportComicToCBZ({ ...projectData, scenes: pages }),
+                run: async () => {
+                  // fflate is heavy — load it only when the user exports.
+                  const { exportComicToCBZ } = await import("@/lib/export/comic-cbz")
+                  await exportComicToCBZ({ ...projectData, scenes: pages })
+                },
               }),
             },
           ]}
