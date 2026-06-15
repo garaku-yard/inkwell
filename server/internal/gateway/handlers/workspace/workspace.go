@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -12,6 +13,20 @@ import (
 	"inkwell/server/pkg/grpc/identity"
 	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
+
+// jsonBodyOrInvalid decodes a JSON request body, reproducing the legacy
+// "Invalid JSON" 400 message that several workspace handlers emitted before the
+// Endpoint migration. handlers.JSONBody returns "invalid JSON" / "request body
+// is required" instead, so handlers needing the old wording use this closure.
+// Endpoint's decode path emits the returned error's text verbatim as the 400
+// message, so this returns a plain error to preserve the exact "Invalid JSON".
+func jsonBodyOrInvalid[T any](r *http.Request) (*T, error) {
+	var body T
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return nil, errors.New("Invalid JSON")
+	}
+	return &body, nil
+}
 
 // WorkspaceHandler routes workspace and category HTTP requests to the workspace
 // gRPC service. URL parameters are extracted using chi's routing context. The
@@ -34,13 +49,17 @@ func NewWorkspaceHandler(clients *grpcclient.Registry) *WorkspaceHandler {
 // ListCategories returns all available workspace content categories (e.g. "screenplay",
 // "prose", "lyrics"). Categories are global and not user-scoped.
 func (h *WorkspaceHandler) ListCategories(w http.ResponseWriter, r *http.Request) {
-	resp, err := h.client.ListCategories(r.Context(), &workspacepb.ListCategoriesRequest{})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp.Categories)
+	handlers.Endpoint[struct{}, []*workspacepb.Category]{
+		Method: http.MethodGet,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, _ string, _ *struct{}) (*[]*workspacepb.Category, error) {
+			resp, err := h.client.ListCategories(r.Context(), &workspacepb.ListCategoriesRequest{})
+			if err != nil {
+				return nil, err
+			}
+			return &resp.Categories, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // listUserWorkspacesResponse partitions workspace listings by ownership type.
@@ -100,81 +119,76 @@ func (h *WorkspaceHandler) CreatePersonalWorkspaces(w http.ResponseWriter, r *ht
 // CreateOrgWorkspace creates a new organisation workspace owned by the authenticated
 // user. The name field is required; description and category_slugs are optional.
 func (h *WorkspaceHandler) CreateOrgWorkspace(w http.ResponseWriter, r *http.Request) {
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var body struct {
+	type createOrgWorkspaceBody struct {
 		Name          string   `json:"name"`
 		Description   string   `json:"description"`
 		CategorySlugs []string `json:"category_slugs"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		handlers.WriteError(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-	if body.Name == "" {
-		handlers.WriteError(w, "name is required", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := h.client.CreateOrgWorkspace(r.Context(), &workspacepb.CreateOrgWorkspaceRequest{
-		OwnerId:       userID,
-		Name:          body.Name,
-		Description:   body.Description,
-		CategorySlugs: body.CategorySlugs,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp.Workspace)
+	handlers.Endpoint[createOrgWorkspaceBody, workspacepb.Workspace]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		Decode:        jsonBodyOrInvalid[createOrgWorkspaceBody],
+		SuccessStatus: http.StatusCreated,
+		Handle: func(r *http.Request, userID string, body *createOrgWorkspaceBody) (*workspacepb.Workspace, error) {
+			if body.Name == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "name is required")
+			}
+			resp, err := h.client.CreateOrgWorkspace(r.Context(), &workspacepb.CreateOrgWorkspaceRequest{
+				OwnerId:       userID,
+				Name:          body.Name,
+				Description:   body.Description,
+				CategorySlugs: body.CategorySlugs,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return resp.Workspace, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // GetWorkspace returns a workspace by its ID, extracted from the "workspaceId"
 // chi URL parameter.
 func (h *WorkspaceHandler) GetWorkspace(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceId")
-	resp, err := h.client.GetWorkspace(r.Context(), &workspacepb.GetWorkspaceRequest{WorkspaceId: workspaceID})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp.Workspace)
+	handlers.Endpoint[struct{}, workspacepb.Workspace]{
+		Method: http.MethodGet,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, _ string, _ *struct{}) (*workspacepb.Workspace, error) {
+			workspaceID := chi.URLParam(r, "workspaceId")
+			resp, err := h.client.GetWorkspace(r.Context(), &workspacepb.GetWorkspaceRequest{WorkspaceId: workspaceID})
+			if err != nil {
+				return nil, err
+			}
+			return resp.Workspace, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // UpdateWorkspace applies partial updates to a workspace's name, description, or
 // avatar URL. The workspace ID is extracted from the "workspaceId" chi URL parameter.
 func (h *WorkspaceHandler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceId")
-
-	var body struct {
+	type updateWorkspaceBody struct {
 		Name        string `json:"name"`
 		Description string `json:"description"`
 		AvatarURL   string `json:"avatar_url"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		handlers.WriteError(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := h.client.UpdateWorkspace(r.Context(), &workspacepb.UpdateWorkspaceRequest{
-		WorkspaceId: workspaceID,
-		Name:        body.Name,
-		Description: body.Description,
-		AvatarUrl:   body.AvatarURL,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp.Workspace)
+	// Router mounts this on both PUT and PATCH, so the endpoint accepts any verb.
+	handlers.Endpoint[updateWorkspaceBody, workspacepb.Workspace]{
+		Decode: jsonBodyOrInvalid[updateWorkspaceBody],
+		Handle: func(r *http.Request, _ string, body *updateWorkspaceBody) (*workspacepb.Workspace, error) {
+			workspaceID := chi.URLParam(r, "workspaceId")
+			resp, err := h.client.UpdateWorkspace(r.Context(), &workspacepb.UpdateWorkspaceRequest{
+				WorkspaceId: workspaceID,
+				Name:        body.Name,
+				Description: body.Description,
+				AvatarUrl:   body.AvatarURL,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return resp.Workspace, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // DeleteWorkspace permanently removes a workspace. Requires a userID from the
@@ -251,14 +265,18 @@ func (h *WorkspaceHandler) DisableCategory(w http.ResponseWriter, r *http.Reques
 
 // ListMembers returns all current members of a workspace.
 func (h *WorkspaceHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceId")
-	resp, err := h.client.ListMembers(r.Context(), &workspacepb.ListMembersRequest{WorkspaceId: workspaceID})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp.Members)
+	handlers.Endpoint[struct{}, []*workspacepb.WorkspaceMember]{
+		Method: http.MethodGet,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, _ string, _ *struct{}) (*[]*workspacepb.WorkspaceMember, error) {
+			workspaceID := chi.URLParam(r, "workspaceId")
+			resp, err := h.client.ListMembers(r.Context(), &workspacepb.ListMembersRequest{WorkspaceId: workspaceID})
+			if err != nil {
+				return nil, err
+			}
+			return &resp.Members, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // InviteMember generates a workspace invitation token for the given target and
@@ -272,131 +290,128 @@ func (h *WorkspaceHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 // For backwards compatibility, callers may still send a plain `email` field
 // and it's treated as the target.
 func (h *WorkspaceHandler) InviteMember(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceId")
-	invitedBy := handlers.GetUserIDFromContext(r)
-	if invitedBy == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var body struct {
+	type inviteMemberBody struct {
 		Target string `json:"target"`
 		Email  string `json:"email"` // legacy alias for Target
 		Role   string `json:"role"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		handlers.WriteError(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[inviteMemberBody, map[string]string]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		Decode:        jsonBodyOrInvalid[inviteMemberBody],
+		SuccessStatus: http.StatusCreated,
+		Handle: func(r *http.Request, invitedBy string, body *inviteMemberBody) (*map[string]string, error) {
+			workspaceID := chi.URLParam(r, "workspaceId")
 
-	target := body.Target
-	if target == "" {
-		target = body.Email
-	}
-	if target == "" || body.Role == "" {
-		handlers.WriteError(w, "target (email or @username or username#tag) and role are required", http.StatusBadRequest)
-		return
-	}
+			target := body.Target
+			if target == "" {
+				target = body.Email
+			}
+			if target == "" || body.Role == "" {
+				return nil, apierror.New(handlers.CodeForHTTPStatus(http.StatusBadRequest), http.StatusBadRequest, "target (email or @username or username#tag) and role are required")
+			}
 
-	// Resolve @username / username#tag to an email. Plain emails pass through
-	// unchanged. A resolution failure means the user doesn't exist — surface
-	// that as 400 so the UI can hint the inviter checked the handle.
-	resolvedEmail, err := ResolveEmailOrTag(r.Context(), h.identityClient, target)
-	if err != nil {
-		handlers.WriteError(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+			// Resolve @username / username#tag to an email. Plain emails pass
+			// through unchanged. A resolution failure means the user doesn't
+			// exist — surface that as 400 so the UI can hint the inviter
+			// checked the handle.
+			resolvedEmail, err := ResolveEmailOrTag(r.Context(), h.identityClient, target)
+			if err != nil {
+				return nil, apierror.New(handlers.CodeForHTTPStatus(http.StatusBadRequest), http.StatusBadRequest, err.Error())
+			}
 
-	resp, err := h.client.InviteMember(r.Context(), &workspacepb.InviteMemberRequest{
-		WorkspaceId: workspaceID,
-		Email:       resolvedEmail,
-		Role:        body.Role,
-		InvitedBy:   invitedBy,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"invite_token": resp.InviteToken})
+			resp, err := h.client.InviteMember(r.Context(), &workspacepb.InviteMemberRequest{
+				WorkspaceId: workspaceID,
+				Email:       resolvedEmail,
+				Role:        body.Role,
+				InvitedBy:   invitedBy,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &map[string]string{"invite_token": resp.InviteToken}, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // AcceptInvite redeems an invitation token for the authenticated user, adding them
 // to the workspace. The token is extracted from the "token" chi URL parameter.
 func (h *WorkspaceHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
-	token := chi.URLParam(r, "token")
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	resp, err := h.client.AcceptInvite(r.Context(), &workspacepb.AcceptInviteRequest{
-		Token:  token,
-		UserId: userID,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp.Workspace)
+	handlers.Endpoint[struct{}, workspacepb.Workspace]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*workspacepb.Workspace, error) {
+			token := chi.URLParam(r, "token")
+			resp, err := h.client.AcceptInvite(r.Context(), &workspacepb.AcceptInviteRequest{
+				Token:  token,
+				UserId: userID,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return resp.Workspace, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // DeclineInvite invalidates an invitation token without adding the user to the workspace.
 func (h *WorkspaceHandler) DeclineInvite(w http.ResponseWriter, r *http.Request) {
-	token := chi.URLParam(r, "token")
-
-	_, err := h.client.DeclineInvite(r.Context(), &workspacepb.DeclineInviteRequest{Token: token})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{"success": true})
+	handlers.Endpoint[struct{}, map[string]bool]{
+		Method: http.MethodPost,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, _ string, _ *struct{}) (*map[string]bool, error) {
+			token := chi.URLParam(r, "token")
+			if _, err := h.client.DeclineInvite(r.Context(), &workspacepb.DeclineInviteRequest{Token: token}); err != nil {
+				return nil, err
+			}
+			return &map[string]bool{"success": true}, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // UpdateMemberRole changes the role of a workspace member identified by the
 // "userId" chi URL parameter.
 func (h *WorkspaceHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceId")
-	targetUserID := chi.URLParam(r, "userId")
-
-	var body struct {
+	type updateMemberRoleBody struct {
 		Role string `json:"role"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		handlers.WriteError(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := h.client.UpdateMemberRole(r.Context(), &workspacepb.UpdateMemberRoleRequest{
-		WorkspaceId: workspaceID,
-		UserId:      targetUserID,
-		Role:        body.Role,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp.Member)
+	// Router mounts this on both PUT and PATCH, so the endpoint accepts any verb.
+	handlers.Endpoint[updateMemberRoleBody, workspacepb.WorkspaceMember]{
+		Decode: jsonBodyOrInvalid[updateMemberRoleBody],
+		Handle: func(r *http.Request, _ string, body *updateMemberRoleBody) (*workspacepb.WorkspaceMember, error) {
+			workspaceID := chi.URLParam(r, "workspaceId")
+			targetUserID := chi.URLParam(r, "userId")
+			resp, err := h.client.UpdateMemberRole(r.Context(), &workspacepb.UpdateMemberRoleRequest{
+				WorkspaceId: workspaceID,
+				UserId:      targetUserID,
+				Role:        body.Role,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return resp.Member, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // RemoveMember removes a member from a workspace. The target user ID is extracted
 // from the "userId" chi URL parameter.
 func (h *WorkspaceHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "workspaceId")
-	targetUserID := chi.URLParam(r, "userId")
-
-	_, err := h.client.RemoveMember(r.Context(), &workspacepb.RemoveMemberRequest{
-		WorkspaceId: workspaceID,
-		UserId:      targetUserID,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handlers.Endpoint[struct{}, struct{}]{
+		Method:        http.MethodDelete,
+		Decode:        handlers.NoBody[struct{}],
+		SuccessStatus: http.StatusNoContent,
+		Handle: func(r *http.Request, _ string, _ *struct{}) (*struct{}, error) {
+			workspaceID := chi.URLParam(r, "workspaceId")
+			targetUserID := chi.URLParam(r, "userId")
+			if _, err := h.client.RemoveMember(r.Context(), &workspacepb.RemoveMemberRequest{
+				WorkspaceId: workspaceID,
+				UserId:      targetUserID,
+			}); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
 }

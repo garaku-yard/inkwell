@@ -2,6 +2,7 @@ package scripts
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,124 +18,116 @@ import (
 	"github.com/google/uuid"
 )
 
+// createBeatBody is the JSON request shape for CreateBeat / UpdateBeat-adjacent fields.
+type createBeatBody struct {
+	Title        string `json:"title"`
+	Description  string `json:"description"`
+	SceneNumbers string `json:"sceneNumbers"` // DEPRECATED: Use startPage/endPage
+	Color        string `json:"color"`
+	Position     *struct {
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
+	} `json:"position,omitempty"`
+	PositionX *float64 `json:"positionX,omitempty"`
+	PositionY *float64 `json:"positionY,omitempty"`
+	Width     float64  `json:"width"`
+	Height    float64  `json:"height"`
+	ActNumber int32    `json:"actNumber"`
+	Order     int32    `json:"order"`
+	StartPage int32    `json:"startPage"`
+	EndPage   int32    `json:"endPage"`
+	ImageUrl  *string  `json:"imageUrl,omitempty"`
+}
+
 // CreateBeat handles POST /projects/{projectID}/beat-board/beats
 func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[createBeatBody, BeatResponse]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		SuccessStatus: http.StatusCreated,
+		Decode: func(r *http.Request) (*createBeatBody, error) {
+			// Limit request body size to 50MB (base64 images can be large)
+			r.Body = http.MaxBytesReader(w, r.Body, 50*1024*1024)
 
-	userID := handlers.GetUserIDFromContext(r)
-	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/beats")
+			var req createBeatBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				log.Printf("CreateBeat: Error decoding request body: %v", err)
+				return nil, errors.New("Invalid request body: " + err.Error())
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *createBeatBody) (*BeatResponse, error) {
+			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/beats")
 
-	var req struct {
-		Title        string `json:"title"`
-		Description  string `json:"description"`
-		SceneNumbers string `json:"sceneNumbers"` // DEPRECATED: Use startPage/endPage
-		Color        string `json:"color"`
-		Position     *struct {
-			X float64 `json:"x"`
-			Y float64 `json:"y"`
-		} `json:"position,omitempty"`
-		PositionX *float64 `json:"positionX,omitempty"`
-		PositionY *float64 `json:"positionY,omitempty"`
-		Width     float64  `json:"width"`
-		Height    float64  `json:"height"`
-		ActNumber int32    `json:"actNumber"`
-		Order     int32    `json:"order"`
-		StartPage int32    `json:"startPage"`
-		EndPage   int32    `json:"endPage"`
-		ImageUrl  *string  `json:"imageUrl,omitempty"`
-	}
+			log.Printf("CreateBeat: Received request with imageUrl: %v", req.ImageUrl)
 
-	// Limit request body size to 50MB (base64 images can be large)
-	r.Body = http.MaxBytesReader(w, r.Body, 50*1024*1024)
+			// Handle both nested position object and flat positionX/Y
+			var posX, posY float64
+			if req.Position != nil {
+				posX = req.Position.X
+				posY = req.Position.Y
+			} else {
+				if req.PositionX != nil {
+					posX = *req.PositionX
+				}
+				if req.PositionY != nil {
+					posY = *req.PositionY
+				}
+			}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("CreateBeat: Error decoding request body: %v", err)
-		handlers.WriteError(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
-		return
-	}
+			resp, err := h.scriptsClient.CreateBeat(r.Context(), &scriptspb.CreateBeatRequest{
+				ProjectId:    projectID,
+				UserId:       userID,
+				Title:        req.Title,
+				Description:  req.Description,
+				SceneNumbers: req.SceneNumbers,
+				Color:        req.Color,
+				PositionX:    posX,
+				PositionY:    posY,
+				Width:        req.Width,
+				Height:       req.Height,
+				ActNumber:    req.ActNumber,
+				Order:        req.Order,
+				StartPage:    req.StartPage,
+				EndPage:      req.EndPage,
+				ImageUrl:     req.ImageUrl,
+			})
 
-	log.Printf("CreateBeat: Received request with imageUrl: %v", req.ImageUrl)
+			if err != nil {
+				return nil, err
+			}
 
-	// Handle both nested position object and flat positionX/Y
-	var posX, posY float64
-	if req.Position != nil {
-		posX = req.Position.X
-		posY = req.Position.Y
-	} else {
-		if req.PositionX != nil {
-			posX = *req.PositionX
-		}
-		if req.PositionY != nil {
-			posY = *req.PositionY
-		}
-	}
-
-	resp, err := h.scriptsClient.CreateBeat(r.Context(), &scriptspb.CreateBeatRequest{
-		ProjectId:    projectID,
-		UserId:       userID,
-		Title:        req.Title,
-		Description:  req.Description,
-		SceneNumbers: req.SceneNumbers,
-		Color:        req.Color,
-		PositionX:    posX,
-		PositionY:    posY,
-		Width:        req.Width,
-		Height:       req.Height,
-		ActNumber:    req.ActNumber,
-		Order:        req.Order,
-		StartPage:    req.StartPage,
-		EndPage:      req.EndPage,
-		ImageUrl:     req.ImageUrl,
-	})
-
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(transformBeat(resp.Beat))
+			return transformBeat(resp.Beat), nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // GetProjectBeatBoard handles GET /projects/{projectID}/beat-board
 func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, BeatBoardDataResponse]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*BeatBoardDataResponse, error) {
+			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board")
 
-	userID := handlers.GetUserIDFromContext(r)
-	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board")
+			resp, err := h.scriptsClient.GetProjectBeatBoard(r.Context(), &scriptspb.GetProjectBeatBoardRequest{
+				ProjectId: projectID,
+				UserId:    userID,
+			})
 
-	resp, err := h.scriptsClient.GetProjectBeatBoard(r.Context(), &scriptspb.GetProjectBeatBoardRequest{
-		ProjectId: projectID,
-		UserId:    userID,
-	})
+			if err != nil {
+				return nil, err
+			}
 
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(transformBeatBoardData(resp.BeatBoard))
+			return transformBeatBoardData(resp.BeatBoard), nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // UpdateBeat handles PUT/PATCH /beats/{beatID}
 func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	userID := handlers.GetUserIDFromContext(r)
-	beatID := getIDFromPath(r.URL.Path, "/beats/")
-
-	var req struct {
+	type updateBeatBody struct {
 		Title        *string `json:"title,omitempty"`
 		Description  *string `json:"description,omitempty"`
 		SceneNumbers *string `json:"sceneNumbers,omitempty"` // DEPRECATED: Use startPage/endPage
@@ -154,367 +147,375 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 		ImageUrl  *string  `json:"imageUrl,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[updateBeatBody, BeatResponse]{
+		// Registered under both PUT and PATCH — leave Method empty so both verbs work.
+		Auth: true,
+		Decode: func(r *http.Request) (*updateBeatBody, error) {
+			var req updateBeatBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *updateBeatBody) (*BeatResponse, error) {
+			beatID := getIDFromPath(r.URL.Path, "/beats/")
 
-	grpcReq := &scriptspb.UpdateBeatRequest{
-		BeatId: beatID,
-		UserId: userID,
-	}
+			grpcReq := &scriptspb.UpdateBeatRequest{
+				BeatId: beatID,
+				UserId: userID,
+			}
 
-	if req.Title != nil {
-		grpcReq.Title = req.Title
-	}
-	if req.Description != nil {
-		grpcReq.Description = req.Description
-	}
-	if req.SceneNumbers != nil {
-		grpcReq.SceneNumbers = req.SceneNumbers
-	}
-	if req.Color != nil {
-		grpcReq.Color = req.Color
-	}
-	// Handle both nested position object and flat positionX/Y
-	if req.Position != nil {
-		grpcReq.PositionX = &req.Position.X
-		grpcReq.PositionY = &req.Position.Y
-	} else {
-		if req.PositionX != nil {
-			grpcReq.PositionX = req.PositionX
-		}
-		if req.PositionY != nil {
-			grpcReq.PositionY = req.PositionY
-		}
-	}
-	if req.Width != nil {
-		grpcReq.Width = req.Width
-	}
-	if req.Height != nil {
-		grpcReq.Height = req.Height
-	}
-	if req.ActNumber != nil {
-		grpcReq.ActNumber = req.ActNumber
-	}
-	if req.Order != nil {
-		grpcReq.Order = req.Order
-	}
-	if req.StartPage != nil {
-		grpcReq.StartPage = req.StartPage
-	}
-	if req.EndPage != nil {
-		grpcReq.EndPage = req.EndPage
-	}
-	if req.ImageUrl != nil {
-		grpcReq.ImageUrl = req.ImageUrl
-	}
+			if req.Title != nil {
+				grpcReq.Title = req.Title
+			}
+			if req.Description != nil {
+				grpcReq.Description = req.Description
+			}
+			if req.SceneNumbers != nil {
+				grpcReq.SceneNumbers = req.SceneNumbers
+			}
+			if req.Color != nil {
+				grpcReq.Color = req.Color
+			}
+			// Handle both nested position object and flat positionX/Y
+			if req.Position != nil {
+				grpcReq.PositionX = &req.Position.X
+				grpcReq.PositionY = &req.Position.Y
+			} else {
+				if req.PositionX != nil {
+					grpcReq.PositionX = req.PositionX
+				}
+				if req.PositionY != nil {
+					grpcReq.PositionY = req.PositionY
+				}
+			}
+			if req.Width != nil {
+				grpcReq.Width = req.Width
+			}
+			if req.Height != nil {
+				grpcReq.Height = req.Height
+			}
+			if req.ActNumber != nil {
+				grpcReq.ActNumber = req.ActNumber
+			}
+			if req.Order != nil {
+				grpcReq.Order = req.Order
+			}
+			if req.StartPage != nil {
+				grpcReq.StartPage = req.StartPage
+			}
+			if req.EndPage != nil {
+				grpcReq.EndPage = req.EndPage
+			}
+			if req.ImageUrl != nil {
+				grpcReq.ImageUrl = req.ImageUrl
+			}
 
-	resp, err := h.scriptsClient.UpdateBeat(r.Context(), grpcReq)
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
+			resp, err := h.scriptsClient.UpdateBeat(r.Context(), grpcReq)
+			if err != nil {
+				return nil, err
+			}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(transformBeat(resp.Beat))
+			return transformBeat(resp.Beat), nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // GetBeat handles GET /beats/{beatID}
 func (h *ScriptsHandler) GetBeat(w http.ResponseWriter, r *http.Request) {
-	userID := handlers.GetUserIDFromContext(r)
-	beatID := chi.URLParam(r, "beatId")
+	handlers.Endpoint[struct{}, BeatResponse]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*BeatResponse, error) {
+			beatID := chi.URLParam(r, "beatId")
 
-	resp, err := h.scriptsClient.GetBeat(r.Context(), &scriptspb.GetBeatRequest{
-		BeatId: beatID,
-		UserId: userID,
-	})
+			resp, err := h.scriptsClient.GetBeat(r.Context(), &scriptspb.GetBeatRequest{
+				BeatId: beatID,
+				UserId: userID,
+			})
 
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
+			if err != nil {
+				return nil, err
+			}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(transformBeat(resp.Beat))
+			return transformBeat(resp.Beat), nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // DeleteBeat handles DELETE /beats/{beatID}
 func (h *ScriptsHandler) DeleteBeat(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, struct{}]{
+		Method:        http.MethodDelete,
+		Auth:          true,
+		Decode:        handlers.NoBody[struct{}],
+		SuccessStatus: http.StatusNoContent,
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
+			beatID := getIDFromPath(r.URL.Path, "/beats/")
 
-	userID := handlers.GetUserIDFromContext(r)
-	beatID := getIDFromPath(r.URL.Path, "/beats/")
+			_, err := h.scriptsClient.DeleteBeat(r.Context(), &scriptspb.DeleteBeatRequest{
+				BeatId: beatID,
+				UserId: userID,
+			})
 
-	_, err := h.scriptsClient.DeleteBeat(r.Context(), &scriptspb.DeleteBeatRequest{
-		BeatId: beatID,
-		UserId: userID,
-	})
+			if err != nil {
+				return nil, err
+			}
 
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // CreateConnection handles POST /projects/{projectID}/beat-board/connections
 func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	userID := handlers.GetUserIDFromContext(r)
-	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/connections")
-
-	var req struct {
+	type createConnectionBody struct {
 		FromBeatID string `json:"fromBeatId"`
 		ToBeatID   string `json:"toBeatId"`
 		FromSide   string `json:"fromSide"`
 		ToSide     string `json:"toSide"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[createConnectionBody, ConnectionResponse]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		SuccessStatus: http.StatusCreated,
+		Decode: func(r *http.Request) (*createConnectionBody, error) {
+			var req createConnectionBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *createConnectionBody) (*ConnectionResponse, error) {
+			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/connections")
 
-	resp, err := h.scriptsClient.CreateConnection(r.Context(), &scriptspb.CreateConnectionRequest{
-		ProjectId:  projectID,
-		UserId:     userID,
-		FromBeatId: req.FromBeatID,
-		ToBeatId:   req.ToBeatID,
-		FromSide:   req.FromSide,
-		ToSide:     req.ToSide,
-	})
+			resp, err := h.scriptsClient.CreateConnection(r.Context(), &scriptspb.CreateConnectionRequest{
+				ProjectId:  projectID,
+				UserId:     userID,
+				FromBeatId: req.FromBeatID,
+				ToBeatId:   req.ToBeatID,
+				FromSide:   req.FromSide,
+				ToSide:     req.ToSide,
+			})
 
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
+			if err != nil {
+				return nil, err
+			}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(transformConnection(resp.Connection))
+			return transformConnection(resp.Connection), nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // DeleteConnection handles DELETE /connections/{connectionID}
 func (h *ScriptsHandler) DeleteConnection(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, struct{}]{
+		Method:        http.MethodDelete,
+		Auth:          true,
+		Decode:        handlers.NoBody[struct{}],
+		SuccessStatus: http.StatusNoContent,
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
+			connectionID := getIDFromPath(r.URL.Path, "/connections/")
 
-	userID := handlers.GetUserIDFromContext(r)
-	connectionID := getIDFromPath(r.URL.Path, "/connections/")
+			_, err := h.scriptsClient.DeleteConnection(r.Context(), &scriptspb.DeleteConnectionRequest{
+				ConnectionId: connectionID,
+				UserId:       userID,
+			})
 
-	_, err := h.scriptsClient.DeleteConnection(r.Context(), &scriptspb.DeleteConnectionRequest{
-		ConnectionId: connectionID,
-		UserId:       userID,
-	})
+			if err != nil {
+				return nil, err
+			}
 
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // CreateLane handles POST /projects/{projectID}/beat-board/lanes
 func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	userID := handlers.GetUserIDFromContext(r)
-	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes")
-
-	var req struct {
+	type createLaneBody struct {
 		Name  string `json:"name"`
 		Color string `json:"color"`
 		Order int32  `json:"order"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[createLaneBody, LaneResponse]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		SuccessStatus: http.StatusCreated,
+		Decode: func(r *http.Request) (*createLaneBody, error) {
+			var req createLaneBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *createLaneBody) (*LaneResponse, error) {
+			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes")
 
-	resp, err := h.scriptsClient.CreateLane(r.Context(), &scriptspb.CreateLaneRequest{
-		ProjectId: projectID,
-		UserId:    userID,
-		Name:      req.Name,
-		Color:     req.Color,
-		Order:     req.Order,
-	})
+			resp, err := h.scriptsClient.CreateLane(r.Context(), &scriptspb.CreateLaneRequest{
+				ProjectId: projectID,
+				UserId:    userID,
+				Name:      req.Name,
+				Color:     req.Color,
+				Order:     req.Order,
+			})
 
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
+			if err != nil {
+				return nil, err
+			}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(transformLane(resp.Lane))
+			return transformLane(resp.Lane), nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // GetProjectLanes handles GET /projects/{projectID}/beat-board/lanes
 func (h *ScriptsHandler) GetProjectLanes(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, []LaneResponse]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]LaneResponse, error) {
+			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes")
 
-	userID := handlers.GetUserIDFromContext(r)
-	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes")
+			resp, err := h.scriptsClient.GetProjectLanes(r.Context(), &scriptspb.GetProjectLanesRequest{
+				ProjectId: projectID,
+				UserId:    userID,
+			})
 
-	resp, err := h.scriptsClient.GetProjectLanes(r.Context(), &scriptspb.GetProjectLanesRequest{
-		ProjectId: projectID,
-		UserId:    userID,
-	})
+			if err != nil {
+				return nil, err
+			}
 
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
+			lanes := make([]LaneResponse, 0, len(resp.Lanes))
+			for _, lane := range resp.Lanes {
+				if transformed := transformLane(lane); transformed != nil {
+					lanes = append(lanes, *transformed)
+				}
+			}
 
-	lanes := make([]LaneResponse, 0, len(resp.Lanes))
-	for _, lane := range resp.Lanes {
-		if transformed := transformLane(lane); transformed != nil {
-			lanes = append(lanes, *transformed)
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(lanes)
+			return &lanes, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // UpdateLane handles PUT /lanes/{laneID}
 func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	userID := handlers.GetUserIDFromContext(r)
-	laneID := getIDFromPath(r.URL.Path, "/lanes/")
-
-	var req struct {
+	type updateLaneBody struct {
 		Name  *string `json:"name,omitempty"`
 		Color *string `json:"color,omitempty"`
 		Order *int32  `json:"order,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[updateLaneBody, LaneResponse]{
+		// Registered under both PUT and PATCH — leave Method empty so both verbs work.
+		Auth: true,
+		Decode: func(r *http.Request) (*updateLaneBody, error) {
+			var req updateLaneBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *updateLaneBody) (*LaneResponse, error) {
+			laneID := getIDFromPath(r.URL.Path, "/lanes/")
 
-	grpcReq := &scriptspb.UpdateLaneRequest{
-		LaneId: laneID,
-		UserId: userID,
-	}
+			grpcReq := &scriptspb.UpdateLaneRequest{
+				LaneId: laneID,
+				UserId: userID,
+			}
 
-	if req.Name != nil {
-		grpcReq.Name = req.Name
-	}
-	if req.Color != nil {
-		grpcReq.Color = req.Color
-	}
-	if req.Order != nil {
-		grpcReq.Order = req.Order
-	}
+			if req.Name != nil {
+				grpcReq.Name = req.Name
+			}
+			if req.Color != nil {
+				grpcReq.Color = req.Color
+			}
+			if req.Order != nil {
+				grpcReq.Order = req.Order
+			}
 
-	resp, err := h.scriptsClient.UpdateLane(r.Context(), grpcReq)
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
+			resp, err := h.scriptsClient.UpdateLane(r.Context(), grpcReq)
+			if err != nil {
+				return nil, err
+			}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(transformLane(resp.Lane))
+			return transformLane(resp.Lane), nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // UpdateLaneOrder handles PUT /projects/{projectID}/beat-board/lanes/order
 func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	userID := handlers.GetUserIDFromContext(r)
-	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes/order")
-
-	var req struct {
+	type updateLaneOrderBody struct {
 		LaneIDs    []string `json:"laneIds"`
 		OrderedIDs []string `json:"orderedIds"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[updateLaneOrderBody, struct{}]{
+		// Registered under both PUT and PATCH — leave Method empty so both verbs work.
+		Auth:          true,
+		SuccessStatus: http.StatusNoContent,
+		Decode: func(r *http.Request) (*updateLaneOrderBody, error) {
+			var req updateLaneOrderBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *updateLaneOrderBody) (*struct{}, error) {
+			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes/order")
 
-	laneIds := req.LaneIDs
-	if len(laneIds) == 0 {
-		laneIds = req.OrderedIDs
-	}
+			laneIds := req.LaneIDs
+			if len(laneIds) == 0 {
+				laneIds = req.OrderedIDs
+			}
 
-	_, err := h.scriptsClient.UpdateLaneOrder(r.Context(), &scriptspb.UpdateLaneOrderRequest{
-		ProjectId: projectID,
-		UserId:    userID,
-		LaneIds:   laneIds,
-	})
+			_, err := h.scriptsClient.UpdateLaneOrder(r.Context(), &scriptspb.UpdateLaneOrderRequest{
+				ProjectId: projectID,
+				UserId:    userID,
+				LaneIds:   laneIds,
+			})
 
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
+			if err != nil {
+				return nil, err
+			}
 
-	w.WriteHeader(http.StatusNoContent)
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // DeleteLane handles DELETE /lanes/{laneID}
 func (h *ScriptsHandler) DeleteLane(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, struct{}]{
+		Method:        http.MethodDelete,
+		Auth:          true,
+		Decode:        handlers.NoBody[struct{}],
+		SuccessStatus: http.StatusNoContent,
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
+			laneID := getIDFromPath(r.URL.Path, "/lanes/")
 
-	userID := handlers.GetUserIDFromContext(r)
-	laneID := getIDFromPath(r.URL.Path, "/lanes/")
+			_, err := h.scriptsClient.DeleteLane(r.Context(), &scriptspb.DeleteLaneRequest{
+				LaneId: laneID,
+				UserId: userID,
+			})
 
-	_, err := h.scriptsClient.DeleteLane(r.Context(), &scriptspb.DeleteLaneRequest{
-		LaneId: laneID,
-		UserId: userID,
-	})
+			if err != nil {
+				return nil, err
+			}
 
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // CreateOutlineItem handles POST /projects/{projectID}/beat-board/outline-items
 func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	userID := handlers.GetUserIDFromContext(r)
-	projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/outline-items")
-
-	var req struct {
+	type createOutlineItemBody struct {
 		BeatID           string  `json:"beatId"`
 		LaneID           string  `json:"laneId"`
 		Order            int32   `json:"order"`
@@ -522,42 +523,42 @@ func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Reques
 		Width            float64 `json:"width"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[createOutlineItemBody, OutlineItemResponse]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		SuccessStatus: http.StatusCreated,
+		Decode: func(r *http.Request) (*createOutlineItemBody, error) {
+			var req createOutlineItemBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *createOutlineItemBody) (*OutlineItemResponse, error) {
+			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/outline-items")
 
-	resp, err := h.scriptsClient.CreateOutlineItem(r.Context(), &scriptspb.CreateOutlineItemRequest{
-		ProjectId:        projectID,
-		UserId:           userID,
-		BeatId:           req.BeatID,
-		LaneId:           req.LaneID,
-		Order:            req.Order,
-		TimelinePosition: req.TimelinePosition,
-		Width:            req.Width,
-	})
+			resp, err := h.scriptsClient.CreateOutlineItem(r.Context(), &scriptspb.CreateOutlineItemRequest{
+				ProjectId:        projectID,
+				UserId:           userID,
+				BeatId:           req.BeatID,
+				LaneId:           req.LaneID,
+				Order:            req.Order,
+				TimelinePosition: req.TimelinePosition,
+				Width:            req.Width,
+			})
 
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
+			if err != nil {
+				return nil, err
+			}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(transformOutlineItem(resp.OutlineItem))
+			return transformOutlineItem(resp.OutlineItem), nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // UpdateOutlineItem handles PUT /outline-items/{outlineItemID}
 func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	userID := handlers.GetUserIDFromContext(r)
-	outlineItemID := getIDFromPath(r.URL.Path, "/outline-items/")
-
-	var req struct {
+	type updateOutlineItemBody struct {
 		BeatID           *string  `json:"beatId,omitempty"`
 		LaneID           *string  `json:"laneId,omitempty"`
 		Order            *int32   `json:"order,omitempty"`
@@ -565,63 +566,72 @@ func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Reques
 		Width            *float64 `json:"width,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[updateOutlineItemBody, OutlineItemResponse]{
+		// Registered under both PUT and PATCH — leave Method empty so both verbs work.
+		Auth: true,
+		Decode: func(r *http.Request) (*updateOutlineItemBody, error) {
+			var req updateOutlineItemBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *updateOutlineItemBody) (*OutlineItemResponse, error) {
+			outlineItemID := getIDFromPath(r.URL.Path, "/outline-items/")
 
-	grpcReq := &scriptspb.UpdateOutlineItemRequest{
-		OutlineItemId: outlineItemID,
-		UserId:        userID,
-	}
+			grpcReq := &scriptspb.UpdateOutlineItemRequest{
+				OutlineItemId: outlineItemID,
+				UserId:        userID,
+			}
 
-	if req.BeatID != nil {
-		grpcReq.BeatId = req.BeatID
-	}
-	if req.LaneID != nil {
-		grpcReq.LaneId = req.LaneID
-	}
-	if req.Order != nil {
-		grpcReq.Order = req.Order
-	}
-	if req.TimelinePosition != nil {
-		grpcReq.TimelinePosition = req.TimelinePosition
-	}
-	if req.Width != nil {
-		grpcReq.Width = req.Width
-	}
+			if req.BeatID != nil {
+				grpcReq.BeatId = req.BeatID
+			}
+			if req.LaneID != nil {
+				grpcReq.LaneId = req.LaneID
+			}
+			if req.Order != nil {
+				grpcReq.Order = req.Order
+			}
+			if req.TimelinePosition != nil {
+				grpcReq.TimelinePosition = req.TimelinePosition
+			}
+			if req.Width != nil {
+				grpcReq.Width = req.Width
+			}
 
-	resp, err := h.scriptsClient.UpdateOutlineItem(r.Context(), grpcReq)
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
+			resp, err := h.scriptsClient.UpdateOutlineItem(r.Context(), grpcReq)
+			if err != nil {
+				return nil, err
+			}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(transformOutlineItem(resp.OutlineItem))
+			return transformOutlineItem(resp.OutlineItem), nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // DeleteOutlineItem handles DELETE /outline-items/{outlineItemID}
 func (h *ScriptsHandler) DeleteOutlineItem(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, struct{}]{
+		Method:        http.MethodDelete,
+		Auth:          true,
+		Decode:        handlers.NoBody[struct{}],
+		SuccessStatus: http.StatusNoContent,
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
+			outlineItemID := getIDFromPath(r.URL.Path, "/outline-items/")
 
-	userID := handlers.GetUserIDFromContext(r)
-	outlineItemID := getIDFromPath(r.URL.Path, "/outline-items/")
+			_, err := h.scriptsClient.DeleteOutlineItem(r.Context(), &scriptspb.DeleteOutlineItemRequest{
+				OutlineItemId: outlineItemID,
+				UserId:        userID,
+			})
 
-	_, err := h.scriptsClient.DeleteOutlineItem(r.Context(), &scriptspb.DeleteOutlineItemRequest{
-		OutlineItemId: outlineItemID,
-		UserId:        userID,
-	})
+			if err != nil {
+				return nil, err
+			}
 
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // Helper function to extract project ID from path with specific pattern

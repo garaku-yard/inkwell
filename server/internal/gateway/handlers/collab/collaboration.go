@@ -2,13 +2,13 @@ package collab
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
 	"inkwell/server/pkg/grpc/collab"
@@ -36,92 +36,70 @@ func NewCollaborationHandler(clients *grpcclient.Registry) *CollaborationHandler
 	}
 }
 
+// addCollaboratorBody is the JSON request shape for AddCollaborator.
+type addCollaboratorBody struct {
+	ProjectID string `json:"project_id"`
+	Email     string `json:"email"`
+	Role      string `json:"role"`
+}
+
 // AddCollaborator sends a project invitation to a user identified by email address
 // or user tag. The role must be "editor" or "viewer"; the "owner" role cannot be
 // assigned through this endpoint. The input is resolved to a canonical email before
 // being forwarded to the collab service.
 func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[addCollaboratorBody, map[string]interface{}]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		Decode:        handlers.JSONBody[addCollaboratorBody],
+		SuccessStatus: http.StatusCreated,
+		Handle: func(r *http.Request, userID string, req *addCollaboratorBody) (*map[string]interface{}, error) {
+			// Validate role — owner cannot be assigned via invitation
+			validRoles := map[string]bool{
+				"editor": true,
+				"viewer": true,
+			}
+			if !validRoles[req.Role] {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Invalid role. Must be 'editor' or 'viewer'")
+			}
 
-	var req struct {
-		ProjectID string `json:"project_id"`
-		Email     string `json:"email"`
-		Role      string `json:"role"`
-	}
+			// Resolve email or user tag to actual email address
+			actualEmail, err := h.resolveEmailOrUserTag(r.Context(), req.Email)
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Failed to resolve user: "+err.Error())
+			}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+			// Call collaboration service
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
 
-	// Validate role — owner cannot be assigned via invitation
-	validRoles := map[string]bool{
-		"editor": true,
-		"viewer": true,
-	}
-	if !validRoles[req.Role] {
-		handlers.WriteError(w, "Invalid role. Must be 'editor' or 'viewer'", http.StatusBadRequest)
-		return
-	}
+			resp, err := h.client.AddCollaborator(ctx, &collab.AddCollaboratorRequest{
+				ProjectId: req.ProjectID,
+				InviterId: userID,
+				Email:     actualEmail, // Use resolved email
+				Role:      req.Role,
+			})
+			if err != nil {
+				return nil, err
+			}
 
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Resolve email or user tag to actual email address
-	actualEmail, err := h.resolveEmailOrUserTag(r.Context(), req.Email)
-	if err != nil {
-		handlers.WriteError(w, "Failed to resolve user: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Call collaboration service
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	resp, err := h.client.AddCollaborator(ctx, &collab.AddCollaboratorRequest{
-		ProjectId: req.ProjectID,
-		InviterId: userID,
-		Email:     actualEmail, // Use resolved email
-		Role:      req.Role,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	// Convert response to JSON
-	response := struct {
-		ID        string `json:"id"`
-		ProjectID string `json:"project_id"`
-		UserID    string `json:"user_id"`
-		Email     string `json:"email"`
-		Role      string `json:"role"`
-		Status    string `json:"status"`
-		InvitedAt string `json:"invited_at"`
-		JoinedAt  string `json:"joined_at,omitempty"`
-		Message   string `json:"message"`
-	}{
-		ID:        resp.Collaborator.Id,
-		ProjectID: resp.Collaborator.ProjectId,
-		UserID:    resp.Collaborator.UserId,
-		Email:     req.Email,
-		Role:      resp.Collaborator.Role,
-		Status:    resp.Collaborator.Status,
-		InvitedAt: handlers.TimestampToString(resp.Collaborator.InvitedAt),
-		JoinedAt:  handlers.TimestampToString(resp.Collaborator.JoinedAt),
-		Message:   "Invitation sent successfully",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(response)
+			// Convert response to JSON
+			response := map[string]interface{}{
+				"id":         resp.Collaborator.Id,
+				"project_id": resp.Collaborator.ProjectId,
+				"user_id":    resp.Collaborator.UserId,
+				"email":      req.Email,
+				"role":       resp.Collaborator.Role,
+				"status":     resp.Collaborator.Status,
+				"invited_at": handlers.TimestampToString(resp.Collaborator.InvitedAt),
+				"message":    "Invitation sent successfully",
+			}
+			if joinedAt := handlers.TimestampToString(resp.Collaborator.JoinedAt); joinedAt != "" {
+				response["joined_at"] = joinedAt
+			}
+			return &response, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // GetProjectCollaborators returns all collaborators for a project, both active and
@@ -129,111 +107,115 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 // service; pending records show the inviter's name instead of the invited user,
 // whose account may not yet exist.
 func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	projectID := r.URL.Query().Get("project_id")
-	if projectID == "" {
-		handlers.WriteError(w, "project_id is required", http.StatusBadRequest)
-		return
-	}
-
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Call collaboration service
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	resp, err := h.client.GetProjectCollaborators(ctx, &collab.GetProjectCollaboratorsRequest{
-		ProjectId: projectID,
-		UserId:    userID,
-	})
-	if err != nil {
-		handlers.WriteError(w, "Failed to get collaborators", http.StatusInternalServerError)
-		return
-	}
-
-	// Convert response to JSON and lookup user details
-	// Initialize as empty slice to ensure JSON encodes as [] not null
-	collaborators := make([]map[string]interface{}, 0)
-	for _, collab := range resp.Collaborators {
-		collaboratorData := map[string]interface{}{
-			"id":         collab.Id,
-			"project_id": collab.ProjectId,
-			"user_id":    collab.UserId,
-			"role":       collab.Role,
-			"status":     collab.Status,
-			"invited_at": handlers.TimestampToString(collab.InvitedAt),
-			"joined_at":  handlers.TimestampToString(collab.JoinedAt),
-		}
-
-		// For pending invitations (status = "pending"), lookup inviter details
-		// For active collaborators, lookup user details from identity service
-		if collab.Status == "pending" {
-			// This is a pending invitation - lookup the inviter's details
-			// The invited_by field contains the inviter's user ID
-			if collab.InvitedBy != "" && collab.InvitedBy != "00000000-0000-0000-0000-000000000000" {
-				// Call identity service to get inviter details
-				identityCtx, identityCancel := context.WithTimeout(r.Context(), 2*time.Second)
-				defer identityCancel()
-
-				inviterResp, err := h.identityClient.GetUser(identityCtx, &identity.GetUserRequest{
-					UserId: collab.InvitedBy,
-				})
-				if err != nil {
-					collaboratorData["name"] = fmt.Sprintf("Invited by User %s", collab.InvitedBy[:8])
-					collaboratorData["email"] = "pending@invitation.com"
-				} else if inviterResp.User != nil {
-					// Show who invited them
-					collaboratorData["name"] = fmt.Sprintf("Invited by %s %s", inviterResp.User.FirstName, inviterResp.User.LastName)
-					collaboratorData["email"] = "pending@invitation.com" // Placeholder for pending
-					collaboratorData["invited_by_name"] = inviterResp.User.FirstName + " " + inviterResp.User.LastName
-				}
-			} else {
-				collaboratorData["name"] = "Pending invitation"
-				collaboratorData["email"] = "pending@invitation.com"
+	handlers.Endpoint[struct{}, []map[string]interface{}]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]map[string]interface{}, error) {
+			projectID := r.URL.Query().Get("project_id")
+			if projectID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project_id is required")
 			}
-		} else {
-			// This is an active collaborator - lookup user details
-			if collab.UserId != "" && collab.UserId != "00000000-0000-0000-0000-000000000000" {
-				// Call identity service to get user details
-				identityCtx, identityCancel := context.WithTimeout(r.Context(), 2*time.Second)
-				defer identityCancel()
 
-				userResp, err := h.identityClient.GetUser(identityCtx, &identity.GetUserRequest{
-					UserId: collab.UserId,
-				})
-				if err != nil {
-					collaboratorData["name"] = fmt.Sprintf("User %s", collab.UserId[:8])
-					collaboratorData["email"] = fmt.Sprintf("user-%s@example.com", collab.UserId[:8])
-				} else if userResp.User != nil {
-					fullName := strings.TrimSpace(userResp.User.FirstName + " " + userResp.User.LastName)
-					if fullName == "" {
-						fullName = userResp.User.Username
+			// Call collaboration service
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+
+			resp, err := h.client.GetProjectCollaborators(ctx, &collab.GetProjectCollaboratorsRequest{
+				ProjectId: projectID,
+				UserId:    userID,
+			})
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to get collaborators")
+			}
+
+			// Convert response to JSON and lookup user details
+			// Initialize as empty slice to ensure JSON encodes as [] not null
+			collaborators := make([]map[string]interface{}, 0)
+			for _, collab := range resp.Collaborators {
+				collaboratorData := map[string]interface{}{
+					"id":         collab.Id,
+					"project_id": collab.ProjectId,
+					"user_id":    collab.UserId,
+					"role":       collab.Role,
+					"status":     collab.Status,
+					"invited_at": handlers.TimestampToString(collab.InvitedAt),
+					"joined_at":  handlers.TimestampToString(collab.JoinedAt),
+				}
+
+				// For pending invitations (status = "pending"), lookup inviter details
+				// For active collaborators, lookup user details from identity service
+				if collab.Status == "pending" {
+					// This is a pending invitation - lookup the inviter's details
+					// The invited_by field contains the inviter's user ID
+					if collab.InvitedBy != "" && collab.InvitedBy != "00000000-0000-0000-0000-000000000000" {
+						// Call identity service to get inviter details
+						identityCtx, identityCancel := context.WithTimeout(r.Context(), 2*time.Second)
+						defer identityCancel()
+
+						inviterResp, err := h.identityClient.GetUser(identityCtx, &identity.GetUserRequest{
+							UserId: collab.InvitedBy,
+						})
+						if err != nil {
+							collaboratorData["name"] = fmt.Sprintf("Invited by User %s", collab.InvitedBy[:8])
+							collaboratorData["email"] = "pending@invitation.com"
+						} else if inviterResp.User != nil {
+							// Show who invited them
+							collaboratorData["name"] = fmt.Sprintf("Invited by %s %s", inviterResp.User.FirstName, inviterResp.User.LastName)
+							collaboratorData["email"] = "pending@invitation.com" // Placeholder for pending
+							collaboratorData["invited_by_name"] = inviterResp.User.FirstName + " " + inviterResp.User.LastName
+						}
+					} else {
+						collaboratorData["name"] = "Pending invitation"
+						collaboratorData["email"] = "pending@invitation.com"
 					}
-					collaboratorData["name"] = fullName
-					collaboratorData["email"] = userResp.User.Email
-					collaboratorData["username_with_tag"] = userResp.User.Username
+				} else {
+					// This is an active collaborator - lookup user details
+					if collab.UserId != "" && collab.UserId != "00000000-0000-0000-0000-000000000000" {
+						// Call identity service to get user details
+						identityCtx, identityCancel := context.WithTimeout(r.Context(), 2*time.Second)
+						defer identityCancel()
+
+						userResp, err := h.identityClient.GetUser(identityCtx, &identity.GetUserRequest{
+							UserId: collab.UserId,
+						})
+						if err != nil {
+							collaboratorData["name"] = fmt.Sprintf("User %s", collab.UserId[:8])
+							collaboratorData["email"] = fmt.Sprintf("user-%s@example.com", collab.UserId[:8])
+						} else if userResp.User != nil {
+							fullName := strings.TrimSpace(userResp.User.FirstName + " " + userResp.User.LastName)
+							if fullName == "" {
+								fullName = userResp.User.Username
+							}
+							collaboratorData["name"] = fullName
+							collaboratorData["email"] = userResp.User.Email
+							collaboratorData["username_with_tag"] = userResp.User.Username
+						}
+					} else {
+						// Empty user ID - fallback
+						collaboratorData["name"] = "Unknown User"
+						collaboratorData["email"] = "unknown@example.com"
+					}
 				}
-			} else {
-				// Empty user ID - fallback
-				collaboratorData["name"] = "Unknown User"
-				collaboratorData["email"] = "unknown@example.com"
+
+				collaborators = append(collaborators, collaboratorData)
 			}
-		}
 
-		collaborators = append(collaborators, collaboratorData)
-	}
+			return &collaborators, nil
+		},
+	}.ServeHTTP(w, r)
+}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(collaborators)
+// addCommentBody is the JSON request shape for AddComment.
+type addCommentBody struct {
+	ProjectID       string  `json:"project_id"`
+	ScreenplayID    string  `json:"screenplay_id"`
+	Content         string  `json:"content"`
+	ScriptElementID *string `json:"script_element_id,omitempty"`
+	SceneID         *string `json:"scene_id,omitempty"`
+	LineNumber      int32   `json:"line_number,omitempty"`
+	CharPosition    int32   `json:"char_position,omitempty"`
+	ParentID        *string `json:"parent_id,omitempty"`
 }
 
 // AddComment attaches a comment to a project or a specific scene/element within it.
@@ -241,225 +223,174 @@ func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r 
 // the request context. The response includes the commenter's username, resolved from
 // the identity service.
 func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[addCommentBody, map[string]interface{}]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		Decode:        handlers.JSONBody[addCommentBody],
+		SuccessStatus: http.StatusCreated,
+		Handle: func(r *http.Request, userID string, req *addCommentBody) (*map[string]interface{}, error) {
+			// Call collaboration service
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
 
-	var req struct {
-		ProjectID       string  `json:"project_id"`
-		ScreenplayID    string  `json:"screenplay_id"`
-		Content         string  `json:"content"`
-		ScriptElementID *string `json:"script_element_id,omitempty"`
-		SceneID         *string `json:"scene_id,omitempty"`
-		LineNumber      int32   `json:"line_number,omitempty"`
-		CharPosition    int32   `json:"char_position,omitempty"`
-		ParentID        *string `json:"parent_id,omitempty"`
-	}
+			resp, err := h.client.AddComment(ctx, &collab.AddCommentRequest{
+				ProjectId:       req.ProjectID,
+				ScreenplayId:    req.ScreenplayID,
+				UserId:          userID,
+				Content:         req.Content,
+				ScriptElementId: req.ScriptElementID,
+				SceneId:         req.SceneID,
+				LineNumber:      req.LineNumber,
+				CharPosition:    req.CharPosition,
+				ParentId:        req.ParentID,
+			})
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to add comment")
+			}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+			// Get username from identity service
+			userResp, err := h.identityClient.GetUser(ctx, &identity.GetUserRequest{
+				UserId: userID,
+			})
+			if err != nil {
+				log.Printf("could not get username for user %s: %v", userID, err)
+			}
 
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			username := fmt.Sprintf("User %s", userID[:8]) // Default fallback
+			if userResp != nil && userResp.User != nil && userResp.User.Username != "" {
+				username = userResp.User.Username
+			}
 
-	// Call collaboration service
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	resp, err := h.client.AddComment(ctx, &collab.AddCommentRequest{
-		ProjectId:       req.ProjectID,
-		ScreenplayId:    req.ScreenplayID,
-		UserId:          userID,
-		Content:         req.Content,
-		ScriptElementId: req.ScriptElementID,
-		SceneId:         req.SceneID,
-		LineNumber:      req.LineNumber,
-		CharPosition:    req.CharPosition,
-		ParentId:        req.ParentID,
-	})
-	if err != nil {
-		handlers.WriteError(w, "Failed to add comment", http.StatusInternalServerError)
-		return
-	}
-
-	// Get username from identity service
-	userResp, err := h.identityClient.GetUser(ctx, &identity.GetUserRequest{
-		UserId: userID,
-	})
-	if err != nil {
-		log.Printf("could not get username for user %s: %v", userID, err)
-	}
-
-	username := fmt.Sprintf("User %s", userID[:8]) // Default fallback
-	if userResp != nil && userResp.User != nil && userResp.User.Username != "" {
-		username = userResp.User.Username
-	}
-
-	// Convert response to JSON
-	response := map[string]interface{}{
-		"id":                resp.Comment.Id,
-		"project_id":        resp.Comment.ProjectId,
-		"screenplay_id":     resp.Comment.ScreenplayId,
-		"script_element_id": resp.Comment.ScriptElementId,
-		"user_id":           resp.Comment.UserId,
-		"username":          username,
-		"content":           resp.Comment.Content,
-		"line_number":       resp.Comment.LineNumber,
-		"char_position":     resp.Comment.CharPosition,
-		"parent_id":         resp.Comment.ParentId,
-		"is_resolved":       resp.Comment.IsResolved,
-		"created_at":        handlers.TimestampToString(resp.Comment.CreatedAt),
-		"updated_at":        handlers.TimestampToString(resp.Comment.UpdatedAt),
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(response)
+			// Convert response to JSON
+			response := map[string]interface{}{
+				"id":                resp.Comment.Id,
+				"project_id":        resp.Comment.ProjectId,
+				"screenplay_id":     resp.Comment.ScreenplayId,
+				"script_element_id": resp.Comment.ScriptElementId,
+				"user_id":           resp.Comment.UserId,
+				"username":          username,
+				"content":           resp.Comment.Content,
+				"line_number":       resp.Comment.LineNumber,
+				"char_position":     resp.Comment.CharPosition,
+				"parent_id":         resp.Comment.ParentId,
+				"is_resolved":       resp.Comment.IsResolved,
+				"created_at":        handlers.TimestampToString(resp.Comment.CreatedAt),
+				"updated_at":        handlers.TimestampToString(resp.Comment.UpdatedAt),
+			}
+			return &response, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // GetComments returns all comments for a project, identified by screenplay_id.
 // Verifies the caller has access via handlers.ResolveProjectAccess before fetching. Each
 // comment is enriched with the author's username from the identity service.
 func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, []map[string]interface{}]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]map[string]interface{}, error) {
+			screenplayID := r.URL.Query().Get("screenplay_id")
+			if screenplayID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "screenplay_id is required")
+			}
 
-	screenplayID := r.URL.Query().Get("screenplay_id")
-	if screenplayID == "" {
-		handlers.WriteError(w, "screenplay_id is required", http.StatusBadRequest)
-		return
-	}
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
 
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			if _, err := handlers.ResolveProjectAccess(ctx, userID, screenplayID, h.scriptsClient, h.client); err != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+			}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
+			// Call collaboration service
+			resp, err := h.client.GetComments(ctx, &collab.GetCommentsRequest{
+				ScreenplayId: screenplayID,
+				UserId:       userID,
+			})
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to get comments")
+			}
 
-	if _, err := handlers.ResolveProjectAccess(ctx, userID, screenplayID, h.scriptsClient, h.client); err != nil {
-		handlers.WriteError(w, "Forbidden", http.StatusForbidden)
-		return
-	}
+			// Convert response to JSON and fetch usernames
+			// Initialize as empty slice to ensure JSON encoding returns [] instead of null
+			comments := make([]map[string]interface{}, 0)
+			for _, comment := range resp.Comments {
+				// Get username from identity service
+				username := comment.UserId // fallback to user ID
+				userResp, err := h.identityClient.GetUser(ctx, &identity.GetUserRequest{
+					UserId: comment.UserId,
+				})
+				if err == nil && userResp.User != nil {
+					username = userResp.User.Username
+				}
 
-	// Call collaboration service
-	resp, err := h.client.GetComments(ctx, &collab.GetCommentsRequest{
-		ScreenplayId: screenplayID,
-		UserId:       userID,
-	})
-	if err != nil {
-		handlers.WriteError(w, "Failed to get comments", http.StatusInternalServerError)
-		return
-	}
+				comments = append(comments, map[string]interface{}{
+					"id":                comment.Id,
+					"project_id":        comment.ProjectId,
+					"screenplay_id":     comment.ScreenplayId,
+					"script_element_id": comment.ScriptElementId,
+					"scene_id":          comment.SceneId,
+					"user_id":           comment.UserId,
+					"username":          username,
+					"content":           comment.Content,
+					"line_number":       comment.LineNumber,
+					"char_position":     comment.CharPosition,
+					"parent_id":         comment.ParentId,
+					"is_resolved":       comment.IsResolved,
+					"created_at":        handlers.TimestampToString(comment.CreatedAt),
+					"updated_at":        handlers.TimestampToString(comment.UpdatedAt),
+				})
+			}
 
-	// Convert response to JSON and fetch usernames
-	// Initialize as empty slice to ensure JSON encoding returns [] instead of null
-	comments := make([]map[string]interface{}, 0)
-	for _, comment := range resp.Comments {
-		// Get username from identity service
-		username := comment.UserId // fallback to user ID
-		userResp, err := h.identityClient.GetUser(ctx, &identity.GetUserRequest{
-			UserId: comment.UserId,
-		})
-		if err == nil && userResp.User != nil {
-			username = userResp.User.Username
-		}
+			return &comments, nil
+		},
+	}.ServeHTTP(w, r)
+}
 
-		comments = append(comments, map[string]interface{}{
-			"id":                comment.Id,
-			"project_id":        comment.ProjectId,
-			"screenplay_id":     comment.ScreenplayId,
-			"script_element_id": comment.ScriptElementId,
-			"scene_id":          comment.SceneId,
-			"user_id":           comment.UserId,
-			"username":          username,
-			"content":           comment.Content,
-			"line_number":       comment.LineNumber,
-			"char_position":     comment.CharPosition,
-			"parent_id":         comment.ParentId,
-			"is_resolved":       comment.IsResolved,
-			"created_at":        handlers.TimestampToString(comment.CreatedAt),
-			"updated_at":        handlers.TimestampToString(comment.UpdatedAt),
-		})
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(comments)
+// updatePresenceBody is the JSON request shape for UpdatePresence.
+type updatePresenceBody struct {
+	ProjectID      string `json:"project_id"`
+	ScreenplayID   string `json:"screenplay_id"`
+	CursorPosition int32  `json:"cursor_position"`
 }
 
 // UpdatePresence records the authenticated user's current cursor position within
 // a project. Used by real-time collaboration features to show active editors.
 func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[updatePresenceBody, map[string]interface{}]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: handlers.JSONBody[updatePresenceBody],
+		Handle: func(r *http.Request, userID string, req *updatePresenceBody) (*map[string]interface{}, error) {
+			// Call collaboration service
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
 
-	var req struct {
-		ProjectID      string `json:"project_id"`
-		ScreenplayID   string `json:"screenplay_id"`
-		CursorPosition int32  `json:"cursor_position"`
-	}
+			resp, err := h.client.UpdatePresence(ctx, &collab.UpdatePresenceRequest{
+				UserId:         userID,
+				ProjectId:      req.ProjectID,
+				ScreenplayId:   req.ScreenplayID,
+				CursorPosition: req.CursorPosition,
+			})
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to update presence")
+			}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Call collaboration service
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	resp, err := h.client.UpdatePresence(ctx, &collab.UpdatePresenceRequest{
-		UserId:         userID,
-		ProjectId:      req.ProjectID,
-		ScreenplayId:   req.ScreenplayID,
-		CursorPosition: req.CursorPosition,
-	})
-	if err != nil {
-		handlers.WriteError(w, "Failed to update presence", http.StatusInternalServerError)
-		return
-	}
-
-	// Convert response to JSON
-	response := map[string]interface{}{
-		"user_id":         resp.Presence.UserId,
-		"project_id":      resp.Presence.ProjectId,
-		"screenplay_id":   resp.Presence.ScreenplayId,
-		"cursor_position": resp.Presence.CursorPosition,
-		"last_seen":       handlers.TimestampToString(resp.Presence.LastSeen),
-		"is_online":       resp.Presence.IsOnline,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+			// Convert response to JSON
+			response := map[string]interface{}{
+				"user_id":         resp.Presence.UserId,
+				"project_id":      resp.Presence.ProjectId,
+				"screenplay_id":   resp.Presence.ScreenplayId,
+				"cursor_position": resp.Presence.CursorPosition,
+				"last_seen":       handlers.TimestampToString(resp.Presence.LastSeen),
+				"is_online":       resp.Presence.IsOnline,
+			}
+			return &response, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
-// handlers.GetUserIDFromContext extracts the authenticated user's ID from the request
-// context. Returns an empty string if no value is present, which callers
-// should treat as an unauthenticated request and respond with 401. There is
-// deliberately no X-User-ID header fallback: trusting a client-supplied
-// header would silently bypass authentication if a future route skipped the
-// auth middleware.
 // resolveEmailOrUserTag normalises an invitation target to an email address.
 // Accepts a plain email, an @username handle, or a username#tag discriminator.
 func (h *CollaborationHandler) resolveEmailOrUserTag(ctx context.Context, input string) (string, error) {
@@ -526,463 +457,378 @@ func (h *CollaborationHandler) getUserEmailByUsernameAndTag(ctx context.Context,
 // userID to an email via the identity service. Each invitation is enriched with the
 // inviter's display name and the project title from their respective services.
 func (h *CollaborationHandler) GetUserInvitations(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, []map[string]interface{}]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]map[string]interface{}, error) {
+			// First, get the user's email from identity service since invitations are stored by email
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
 
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// First, get the user's email from identity service since invitations are stored by email
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	userResp, err := h.identityClient.GetUser(ctx, &identity.GetUserRequest{
-		UserId: userID,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	if userResp.User == nil {
-		handlers.WriteError(w, "User not found", http.StatusNotFound)
-		return
-	}
-
-	userEmail := userResp.User.Email
-
-	// Call collaboration service to get actual pending invitations by email
-	resp, err := h.client.GetUserInvitations(ctx, &collab.GetUserInvitationsRequest{
-		Email: userEmail,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	// Convert response to the expected format
-	// Initialize with empty slice to ensure JSON encodes as [] not null
-	invitations := make([]map[string]interface{}, 0)
-	for _, invitation := range resp.Invitations {
-		// Get inviter name using invited_by field
-		inviterName := "Unknown User"
-		if invitation.InvitedBy != "" && invitation.InvitedBy != "00000000-0000-0000-0000-000000000000" {
-			inviterCtx, inviterCancel := context.WithTimeout(r.Context(), 2*time.Second)
-			defer inviterCancel()
-
-			inviterResp, err := h.identityClient.GetUser(inviterCtx, &identity.GetUserRequest{
-				UserId: invitation.InvitedBy,
+			userResp, err := h.identityClient.GetUser(ctx, &identity.GetUserRequest{
+				UserId: userID,
 			})
-			if err != nil || inviterResp.User == nil {
-				inviterName = "Former User"
-			} else {
-				inviterName = inviterResp.User.FirstName + " " + inviterResp.User.LastName
-				if inviterName == " " || inviterName == "" {
-					inviterName = inviterResp.User.Email
+			if err != nil {
+				return nil, err
+			}
+
+			if userResp.User == nil {
+				return nil, apierror.New(apierror.CodeNotFound, http.StatusNotFound, "User not found")
+			}
+
+			userEmail := userResp.User.Email
+
+			// Call collaboration service to get actual pending invitations by email
+			resp, err := h.client.GetUserInvitations(ctx, &collab.GetUserInvitationsRequest{
+				Email: userEmail,
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			// Convert response to the expected format
+			// Initialize with empty slice to ensure JSON encodes as [] not null
+			invitations := make([]map[string]interface{}, 0)
+			for _, invitation := range resp.Invitations {
+				// Get inviter name using invited_by field
+				inviterName := "Unknown User"
+				if invitation.InvitedBy != "" && invitation.InvitedBy != "00000000-0000-0000-0000-000000000000" {
+					inviterCtx, inviterCancel := context.WithTimeout(r.Context(), 2*time.Second)
+					defer inviterCancel()
+
+					inviterResp, err := h.identityClient.GetUser(inviterCtx, &identity.GetUserRequest{
+						UserId: invitation.InvitedBy,
+					})
+					if err != nil || inviterResp.User == nil {
+						inviterName = "Former User"
+					} else {
+						inviterName = inviterResp.User.FirstName + " " + inviterResp.User.LastName
+						if inviterName == " " || inviterName == "" {
+							inviterName = inviterResp.User.Email
+						}
+					}
 				}
+
+				// Get project name from scripts service
+				projectName := "Unknown Project"
+				if invitation.ProjectId != "" {
+					projectCtx, projectCancel := context.WithTimeout(r.Context(), 2*time.Second)
+					defer projectCancel()
+
+					projectResp, err := h.scriptsClient.GetProject(projectCtx, &scripts.GetProjectRequest{
+						ProjectId: invitation.ProjectId,
+						UserId:    invitation.InvitedBy,
+					})
+					if err == nil && projectResp.Project != nil {
+						projectName = projectResp.Project.Title
+					}
+				}
+
+				invitations = append(invitations, map[string]interface{}{
+					"id":          invitation.Id,
+					"projectId":   invitation.ProjectId,
+					"projectName": projectName,
+					"role":        invitation.Role,
+					"invitedBy":   inviterName,
+					"invitedById": invitation.InvitedBy,
+					"status":      invitation.Status,
+					"createdAt":   handlers.TimestampToString(invitation.InvitedAt),
+				})
 			}
-		}
 
-		// Get project name from scripts service
-		projectName := "Unknown Project"
-		if invitation.ProjectId != "" {
-			projectCtx, projectCancel := context.WithTimeout(r.Context(), 2*time.Second)
-			defer projectCancel()
+			return &invitations, nil
+		},
+	}.ServeHTTP(w, r)
+}
 
-			projectResp, err := h.scriptsClient.GetProject(projectCtx, &scripts.GetProjectRequest{
-				ProjectId: invitation.ProjectId,
-				UserId:    invitation.InvitedBy,
-			})
-			if err == nil && projectResp.Project != nil {
-				projectName = projectResp.Project.Title
-			}
-		}
-
-		invitations = append(invitations, map[string]interface{}{
-			"id":          invitation.Id,
-			"projectId":   invitation.ProjectId,
-			"projectName": projectName,
-			"role":        invitation.Role,
-			"invitedBy":   inviterName,
-			"invitedById": invitation.InvitedBy,
-			"status":      invitation.Status,
-			"createdAt":   handlers.TimestampToString(invitation.InvitedAt),
-		})
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(invitations)
+// acceptDeclineBody is the JSON request shape for AcceptInvitation and
+// DeclineInvitation. Either collaborator_id or id is accepted.
+type acceptDeclineBody struct {
+	CollaboratorID string `json:"collaborator_id"`
+	ID             string `json:"id"` // Alternative field name
 }
 
 // AcceptInvitation marks a pending invitation as accepted, granting the authenticated
 // user active collaborator access to the project. Accepts either collaborator_id or
 // id in the request body for client compatibility.
 func (h *CollaborationHandler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[acceptDeclineBody, map[string]interface{}]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: handlers.JSONBody[acceptDeclineBody],
+		Handle: func(r *http.Request, userID string, req *acceptDeclineBody) (*map[string]interface{}, error) {
+			// Accept either collaborator_id or id field
+			collaboratorID := req.CollaboratorID
+			if collaboratorID == "" {
+				collaboratorID = req.ID
+			}
 
-	var req struct {
-		CollaboratorID string `json:"collaborator_id"`
-		ID             string `json:"id"` // Alternative field name
-	}
+			if collaboratorID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "collaborator_id or id is required")
+			}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+			// Call the collaboration service to accept the invitation
+			resp, err := h.client.AcceptInvitation(r.Context(), &collab.AcceptInvitationRequest{
+				UserId:         userID,
+				CollaboratorId: collaboratorID,
+			})
+			if err != nil {
+				return nil, err
+			}
 
-	// Accept either collaborator_id or id field
-	collaboratorID := req.CollaboratorID
-	if collaboratorID == "" {
-		collaboratorID = req.ID
-	}
+			response := map[string]interface{}{
+				"success": true,
+				"message": "Invitation accepted successfully",
+			}
 
-	if collaboratorID == "" {
-		handlers.WriteError(w, "collaborator_id or id is required", http.StatusBadRequest)
-		return
-	}
+			if resp.Collaborator != nil {
+				response["collaborator"] = map[string]interface{}{
+					"id":         resp.Collaborator.Id,
+					"project_id": resp.Collaborator.ProjectId,
+					"user_id":    resp.Collaborator.UserId,
+					"role":       resp.Collaborator.Role,
+					"status":     resp.Collaborator.Status,
+					"invited_at": handlers.TimestampToString(resp.Collaborator.InvitedAt),
+					"joined_at":  handlers.TimestampToString(resp.Collaborator.JoinedAt),
+				}
+			}
 
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Call the collaboration service to accept the invitation
-	resp, err := h.client.AcceptInvitation(r.Context(), &collab.AcceptInvitationRequest{
-		UserId:         userID,
-		CollaboratorId: collaboratorID,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	response := map[string]interface{}{
-		"success": true,
-		"message": "Invitation accepted successfully",
-	}
-
-	if resp.Collaborator != nil {
-		response["collaborator"] = map[string]interface{}{
-			"id":         resp.Collaborator.Id,
-			"project_id": resp.Collaborator.ProjectId,
-			"user_id":    resp.Collaborator.UserId,
-			"role":       resp.Collaborator.Role,
-			"status":     resp.Collaborator.Status,
-			"invited_at": handlers.TimestampToString(resp.Collaborator.InvitedAt),
-			"joined_at":  handlers.TimestampToString(resp.Collaborator.JoinedAt),
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+			return &response, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // DeclineInvitation marks a pending invitation as declined without granting project
 // access. Accepts either collaborator_id or id in the request body for client compatibility.
 func (h *CollaborationHandler) DeclineInvitation(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[acceptDeclineBody, map[string]interface{}]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: handlers.JSONBody[acceptDeclineBody],
+		Handle: func(r *http.Request, userID string, req *acceptDeclineBody) (*map[string]interface{}, error) {
+			// Accept either collaborator_id or id field
+			collaboratorID := req.CollaboratorID
+			if collaboratorID == "" {
+				collaboratorID = req.ID
+			}
 
-	var req struct {
-		CollaboratorID string `json:"collaborator_id"`
-		ID             string `json:"id"` // Alternative field name
-	}
+			if collaboratorID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "collaborator_id or id is required")
+			}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+			// Call the collaboration service to decline the invitation
+			_, err := h.client.DeclineInvitation(r.Context(), &collab.DeclineInvitationRequest{
+				UserId:         userID,
+				CollaboratorId: collaboratorID,
+			})
+			if err != nil {
+				return nil, err
+			}
 
-	// Accept either collaborator_id or id field
-	collaboratorID := req.CollaboratorID
-	if collaboratorID == "" {
-		collaboratorID = req.ID
-	}
+			response := map[string]interface{}{
+				"success": true,
+				"message": "Invitation declined successfully",
+			}
 
-	if collaboratorID == "" {
-		handlers.WriteError(w, "collaborator_id or id is required", http.StatusBadRequest)
-		return
-	}
+			return &response, nil
+		},
+	}.ServeHTTP(w, r)
+}
 
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Call the collaboration service to decline the invitation
-	_, err := h.client.DeclineInvitation(r.Context(), &collab.DeclineInvitationRequest{
-		UserId:         userID,
-		CollaboratorId: collaboratorID,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	response := map[string]interface{}{
-		"success": true,
-		"message": "Invitation declined successfully",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+// updateRoleBody is the JSON request shape for UpdateCollaboratorRole.
+type updateRoleBody struct {
+	Role string `json:"role"`
 }
 
 // UpdateCollaboratorRole changes the role of an existing collaborator. The caller
 // must supply a valid role: OWNER, WRITER, EDITOR, or REVIEWER. The collaborator
 // ID is extracted from the URL path.
 func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[updateRoleBody, map[string]interface{}]{
+		// Registered under two PATCH routes (/collaborators/{collaboratorId}
+		// and /collaborators/{userId}/role); leave Method empty per the
+		// multi-route migration rule.
+		Auth:   true,
+		Decode: handlers.JSONBody[updateRoleBody],
+		Handle: func(r *http.Request, userID string, req *updateRoleBody) (*map[string]interface{}, error) {
+			// Extract collaborator ID from URL path
+			path := strings.TrimPrefix(r.URL.Path, "/collaborators/")
+			collaboratorID := strings.TrimSuffix(path, "/")
+			if collaboratorID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Collaborator ID is required")
+			}
 
-	// Extract collaborator ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/collaborators/")
-	collaboratorID := strings.TrimSuffix(path, "/")
-	if collaboratorID == "" {
-		handlers.WriteError(w, "Collaborator ID is required", http.StatusBadRequest)
-		return
-	}
+			// Validate role
+			validRoles := map[string]bool{
+				"OWNER":    true,
+				"WRITER":   true,
+				"EDITOR":   true,
+				"REVIEWER": true,
+			}
+			if !validRoles[req.Role] {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Invalid role. Must be 'OWNER', 'WRITER', 'EDITOR', or 'REVIEWER'")
+			}
 
-	var req struct {
-		Role string `json:"role"`
-	}
+			// Call collaboration service
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+			resp, err := h.client.UpdateCollaboratorRole(ctx, &collab.UpdateCollaboratorRoleRequest{
+				UserId:         userID,
+				CollaboratorId: collaboratorID,
+				NewRole:        req.Role,
+			})
+			if err != nil {
+				return nil, err
+			}
 
-	// Validate role
-	validRoles := map[string]bool{
-		"OWNER":    true,
-		"WRITER":   true,
-		"EDITOR":   true,
-		"REVIEWER": true,
-	}
-	if !validRoles[req.Role] {
-		handlers.WriteError(w, "Invalid role. Must be 'OWNER', 'WRITER', 'EDITOR', or 'REVIEWER'", http.StatusBadRequest)
-		return
-	}
-
-	// Get user ID from context
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Call collaboration service
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	resp, err := h.client.UpdateCollaboratorRole(ctx, &collab.UpdateCollaboratorRoleRequest{
-		UserId:         userID,
-		CollaboratorId: collaboratorID,
-		NewRole:        req.Role,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	// Return updated collaborator info
-	response := map[string]interface{}{
-		"id":         resp.Collaborator.Id,
-		"project_id": resp.Collaborator.ProjectId,
-		"user_id":    resp.Collaborator.UserId,
-		"role":       resp.Collaborator.Role,
-		"status":     resp.Collaborator.Status,
-		"invited_at": handlers.TimestampToString(resp.Collaborator.InvitedAt),
-		"joined_at":  handlers.TimestampToString(resp.Collaborator.JoinedAt),
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+			// Return updated collaborator info
+			response := map[string]interface{}{
+				"id":         resp.Collaborator.Id,
+				"project_id": resp.Collaborator.ProjectId,
+				"user_id":    resp.Collaborator.UserId,
+				"role":       resp.Collaborator.Role,
+				"status":     resp.Collaborator.Status,
+				"invited_at": handlers.TimestampToString(resp.Collaborator.InvitedAt),
+				"joined_at":  handlers.TimestampToString(resp.Collaborator.JoinedAt),
+			}
+			return &response, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // RemoveCollaborator removes a collaborator from a project. The collaborator ID is
 // extracted from the URL path. Requires a userID from the request context.
 func (h *CollaborationHandler) RemoveCollaborator(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, map[string]string]{
+		Method: http.MethodDelete,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]string, error) {
+			// Extract collaborator ID from URL path
+			path := strings.TrimPrefix(r.URL.Path, "/collaborators/")
+			collaboratorID := strings.TrimSuffix(path, "/")
+			if collaboratorID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Collaborator ID is required")
+			}
 
-	// Extract collaborator ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/collaborators/")
-	collaboratorID := strings.TrimSuffix(path, "/")
-	if collaboratorID == "" {
-		handlers.WriteError(w, "Collaborator ID is required", http.StatusBadRequest)
-		return
-	}
+			// Call collaboration service
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
 
-	// Get user ID from context
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			_, err := h.client.RemoveCollaborator(ctx, &collab.RemoveCollaboratorRequest{
+				UserId:         userID,
+				CollaboratorId: collaboratorID,
+			})
+			if err != nil {
+				return nil, err
+			}
 
-	// Call collaboration service
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
+			// Return success response
+			response := map[string]string{
+				"message": "Collaborator removed successfully",
+			}
+			return &response, nil
+		},
+	}.ServeHTTP(w, r)
+}
 
-	_, err := h.client.RemoveCollaborator(ctx, &collab.RemoveCollaboratorRequest{
-		UserId:         userID,
-		CollaboratorId: collaboratorID,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	// Return success response
-	response := map[string]string{
-		"message": "Collaborator removed successfully",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+// updateCommentBody is the JSON request shape for UpdateComment.
+type updateCommentBody struct {
+	Content    *string `json:"content,omitempty"`
+	IsResolved *bool   `json:"is_resolved,omitempty"`
 }
 
 // UpdateComment applies partial updates to an existing comment. Only non-nil fields
 // are forwarded: content replaces the body text, and is_resolved marks the thread resolved.
 func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[updateCommentBody, map[string]interface{}]{
+		// Registered as a PATCH route; leave Method empty per the migration
+		// rule for handlers the prompt flagged as multi-verb.
+		Auth:   true,
+		Decode: handlers.JSONBody[updateCommentBody],
+		Handle: func(r *http.Request, userID string, updateData *updateCommentBody) (*map[string]interface{}, error) {
+			// Get comment ID from URL path
+			path := strings.TrimPrefix(r.URL.Path, "/comments/")
+			commentID := strings.Split(path, "/")[0]
+			if commentID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Comment ID is required")
+			}
 
-	// Get comment ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/comments/")
-	commentID := strings.Split(path, "/")[0]
-	if commentID == "" {
-		handlers.WriteError(w, "Comment ID is required", http.StatusBadRequest)
-		return
-	}
+			// Call collaboration service
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
 
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			req := &collab.UpdateCommentRequest{
+				CommentId: commentID,
+				UserId:    userID,
+			}
 
-	// Parse request body
-	var updateData struct {
-		Content    *string `json:"content,omitempty"`
-		IsResolved *bool   `json:"is_resolved,omitempty"`
-	}
+			if updateData.Content != nil {
+				req.Content = updateData.Content
+			}
+			if updateData.IsResolved != nil {
+				req.IsResolved = updateData.IsResolved
+			}
 
-	if err := json.NewDecoder(r.Body).Decode(&updateData); err != nil {
-		handlers.WriteError(w, "Invalid JSON body", http.StatusBadRequest)
-		return
-	}
+			resp, err := h.client.UpdateComment(ctx, req)
+			if err != nil {
+				return nil, err
+			}
 
-	// Call collaboration service
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	req := &collab.UpdateCommentRequest{
-		CommentId: commentID,
-		UserId:    userID,
-	}
-
-	if updateData.Content != nil {
-		req.Content = updateData.Content
-	}
-	if updateData.IsResolved != nil {
-		req.IsResolved = updateData.IsResolved
-	}
-
-	resp, err := h.client.UpdateComment(ctx, req)
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	// Convert response to JSON
-	comment := map[string]interface{}{
-		"id":                resp.Comment.Id,
-		"project_id":        resp.Comment.ProjectId,
-		"screenplay_id":     resp.Comment.ScreenplayId,
-		"script_element_id": resp.Comment.ScriptElementId,
-		"user_id":           resp.Comment.UserId,
-		"content":           resp.Comment.Content,
-		"line_number":       resp.Comment.LineNumber,
-		"char_position":     resp.Comment.CharPosition,
-		"parent_id":         resp.Comment.ParentId,
-		"is_resolved":       resp.Comment.IsResolved,
-		"created_at":        handlers.TimestampToString(resp.Comment.CreatedAt),
-		"updated_at":        handlers.TimestampToString(resp.Comment.UpdatedAt),
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(comment)
+			// Convert response to JSON
+			comment := map[string]interface{}{
+				"id":                resp.Comment.Id,
+				"project_id":        resp.Comment.ProjectId,
+				"screenplay_id":     resp.Comment.ScreenplayId,
+				"script_element_id": resp.Comment.ScriptElementId,
+				"user_id":           resp.Comment.UserId,
+				"content":           resp.Comment.Content,
+				"line_number":       resp.Comment.LineNumber,
+				"char_position":     resp.Comment.CharPosition,
+				"parent_id":         resp.Comment.ParentId,
+				"is_resolved":       resp.Comment.IsResolved,
+				"created_at":        handlers.TimestampToString(resp.Comment.CreatedAt),
+				"updated_at":        handlers.TimestampToString(resp.Comment.UpdatedAt),
+			}
+			return &comment, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // DeleteComment removes a comment by ID. Requires a userID from the request context.
 func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, map[string]interface{}]{
+		Method: http.MethodDelete,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]interface{}, error) {
+			// Get comment ID from URL path
+			path := strings.TrimPrefix(r.URL.Path, "/comments/")
+			commentID := strings.Split(path, "/")[0]
+			if commentID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Comment ID is required")
+			}
 
-	// Get comment ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/comments/")
-	commentID := strings.Split(path, "/")[0]
-	if commentID == "" {
-		handlers.WriteError(w, "Comment ID is required", http.StatusBadRequest)
-		return
-	}
+			// Call collaboration service
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
 
-	// Get user ID from context (set by auth middleware)
-	userID := handlers.GetUserIDFromContext(r)
-	if userID == "" {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			resp, err := h.client.DeleteComment(ctx, &collab.DeleteCommentRequest{
+				CommentId: commentID,
+				UserId:    userID,
+			})
+			if err != nil {
+				return nil, err
+			}
 
-	// Call collaboration service
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	resp, err := h.client.DeleteComment(ctx, &collab.DeleteCommentRequest{
-		CommentId: commentID,
-		UserId:    userID,
-	})
-	if err != nil {
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	// Return success response
-	response := map[string]interface{}{
-		"success": resp.Success,
-		"message": "Comment deleted successfully",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+			// Return success response
+			response := map[string]interface{}{
+				"success": resp.Success,
+				"message": "Comment deleted successfully",
+			}
+			return &response, nil
+		},
+	}.ServeHTTP(w, r)
 }

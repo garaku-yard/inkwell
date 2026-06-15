@@ -3,11 +3,12 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
 
-	"inkwell/server/internal/gateway/contextx"
+	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
 	"inkwell/server/internal/gateway/middleware"
@@ -137,45 +138,40 @@ type UpdateProfileRequest struct {
 // forwards only non-empty fields to the identity service. Returns 401 if the
 // context carries no userID.
 func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[UpdateProfileRequest, UserResponse]{
+		Method: http.MethodPatch,
+		Auth:   true,
+		Decode: func(r *http.Request) (*UpdateProfileRequest, error) {
+			var req UpdateProfileRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *UpdateProfileRequest) (*UserResponse, error) {
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel()
 
-	userID, ok := contextx.UserIDFrom(r.Context())
-	if !ok {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			grpcReq := &identitypb.UpdateUserRequest{
+				UserId: userID,
+			}
+			if req.Email != "" {
+				grpcReq.Email = &req.Email
+			}
+			if req.Username != "" {
+				grpcReq.Username = &req.Username
+			}
 
-	var req UpdateProfileRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+			grpcResp, err := h.identityClient.UpdateUser(ctx, grpcReq)
+			if err != nil {
+				slog.Error("UpdateProfile gRPC error", "error", err)
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to update profile")
+			}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	grpcReq := &identitypb.UpdateUserRequest{
-		UserId: userID,
-	}
-	if req.Email != "" {
-		grpcReq.Email = &req.Email
-	}
-	if req.Username != "" {
-		grpcReq.Username = &req.Username
-	}
-
-	grpcResp, err := h.identityClient.UpdateUser(ctx, grpcReq)
-	if err != nil {
-		slog.Error("UpdateProfile gRPC error", "error", err)
-		handlers.WriteError(w, "Failed to update profile", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(userFromProto(grpcResp.User))
+			resp := userFromProto(grpcResp.User)
+			return &resp, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // ChangePassword updates the authenticated user's password after verifying the
@@ -183,47 +179,41 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 // newPassword must be non-empty; returns 400 if either is missing or if the identity
 // service rejects the change (e.g. wrong current password).
 func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	userID, ok := contextx.UserIDFrom(r.Context())
-	if !ok {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var req struct {
+	type changePasswordBody struct {
 		CurrentPassword string `json:"currentPassword"`
 		NewPassword     string `json:"newPassword"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handlers.WriteError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+	handlers.Endpoint[changePasswordBody, map[string]bool]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: func(r *http.Request) (*changePasswordBody, error) {
+			var req changePasswordBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *changePasswordBody) (*map[string]bool, error) {
+			if req.CurrentPassword == "" || req.NewPassword == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "currentPassword and newPassword are required")
+			}
 
-	if req.CurrentPassword == "" || req.NewPassword == "" {
-		handlers.WriteError(w, "currentPassword and newPassword are required", http.StatusBadRequest)
-		return
-	}
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
+			_, err := h.identityClient.ChangePassword(ctx, &identitypb.ChangePasswordRequest{
+				UserId:          userID,
+				CurrentPassword: req.CurrentPassword,
+				NewPassword:     req.NewPassword,
+			})
+			if err != nil {
+				slog.Error("ChangePassword gRPC error", "error", err)
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Failed to change password")
+			}
 
-	_, err := h.identityClient.ChangePassword(ctx, &identitypb.ChangePasswordRequest{
-		UserId:          userID,
-		CurrentPassword: req.CurrentPassword,
-		NewPassword:     req.NewPassword,
-	})
-	if err != nil {
-		slog.Error("ChangePassword gRPC error", "error", err)
-		handlers.WriteError(w, "Failed to change password", http.StatusBadRequest)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+			return &map[string]bool{"success": true}, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // Register creates a new user account and immediately logs them in by setting
@@ -271,29 +261,23 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 // mount to determine whether a session cookie is valid and to hydrate its
 // auth state without having to read a JWT.
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	handlers.Endpoint[struct{}, AuthResponse]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*AuthResponse, error) {
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel()
 
-	userID, ok := contextx.UserIDFrom(r.Context())
-	if !ok {
-		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+			grpcResp, err := h.identityClient.GetUser(ctx, &identitypb.GetUserRequest{UserId: userID})
+			if err != nil {
+				slog.Error("Me gRPC error", "error", err)
+				return nil, err
+			}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	grpcResp, err := h.identityClient.GetUser(ctx, &identitypb.GetUserRequest{UserId: userID})
-	if err != nil {
-		slog.Error("Me gRPC error", "error", err)
-		handlers.HandleGRPCError(w, err)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(AuthResponse{User: userFromProto(grpcResp.User)})
+			return &AuthResponse{User: userFromProto(grpcResp.User)}, nil
+		},
+	}.ServeHTTP(w, r)
 }
 
 // Logout revokes the caller's JWT by blocklisting it in Redis and clearing the
