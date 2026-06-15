@@ -1,4 +1,4 @@
-package handlers
+package ai
 
 import (
 	"encoding/json"
@@ -11,6 +11,7 @@ import (
 	"inkwell/server/internal/gateway/config"
 	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
+	"inkwell/server/internal/gateway/handlers"
 	"inkwell/server/pkg/aiadapter"
 	aisettingspb "inkwell/server/pkg/grpc/aisettings"
 )
@@ -57,23 +58,23 @@ type ChatMessage struct {
 // unchanged.
 func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req ChatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "Invalid JSON body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
 	if req.ProviderID == "" {
-		writeError(w, "providerId is required", http.StatusBadRequest)
+		handlers.WriteError(w, "providerId is required", http.StatusBadRequest)
 		return
 	}
 
 	userID, ok := contextx.UserIDFrom(r.Context())
 	if !ok {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -82,12 +83,12 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		Id:     req.ProviderID,
 	})
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 	setting := disp.Setting
 	if !setting.Enabled {
-		writeError(w, fmt.Sprintf("AI provider %q is disabled", setting.Label), http.StatusBadRequest)
+		handlers.WriteError(w, fmt.Sprintf("AI provider %q is disabled", setting.Label), http.StatusBadRequest)
 		return
 	}
 
@@ -96,13 +97,13 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		model = setting.DefaultModel
 	}
 	if model == "" {
-		writeError(w, "model required (no default set for provider)", http.StatusBadRequest)
+		handlers.WriteError(w, "model required (no default set for provider)", http.StatusBadRequest)
 		return
 	}
 
 	adapter, err := aiadapter.Get(aiadapter.ProviderKind(setting.Kind))
 	if err != nil {
-		writeError(w, fmt.Sprintf("Provider kind %q not supported on this build", setting.Kind), http.StatusBadRequest)
+		handlers.WriteError(w, fmt.Sprintf("Provider kind %q not supported on this build", setting.Kind), http.StatusBadRequest)
 		return
 	}
 
@@ -110,8 +111,8 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	// defense in depth in case the row was created when a wider list
 	// was configured. Other kinds skip this check.
 	if setting.Kind == string(aiadapter.KindOpenAICompatible) {
-		if err := validateOpenAICompatibleURL(setting.BaseUrl, h.openAICompatibleHosts); err != nil {
-			writeError(w, err.Error(), http.StatusBadRequest)
+		if err := handlers.ValidateOpenAICompatibleURL(setting.BaseUrl, h.openAICompatibleHosts); err != nil {
+			handlers.WriteError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 	}
@@ -129,14 +130,14 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("ai dispatch error (kind=%s): %v", setting.Kind, err)
-		writeError(w, "Provider rejected the request", providerHTTPStatus(err))
+		handlers.WriteError(w, "Provider rejected the request", providerHTTPStatus(err))
 		return
 	}
 	defer stream.Close()
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeError(w, "Streaming unsupported", http.StatusInternalServerError)
+		handlers.WriteError(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
 	}
 

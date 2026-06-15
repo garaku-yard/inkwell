@@ -6,7 +6,13 @@ import (
 
 	"inkwell/server/internal/gateway/config"
 	"inkwell/server/internal/gateway/grpcclient"
-	"inkwell/server/internal/gateway/handlers"
+	"inkwell/server/internal/gateway/handlers/ai"
+	"inkwell/server/internal/gateway/handlers/aisettings"
+	"inkwell/server/internal/gateway/handlers/auth"
+	"inkwell/server/internal/gateway/handlers/billing"
+	"inkwell/server/internal/gateway/handlers/collab"
+	"inkwell/server/internal/gateway/handlers/scripts"
+	"inkwell/server/internal/gateway/handlers/workspace"
 	"inkwell/server/internal/gateway/middleware"
 	redisPkg "inkwell/server/pkg/redis"
 
@@ -83,17 +89,17 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	}
 
 	// Handlers
-	authHandler := handlers.NewAuthHandler(clients, blocklist, cfg.Environment)
-	scriptsHandler := handlers.NewScriptsHandler(clients)
-	collaborationHandler := handlers.NewCollaborationHandler(clients)
-	workspaceHandler := handlers.NewWorkspaceHandler(clients)
-	billingHandler := handlers.NewBillingHandler(clients)
+	authHandler := auth.NewAuthHandler(clients, blocklist, cfg.Environment)
+	scriptsHandler := scripts.NewScriptsHandler(clients)
+	collaborationHandler := collab.NewCollaborationHandler(clients)
+	workspaceHandler := workspace.NewWorkspaceHandler(clients)
+	billingHandler := billing.NewBillingHandler(clients)
 
-	aiHandler, err := handlers.NewAIHandler(cfg, clients)
+	aiHandler, err := ai.NewAIHandler(cfg, clients)
 	if err != nil {
 		return nil, err
 	}
-	aiSettingsHandler := handlers.NewAISettingsHandler(clients, cfg.OpenAICompatibleHosts)
+	aiSettingsHandler := aisettings.NewAISettingsHandler(clients, cfg.OpenAICompatibleHosts)
 
 	// Auth middleware — shared across all protected route groups.
 	identityServiceURL := cfg.IdentityService.Host + ":" + cfg.IdentityService.Port

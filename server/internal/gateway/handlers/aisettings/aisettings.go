@@ -6,7 +6,7 @@
 // handles Postgres I/O and AES-256-GCM encryption of the API key. The
 // plaintext key never crosses this boundary on the way out — it's only
 // decrypted inside ai-settings for dispatch.
-package handlers
+package aisettings
 
 import (
 	"encoding/json"
@@ -16,6 +16,7 @@ import (
 
 	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
+	"inkwell/server/internal/gateway/handlers"
 	"inkwell/server/pkg/aiadapter"
 	aisettingspb "inkwell/server/pkg/grpc/aisettings"
 )
@@ -85,7 +86,7 @@ func (h *AISettingsHandler) guardOpenAICompatible(kind, baseURL string) error {
 	if kind != string(aiadapter.KindOpenAICompatible) {
 		return nil
 	}
-	return validateOpenAICompatibleURL(baseURL, h.openAICompatibleHosts)
+	return handlers.ValidateOpenAICompatibleURL(baseURL, h.openAICompatibleHosts)
 }
 
 // ── Endpoints ───────────────────────────────────────────────────────────────
@@ -94,12 +95,12 @@ func (h *AISettingsHandler) guardOpenAICompatible(kind, baseURL string) error {
 func (h *AISettingsHandler) List(w http.ResponseWriter, r *http.Request) {
 	userID, ok := contextx.UserIDFrom(r.Context())
 	if !ok {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	resp, err := h.client.ListProviderSettings(r.Context(), &aisettingspb.ListProviderSettingsRequest{UserId: userID})
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 	out := make([]settingDTO, len(resp.Settings))
@@ -113,16 +114,16 @@ func (h *AISettingsHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *AISettingsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	userID, ok := contextx.UserIDFrom(r.Context())
 	if !ok {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	var in saveInputDTO
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeError(w, "Invalid JSON body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
 	if err := h.guardOpenAICompatible(in.Kind, in.BaseURL); err != nil {
-		writeError(w, err.Error(), http.StatusBadRequest)
+		handlers.WriteError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	resp, err := h.client.CreateProviderSetting(r.Context(), &aisettingspb.CreateProviderSettingRequest{
@@ -134,7 +135,7 @@ func (h *AISettingsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		DefaultModel: in.DefaultModel,
 	})
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, toDTO(resp.Setting))
@@ -144,17 +145,17 @@ func (h *AISettingsHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *AISettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	userID, ok := contextx.UserIDFrom(r.Context())
 	if !ok {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	id := chi.URLParam(r, "id")
 	var in saveInputDTO
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeError(w, "Invalid JSON body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
 	if err := h.guardOpenAICompatible(in.Kind, in.BaseURL); err != nil {
-		writeError(w, err.Error(), http.StatusBadRequest)
+		handlers.WriteError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	resp, err := h.client.UpdateProviderSetting(r.Context(), &aisettingspb.UpdateProviderSettingRequest{
@@ -167,7 +168,7 @@ func (h *AISettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		DefaultModel: in.DefaultModel,
 	})
 	if err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, toDTO(resp.Setting))
@@ -177,7 +178,7 @@ func (h *AISettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *AISettingsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	userID, ok := contextx.UserIDFrom(r.Context())
 	if !ok {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	id := chi.URLParam(r, "id")
@@ -185,7 +186,7 @@ func (h *AISettingsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		UserId: userID,
 		Id:     id,
 	}); err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -195,17 +196,17 @@ func (h *AISettingsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 func (h *AISettingsHandler) SetKey(w http.ResponseWriter, r *http.Request) {
 	userID, ok := contextx.UserIDFrom(r.Context())
 	if !ok {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	id := chi.URLParam(r, "id")
 	var in setKeyDTO
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeError(w, "Invalid JSON body", http.StatusBadRequest)
+		handlers.WriteError(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
 	if in.APIKey == "" {
-		writeError(w, "apiKey required", http.StatusBadRequest)
+		handlers.WriteError(w, "apiKey required", http.StatusBadRequest)
 		return
 	}
 	if _, err := h.client.SetProviderKey(r.Context(), &aisettingspb.SetProviderKeyRequest{
@@ -213,7 +214,7 @@ func (h *AISettingsHandler) SetKey(w http.ResponseWriter, r *http.Request) {
 		Id:     id,
 		ApiKey: in.APIKey,
 	}); err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -223,7 +224,7 @@ func (h *AISettingsHandler) SetKey(w http.ResponseWriter, r *http.Request) {
 func (h *AISettingsHandler) ClearKey(w http.ResponseWriter, r *http.Request) {
 	userID, ok := contextx.UserIDFrom(r.Context())
 	if !ok {
-		writeError(w, "Unauthorized", http.StatusUnauthorized)
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	id := chi.URLParam(r, "id")
@@ -231,7 +232,7 @@ func (h *AISettingsHandler) ClearKey(w http.ResponseWriter, r *http.Request) {
 		UserId: userID,
 		Id:     id,
 	}); err != nil {
-		handleGRPCError(w, err)
+		handlers.HandleGRPCError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

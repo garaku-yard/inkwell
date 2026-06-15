@@ -11,13 +11,13 @@ import (
 // errProjectUnauthorized is returned when a user has neither owner nor collaborator access.
 var errProjectUnauthorized = errors.New("unauthorized")
 
-// resolveProjectAccess determines whether userID may access projectID and returns
+// ResolveProjectAccess determines whether userID may access projectID and returns
 // the effective userId to pass to downstream gRPC calls:
 //   - (userID, nil)  — user is the project owner
 //   - ("",   nil)    — user is an active collaborator; empty string is the bypass sentinel
 //     that tells the scripts service to skip the ownership check
 //   - ("",   err)    — user has no access
-func resolveProjectAccess(
+func ResolveProjectAccess(
 	ctx context.Context,
 	userID, projectID string,
 	sc scriptspb.ScriptsServiceClient,
