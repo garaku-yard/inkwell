@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"inkwell/server/pkg/env"
 )
 
 // Config holds all configuration for the API Gateway.
@@ -92,47 +94,47 @@ func (c *Config) AISettingsServiceURL() string {
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	config := &Config{
-		Port:        getEnvOrDefault("GATEWAY_PORT", "8080"),
-		Host:        getEnvOrDefault("GATEWAY_HOST", "0.0.0.0"),
-		Environment: getEnvOrDefault("ENVIRONMENT", "development"),
+		Port:        env.String("GATEWAY_PORT", "8080"),
+		Host:        env.String("GATEWAY_HOST", "0.0.0.0"),
+		Environment: env.String("ENVIRONMENT", "development"),
 
 		// Service configurations
 		IdentityService: ServiceConfig{
-			Host: getEnvOrDefault("IDENTITY_SERVICE_HOST", "localhost"),
-			Port: getEnvOrDefault("IDENTITY_SERVICE_PORT", "50051"),
+			Host: env.String("IDENTITY_SERVICE_HOST", "localhost"),
+			Port: env.String("IDENTITY_SERVICE_PORT", "50051"),
 		},
 		ScriptsService: ServiceConfig{
-			Host: getEnvOrDefault("SCRIPTS_SERVICE_HOST", "localhost"),
-			Port: getEnvOrDefault("SCRIPTS_SERVICE_PORT", "50052"),
+			Host: env.String("SCRIPTS_SERVICE_HOST", "localhost"),
+			Port: env.String("SCRIPTS_SERVICE_PORT", "50052"),
 		},
 		CollabService: ServiceConfig{
-			Host: getEnvOrDefault("COLLAB_SERVICE_HOST", "localhost"),
-			Port: getEnvOrDefault("COLLAB_SERVICE_PORT", "50053"),
+			Host: env.String("COLLAB_SERVICE_HOST", "localhost"),
+			Port: env.String("COLLAB_SERVICE_PORT", "50053"),
 		},
 		BillingService: ServiceConfig{
-			Host: getEnvOrDefault("BILLING_SERVICE_HOST", "localhost"),
-			Port: getEnvOrDefault("BILLING_SERVICE_PORT", "50054"),
+			Host: env.String("BILLING_SERVICE_HOST", "localhost"),
+			Port: env.String("BILLING_SERVICE_PORT", "50054"),
 		},
 		WorkspaceService: ServiceConfig{
-			Host: getEnvOrDefault("WORKSPACE_SERVICE_HOST", "localhost"),
-			Port: getEnvOrDefault("WORKSPACE_SERVICE_PORT", "50056"),
+			Host: env.String("WORKSPACE_SERVICE_HOST", "localhost"),
+			Port: env.String("WORKSPACE_SERVICE_PORT", "50056"),
 		},
 		AISettingsService: ServiceConfig{
-			Host: getEnvOrDefault("AI_SETTINGS_SERVICE_HOST", "localhost"),
-			Port: getEnvOrDefault("AI_SETTINGS_SERVICE_PORT", "50057"),
+			Host: env.String("AI_SETTINGS_SERVICE_HOST", "localhost"),
+			Port: env.String("AI_SETTINGS_SERVICE_PORT", "50057"),
 		},
 		Redis: RedisConfig{
-			Host:     getEnvOrDefault("REDIS_HOST", "localhost"),
-			Port:     getEnvOrDefault("REDIS_PORT", "6379"),
-			Password: getEnvOrDefault("REDIS_PASSWORD", ""),
+			Host:     env.String("REDIS_HOST", "localhost"),
+			Port:     env.String("REDIS_PORT", "6379"),
+			Password: env.String("REDIS_PASSWORD", ""),
 		},
-		RateLimitRPM:     getEnvIntOrDefault("RATE_LIMIT_RPM", 120),
-		AuthRateLimitRPM: getEnvIntOrDefault("AUTH_RATE_LIMIT_RPM", 10),
-		AIRateLimitRPM:   getEnvIntOrDefault("AI_RATE_LIMIT_RPM", 30),
+		RateLimitRPM:     env.Int("RATE_LIMIT_RPM", 120),
+		AuthRateLimitRPM: env.Int("AUTH_RATE_LIMIT_RPM", 10),
+		AIRateLimitRPM:   env.Int("AI_RATE_LIMIT_RPM", 30),
 	}
 
 	// Parse allowed origins
-	originsEnv := getEnvOrDefault("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001")
+	originsEnv := env.String("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001")
 	config.AllowedOrigins = strings.Split(originsEnv, ",")
 
 	// Parse openai_compatible host allowlist. Empty env var means the
@@ -148,22 +150,4 @@ func Load() (*Config, error) {
 	}
 
 	return config, nil
-}
-
-// Helper functions
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func getEnvIntOrDefault(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		var n int
-		if _, err := fmt.Sscanf(value, "%d", &n); err == nil {
-			return n
-		}
-	}
-	return defaultValue
 }

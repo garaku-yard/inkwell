@@ -1,9 +1,9 @@
 package config
 
 import (
-	"os"
-	"strconv"
 	"time"
+
+	"inkwell/server/pkg/env"
 )
 
 // Config holds all configuration for the Scripts service
@@ -72,63 +72,37 @@ type StorageConfig struct {
 // Load loads configuration from environment variables with defaults
 func Load() (*Config, error) {
 	cfg := &Config{
-		GRPCPort: getEnvOrDefault("SCRIPTS_GRPC_PORT", "50052"),
+		GRPCPort: env.String("SCRIPTS_GRPC_PORT", "50052"),
 		DatabaseConfig: DatabaseConfig{
-			Host:            getEnvOrDefault("SCRIPTS_DB_HOST", "localhost"),
-			Port:            getEnvOrDefault("SCRIPTS_DB_PORT", "5432"),
-			User:            getEnvOrDefault("SCRIPTS_DB_USER", "postgres"),
-			Password:        getEnvOrDefault("SCRIPTS_DB_PASSWORD", ""),
-			Name:            getEnvOrDefault("SCRIPTS_DB_NAME", "scripts_db"),
-			SSLMode:         getEnvOrDefault("SCRIPTS_DB_SSLMODE", "disable"),
-			MaxOpenConns:    getEnvIntOrDefault("SCRIPTS_DB_MAX_OPEN_CONNS", 25),
-			MaxIdleConns:    getEnvIntOrDefault("SCRIPTS_DB_MAX_IDLE_CONNS", 10),
-			ConnMaxLifetime: getEnvDurationOrDefault("SCRIPTS_DB_CONN_MAX_LIFETIME", time.Hour),
+			Host:            env.String("SCRIPTS_DB_HOST", "localhost"),
+			Port:            env.String("SCRIPTS_DB_PORT", "5432"),
+			User:            env.String("SCRIPTS_DB_USER", "postgres"),
+			Password:        env.String("SCRIPTS_DB_PASSWORD", ""),
+			Name:            env.String("SCRIPTS_DB_NAME", "scripts_db"),
+			SSLMode:         env.String("SCRIPTS_DB_SSLMODE", "disable"),
+			MaxOpenConns:    env.Int("SCRIPTS_DB_MAX_OPEN_CONNS", 25),
+			MaxIdleConns:    env.Int("SCRIPTS_DB_MAX_IDLE_CONNS", 10),
+			ConnMaxLifetime: env.Duration("SCRIPTS_DB_CONN_MAX_LIFETIME", time.Hour),
 		},
 		IdentityConfig: IdentityConfig{
-			Host: getEnvOrDefault("IDENTITY_SERVICE_HOST", "localhost"),
-			Port: getEnvOrDefault("IDENTITY_SERVICE_PORT", "50051"),
+			Host: env.String("IDENTITY_SERVICE_HOST", "localhost"),
+			Port: env.String("IDENTITY_SERVICE_PORT", "50051"),
 		},
 		BillingConfig: BillingConfig{
-			Host: getEnvOrDefault("BILLING_SERVICE_HOST", "localhost"),
-			Port: getEnvOrDefault("BILLING_SERVICE_PORT", "50054"),
+			Host: env.String("BILLING_SERVICE_HOST", "localhost"),
+			Port: env.String("BILLING_SERVICE_PORT", "50054"),
 		},
 		KafkaConfig: KafkaConfig{
-			Brokers:       []string{getEnvOrDefault("KAFKA_BROKERS", "localhost:9092")},
-			TopicPrefix:   getEnvOrDefault("KAFKA_TOPIC_PREFIX", "inkwell"),
-			ConsumerGroup: getEnvOrDefault("KAFKA_CONSUMER_GROUP", "scripts-service"),
+			Brokers:       []string{env.String("KAFKA_BROKERS", "localhost:9092")},
+			TopicPrefix:   env.String("KAFKA_TOPIC_PREFIX", "inkwell"),
+			ConsumerGroup: env.String("KAFKA_CONSUMER_GROUP", "scripts-service"),
 		},
 		StorageConfig: StorageConfig{
-			Type:       getEnvOrDefault("STORAGE_TYPE", "local"),
-			LocalPath:  getEnvOrDefault("STORAGE_LOCAL_PATH", "./uploads"),
-			BucketName: getEnvOrDefault("STORAGE_BUCKET_NAME", "inkwell-files"),
+			Type:       env.String("STORAGE_TYPE", "local"),
+			LocalPath:  env.String("STORAGE_LOCAL_PATH", "./uploads"),
+			BucketName: env.String("STORAGE_BUCKET_NAME", "inkwell-files"),
 		},
 	}
 
 	return cfg, nil
-}
-
-// Helper functions
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func getEnvIntOrDefault(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
-	}
-	return defaultValue
-}
-
-func getEnvDurationOrDefault(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
-	}
-	return defaultValue
 }
