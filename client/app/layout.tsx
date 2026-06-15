@@ -24,8 +24,8 @@ import "./globals.css";
 // Settings → Appearance picker. next/font hosts the files at build
 // time so they ship inside the Tauri static export — nothing hits
 // Google Fonts at runtime.
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"], display: "swap" });
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"], display: "swap" });
 
 // UI fonts the picker exposes. Each declares a CSS variable that the
 // theme stylesheet stitches into `--inkwell-ui-font` when the user
