@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { Suspense, useState, useEffect, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { ArrowLeft, Settings2, Tag, Users } from "lucide-react"
 
@@ -12,11 +12,12 @@ import { GeneralSection } from "@/components/workspace/settings/GeneralSection"
 import { MembersSection } from "@/components/workspace/settings/MembersSection"
 import { CategoriesSection } from "@/components/workspace/settings/CategoriesSection"
 import { PaneSpinner } from "@/components/shared/PaneSpinner"
+import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 import { cn } from "@/lib/utils"
 
 type Section = "general" | "members" | "categories"
 
-export default function WorkspaceSettingsPage() {
+function WorkspaceSettingsPageContent() {
   const searchParams = useSearchParams()
   const workspaceId = searchParams.get("id") ?? ""
   const router = useRouter()
@@ -120,5 +121,13 @@ export default function WorkspaceSettingsPage() {
         </main>
       </div>
     </div>
+  )
+}
+
+export default function WorkspaceSettingsPage() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <WorkspaceSettingsPageContent />
+    </Suspense>
   )
 }

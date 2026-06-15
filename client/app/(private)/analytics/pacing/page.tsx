@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
@@ -16,7 +17,7 @@ const PacingChart = dynamic(() => import("@/components/analytics/pacing/PacingCh
   loading: () => <div className="h-64"><PaneSpinner /></div>,
 })
 
-export default function PacingAnalysis() {
+function PacingAnalysisContent() {
   const { projectId, analytics, isLoading, error } = useProjectAnalytics()
 
   if (isLoading) return <FullPageSpinner />
@@ -130,5 +131,13 @@ export default function PacingAnalysis() {
         </Card>
       </main>
     </div>
+  )
+}
+
+export default function PacingAnalysis() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <PacingAnalysisContent />
+    </Suspense>
   )
 }

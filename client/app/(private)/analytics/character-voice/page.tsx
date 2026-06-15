@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -10,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { useProjectAnalytics } from "@/hooks/useProjectAnalytics"
 import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 
-export default function CharacterVoiceAnalysis() {
+function CharacterVoiceAnalysisContent() {
   const { projectId, analytics, isLoading, error } = useProjectAnalytics()
 
   if (isLoading) return <FullPageSpinner />
@@ -177,5 +178,13 @@ export default function CharacterVoiceAnalysis() {
         </Tabs>
       </main>
     </div>
+  )
+}
+
+export default function CharacterVoiceAnalysis() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <CharacterVoiceAnalysisContent />
+    </Suspense>
   )
 }

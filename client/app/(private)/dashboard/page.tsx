@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import {
   FileText,
   Plus,
@@ -33,8 +33,9 @@ import { RenameProjectDialog } from "@/components/rename-project-dialog"
 import { useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { isTauri } from "@tauri-apps/api/core"
+import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isAuthenticated, isLoading: authLoading, user } = useAuth()
@@ -341,5 +342,13 @@ export default function DashboardPage() {
         isRenaming={isRenaming}
       />
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <DashboardPageContent />
+    </Suspense>
   )
 }

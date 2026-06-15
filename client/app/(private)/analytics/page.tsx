@@ -1,11 +1,13 @@
 "use client"
 
+import { Suspense } from "react"
 import Link from "next/link"
 import { BarChart3, Users, TrendingUp, Flame, MessageSquare, FileText, ChevronRight, ArrowLeft, Loader2, BookOpen, Layers, GitBranch, Dices } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useProjectAnalytics } from "@/hooks/useProjectAnalytics"
 import type { ScriptAnalytics } from "@/lib/analytics"
 import { getCategoryStructure } from "@/lib/helpers/category-structure"
+import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 
 // ── Category-specific top stats ────────────────────────────────────────────
 
@@ -203,7 +205,7 @@ function getCards(analytics: ScriptAnalytics, projectId: string): AnalyticsCard[
 
 // ── Page ───────────────────────────────────────────────────────────────────
 
-export default function AnalyticsPage() {
+function AnalyticsPageContent() {
   const { projectId, analytics, isLoading } = useProjectAnalytics()
   const cat = analytics?.category ?? ""
   const categoryLabel = cat
@@ -292,5 +294,13 @@ export default function AnalyticsPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <AnalyticsPageContent />
+    </Suspense>
   )
 }

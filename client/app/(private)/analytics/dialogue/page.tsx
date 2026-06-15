@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -10,7 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { useProjectAnalytics } from "@/hooks/useProjectAnalytics"
 import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 
-export default function DialogueAnalysis() {
+function DialogueAnalysisContent() {
   const { projectId, analytics, isLoading, error } = useProjectAnalytics()
 
   if (isLoading) return <FullPageSpinner />
@@ -172,5 +173,13 @@ export default function DialogueAnalysis() {
         </Tabs>
       </main>
     </div>
+  )
+}
+
+export default function DialogueAnalysis() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <DialogueAnalysisContent />
+    </Suspense>
   )
 }

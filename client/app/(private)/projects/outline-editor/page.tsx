@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { Suspense, useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { useDebouncedCallback } from 'use-debounce';
 import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLanes";
 import { OutlineDocument } from '@/components/outline-editor/OutlineDocument';
 import { PaneSpinner } from "@/components/shared/PaneSpinner";
+import { FullPageSpinner } from "@/components/shared/FullPageSpinner";
 import { useProjectLoader } from "@/hooks/useProjectLoader";
 
 import { getFullProject, type FullProject } from "@/services/project";
@@ -41,7 +42,7 @@ const parsePageRange = (sceneNumbers: string): { start: number; end: number } | 
   return null;
 };
 
-export default function OutlineEditorPage() {
+function OutlineEditorPageContent() {
   const searchParams = useSearchParams();
   const projectId = searchParams.get("id") ?? "";
   const { user } = useAuth();
@@ -442,5 +443,13 @@ export default function OutlineEditorPage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function OutlineEditorPage() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <OutlineEditorPageContent />
+    </Suspense>
   );
 }

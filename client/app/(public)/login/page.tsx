@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Eye, EyeOff, AlertCircle } from "lucide-react"
@@ -14,13 +14,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 import { loginUser } from "@/services/auth"
 import { useAuth } from "@/lib/AuthContext"
+import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 
 export interface LoginRequest {
   email: string
   password: string
 }
 
-export default function LoginPage() {
+function LoginPageContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -147,5 +148,13 @@ export default function LoginPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<FullPageSpinner />}>
+      <LoginPageContent />
+    </Suspense>
   )
 }
