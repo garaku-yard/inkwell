@@ -23,15 +23,23 @@ const eslintConfig = [
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
-    // Pre-existing code-quality nits (unused vars, stray expressions,
-    // `any` types) are demoted to warnings so CI doesn't fail on legacy
-    // code. Real bugs (a11y, react-hooks, etc.) remain errors. Clean these
-    // up opportunistically — they're surface-level, not architectural.
+    // The codebase is now clean of `any` and unused vars, so these are
+    // errors to stop regressions as the team grows. The remaining two stay
+    // warnings: stray expressions are occasionally intentional, and
+    // unescaped entities are cosmetic (React renders them correctly).
     rules: {
-      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          // Allow intentionally-unused names via a leading underscore, and
+          // don't flag caught errors that a handler chooses not to inspect.
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrors: "none",
+        },
+      ],
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-expressions": "warn",
-      "@typescript-eslint/no-explicit-any": "warn",
-      // Cosmetic — React renders the raw characters correctly either way.
       "react/no-unescaped-entities": "warn",
     },
   },

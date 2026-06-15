@@ -1,14 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { CreditCard, CheckCircle2, XCircle, Key, Webhook } from "lucide-react"
+import { CheckCircle2, XCircle, Key, Webhook } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { getGateways, getGatewayConfig, updateGatewayConfig, setActiveGateway, toggleGatewayTestMode } from "@/services/admin-billing"
 import type { PaymentGateway, GatewayConfig } from "@/types/billing"
@@ -17,7 +16,7 @@ export function GatewayConfiguration() {
   const [gateways, setGateways] = useState<PaymentGateway[]>([])
   const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null)
   const [config, setConfig] = useState<GatewayConfig | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const { toast } = useToast()
 

@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf"
-import type { FullProject, Scene, ScriptElement } from "@/services/project"
+import type { FullProject } from "@/services/project"
 
 // US Letter in points (72pt = 1 inch)
 const PAGE_W = 612
@@ -64,11 +64,6 @@ export function exportScreenplayToPDF(project: FullProject): void {
       pageNumber(doc, page)
       y = MARGIN_TOP
     }
-  }
-
-  function writeLine(text: string, x: number) {
-    doc.text(text, MARGIN_LEFT + x, y)
-    y += LINE_H
   }
 
   function writeBlock(

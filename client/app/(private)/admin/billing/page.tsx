@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, DollarSign, Users, TrendingUp, BarChart3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/lib/AuthContext"
 import { TiersManagement } from "@/components/admin/billing/tiers-management"
@@ -18,7 +18,7 @@ export default function AdminBillingPage() {
   const router = useRouter()
   type BillingAnalytics = Awaited<ReturnType<typeof getBillingAnalytics>>
   const [analytics, setAnalytics] = useState<BillingAnalytics | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [, setIsLoading] = useState(true)
 
   useEffect(() => {
     // Check admin access
@@ -34,7 +34,7 @@ export default function AdminBillingPage() {
     try {
       const data = await getBillingAnalytics()
       setAnalytics(data)
-    } catch (error) {
+    } catch {
       console.error("Failed to load analytics")
     } finally {
       setIsLoading(false)
