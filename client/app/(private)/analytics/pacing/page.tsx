@@ -3,11 +3,18 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { XAxis, YAxis, CartesianGrid, ResponsiveContainer, Area, AreaChart, Tooltip } from "recharts"
+import dynamic from "next/dynamic"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useProjectAnalytics } from "@/hooks/useProjectAnalytics"
 import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
+import { PaneSpinner } from "@/components/shared/PaneSpinner"
+
+// recharts is heavy; load it only when this page actually renders the chart.
+const PacingChart = dynamic(() => import("@/components/analytics/pacing/PacingChart"), {
+  ssr: false,
+  loading: () => <div className="h-64"><PaneSpinner /></div>,
+})
 
 export default function PacingAnalysis() {
   const { projectId, analytics, isLoading, error } = useProjectAnalytics()
@@ -92,36 +99,7 @@ export default function PacingAnalysis() {
           </CardHeader>
           <CardContent>
             {analytics.pacingData.length > 0 ? (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={analytics.pacingData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis
-                      dataKey="scene"
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 11 }}
-                      label={{ value: "Scene", position: "insideBottom", offset: -2, fontSize: 11 }}
-                    />
-                    <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      contentStyle={{ fontSize: 12 }}
-                      formatter={(val: number) => [`${val}%`, "Relative density"]}
-                      labelFormatter={(label) => {
-                        const d = analytics.pacingData[Number(label) - 1]
-                        return d ? `Scene ${label}: ${d.name}` : `Scene ${label}`
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="words"
-                      stroke="hsl(var(--primary))"
-                      fill="hsl(var(--primary) / 0.2)"
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+              <PacingChart data={analytics.pacingData} />
             ) : (
               <p className="text-sm text-muted-foreground">No scene data.</p>
             )}
