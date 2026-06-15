@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { useRouter } from "next/navigation"
 
 import { SessionExpiryModal } from "@/components/session-expiry-modal"
+import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 import { ApiError } from "@/lib/api"
 import { getStorage } from "@/lib/storage"
 
@@ -110,7 +111,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [])
 
   if (isLoading) {
-    return <div>Loading Authentication...</div>
+    // Themed full-viewport spinner instead of an unstyled flash; it inherits
+    // the active theme tokens already applied by ThemeProvider above us.
+    return <FullPageSpinner />
   }
 
   return (
