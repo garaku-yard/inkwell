@@ -16,11 +16,11 @@ var ErrJWTSecretRequired = errors.New("JWT_SECRET must be set when ENVIRONMENT i
 // Config holds all configuration for the Identity service
 type Config struct {
 	// Server configuration
-	GRPCPort string `env:"GRPC_PORT" default:"50051"`
+	GRPCPort string
 
 	// Environment ("development", "staging", "production"). Controls whether
 	// insecure defaults are tolerated (see ErrJWTSecretRequired).
-	Environment string `env:"ENVIRONMENT" default:"development"`
+	Environment string
 
 	// Database configuration
 	DatabaseConfig DatabaseConfig
@@ -40,15 +40,15 @@ type Config struct {
 
 // DatabaseConfig holds database connection settings
 type DatabaseConfig struct {
-	Host            string        `env:"IDENTITY_DB_HOST" default:"localhost"`
-	Port            string        `env:"IDENTITY_DB_PORT" default:"5432"`
-	User            string        `env:"IDENTITY_DB_USER" default:"postgres"`
-	Password        string        `env:"IDENTITY_DB_PASSWORD" default:""`
-	Name            string        `env:"IDENTITY_DB_NAME" default:"identity_db"`
-	SSLMode         string        `env:"IDENTITY_DB_SSLMODE" default:"disable"`
-	MaxOpenConns    int           `env:"IDENTITY_DB_MAX_OPEN_CONNS" default:"25"`
-	MaxIdleConns    int           `env:"IDENTITY_DB_MAX_IDLE_CONNS" default:"10"`
-	ConnMaxLifetime time.Duration `env:"IDENTITY_DB_CONN_MAX_LIFETIME" default:"1h"`
+	Host            string
+	Port            string
+	User            string
+	Password        string
+	Name            string
+	SSLMode         string
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
 }
 
 // JWTConfig holds JWT token settings. AccessTokenSecret is populated from the
@@ -56,34 +56,34 @@ type DatabaseConfig struct {
 // and other services to avoid the same value being set under two keys. There
 // is no production default: Load rejects empty secrets outside development.
 type JWTConfig struct {
-	AccessTokenSecret  string        `env:"JWT_SECRET"`
-	AccessTokenExpiry  time.Duration `env:"JWT_ACCESS_EXPIRY" default:"24h"`
-	RefreshTokenExpiry time.Duration `env:"JWT_REFRESH_EXPIRY" default:"168h"` // 7 days
-	Issuer             string        `env:"JWT_ISSUER" default:"inkwell-identity"`
+	AccessTokenSecret  string
+	AccessTokenExpiry  time.Duration
+	RefreshTokenExpiry time.Duration // 7 days
+	Issuer             string
 }
 
 // KafkaConfig holds Kafka connection settings
 type KafkaConfig struct {
-	Brokers []string `env:"KAFKA_BROKERS" default:"localhost:9092"`
-	Topic   string   `env:"KAFKA_USER_TOPIC" default:"user-events"`
+	Brokers []string
+	Topic   string
 }
 
 // EmailConfig holds email service settings
 type EmailConfig struct {
-	SMTPHost     string `env:"SMTP_HOST" default:""`
-	SMTPPort     int    `env:"SMTP_PORT" default:"587"`
-	SMTPUsername string `env:"SMTP_USERNAME" default:""`
-	SMTPPassword string `env:"SMTP_PASSWORD" default:""`
-	FromEmail    string `env:"FROM_EMAIL" default:"noreply@inkwell.com"`
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	FromEmail    string
 }
 
 // SecurityConfig holds security-related settings
 type SecurityConfig struct {
-	BcryptCost              int           `env:"BCRYPT_COST" default:"12"`
-	MaxLoginAttempts        int           `env:"MAX_LOGIN_ATTEMPTS" default:"5"`
-	LoginAttemptWindow      time.Duration `env:"LOGIN_ATTEMPT_WINDOW" default:"15m"`
-	PasswordResetExpiry     time.Duration `env:"PASSWORD_RESET_EXPIRY" default:"1h"`
-	EmailVerificationExpiry time.Duration `env:"EMAIL_VERIFICATION_EXPIRY" default:"24h"`
+	BcryptCost              int
+	MaxLoginAttempts        int
+	LoginAttemptWindow      time.Duration
+	PasswordResetExpiry     time.Duration
+	EmailVerificationExpiry time.Duration
 }
 
 // Load loads configuration from environment variables. It returns

@@ -11,12 +11,12 @@ import (
 // Config holds all configuration for the API Gateway.
 type Config struct {
 	// Server configuration
-	Port        string `env:"GATEWAY_PORT" default:"8080"`
-	Host        string `env:"GATEWAY_HOST" default:"0.0.0.0"`
-	Environment string `env:"ENVIRONMENT" default:"development"`
+	Port        string
+	Host        string
+	Environment string
 
 	// CORS configuration
-	AllowedOrigins []string `env:"ALLOWED_ORIGINS" default:"http://localhost:3000"`
+	AllowedOrigins []string
 
 	// Service configurations
 	IdentityService   ServiceConfig
@@ -33,9 +33,9 @@ type Config struct {
 	// RateLimitRPM applies to every request; AuthRateLimitRPM is a tighter
 	// per-IP bucket for credential-heavy endpoints (login, register, password
 	// change) so online brute-forcing is uneconomical.
-	RateLimitRPM     int `env:"RATE_LIMIT_RPM" default:"120"`
-	AuthRateLimitRPM int `env:"AUTH_RATE_LIMIT_RPM" default:"10"`
-	AIRateLimitRPM   int `env:"AI_RATE_LIMIT_RPM" default:"30"`
+	RateLimitRPM     int
+	AuthRateLimitRPM int
+	AIRateLimitRPM   int
 
 	// OpenAICompatibleHosts allowlists `host[:port]` values that
 	// `openai_compatible` provider rows are allowed to dispatch to. Empty
@@ -45,14 +45,14 @@ type Config struct {
 	// endpoints (e.g. `ollama.internal:11434`) here. Match is exact
 	// against the URL's Host field — provide entries with the port the
 	// users will configure with.
-	OpenAICompatibleHosts []string `env:"AI_OPENAI_COMPATIBLE_HOSTS" default:""`
+	OpenAICompatibleHosts []string
 }
 
 // RedisConfig holds Redis connection settings for the gateway.
 type RedisConfig struct {
-	Host     string `env:"REDIS_HOST" default:"localhost"`
-	Port     string `env:"REDIS_PORT" default:"6379"`
-	Password string `env:"REDIS_PASSWORD" default:""`
+	Host     string
+	Port     string
+	Password string
 }
 
 // ServiceConfig holds configuration for a microservice
