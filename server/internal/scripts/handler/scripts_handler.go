@@ -12,6 +12,7 @@ import (
 	"inkwell/server/internal/scripts/service"
 	"inkwell/server/pkg/grpc/common"
 	scriptspb "inkwell/server/pkg/grpc/scripts"
+	"inkwell/server/pkg/quota"
 )
 
 // ScriptsHandler implements the ScriptsService gRPC service. It translates
@@ -608,6 +609,11 @@ func handleServiceError(err error) error {
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, domain.ErrInvalidProjectData):
 		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, quota.ErrQuotaExceeded):
+		// Hitting a plan limit is an expected, actionable condition — surface
+		// it as ResourceExhausted so the gateway maps it to 429 rather than a
+		// generic 500.
+		return status.Error(codes.ResourceExhausted, err.Error())
 	}
 	return status.Errorf(codes.Internal, "internal server error: %v", err)
 }

@@ -31,6 +31,7 @@ const (
 	CodeInternal           Code = "INTERNAL"
 	CodeUnavailable        Code = "UNAVAILABLE"
 	CodeDeadlineExceeded   Code = "DEADLINE_EXCEEDED"
+	CodeResourceExhausted  Code = "RESOURCE_EXHAUSTED"
 )
 
 // Error is the envelope the gateway returns to HTTP clients on failure. It
@@ -122,6 +123,8 @@ func codeToHTTP(c codes.Code) (Code, int) {
 		return CodeDeadlineExceeded, http.StatusGatewayTimeout
 	case codes.Unavailable:
 		return CodeUnavailable, http.StatusServiceUnavailable
+	case codes.ResourceExhausted:
+		return CodeResourceExhausted, http.StatusTooManyRequests
 	default:
 		return CodeInternal, http.StatusInternalServerError
 	}
