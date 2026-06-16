@@ -22,6 +22,47 @@ import { getDb, now } from "./shared"
 
 // ─── Vault (markdown notes on disk) ──────────────────────────────────────
 
+// Vault-as-knowledge keeps an embedding index in sync with note edits. The
+// hooks are loaded lazily (dynamic import) so we don't create a static cycle
+// with `./knowledge` (which imports this module's `vault` object), and they
+// run fire-and-forget: a vault that nobody has wired as knowledge self-guards
+// to a no-op, and a failed embed must never break the save itself.
+function syncKnowledgeOnSave(
+  projectId: string,
+  filename: string,
+  content: string,
+): void {
+  void import("./knowledge")
+    .then(({ indexNoteOnSave }) => indexNoteOnSave(projectId, filename, content))
+    .catch(() => {})
+}
+
+function syncKnowledgeRemoveNote(projectId: string, filename: string): void {
+  void import("./knowledge")
+    .then(({ removeNoteFromIndex }) => removeNoteFromIndex(projectId, filename))
+    .catch(() => {})
+}
+
+function syncKnowledgeRemoveFolder(projectId: string, folderRel: string): void {
+  void import("./knowledge")
+    .then(({ removeNotesUnderFromIndex }) =>
+      removeNotesUnderFromIndex(projectId, folderRel),
+    )
+    .catch(() => {})
+}
+
+function syncKnowledgeRename(
+  projectId: string,
+  oldFilename: string,
+  newFilename: string,
+): void {
+  void import("./knowledge")
+    .then(({ renameNoteInIndex }) =>
+      renameNoteInIndex(projectId, oldFilename, newFilename),
+    )
+    .catch(() => {})
+}
+
 function joinPath(dir: string, filename: string): string {
   // Cross-platform join: prefer the OS separator already present in `dir`
   // when it's obviously Windows (`C:\`). Otherwise use `/` which Tauri's
@@ -283,6 +324,7 @@ export const vault: VaultStorage = {
     // Keep the backlinks index in sync with every save; the cost is one
     // SQL write per wikilink in the note, negligible for human-sized notes.
     await reindexNoteLinks(projectId, rel, content)
+    syncKnowledgeOnSave(projectId, rel, content)
   },
 
   createNote: async (projectId, title, folder) => {
@@ -316,6 +358,7 @@ export const vault: VaultStorage = {
     const body = `# ${title}\n\n`
     await writeTextFile(path, body)
     await reindexNoteLinks(projectId, rel, body)
+    syncKnowledgeOnSave(projectId, rel, body)
 
     const lastSlash = rel.lastIndexOf("/")
     const nameOnly = lastSlash === -1 ? rel : rel.slice(lastSlash + 1)
@@ -388,6 +431,7 @@ export const vault: VaultStorage = {
       if (rewritten !== body) {
         await writeTextFile(f.abs, rewritten)
         await reindexNoteLinks(projectId, f.rel, rewritten)
+        syncKnowledgeOnSave(projectId, f.rel, rewritten)
       }
     }
 
@@ -408,6 +452,9 @@ export const vault: VaultStorage = {
       "UPDATE note_tags SET from_filename = ? WHERE project_id = ? AND from_filename = ?",
       [newRel, projectId, oldRel],
     )
+    // The renamed file's content is unchanged, so re-point its embedding rows
+    // rather than re-embedding from scratch.
+    syncKnowledgeRename(projectId, oldRel, newRel)
 
     return {
       filename: newRel,
@@ -434,6 +481,7 @@ export const vault: VaultStorage = {
       "DELETE FROM note_tags WHERE project_id = ? AND from_filename = ?",
       [projectId, rel],
     )
+    syncKnowledgeRemoveNote(projectId, rel)
   },
 
   createFolder: async (projectId, relPath) => {
@@ -463,6 +511,7 @@ export const vault: VaultStorage = {
       "DELETE FROM note_tags WHERE project_id = ? AND (from_filename = ? OR from_filename LIKE ?)",
       [projectId, rel, `${prefix}%`],
     )
+    syncKnowledgeRemoveFolder(projectId, rel)
   },
 
   reindexLinks: async (projectId, filename) => {
@@ -483,11 +532,13 @@ export const vault: VaultStorage = {
         "DELETE FROM note_tags WHERE project_id = ? AND from_filename = ?",
         [projectId, filename],
       )
+      syncKnowledgeRemoveNote(projectId, filename)
       return
     }
     try {
       const body = await readTextFile(path)
       await reindexNoteLinks(projectId, filename, body)
+      syncKnowledgeOnSave(projectId, filename, body)
     } catch {
       // A writer may still be holding the file (atomic-write patterns
       // briefly rename a temp file into place). Skip this batch — the

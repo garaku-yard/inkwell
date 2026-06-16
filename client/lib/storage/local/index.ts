@@ -40,6 +40,7 @@ import { workspaces } from "./workspaces"
 import { collaboration } from "./collaboration"
 import { settings } from "./settings"
 import { vault } from "./vault"
+import { knowledge } from "./knowledge"
 import { ai } from "./ai"
 import { adminBilling } from "./admin-billing"
 
@@ -51,6 +52,7 @@ import { adminBilling } from "./admin-billing"
  *  client-side adapter library. */
 const LOCAL_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   "ai.byo",
+  "ai.knowledge",
 ])
 
 /** Returns a Storage backed by local SQLite via `tauri-plugin-sql`. */
@@ -68,6 +70,7 @@ export function createLocalStorage(): Storage {
     collaboration,
     settings,
     vault,
+    knowledge,
     ai,
     admin: { billing: adminBilling },
   }
