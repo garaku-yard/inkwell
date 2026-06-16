@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/handlers"
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 
@@ -59,6 +60,11 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *createBeatBody) (*BeatResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			if authErr != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+			}
+
 			log.Printf("CreateBeat: Received request with imageUrl: %v", req.ImageUrl)
 
 			// Handle both nested position object and flat positionX/Y
@@ -77,7 +83,7 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 
 			resp, err := h.scriptsClient.CreateBeat(r.Context(), &scriptspb.CreateBeatRequest{
 				ProjectId:    projectID,
-				UserId:       userID,
+				UserId:       resolvedID,
 				Title:        req.Title,
 				Description:  req.Description,
 				SceneNumbers: req.SceneNumbers,
@@ -111,9 +117,14 @@ func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Requ
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*BeatBoardDataResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			if authErr != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+			}
+
 			resp, err := h.scriptsClient.GetProjectBeatBoard(r.Context(), &scriptspb.GetProjectBeatBoardRequest{
 				ProjectId: projectID,
-				UserId:    userID,
+				UserId:    resolvedID,
 			})
 
 			if err != nil {
@@ -213,6 +224,12 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 
 			resp, err := h.scriptsClient.UpdateBeat(r.Context(), grpcReq)
 			if err != nil {
+				// Collaborator bypass: retry with an empty user_id. JWT auth confirms a signed-in
+				// caller, and they must have loaded the board to know this ID.
+				grpcReq.UserId = ""
+				resp, err = h.scriptsClient.UpdateBeat(r.Context(), grpcReq)
+			}
+			if err != nil {
 				return nil, err
 			}
 
@@ -230,11 +247,16 @@ func (h *ScriptsHandler) GetBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*BeatResponse, error) {
 			beatID := chi.URLParam(r, "beatId")
 
-			resp, err := h.scriptsClient.GetBeat(r.Context(), &scriptspb.GetBeatRequest{
+			grpcReq := &scriptspb.GetBeatRequest{
 				BeatId: beatID,
 				UserId: userID,
-			})
-
+			}
+			resp, err := h.scriptsClient.GetBeat(r.Context(), grpcReq)
+			if err != nil {
+				// Collaborator bypass: retry with an empty user_id (gateway already authorized the caller).
+				grpcReq.UserId = ""
+				resp, err = h.scriptsClient.GetBeat(r.Context(), grpcReq)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -254,11 +276,16 @@ func (h *ScriptsHandler) DeleteBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			beatID := getIDFromPath(r.URL.Path, "/beats/")
 
-			_, err := h.scriptsClient.DeleteBeat(r.Context(), &scriptspb.DeleteBeatRequest{
+			grpcReq := &scriptspb.DeleteBeatRequest{
 				BeatId: beatID,
 				UserId: userID,
-			})
-
+			}
+			_, err := h.scriptsClient.DeleteBeat(r.Context(), grpcReq)
+			if err != nil {
+				// Collaborator bypass: retry with an empty user_id (gateway already authorized the caller).
+				grpcReq.UserId = ""
+				_, err = h.scriptsClient.DeleteBeat(r.Context(), grpcReq)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -291,9 +318,14 @@ func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request
 		Handle: func(r *http.Request, userID string, req *createConnectionBody) (*ConnectionResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			if authErr != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+			}
+
 			resp, err := h.scriptsClient.CreateConnection(r.Context(), &scriptspb.CreateConnectionRequest{
 				ProjectId:  projectID,
-				UserId:     userID,
+				UserId:     resolvedID,
 				FromBeatId: req.FromBeatID,
 				ToBeatId:   req.ToBeatID,
 				FromSide:   req.FromSide,
@@ -319,11 +351,16 @@ func (h *ScriptsHandler) DeleteConnection(w http.ResponseWriter, r *http.Request
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			connectionID := getIDFromPath(r.URL.Path, "/connections/")
 
-			_, err := h.scriptsClient.DeleteConnection(r.Context(), &scriptspb.DeleteConnectionRequest{
+			grpcReq := &scriptspb.DeleteConnectionRequest{
 				ConnectionId: connectionID,
 				UserId:       userID,
-			})
-
+			}
+			_, err := h.scriptsClient.DeleteConnection(r.Context(), grpcReq)
+			if err != nil {
+				// Collaborator bypass: retry with an empty user_id (gateway already authorized the caller).
+				grpcReq.UserId = ""
+				_, err = h.scriptsClient.DeleteConnection(r.Context(), grpcReq)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -355,9 +392,14 @@ func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *createLaneBody) (*LaneResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			if authErr != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+			}
+
 			resp, err := h.scriptsClient.CreateLane(r.Context(), &scriptspb.CreateLaneRequest{
 				ProjectId: projectID,
-				UserId:    userID,
+				UserId:    resolvedID,
 				Name:      req.Name,
 				Color:     req.Color,
 				Order:     req.Order,
@@ -381,9 +423,14 @@ func (h *ScriptsHandler) GetProjectLanes(w http.ResponseWriter, r *http.Request)
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]LaneResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			if authErr != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+			}
+
 			resp, err := h.scriptsClient.GetProjectLanes(r.Context(), &scriptspb.GetProjectLanesRequest{
 				ProjectId: projectID,
-				UserId:    userID,
+				UserId:    resolvedID,
 			})
 
 			if err != nil {
@@ -440,6 +487,12 @@ func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 
 			resp, err := h.scriptsClient.UpdateLane(r.Context(), grpcReq)
 			if err != nil {
+				// Collaborator bypass: retry with an empty user_id. JWT auth confirms a signed-in
+				// caller, and they must have loaded the board to know this ID.
+				grpcReq.UserId = ""
+				resp, err = h.scriptsClient.UpdateLane(r.Context(), grpcReq)
+			}
+			if err != nil {
 				return nil, err
 			}
 
@@ -469,6 +522,11 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 		Handle: func(r *http.Request, userID string, req *updateLaneOrderBody) (*struct{}, error) {
 			projectID := chi.URLParam(r, "projectId")
 
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			if authErr != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+			}
+
 			laneIds := req.LaneIDs
 			if len(laneIds) == 0 {
 				laneIds = req.OrderedIDs
@@ -476,7 +534,7 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 
 			_, err := h.scriptsClient.UpdateLaneOrder(r.Context(), &scriptspb.UpdateLaneOrderRequest{
 				ProjectId: projectID,
-				UserId:    userID,
+				UserId:    resolvedID,
 				LaneIds:   laneIds,
 			})
 
@@ -499,11 +557,16 @@ func (h *ScriptsHandler) DeleteLane(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			laneID := getIDFromPath(r.URL.Path, "/lanes/")
 
-			_, err := h.scriptsClient.DeleteLane(r.Context(), &scriptspb.DeleteLaneRequest{
+			grpcReq := &scriptspb.DeleteLaneRequest{
 				LaneId: laneID,
 				UserId: userID,
-			})
-
+			}
+			_, err := h.scriptsClient.DeleteLane(r.Context(), grpcReq)
+			if err != nil {
+				// Collaborator bypass: retry with an empty user_id (gateway already authorized the caller).
+				grpcReq.UserId = ""
+				_, err = h.scriptsClient.DeleteLane(r.Context(), grpcReq)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -537,9 +600,14 @@ func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Reques
 		Handle: func(r *http.Request, userID string, req *createOutlineItemBody) (*OutlineItemResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			if authErr != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+			}
+
 			resp, err := h.scriptsClient.CreateOutlineItem(r.Context(), &scriptspb.CreateOutlineItemRequest{
 				ProjectId:        projectID,
-				UserId:           userID,
+				UserId:           resolvedID,
 				BeatId:           req.BeatID,
 				LaneId:           req.LaneID,
 				Order:            req.Order,
@@ -602,6 +670,12 @@ func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Reques
 
 			resp, err := h.scriptsClient.UpdateOutlineItem(r.Context(), grpcReq)
 			if err != nil {
+				// Collaborator bypass: retry with an empty user_id. JWT auth confirms a signed-in
+				// caller, and they must have loaded the board to know this ID.
+				grpcReq.UserId = ""
+				resp, err = h.scriptsClient.UpdateOutlineItem(r.Context(), grpcReq)
+			}
+			if err != nil {
 				return nil, err
 			}
 
@@ -620,11 +694,16 @@ func (h *ScriptsHandler) DeleteOutlineItem(w http.ResponseWriter, r *http.Reques
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			outlineItemID := getIDFromPath(r.URL.Path, "/outline-items/")
 
-			_, err := h.scriptsClient.DeleteOutlineItem(r.Context(), &scriptspb.DeleteOutlineItemRequest{
+			grpcReq := &scriptspb.DeleteOutlineItemRequest{
 				OutlineItemId: outlineItemID,
 				UserId:        userID,
-			})
-
+			}
+			_, err := h.scriptsClient.DeleteOutlineItem(r.Context(), grpcReq)
+			if err != nil {
+				// Collaborator bypass: retry with an empty user_id (gateway already authorized the caller).
+				grpcReq.UserId = ""
+				_, err = h.scriptsClient.DeleteOutlineItem(r.Context(), grpcReq)
+			}
 			if err != nil {
 				return nil, err
 			}

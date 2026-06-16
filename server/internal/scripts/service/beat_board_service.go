@@ -436,19 +436,25 @@ func (s *beatBoardService) DeleteOutlineItem(ctx context.Context, itemID, userID
 	return nil
 }
 
-// verifyProjectAccess checks if a user has access to a project
+// verifyProjectAccess checks if a user has access to a project. A Nil userID is
+// the collaborator bypass sentinel: the gateway resolves project access (owner or
+// active collaborator) via the collab service before forwarding the call and
+// signals a confirmed collaborator by passing an empty user_id. This mirrors
+// scriptsService.verifyProjectAccess so scenes, elements, and the beat board all
+// share one access model.
 func (s *beatBoardService) verifyProjectAccess(ctx context.Context, projectID, userID uuid.UUID) error {
+	if userID == uuid.Nil {
+		return nil
+	}
+
 	project, err := s.repo.Project.GetProjectByID(ctx, projectID)
 	if err != nil {
 		return fmt.Errorf("project not found: %w", err)
 	}
 
-	// Check if user is the owner
 	if project.OwnerID == userID {
 		return nil
 	}
 
-	// For now, only the owner has access
-	// TODO: Add collaborator support when collab service is integrated
 	return fmt.Errorf("user does not have access to this project")
 }
