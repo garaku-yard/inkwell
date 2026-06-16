@@ -22,6 +22,10 @@ interface UseAIChatStreamOptions {
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
   setIsTyping: React.Dispatch<React.SetStateAction<boolean>>
   isTyping: boolean
+  /** The project this chat belongs to. Passed through so the desktop
+   *  storage layer can retrieve vault-as-knowledge context for the prompt
+   *  and run the `read_note` tool. Undefined on surfaces without a project. */
+  projectId?: string
 }
 
 interface UseAIChatStreamResult {
@@ -44,6 +48,7 @@ export function useAIChatStream({
   setMessages,
   setIsTyping,
   isTyping,
+  projectId,
 }: UseAIChatStreamOptions): UseAIChatStreamResult {
   const abortRef = useRef<AbortController | null>(null)
 
@@ -92,6 +97,7 @@ export function useAIChatStream({
           providerId: selectedProvider.id,
           model: selectedProvider.defaultModel,
           stream: true,
+          projectId,
         }
 
         const stream = await streamChatCompletion(request, { signal: controller.signal })
@@ -116,6 +122,8 @@ export function useAIChatStream({
                 response?: string
                 done?: boolean
                 error?: string
+                tool?: string
+                arg?: string
               }
               if (parsed.error) {
                 // Gateway emits {error} as the final NDJSON line when
@@ -123,6 +131,19 @@ export function useAIChatStream({
                 // let the outer catch render it; partial response stays
                 // visible.
                 streamErrorMessage = parsed.error
+              }
+              if (parsed.tool === "read_note") {
+                // The desktop knowledge path surfaces note lookups so the
+                // reader can see the model consulting their vault. Render it
+                // as a muted aside woven into the streamed reply.
+                const note = parsed.arg ? `"${parsed.arg}"` : "a note"
+                setMessages((currentMessages) =>
+                  currentMessages.map((msg) =>
+                    msg.id === aiMessageId
+                      ? { ...msg, content: `${msg.content}\n\n_📄 Reading ${note}…_\n\n` }
+                      : msg,
+                  ),
+                )
               }
               if (parsed.response) {
                 setMessages((currentMessages) =>
