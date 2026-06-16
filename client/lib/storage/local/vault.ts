@@ -415,36 +415,51 @@ export const vault: VaultStorage = {
 
     await rename(oldPath, newPath)
 
-    // Sweep every other note's body for references to `oldTitle` and
-    // rewrite them to `sanitised`. See lib/vault/wikilink-sweep for the
-    // exact shapes covered (plain, alias, heading, heading+alias).
     const files = await walkMarkdownFiles(vaultRoot)
-    for (const f of files) {
-      if (f.rel === newRel) continue
-      let body: string
-      try {
-        body = await readTextFile(f.abs)
-      } catch {
-        continue
-      }
-      const rewritten = rewriteWikilinks(body, oldTitle, sanitised)
-      if (rewritten !== body) {
-        await writeTextFile(f.abs, rewritten)
-        await reindexNoteLinks(projectId, f.rel, rewritten)
-        syncKnowledgeOnSave(projectId, f.rel, rewritten)
+
+    // Wikilinks are title-only (`[[Notes]]` carries no folder), so if another
+    // note still shares `oldTitle`'s basename after this rename, every
+    // `[[oldTitle]]` in the vault is ambiguous — rewriting them would silently
+    // retarget the surviving same-named note's links. Only sweep + retarget
+    // when this rename leaves no same-titled note behind; otherwise the
+    // ambiguous links are left pointing at the survivor (the safe default).
+    const titleOfRel = (rel: string) => {
+      const slash = rel.lastIndexOf("/")
+      const base = slash === -1 ? rel : rel.slice(slash + 1)
+      return base.replace(/\.md$/i, "")
+    }
+    const oldTitleLower = oldTitle.toLowerCase()
+    const duplicateTitleSurvives = files.some(
+      (f) => f.rel !== newRel && titleOfRel(f.rel).toLowerCase() === oldTitleLower,
+    )
+
+    if (!duplicateTitleSurvives) {
+      // Sweep every other note's body for references to `oldTitle` and
+      // rewrite them to `sanitised`. See lib/vault/wikilink-sweep for the
+      // exact shapes covered (plain, alias, heading, heading+alias).
+      for (const f of files) {
+        if (f.rel === newRel) continue
+        let body: string
+        try {
+          body = await readTextFile(f.abs)
+        } catch {
+          continue
+        }
+        const rewritten = rewriteWikilinks(body, oldTitle, sanitised)
+        if (rewritten !== body) {
+          await writeTextFile(f.abs, rewritten)
+          await reindexNoteLinks(projectId, f.rel, rewritten)
+          syncKnowledgeOnSave(projectId, f.rel, rewritten)
+        }
       }
     }
 
-    // Move the renamed file's own index row + retarget any row that
-    // previously pointed at `oldTitle`.
+    // The file moved, so its own outbound link/tag rows must follow the new
+    // filename regardless of any title ambiguity.
     const db = await getDb()
     await db.execute(
       "UPDATE note_links SET from_filename = ? WHERE project_id = ? AND from_filename = ?",
       [newRel, projectId, oldRel],
-    )
-    await db.execute(
-      "UPDATE note_links SET to_title = ? WHERE project_id = ? AND to_title = ? COLLATE NOCASE",
-      [sanitised, projectId, oldTitle],
     )
     // Tag rows only key off from_filename — the tag text doesn't change
     // on rename, we just point the rows at the new filename.
@@ -452,6 +467,19 @@ export const vault: VaultStorage = {
       "UPDATE note_tags SET from_filename = ? WHERE project_id = ? AND from_filename = ?",
       [newRel, projectId, oldRel],
     )
+    if (!duplicateTitleSurvives) {
+      // Retarget links that pointed at `oldTitle` to the new title. OR REPLACE
+      // collapses the case where the renamed file (excluded from the sweep
+      // above) links to BOTH `[[oldTitle]]` and `[[sanitised]]`: without it,
+      // turning its `(project_id, newRel, oldTitle)` row into
+      // `(project_id, newRel, sanitised)` collides with the existing row on
+      // the primary key and throws — after the file move + body rewrites have
+      // already committed, leaving the vault half-migrated.
+      await db.execute(
+        "UPDATE OR REPLACE note_links SET to_title = ? WHERE project_id = ? AND to_title = ? COLLATE NOCASE",
+        [sanitised, projectId, oldTitle],
+      )
+    }
     // The renamed file's content is unchanged, so re-point its embedding rows
     // rather than re-embedding from scratch.
     syncKnowledgeRename(projectId, oldRel, newRel)
