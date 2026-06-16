@@ -57,7 +57,7 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 			return &req, nil
 		},
 		Handle: func(r *http.Request, userID string, req *createBeatBody) (*BeatResponse, error) {
-			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/beats")
+			projectID := chi.URLParam(r, "projectId")
 
 			log.Printf("CreateBeat: Received request with imageUrl: %v", req.ImageUrl)
 
@@ -109,7 +109,7 @@ func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Requ
 		Auth:   true,
 		Decode: handlers.NoBody[struct{}],
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*BeatBoardDataResponse, error) {
-			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board")
+			projectID := chi.URLParam(r, "projectId")
 
 			resp, err := h.scriptsClient.GetProjectBeatBoard(r.Context(), &scriptspb.GetProjectBeatBoardRequest{
 				ProjectId: projectID,
@@ -289,7 +289,7 @@ func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request
 			return &req, nil
 		},
 		Handle: func(r *http.Request, userID string, req *createConnectionBody) (*ConnectionResponse, error) {
-			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/connections")
+			projectID := chi.URLParam(r, "projectId")
 
 			resp, err := h.scriptsClient.CreateConnection(r.Context(), &scriptspb.CreateConnectionRequest{
 				ProjectId:  projectID,
@@ -353,7 +353,7 @@ func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
 			return &req, nil
 		},
 		Handle: func(r *http.Request, userID string, req *createLaneBody) (*LaneResponse, error) {
-			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes")
+			projectID := chi.URLParam(r, "projectId")
 
 			resp, err := h.scriptsClient.CreateLane(r.Context(), &scriptspb.CreateLaneRequest{
 				ProjectId: projectID,
@@ -379,7 +379,7 @@ func (h *ScriptsHandler) GetProjectLanes(w http.ResponseWriter, r *http.Request)
 		Auth:   true,
 		Decode: handlers.NoBody[struct{}],
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]LaneResponse, error) {
-			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes")
+			projectID := chi.URLParam(r, "projectId")
 
 			resp, err := h.scriptsClient.GetProjectLanes(r.Context(), &scriptspb.GetProjectLanesRequest{
 				ProjectId: projectID,
@@ -467,7 +467,7 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 			return &req, nil
 		},
 		Handle: func(r *http.Request, userID string, req *updateLaneOrderBody) (*struct{}, error) {
-			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/lanes/order")
+			projectID := chi.URLParam(r, "projectId")
 
 			laneIds := req.LaneIDs
 			if len(laneIds) == 0 {
@@ -535,7 +535,7 @@ func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Reques
 			return &req, nil
 		},
 		Handle: func(r *http.Request, userID string, req *createOutlineItemBody) (*OutlineItemResponse, error) {
-			projectID := getProjectIDFromPath(r.URL.Path, "/projects/", "/beat-board/outline-items")
+			projectID := chi.URLParam(r, "projectId")
 
 			resp, err := h.scriptsClient.CreateOutlineItem(r.Context(), &scriptspb.CreateOutlineItemRequest{
 				ProjectId:        projectID,
@@ -632,24 +632,6 @@ func (h *ScriptsHandler) DeleteOutlineItem(w http.ResponseWriter, r *http.Reques
 			return nil, nil
 		},
 	}.ServeHTTP(w, r)
-}
-
-// Helper function to extract project ID from path with specific pattern
-func getProjectIDFromPath(path, prefix, suffix string) string {
-	// Remove prefix
-	rest := strings.TrimPrefix(path, prefix)
-	// Find suffix position
-	idx := strings.Index(rest, suffix)
-	if idx == -1 {
-		// If suffix not found, try extracting just the first segment
-		// This handles both /projects/{id}/beats and /projects/{id}/beat-board/beats
-		parts := strings.Split(rest, "/")
-		if len(parts) > 0 && parts[0] != "" {
-			return parts[0]
-		}
-		return ""
-	}
-	return rest[:idx]
 }
 
 // Helper function to extract ID from path
