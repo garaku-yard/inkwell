@@ -4,6 +4,7 @@ import { ArrowLeft, Bot, ChevronDown, Download } from "lucide-react"
 
 import { AppHeaderActions } from "@/components/AppHeaderActions"
 import { Button } from "@/components/ui/button"
+import { ProjectKnowledgeButton } from "../ProjectKnowledgeButton"
 import { ProjectNavMenu } from "./ProjectNavMenu"
 import {
   DropdownMenu,
@@ -122,6 +123,7 @@ export function EditorHeader({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+        <ProjectKnowledgeButton projectId={projectId} category={category} />
         <Button
           variant="ghost"
           size="icon"
