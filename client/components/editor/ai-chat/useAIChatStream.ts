@@ -108,57 +108,69 @@ export function useAIChatStream({
 
         let streamErrorMessage: string | null = null
 
+        const handleLine = (line: string) => {
+          if (line.trim() === "") return
+          try {
+            const parsed = JSON.parse(line) as {
+              response?: string
+              done?: boolean
+              error?: string
+              tool?: string
+              arg?: string
+            }
+            if (parsed.error) {
+              // Gateway emits {error} as the final NDJSON line when
+              // the upstream provider drops mid-stream. Capture and
+              // let the outer catch render it; partial response stays
+              // visible.
+              streamErrorMessage = parsed.error
+            }
+            if (parsed.tool === "read_note") {
+              // The desktop knowledge path surfaces note lookups so the
+              // reader can see the model consulting their vault. Render it
+              // as a muted aside woven into the streamed reply.
+              const note = parsed.arg ? `"${parsed.arg}"` : "a note"
+              setMessages((currentMessages) =>
+                currentMessages.map((msg) =>
+                  msg.id === aiMessageId
+                    ? { ...msg, content: `${msg.content}\n\n_📄 Reading ${note}…_\n\n` }
+                    : msg,
+                ),
+              )
+            }
+            if (parsed.response) {
+              setMessages((currentMessages) =>
+                currentMessages.map((msg) =>
+                  msg.id === aiMessageId
+                    ? { ...msg, content: msg.content + parsed.response }
+                    : msg,
+                ),
+              )
+            }
+          } catch {
+            // Non-JSON line — ignore; upstream parsers can emit framing bytes.
+          }
+        }
+
+        // NDJSON lines can be split across network/decoder chunk boundaries
+        // (and multi-byte UTF-8 can split mid-character), so buffer across
+        // reads: decode in streaming mode, dispatch only complete lines, and
+        // carry the trailing partial into the next read.
+        let buffer = ""
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
 
-          const chunk = decoder.decode(value)
-          const lines = chunk.split("\n")
-
-          for (const line of lines) {
-            if (line.trim() === "") continue
-            try {
-              const parsed = JSON.parse(line) as {
-                response?: string
-                done?: boolean
-                error?: string
-                tool?: string
-                arg?: string
-              }
-              if (parsed.error) {
-                // Gateway emits {error} as the final NDJSON line when
-                // the upstream provider drops mid-stream. Capture and
-                // let the outer catch render it; partial response stays
-                // visible.
-                streamErrorMessage = parsed.error
-              }
-              if (parsed.tool === "read_note") {
-                // The desktop knowledge path surfaces note lookups so the
-                // reader can see the model consulting their vault. Render it
-                // as a muted aside woven into the streamed reply.
-                const note = parsed.arg ? `"${parsed.arg}"` : "a note"
-                setMessages((currentMessages) =>
-                  currentMessages.map((msg) =>
-                    msg.id === aiMessageId
-                      ? { ...msg, content: `${msg.content}\n\n_📄 Reading ${note}…_\n\n` }
-                      : msg,
-                  ),
-                )
-              }
-              if (parsed.response) {
-                setMessages((currentMessages) =>
-                  currentMessages.map((msg) =>
-                    msg.id === aiMessageId
-                      ? { ...msg, content: msg.content + parsed.response }
-                      : msg,
-                  ),
-                )
-              }
-            } catch {
-              // Non-JSON line — ignore; upstream parsers can emit framing bytes.
-            }
+          buffer += decoder.decode(value, { stream: true })
+          let newlineIdx: number
+          while ((newlineIdx = buffer.indexOf("\n")) !== -1) {
+            handleLine(buffer.slice(0, newlineIdx))
+            buffer = buffer.slice(newlineIdx + 1)
           }
         }
+        // Flush any decoder state and process a final unterminated line.
+        buffer += decoder.decode()
+        handleLine(buffer)
 
         if (streamErrorMessage) {
           // Throw to take the unified error-rendering path below.
