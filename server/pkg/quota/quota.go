@@ -28,16 +28,22 @@ import (
 type Metric string
 
 const (
-	// MetricProjects counts projects a user owns. Enforced against the tier's
-	// `max_projects` limit.
+	// MetricProjects counts projects a user owns. This is the only metric
+	// currently enforced — Require/Track are called for it on project create
+	// (see scripts_service.go), checked against the tier's `max_projects`.
 	MetricProjects Metric = "projects"
 	// MetricCollaborators counts collaborators added to the user's projects.
-	// Enforced against `max_collaborators_per_project`.
+	// Reserved — NOT yet enforced: no Require/Track call site exists and the
+	// collab service does not import quota. Intended limit:
+	// `max_collaborators_per_project`.
 	MetricCollaborators Metric = "collaborators"
-	// MetricAITokens counts AI chat tokens consumed. Enforced against `ai_tokens`.
+	// MetricAITokens counts AI chat tokens consumed. Reserved — NOT yet
+	// enforced, and billingadapter.planLimit has no arm for it (so it would
+	// read as unlimited). Intended limit: `ai_tokens`.
 	MetricAITokens Metric = "ai_tokens"
-	// MetricExports counts document exports (PDF/FDX) performed. Enforced against
-	// `exports_per_month`.
+	// MetricExports counts document exports (PDF/FDX). Reserved — NOT yet
+	// enforced, and billingadapter.planLimit has no arm for it (so it would
+	// read as unlimited). Intended limit: `exports_per_month`.
 	MetricExports Metric = "exports"
 )
 
