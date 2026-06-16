@@ -14,56 +14,56 @@ import (
 
 // User represents a user in the system
 type User struct {
-	ID            uuid.UUID  `json:"id" db:"user_id" gorm:"primaryKey;column:user_id;type:uuid;default:gen_random_uuid()"`
-	Email         string     `json:"email" db:"email" gorm:"uniqueIndex;not null"`
-	Username      string     `json:"username" db:"username" gorm:"uniqueIndex;not null"`
-	UserTag       string     `json:"user_tag" db:"user_tag" gorm:"index;not null"` // 5-digit unique tag for username#tag invitations
-	PasswordHash  string     `json:"-" db:"password_hash" gorm:"not null"`         // Never serialize password
-	FirstName     *string    `json:"first_name" db:"first_name" gorm:"column:first_name"`
-	LastName      *string    `json:"last_name" db:"last_name" gorm:"column:last_name"`
-	AvatarURL     *string    `json:"avatar_url" db:"avatar_url" gorm:"column:avatar_url"`
-	Role          string     `json:"role" db:"role" gorm:"default:'user'"`
-	IsActive      bool       `json:"is_active" db:"is_active" gorm:"default:true"`
-	IsVerified    bool       `json:"is_verified" db:"is_verified" gorm:"default:false"`       // For repository compatibility
-	EmailVerified bool       `json:"email_verified" db:"email_verified" gorm:"default:false"` // For backwards compatibility
-	LastLoginAt   *time.Time `json:"last_login_at" db:"last_login_at" gorm:"column:last_login_at"`
-	CreatedAt     time.Time  `json:"created_at" db:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at" gorm:"autoUpdateTime"`
-	DeletedAt     *time.Time `json:"deleted_at,omitempty" db:"deleted_at" gorm:"index"`
+	ID            uuid.UUID  `json:"id" db:"user_id"`
+	Email         string     `json:"email" db:"email"`
+	Username      string     `json:"username" db:"username"`
+	UserTag       string     `json:"user_tag" db:"user_tag"` // 5-digit unique tag for username#tag invitations
+	PasswordHash  string     `json:"-" db:"password_hash"`   // Never serialize password
+	FirstName     *string    `json:"first_name" db:"first_name"`
+	LastName      *string    `json:"last_name" db:"last_name"`
+	AvatarURL     *string    `json:"avatar_url" db:"avatar_url"`
+	Role          string     `json:"role" db:"role"`
+	IsActive      bool       `json:"is_active" db:"is_active"`
+	IsVerified    bool       `json:"is_verified" db:"is_verified"`       // For repository compatibility
+	EmailVerified bool       `json:"email_verified" db:"email_verified"` // For backwards compatibility
+	LastLoginAt   *time.Time `json:"last_login_at" db:"last_login_at"`
+	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
+	DeletedAt     *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
 // UserSession represents an active user session
 type UserSession struct {
-	ID               uuid.UUID  `json:"id" db:"session_id" gorm:"primaryKey;column:session_id;type:uuid;default:gen_random_uuid()"`
-	UserID           uuid.UUID  `json:"user_id" db:"user_id" gorm:"index;not null"`
-	RefreshTokenHash string     `json:"-" db:"refresh_token_hash" gorm:"not null"`
+	ID               uuid.UUID  `json:"id" db:"session_id"`
+	UserID           uuid.UUID  `json:"user_id" db:"user_id"`
+	RefreshTokenHash string     `json:"-" db:"refresh_token_hash"`
 	DeviceInfo       *string    `json:"device_info" db:"device_info"`
 	IPAddress        *string    `json:"ip_address" db:"ip_address"`
-	ExpiresAt        time.Time  `json:"expires_at" db:"expires_at" gorm:"not null"`
-	IsActive         bool       `json:"is_active" db:"is_active" gorm:"default:true"`
-	CreatedAt        time.Time  `json:"created_at" db:"created_at" gorm:"autoCreateTime"`
-	LastUsedAt       time.Time  `json:"last_used_at" db:"last_used_at" gorm:"autoUpdateTime"`
+	ExpiresAt        time.Time  `json:"expires_at" db:"expires_at"`
+	IsActive         bool       `json:"is_active" db:"is_active"`
+	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
+	LastUsedAt       time.Time  `json:"last_used_at" db:"last_used_at"`
 	RevokedAt        *time.Time `json:"revoked_at,omitempty" db:"revoked_at"`
 }
 
 // PasswordResetToken represents a password reset request
 type PasswordResetToken struct {
-	ID        uuid.UUID `json:"id" db:"token_id" gorm:"primaryKey;column:token_id;type:uuid;default:gen_random_uuid()"`
-	UserID    uuid.UUID `json:"user_id" db:"user_id" gorm:"index;not null"`
-	TokenHash string    `json:"-" db:"token_hash" gorm:"not null"`
-	ExpiresAt time.Time `json:"expires_at" db:"expires_at" gorm:"not null"`
-	Used      bool      `json:"used" db:"used" gorm:"default:false"`
-	CreatedAt time.Time `json:"created_at" db:"created_at" gorm:"autoCreateTime"`
+	ID        uuid.UUID `json:"id" db:"token_id"`
+	UserID    uuid.UUID `json:"user_id" db:"user_id"`
+	TokenHash string    `json:"-" db:"token_hash"`
+	ExpiresAt time.Time `json:"expires_at" db:"expires_at"`
+	Used      bool      `json:"used" db:"used"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
 // EmailVerificationToken represents an email verification token
 type EmailVerificationToken struct {
-	ID        uuid.UUID `json:"id" db:"token_id" gorm:"primaryKey;column:token_id;type:uuid;default:gen_random_uuid()"`
-	UserID    uuid.UUID `json:"user_id" db:"user_id" gorm:"index;not null"`
-	TokenHash string    `json:"-" db:"token_hash" gorm:"not null"`
-	ExpiresAt time.Time `json:"expires_at" db:"expires_at" gorm:"not null"`
-	Used      bool      `json:"used" db:"used" gorm:"default:false"`
-	CreatedAt time.Time `json:"created_at" db:"created_at" gorm:"autoCreateTime"`
+	ID        uuid.UUID `json:"id" db:"token_id"`
+	UserID    uuid.UUID `json:"user_id" db:"user_id"`
+	TokenHash string    `json:"-" db:"token_hash"`
+	ExpiresAt time.Time `json:"expires_at" db:"expires_at"`
+	Used      bool      `json:"used" db:"used"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
 // LoginHistory represents a login attempt
