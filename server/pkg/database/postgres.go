@@ -1,7 +1,6 @@
 package database
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -10,7 +9,6 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
 )
 
@@ -69,34 +67,6 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
-}
-
-// ConnectPgx creates a new pgxpool connection (for sqlc)
-func ConnectPgx(ctx context.Context, config *Config) (*pgxpool.Pool, error) {
-	dsn := config.DSN()
-
-	poolConfig, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse connection config: %w", err)
-	}
-
-	poolConfig.MaxConns = int32(config.MaxOpenConns)
-	poolConfig.MinConns = int32(config.MaxIdleConns / 2)
-	poolConfig.MaxConnLifetime = config.ConnMaxLifetime
-	poolConfig.MaxConnIdleTime = 30 * time.Minute
-
-	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create connection pool: %w", err)
-	}
-
-	// Test the connection
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("unable to ping database: %w", err)
-	}
-
-	return pool, nil
 }
 
 // RunMigrations runs database migrations

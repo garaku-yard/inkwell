@@ -229,10 +229,10 @@ tasks:
       - "{{.DOCKER_COMPOSE}} stop postgres-identity postgres-scripts postgres-collab postgres-billing postgres-workspace redis"
 
   db:migrate:
-    desc: Run migrations for all services (happens automatically on service startup with GORM)
+    desc: Run migrations for all services (applied automatically on service startup)
     cmds:
-      - 'echo "Migrations run automatically when services start (GORM AutoMigrate)"'
-      - 'echo "To manually run migrations, restart the services:"'
+      - 'echo "Migrations run automatically when each service starts (golang-migrate via pkg/database.RunMigrations)"'
+      - 'echo "To re-apply, restart the services:"'
       - task: docker:restart
 
   db:shell:scripts:
@@ -472,22 +472,11 @@ tasks:
   # Database Migrations & SQLC
   # ====================
   tools:install:
-    desc: Install development tools (sqlc, golang-migrate)
+    desc: Install development tools (golang-migrate)
     dir: server
     cmds:
-      - go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
       - go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
       - 'echo "✅ Tools installed successfully!"'
-
-  sqlc:generate:
-    desc: Generate Go code from SQL queries for all services
-    dir: server
-    cmds:
-      - cd internal/identity && sqlc generate
-      - cd internal/scripts && sqlc generate
-      - cd internal/collab && sqlc generate
-      - cd internal/billing && sqlc generate
-      - 'echo "✅ SQLC code generated for all services!"'
 
   migrate:up:
     desc: Run all pending migrations for all services
@@ -574,7 +563,6 @@ tasks:
       - rm -rf client/.next
       - rm -rf client/node_modules
       - rm -rf server/vendor
-      - rm -rf server/internal/*/sqlc/*.go
 
   setup:
     desc: Initial setup for new developers
@@ -607,8 +595,6 @@ tasks:
       - sleep 5
       - 'echo "🗄️  Running database migrations..."'
       - task: migrate:up
-      - 'echo "📝 Generating SQLC code..."'
-      - task: sqlc:generate
       - 'echo "✅ All services started! Frontend at http://localhost:3000, API at http://localhost:8080"'
 
   help:
