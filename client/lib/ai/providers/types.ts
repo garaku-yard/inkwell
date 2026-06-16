@@ -3,13 +3,44 @@
  *  `StreamChunk` stream so downstream code (chat panel, NDJSON proxies) can
  *  stay provider-agnostic. */
 
+/** One tool call the model asked to make. `args` is the JSON-encoded
+ *  arguments object, possibly reassembled from streamed fragments. `id`
+ *  ties a later tool-result turn back to this call (synthesised from the
+ *  tool name for providers like Gemini that don't issue ids). */
+export interface AdapterToolCall {
+  id: string
+  name: string
+  args: string
+}
+
 /** One turn in a chat. `system` messages carry top-of-conversation
  *  instructions; Anthropic and Gemini accept these only out-of-band, so
  *  their adapters hoist any `system`-role messages into the provider's
- *  dedicated field. */
+ *  dedicated field.
+ *
+ *  The `tool` role plus `toolCalls`/`toolCallId` carry a function-calling
+ *  round-trip: an `assistant` turn may include the `toolCalls` it requested,
+ *  and a following `tool` turn carries one call's result (`content`) tagged
+ *  with the originating `toolCallId` and tool `name`. Each adapter re-encodes
+ *  these into its provider's native tool-message shape. */
 export interface AdapterMessage {
-  role: "system" | "user" | "assistant"
+  role: "system" | "user" | "assistant" | "tool"
   content: string
+  /** Tool calls requested on an `assistant` turn. */
+  toolCalls?: AdapterToolCall[]
+  /** On a `tool` turn, the id of the call this result answers. */
+  toolCallId?: string
+  /** On a `tool` turn, the name of the tool that produced the result. */
+  name?: string
+}
+
+/** A tool the model may call. `parameters` is a JSON Schema object describing
+ *  the call's arguments. Each adapter maps this into its provider's native
+ *  tool / function declaration. */
+export interface ToolSpec {
+  name: string
+  description: string
+  parameters: Record<string, unknown>
 }
 
 /** One piece of a streaming completion. `delta` is the newly-arrived text
@@ -20,6 +51,13 @@ export interface StreamChunk {
   delta: string
   /** Set on the final chunk. Absent or `false` on all intermediate chunks. */
   done?: boolean
+  /** Present when the model emitted a complete tool call this turn. The
+   *  orchestrator executes it and continues the conversation. */
+  toolCall?: AdapterToolCall
+  /** Why the turn ended, set on the terminal chunk. `"tool_use"` means one
+   *  or more `toolCall`s are pending and the caller should run them and send
+   *  the results back; `"stop"` means the model finished normally. */
+  stopReason?: "stop" | "tool_use"
 }
 
 /** Discriminator for provider behavior. `openai_compatible` covers any
@@ -48,6 +86,9 @@ export interface StreamChatInput {
   apiKey?: string
   baseUrl?: string
   signal?: AbortSignal
+  /** Tools to offer the model. When omitted, the request carries no tool
+   *  declarations and behaves exactly as before. */
+  tools?: ToolSpec[]
 }
 
 /** A provider adapter. Adapters are pure — no internal state, safe to

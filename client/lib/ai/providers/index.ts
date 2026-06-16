@@ -32,9 +32,11 @@ export function getAdapter(kind: ProviderKind): ProviderAdapter {
 
 export type {
   AdapterMessage,
+  AdapterToolCall,
   ProviderAdapter,
   ProviderKind,
   StreamChatInput,
   StreamChunk,
+  ToolSpec,
 } from "./types"
 export { ProviderError } from "./types"

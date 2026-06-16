@@ -17,6 +17,11 @@ export interface AIChatRequest {
   providerId: string
   model?: string
   stream?: boolean
+  /** The project this chat belongs to. When the project has vault-as-knowledge
+   *  scopes wired, the desktop storage layer retrieves relevant note chunks
+   *  into the prompt and offers the `read_note` tool. Ignored on the web
+   *  build (no local vault). */
+  projectId?: string
 }
 
 export const streamChatCompletion = (
