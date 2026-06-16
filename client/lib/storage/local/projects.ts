@@ -115,6 +115,18 @@ export const projects: ProjectStorage = {
 
   delete: async (projectId) => {
     const db = await getDb()
+    // The vault + knowledge index tables key on project_id without a foreign
+    // key (notes live on disk, so they can't cascade from the projects row),
+    // so clean them up by hand here or they orphan forever. project_knowledge
+    // is wiped whether this project was the consumer (project_id) or the vault
+    // supplying notes to others (vault_project_id).
+    await db.execute(
+      "DELETE FROM project_knowledge WHERE project_id = ? OR vault_project_id = ?",
+      [projectId, projectId],
+    )
+    await db.execute("DELETE FROM note_embeddings WHERE project_id = ?", [projectId])
+    await db.execute("DELETE FROM note_links WHERE project_id = ?", [projectId])
+    await db.execute("DELETE FROM note_tags WHERE project_id = ?", [projectId])
     await db.execute("DELETE FROM projects WHERE id = ?", [projectId])
   },
 }
