@@ -78,7 +78,8 @@ run-dev:
 	@echo "Scripts Service: localhost:50052"
 	@echo "Collaboration Service: localhost:50053"
 	@echo "Billing Service: localhost:50054"
-	@echo "AI Service: localhost:50055"
+	@echo "Workspace Service: localhost:50056"
+	@echo "AI Settings Service: localhost:50057"
 
 # Stop development environment
 stop-dev:

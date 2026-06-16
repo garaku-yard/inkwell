@@ -10,7 +10,8 @@
  *  (where keys come from the OS keychain) and the web build's local-model
  *  path (where the base URL points at the user's own Ollama). Web hosted
  *  providers (OpenAI/Anthropic/Gemini with server-held keys) go through
- *  the gateway and the Python AI service and never call this library. */
+ *  the gateway, which dispatches via its own `pkg/aiadapter` mirror, and
+ *  never call this library. */
 
 import { createAnthropicAdapter } from "./anthropic"
 import { createGeminiAdapter } from "./gemini"
