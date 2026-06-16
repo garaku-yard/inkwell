@@ -28,6 +28,7 @@ import { dispatchKey } from "@/lib/editor/keymap";
 import { createScreenplayKeymap } from "./screenplay/keymap";
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { AIChatPanel } from "./AIChatPanel"
+import { ProjectKnowledgeButton } from "./ProjectKnowledgeButton"
 import { useScreenplayElements } from "./screenplay/useScreenplayElements"
 import { useAuth } from "@/lib/AuthContext"
 import { exportScreenplayToFDX } from "@/lib/export/screenplay-fdx"
@@ -487,6 +488,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             >
               {isSaving ? "Saving…" : ""}
             </span>
+            <ProjectKnowledgeButton projectId={project.id} category={project.category} />
             <Button
               variant="outline"
               className="gap-2 bg-transparent"
