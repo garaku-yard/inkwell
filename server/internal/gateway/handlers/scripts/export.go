@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/handlers"
 	"inkwell/server/internal/gateway/handlers/export"
@@ -32,7 +34,11 @@ func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projectID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/projects/"), "/export")
+	// Read the path param via chi rather than trimming a hardcoded
+	// "/projects/" prefix — the handler is mounted under both /projects and
+	// /api/v1/projects, and manual prefix math breaks (and 403s) on the
+	// versioned mount.
+	projectID := chi.URLParam(r, "projectId")
 	if projectID == "" {
 		apierror.WriteStatus(w, http.StatusBadRequest, apierror.CodeInvalidArgument, "project ID is required")
 		return
