@@ -15,7 +15,6 @@ import type {
   KnowledgeIndexStatus,
   KnowledgeScope,
   KnowledgeStorage,
-  IndexProgress,
   RetrievedChunk,
   ResolvedNote,
 } from "@/lib/storage"
