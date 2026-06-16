@@ -374,9 +374,11 @@ export function ProjectKnowledgeDialog({
                   Index
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Notes are embedded locally on your machine — nothing leaves
-                  your device. Build the index after wiring a vault or making
-                  large edits.
+                  Notes are embedded locally on your machine — your notes never
+                  leave your device. Build the index after wiring a vault or
+                  making large edits. The first build downloads a one-time
+                  ~22MB model, so it needs an internet connection; after that
+                  indexing works offline.
                 </p>
                 <ul className="space-y-2">
                   {wiredVaultIds.map((vaultId) => {
