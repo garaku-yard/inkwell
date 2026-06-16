@@ -41,6 +41,18 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0005_ai_providers.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 6,
+      description: "vault-as-knowledge: note_embeddings index for RAG retrieval",
+      sql: include_str!("../migrations/0006_note_embeddings.sql"),
+      kind: MigrationKind::Up,
+    },
+    Migration {
+      version: 7,
+      description: "vault-as-knowledge: project_knowledge scope mapping",
+      sql: include_str!("../migrations/0007_project_knowledge.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 
