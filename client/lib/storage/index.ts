@@ -43,6 +43,7 @@ import type {
   CharacterStorage,
   CollaborationStorage,
   ElementStorage,
+  KnowledgeStorage,
   LocationStorage,
   ProjectStorage,
   SceneStorage,
@@ -65,6 +66,7 @@ export type Capability =
   | "realtime" // Presence + live cursors (never in local build).
   | "admin" // Billing admin endpoints (remote only).
   | "ai.byo" // BYO-key AI providers configurable in settings.
+  | "ai.knowledge" // Vault-as-knowledge RAG for the AI chat (desktop only).
 
 // ─── Root Storage ────────────────────────────────────────────────────────
 
@@ -83,6 +85,7 @@ export interface Storage {
   collaboration: CollaborationStorage
   settings: SettingsStorage
   vault: VaultStorage
+  knowledge: KnowledgeStorage
   ai: AiStorage
   admin: { billing: AdminBillingStorage }
 }

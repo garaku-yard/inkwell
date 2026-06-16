@@ -39,6 +39,7 @@ export function installFakeStorage(overrides: Partial<Storage> = {}): Storage {
     collaboration: makeScreamingProxy("collaboration"),
     settings: makeScreamingProxy("settings"),
     vault: makeScreamingProxy("vault"),
+    knowledge: makeScreamingProxy("knowledge"),
     ai: makeScreamingProxy("ai"),
     admin: { billing: makeScreamingProxy("admin.billing") },
     ...overrides,

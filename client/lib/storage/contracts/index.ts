@@ -57,6 +57,7 @@ export * from "./workspaces"
 export * from "./collaboration"
 export * from "./settings"
 export * from "./vault"
+export * from "./knowledge"
 export * from "./ai"
 export * from "./admin-billing"
 

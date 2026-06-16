@@ -19,6 +19,7 @@ import { workspaces } from "./workspaces"
 import { collaboration } from "./collaboration"
 import { settings } from "./settings"
 import { vault } from "./vault"
+import { knowledge } from "./knowledge"
 import { ai } from "./ai"
 import { adminBilling } from "./admin-billing"
 
@@ -51,6 +52,7 @@ export function createRemoteStorage(): Storage {
     collaboration,
     settings,
     vault,
+    knowledge,
     ai,
     admin: { billing: adminBilling },
   }
