@@ -1,11 +1,18 @@
 /** Local sentence embeddings for vault-as-knowledge retrieval.
  *
- *  Wraps `@huggingface/transformers` running all-MiniLM-L6-v2 entirely in the
- *  webview — no note content ever leaves the machine. The library and its
- *  ~22MB model are dynamic-imported on first use, so users who never wire a
- *  vault as knowledge pay nothing: the model download and the WASM runtime
- *  stay out of the initial bundle and are only fetched when {@link embed} is
- *  first called. The model itself is cached by the library after first load. */
+ *  Wraps `@huggingface/transformers` running all-MiniLM-L6-v2 in the webview.
+ *  Inference is local — note text and chat queries are embedded on-device and
+ *  the vectors never leave the machine. The library is dynamic-imported on
+ *  first use, so users who never wire a vault as knowledge pay nothing.
+ *
+ *  Network caveat: this is NOT fully offline on first use. With
+ *  `allowLocalModels = false` and no app-bundled weights, the ~22MB model is
+ *  fetched from the HuggingFace hub (`huggingface.co`) and the ONNX WASM
+ *  runtime from a CDN (`cdn.jsdelivr.net`) the first time {@link embed} runs;
+ *  both are cached by the library afterwards, so subsequent indexing/querying
+ *  works offline. So the *first* index build requires a network connection.
+ *  (Bundling the model + WASM for a true zero-network first run is a tracked
+ *  follow-up — it needs a real Tauri runtime pass to verify the local paths.) */
 
 /** HuggingFace model id. all-MiniLM-L6-v2 emits 384-dim normalised vectors. */
 const MODEL_ID = "Xenova/all-MiniLM-L6-v2"
