@@ -403,8 +403,25 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			r.Get("/subscriptions", billingHandler.GetSubscriptions)
 		})
 
-		r.Post("/ai/chat", aiHandler.Chat)
-		r.Post("/api/ai/chat", aiHandler.Chat)
+		// Chat must go through the per-user AI limiter — provider bills accrue
+		// per account. The web client calls /api/ai/chat (not the /api/v1
+		// variant), so the limiter has to wrap the legacy routes too.
+		r.Post("/ai/chat", aiLimit(aiHandler.Chat))
+		r.Post("/api/ai/chat", aiLimit(aiHandler.Chat))
+
+		// BYO-AI provider settings. The web client calls /api/ai/settings, so
+		// register the sub-tree here in addition to /api/v1/ai/settings;
+		// per-row mutations share the AI limiter to throttle key churn.
+		r.Route("/api/ai/settings", func(r chi.Router) {
+			r.Get("/", aiSettingsHandler.List)
+			r.Post("/", aiSettingsHandler.Create)
+			r.Route("/{id}", func(r chi.Router) {
+				r.Put("/", aiLimit(aiSettingsHandler.Update))
+				r.Delete("/", aiLimit(aiSettingsHandler.Delete))
+				r.Post("/key", aiLimit(aiSettingsHandler.SetKey))
+				r.Delete("/key", aiLimit(aiSettingsHandler.ClearKey))
+			})
+		})
 
 		r.Get("/categories", workspaceHandler.ListCategories)
 
