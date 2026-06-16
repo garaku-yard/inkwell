@@ -29,7 +29,8 @@ export type ApiErrorCode =
   | "FAILED_PRECONDITION"
   | "INTERNAL"
   | "UNAVAILABLE"
-  | "DEADLINE_EXCEEDED";
+  | "DEADLINE_EXCEEDED"
+  | "RESOURCE_EXHAUSTED";
 
 /**
  * Structured error thrown by `apiClient` and `apiStreamClient` for every
