@@ -36,18 +36,20 @@ func (h *BeatBoardHandler) CreateBeat(ctx context.Context, req *scriptspb.Create
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	projectID, err := uuid.Parse(req.ProjectId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	beat := &domain.Beat{
@@ -82,18 +84,20 @@ func (h *BeatBoardHandler) GetBeat(ctx context.Context, req *scriptspb.GetBeatRe
 	if req.BeatId == "" {
 		return nil, status.Error(codes.InvalidArgument, "beat_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	beatID, err := uuid.Parse(req.BeatId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid beat_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	beat, err := h.service.GetBeat(ctx, beatID, userID)
@@ -113,18 +117,20 @@ func (h *BeatBoardHandler) GetProjectBeatBoard(ctx context.Context, req *scripts
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	projectID, err := uuid.Parse(req.ProjectId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	beatBoard, err := h.service.GetProjectBeatBoard(ctx, projectID, userID)
@@ -144,18 +150,20 @@ func (h *BeatBoardHandler) UpdateBeat(ctx context.Context, req *scriptspb.Update
 	if req.BeatId == "" {
 		return nil, status.Error(codes.InvalidArgument, "beat_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	beatID, err := uuid.Parse(req.BeatId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid beat_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	updates := &domain.Beat{}
@@ -215,18 +223,20 @@ func (h *BeatBoardHandler) DeleteBeat(ctx context.Context, req *scriptspb.Delete
 	if req.BeatId == "" {
 		return nil, status.Error(codes.InvalidArgument, "beat_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	beatID, err := uuid.Parse(req.BeatId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid beat_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	if err := h.service.DeleteBeat(ctx, beatID, userID); err != nil {
@@ -243,18 +253,20 @@ func (h *BeatBoardHandler) CreateConnection(ctx context.Context, req *scriptspb.
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	projectID, err := uuid.Parse(req.ProjectId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	fromID, err := uuid.Parse(req.FromBeatId)
@@ -289,18 +301,20 @@ func (h *BeatBoardHandler) DeleteConnection(ctx context.Context, req *scriptspb.
 	if req.ConnectionId == "" {
 		return nil, status.Error(codes.InvalidArgument, "connection_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	connID, err := uuid.Parse(req.ConnectionId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid connection_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	if err := h.service.DeleteConnection(ctx, connID, userID); err != nil {
@@ -316,18 +330,20 @@ func (h *BeatBoardHandler) CreateLane(ctx context.Context, req *scriptspb.Create
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	projectID, err := uuid.Parse(req.ProjectId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	lane := &domain.Lane{
@@ -351,18 +367,20 @@ func (h *BeatBoardHandler) GetProjectLanes(ctx context.Context, req *scriptspb.G
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	projectID, err := uuid.Parse(req.ProjectId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	lanes, err := h.service.GetProjectLanes(ctx, projectID, userID)
@@ -386,18 +404,20 @@ func (h *BeatBoardHandler) UpdateLane(ctx context.Context, req *scriptspb.Update
 	if req.LaneId == "" {
 		return nil, status.Error(codes.InvalidArgument, "lane_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	laneID, err := uuid.Parse(req.LaneId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid lane_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	updates := &domain.Lane{}
@@ -427,18 +447,20 @@ func (h *BeatBoardHandler) UpdateLaneOrder(ctx context.Context, req *scriptspb.U
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	projectID, err := uuid.Parse(req.ProjectId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	laneIDs := make([]uuid.UUID, len(req.LaneIds))
@@ -462,18 +484,20 @@ func (h *BeatBoardHandler) DeleteLane(ctx context.Context, req *scriptspb.Delete
 	if req.LaneId == "" {
 		return nil, status.Error(codes.InvalidArgument, "lane_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	laneID, err := uuid.Parse(req.LaneId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid lane_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	if err := h.service.DeleteLane(ctx, laneID, userID); err != nil {
@@ -490,18 +514,20 @@ func (h *BeatBoardHandler) CreateOutlineItem(ctx context.Context, req *scriptspb
 	if req.ProjectId == "" {
 		return nil, status.Error(codes.InvalidArgument, "project_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	projectID, err := uuid.Parse(req.ProjectId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	beatID, err := uuid.Parse(req.BeatId)
@@ -538,18 +564,20 @@ func (h *BeatBoardHandler) UpdateOutlineItem(ctx context.Context, req *scriptspb
 	if req.OutlineItemId == "" {
 		return nil, status.Error(codes.InvalidArgument, "outline_item_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	itemID, err := uuid.Parse(req.OutlineItemId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid outline_item_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	updates := &domain.OutlineItem{}
@@ -593,18 +621,20 @@ func (h *BeatBoardHandler) DeleteOutlineItem(ctx context.Context, req *scriptspb
 	if req.OutlineItemId == "" {
 		return nil, status.Error(codes.InvalidArgument, "outline_item_id is required")
 	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	itemID, err := uuid.Parse(req.OutlineItemId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid outline_item_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	if err := h.service.DeleteOutlineItem(ctx, itemID, userID); err != nil {
