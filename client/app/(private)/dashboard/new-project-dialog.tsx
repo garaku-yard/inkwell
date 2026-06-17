@@ -57,8 +57,9 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
     ) {
       setCollaborators([...collaborators, { username: trimmed, role: "viewer" }])
       setCollaboratorInput("")
+      setError(null)
     } else {
-      console.log("Invalid format. Please use username#tag")
+      setError("Enter the collaborator as username#tag.")
     }
   }
 
