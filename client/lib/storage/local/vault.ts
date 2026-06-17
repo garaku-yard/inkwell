@@ -380,9 +380,18 @@ export const vault: VaultStorage = {
 
     const makeRel = (name: string) =>
       folderRel ? `${folderRel}/${name}` : name
+    // Find a free filename, appending " 2", " 3", … on collision. The loop
+    // only exits once `path` points at a name that doesn't exist, so we never
+    // overwrite an existing note. Bail out rather than clobber if the base
+    // name plus 1000 numbered variants are somehow all taken.
     let rel = makeRel(`${base}.md`)
     let path = joinPath(vaultRoot, rel)
-    for (let i = 2; i < 1000 && (await exists(path)); i++) {
+    for (let i = 2; await exists(path); i++) {
+      if (i > 1000) {
+        throw new Error(
+          `Couldn't create "${base}": that name and 1000 numbered variants are all taken. Rename or remove some notes first.`,
+        )
+      }
       rel = makeRel(`${base} ${i}.md`)
       path = joinPath(vaultRoot, rel)
     }
