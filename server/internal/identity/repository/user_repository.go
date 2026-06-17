@@ -19,11 +19,10 @@ type UserRepository interface {
 	// CreateUserTx inserts a user inside the given transaction, used by the
 	// service layer to atomically commit the row and its user.created
 	// outbox event. Returns the same domain errors as CreateUser
-	// (ErrEmailExists / ErrUsernameExists).
+	// (ErrEmailExists / ErrUserTagTaken).
 	CreateUserTx(ctx context.Context, tx *sql.Tx, user *domain.User) error
 	GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
-	GetUserByUsername(ctx context.Context, username string) (*domain.User, error)
 	GetUserByUsernameAndTag(ctx context.Context, username, userTag string) (*domain.User, error)
 	UpdateUser(ctx context.Context, user *domain.User) error
 	UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error
@@ -42,7 +41,6 @@ type UserRepository interface {
 
 	// Utility operations
 	EmailExists(ctx context.Context, email string) (bool, error)
-	UsernameExists(ctx context.Context, username string) (bool, error)
 }
 
 // userRepository implements UserRepository interface
@@ -71,8 +69,8 @@ func translateInsertError(err error) error {
 			if pqErr.Constraint == "users_email_key" {
 				return domain.ErrEmailExists
 			}
-			if pqErr.Constraint == "users_username_key" {
-				return domain.ErrUsernameExists
+			if pqErr.Constraint == "uq_users_username_tag" {
+				return domain.ErrUserTagTaken
 			}
 		}
 	}
@@ -217,50 +215,6 @@ func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 	return user, nil
 }
 
-// GetUserByUsername retrieves a user by username
-func (r *userRepository) GetUserByUsername(ctx context.Context, username string) (*domain.User, error) {
-	query := `
-		SELECT user_id, email, username, user_tag, password_hash, first_name, last_name, avatar_url, role, is_active, is_verified, email_verified, last_login_at, created_at, updated_at, deleted_at
-		FROM users 
-		WHERE username = $1 AND deleted_at IS NULL
-	`
-
-	user := &domain.User{}
-	var lastLogin sql.NullTime
-
-	err := r.db.QueryRowContext(ctx, query, username).Scan(
-		&user.ID,
-		&user.Email,
-		&user.Username,
-		&user.UserTag,
-		&user.PasswordHash,
-		&user.FirstName,
-		&user.LastName,
-		&user.AvatarURL,
-		&user.Role,
-		&user.IsActive,
-		&user.IsVerified,
-		&user.EmailVerified,
-		&lastLogin,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-		&user.DeletedAt,
-	)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, domain.ErrUserNotFound
-		}
-		return nil, fmt.Errorf("failed to get user by username: %w", err)
-	}
-
-	if lastLogin.Valid {
-		user.LastLoginAt = &lastLogin.Time
-	}
-
-	return user, nil
-}
-
 // GetUserByUsernameAndTag retrieves a user by username and user tag
 func (r *userRepository) GetUserByUsernameAndTag(ctx context.Context, username, userTag string) (*domain.User, error) {
 	query := `
@@ -308,8 +262,8 @@ func (r *userRepository) GetUserByUsernameAndTag(ctx context.Context, username, 
 // UpdateUser updates user information
 func (r *userRepository) UpdateUser(ctx context.Context, user *domain.User) error {
 	query := `
-		UPDATE users 
-		SET email = $2, username = $3, role = $4, is_verified = $5, updated_at = $6
+		UPDATE users
+		SET email = $2, username = $3, user_tag = $4, role = $5, is_verified = $6, updated_at = $7
 		WHERE user_id = $1 AND deleted_at IS NULL
 	`
 
@@ -317,6 +271,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, user *domain.User) erro
 		user.ID,
 		user.Email,
 		user.Username,
+		user.UserTag,
 		user.Role,
 		user.IsVerified,
 		time.Now(),
@@ -329,8 +284,8 @@ func (r *userRepository) UpdateUser(ctx context.Context, user *domain.User) erro
 				if pqErr.Constraint == "users_email_key" {
 					return domain.ErrEmailExists
 				}
-				if pqErr.Constraint == "users_username_key" {
-					return domain.ErrUsernameExists
+				if pqErr.Constraint == "uq_users_username_tag" {
+					return domain.ErrUserTagTaken
 				}
 			}
 		}
@@ -678,19 +633,6 @@ func (r *userRepository) EmailExists(ctx context.Context, email string) (bool, e
 	err := r.db.QueryRowContext(ctx, query, email).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check email existence: %w", err)
-	}
-
-	return exists, nil
-}
-
-// UsernameExists checks if a username is already in use
-func (r *userRepository) UsernameExists(ctx context.Context, username string) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM users WHERE username = $1 AND deleted_at IS NULL)`
-
-	var exists bool
-	err := r.db.QueryRowContext(ctx, query, username).Scan(&exists)
-	if err != nil {
-		return false, fmt.Errorf("failed to check username existence: %w", err)
 	}
 
 	return exists, nil

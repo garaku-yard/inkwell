@@ -272,7 +272,7 @@ func (h *IdentityHandler) handleError(err error) error {
 	switch err {
 	case domain.ErrUserNotFound, domain.ErrSessionNotFound:
 		return status.Error(codes.NotFound, err.Error())
-	case domain.ErrEmailExists, domain.ErrUsernameExists, domain.ErrUserAlreadyExists:
+	case domain.ErrEmailExists, domain.ErrUserTagTaken, domain.ErrUserAlreadyExists:
 		return status.Error(codes.AlreadyExists, err.Error())
 	case domain.ErrInvalidCredentials, domain.ErrInvalidToken,
 		domain.ErrInvalidRefreshToken, domain.ErrTokenExpired, domain.ErrSessionExpired:

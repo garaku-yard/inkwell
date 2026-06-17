@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -179,13 +180,8 @@ func (s *authService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 		return nil, domain.ErrEmailExists
 	}
 
-	usernameExists, err := s.userRepo.UsernameExists(ctx, req.Username)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check username existence: %w", err)
-	}
-	if usernameExists {
-		return nil, domain.ErrUsernameExists
-	}
+	// Note: usernames are intentionally NOT unique on their own. The unique
+	// identity is the (username, user_tag) pair — see the retry loop below.
 
 	// Hash password
 	passwordHash, err := s.hashPassword(req.Password)
@@ -193,24 +189,18 @@ func (s *authService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Set default role
-	role := "user"
-
-	// Generate unique user tag
-	userTag := domain.GenerateUserTag()
-	// TODO: In a production environment, ensure uniqueness by checking database
-	// For now, the 5-digit random generation should be sufficient for most cases
-
-	// Create user
+	// Create user. The (username, user_tag) pair must be unique (Model B), so
+	// two people can share a username as long as their tags differ. The tag is
+	// random; the rare collision with an existing username#tag is handled by
+	// regenerating the tag and retrying.
 	user := &domain.User{
 		ID:           uuid.New(),
 		Email:        req.Email,
 		Username:     req.Username,
-		UserTag:      userTag,
 		PasswordHash: passwordHash,
 		FirstName:    req.FirstName,
 		LastName:     req.LastName,
-		Role:         role,
+		Role:         "user",
 		IsActive:     true,
 		IsVerified:   false, // Email verification can be added later
 		CreatedAt:    time.Now(),
@@ -227,19 +217,28 @@ func (s *authService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 	}
 
 	// Commit the user row and its `user.created` outbox event in a single
-	// transaction so no event can be lost if the process crashes between
-	// the two writes. The inline Publish below is a best-effort fast path;
-	// the background outbox poller handles reliability.
-	err = outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
-		if err := s.userRepo.CreateUserTx(ctx, tx, user); err != nil {
-			return err
-		}
-		return s.outbox.EnqueueTx(ctx, tx, outbox.Event{
-			Type:    events.EventTypeUserCreated,
-			Payload: payload,
+	// transaction so no event can be lost if the process crashes between the
+	// two writes. The inline Publish below is a best-effort fast path; the
+	// background outbox poller handles reliability. On a username#tag collision
+	// the whole transaction rolls back and we retry with a fresh tag.
+	const maxTagAttempts = 10
+	for attempt := 1; ; attempt++ {
+		user.UserTag = domain.GenerateUserTag()
+		err = outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
+			if err := s.userRepo.CreateUserTx(ctx, tx, user); err != nil {
+				return err
+			}
+			return s.outbox.EnqueueTx(ctx, tx, outbox.Event{
+				Type:    events.EventTypeUserCreated,
+				Payload: payload,
+			})
 		})
-	})
-	if err != nil {
+		if err == nil {
+			break
+		}
+		if errors.Is(err, domain.ErrUserTagTaken) && attempt < maxTagAttempts {
+			continue // tag collided with an existing username#tag — pick another
+		}
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
@@ -413,16 +412,36 @@ func (s *authService) UpdateUserProfile(ctx context.Context, userID uuid.UUID, r
 		user.Email = req.Email
 	}
 
+	usernameChanged := false
 	if req.Username != "" {
 		if err := domain.ValidateUsername(req.Username); err != nil {
 			return err
 		}
+		usernameChanged = req.Username != user.Username
 		user.Username = req.Username
 	}
 
 	user.UpdatedAt = time.Now()
 
-	return s.userRepo.UpdateUser(ctx, user)
+	// When the username didn't change, the existing (username, user_tag) pair is
+	// already unique, so a plain update suffices. A username change, however, can
+	// collide with an existing username#tag — keep the current tag if it still
+	// fits, and on collision regenerate the tag and retry (mirrors Register).
+	if !usernameChanged {
+		return s.userRepo.UpdateUser(ctx, user)
+	}
+	const maxTagAttempts = 10
+	for attempt := 1; ; attempt++ {
+		err = s.userRepo.UpdateUser(ctx, user)
+		if err == nil {
+			return nil
+		}
+		if errors.Is(err, domain.ErrUserTagTaken) && attempt < maxTagAttempts {
+			user.UserTag = domain.GenerateUserTag()
+			continue
+		}
+		return err
+	}
 }
 
 // ChangePassword changes user password

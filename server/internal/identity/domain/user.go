@@ -124,10 +124,14 @@ const (
 
 // Domain errors
 var (
-	ErrUserNotFound        = errors.New("user not found")
-	ErrUserAlreadyExists   = errors.New("user already exists")
-	ErrEmailExists         = errors.New("email already exists")
-	ErrUsernameExists      = errors.New("username already exists")
+	ErrUserNotFound      = errors.New("user not found")
+	ErrUserAlreadyExists = errors.New("user already exists")
+	ErrEmailExists       = errors.New("email already exists")
+	// ErrUserTagTaken means the (username, user_tag) pair collides with an
+	// existing user. Usernames are not unique on their own (Model B); the
+	// username#tag combination is. Register/profile-update regenerate the tag
+	// and retry on this error rather than surfacing it.
+	ErrUserTagTaken        = errors.New("username#tag combination already in use")
 	ErrInvalidCredentials  = errors.New("invalid credentials")
 	ErrInvalidToken        = errors.New("invalid token")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
