@@ -6,6 +6,21 @@ import (
 	"github.com/google/uuid"
 )
 
+// ResourceKind identifies a project sub-resource (beat, lane, connection,
+// outline item, or element) for project-ownership resolution. The gateway uses
+// it via ScriptsService.GetResourceProject to learn which project owns a
+// resource before authorizing a mutation against it.
+type ResourceKind int
+
+const (
+	ResourceKindUnspecified ResourceKind = iota
+	ResourceKindBeat
+	ResourceKindConnection
+	ResourceKindLane
+	ResourceKindOutlineItem
+	ResourceKindElement
+)
+
 // Beat represents a story beat in the beat board
 type Beat struct {
 	ID           uuid.UUID `json:"id" db:"beat_id"`

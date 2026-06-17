@@ -567,15 +567,6 @@ message DeleteConnectionResponse {
   bool success = 1;
 }
 
-message GetConnectionRequest {
-  string connection_id = 1;
-  string user_id = 2;
-}
-
-message GetConnectionResponse {
-  Connection connection = 1;
-}
-
 message CreateLaneRequest {
   string project_id = 1;
   string user_id = 2;
@@ -628,15 +619,6 @@ message DeleteLaneResponse {
   bool success = 1;
 }
 
-message GetLaneRequest {
-  string lane_id = 1;
-  string user_id = 2;
-}
-
-message GetLaneResponse {
-  Lane lane = 1;
-}
-
 message CreateOutlineItemRequest {
   string project_id = 1;
   string user_id = 2;
@@ -674,13 +656,25 @@ message DeleteOutlineItemResponse {
   bool success = 1;
 }
 
-message GetOutlineItemRequest {
-  string outline_item_id = 1;
-  string user_id = 2;
+// ResourceType identifies a beat-board or script sub-resource for
+// GetResourceProject. The gateway uses it to resolve which project owns a
+// resource so it can authorize a mutation against that project.
+enum ResourceType {
+  RESOURCE_TYPE_UNSPECIFIED = 0;
+  RESOURCE_TYPE_BEAT = 1;
+  RESOURCE_TYPE_CONNECTION = 2;
+  RESOURCE_TYPE_LANE = 3;
+  RESOURCE_TYPE_OUTLINE_ITEM = 4;
+  RESOURCE_TYPE_ELEMENT = 5;
 }
 
-message GetOutlineItemResponse {
-  OutlineItem outline_item = 1;
+message GetResourceProjectRequest {
+  ResourceType resource_type = 1;
+  string resource_id = 2;
+}
+
+message GetResourceProjectResponse {
+  string project_id = 1;
 }
 
 message GetProjectLocationsRequest {
@@ -744,18 +738,21 @@ service ScriptsService {
   rpc DeleteBeat(DeleteBeatRequest) returns (DeleteBeatResponse);
   
   rpc CreateConnection(CreateConnectionRequest) returns (CreateConnectionResponse);
-  rpc GetConnection(GetConnectionRequest) returns (GetConnectionResponse);
   rpc DeleteConnection(DeleteConnectionRequest) returns (DeleteConnectionResponse);
   
   rpc CreateLane(CreateLaneRequest) returns (CreateLaneResponse);
   rpc GetProjectLanes(GetProjectLanesRequest) returns (GetProjectLanesResponse);
   rpc UpdateLane(UpdateLaneRequest) returns (UpdateLaneResponse);
   rpc UpdateLaneOrder(UpdateLaneOrderRequest) returns (UpdateLaneOrderResponse);
-  rpc GetLane(GetLaneRequest) returns (GetLaneResponse);
   rpc DeleteLane(DeleteLaneRequest) returns (DeleteLaneResponse);
   
   rpc CreateOutlineItem(CreateOutlineItemRequest) returns (CreateOutlineItemResponse);
   rpc UpdateOutlineItem(UpdateOutlineItemRequest) returns (UpdateOutlineItemResponse);
-  rpc GetOutlineItem(GetOutlineItemRequest) returns (GetOutlineItemResponse);
   rpc DeleteOutlineItem(DeleteOutlineItemRequest) returns (DeleteOutlineItemResponse);
+
+  // GetResourceProject resolves which project owns a sub-resource (beat, lane,
+  // connection, outline item, or element). The gateway calls it to authorize
+  // mutations against the resource's real project. It is an internal lookup —
+  // no ownership check — so the gateway must authorize the returned project.
+  rpc GetResourceProject(GetResourceProjectRequest) returns (GetResourceProjectResponse);
 }

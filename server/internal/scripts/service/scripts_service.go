@@ -36,6 +36,11 @@ type ScriptsService interface {
 	DeleteScriptElement(ctx context.Context, elementID, userID uuid.UUID) error
 	BulkUpdateScriptElements(ctx context.Context, projectID, userID uuid.UUID, elements []*domain.ScriptElement) ([]*domain.ScriptElement, error)
 
+	// GetResourceProject resolves which project owns a sub-resource. It is an
+	// internal lookup with no access check — the gateway authorizes the caller
+	// against the returned project before performing the mutation.
+	GetResourceProject(ctx context.Context, kind domain.ResourceKind, resourceID uuid.UUID) (uuid.UUID, error)
+
 	// Scene operations
 	CreateScene(ctx context.Context, projectID, userID uuid.UUID, scene *domain.Scene) (*domain.Scene, error)
 	GetProjectScenes(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Scene, error)
@@ -399,6 +404,47 @@ func (s *scriptsService) BulkUpdateScriptElements(ctx context.Context, projectID
 	}
 
 	return elements, nil
+}
+
+// GetResourceProject resolves which project owns a sub-resource by id. It is a
+// pure lookup with no ownership check; callers (the gateway) must authorize the
+// returned project before mutating. An unknown kind or a missing resource
+// returns an error.
+func (s *scriptsService) GetResourceProject(ctx context.Context, kind domain.ResourceKind, resourceID uuid.UUID) (uuid.UUID, error) {
+	switch kind {
+	case domain.ResourceKindBeat:
+		beat, err := s.repo.Beat.GetBeat(ctx, resourceID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return beat.ProjectID, nil
+	case domain.ResourceKindConnection:
+		conn, err := s.repo.Connection.GetConnection(ctx, resourceID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return conn.ProjectID, nil
+	case domain.ResourceKindLane:
+		lane, err := s.repo.Lane.GetLane(ctx, resourceID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return lane.ProjectID, nil
+	case domain.ResourceKindOutlineItem:
+		item, err := s.repo.OutlineItem.GetOutlineItem(ctx, resourceID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return item.ProjectID, nil
+	case domain.ResourceKindElement:
+		element, err := s.repo.ScriptElement.GetScriptElement(ctx, resourceID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return element.ProjectID, nil
+	default:
+		return uuid.Nil, fmt.Errorf("unknown resource kind: %d", kind)
+	}
 }
 
 // Scene operations

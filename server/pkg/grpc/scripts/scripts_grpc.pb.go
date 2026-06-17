@@ -53,18 +53,16 @@ const (
 	ScriptsService_UpdateBeat_FullMethodName               = "/scripts.ScriptsService/UpdateBeat"
 	ScriptsService_DeleteBeat_FullMethodName               = "/scripts.ScriptsService/DeleteBeat"
 	ScriptsService_CreateConnection_FullMethodName         = "/scripts.ScriptsService/CreateConnection"
-	ScriptsService_GetConnection_FullMethodName            = "/scripts.ScriptsService/GetConnection"
 	ScriptsService_DeleteConnection_FullMethodName         = "/scripts.ScriptsService/DeleteConnection"
 	ScriptsService_CreateLane_FullMethodName               = "/scripts.ScriptsService/CreateLane"
 	ScriptsService_GetProjectLanes_FullMethodName          = "/scripts.ScriptsService/GetProjectLanes"
 	ScriptsService_UpdateLane_FullMethodName               = "/scripts.ScriptsService/UpdateLane"
 	ScriptsService_UpdateLaneOrder_FullMethodName          = "/scripts.ScriptsService/UpdateLaneOrder"
-	ScriptsService_GetLane_FullMethodName                  = "/scripts.ScriptsService/GetLane"
 	ScriptsService_DeleteLane_FullMethodName               = "/scripts.ScriptsService/DeleteLane"
 	ScriptsService_CreateOutlineItem_FullMethodName        = "/scripts.ScriptsService/CreateOutlineItem"
 	ScriptsService_UpdateOutlineItem_FullMethodName        = "/scripts.ScriptsService/UpdateOutlineItem"
-	ScriptsService_GetOutlineItem_FullMethodName           = "/scripts.ScriptsService/GetOutlineItem"
 	ScriptsService_DeleteOutlineItem_FullMethodName        = "/scripts.ScriptsService/DeleteOutlineItem"
+	ScriptsService_GetResourceProject_FullMethodName       = "/scripts.ScriptsService/GetResourceProject"
 )
 
 // ScriptsServiceClient is the client API for ScriptsService service.
@@ -115,18 +113,20 @@ type ScriptsServiceClient interface {
 	UpdateBeat(ctx context.Context, in *UpdateBeatRequest, opts ...grpc.CallOption) (*UpdateBeatResponse, error)
 	DeleteBeat(ctx context.Context, in *DeleteBeatRequest, opts ...grpc.CallOption) (*DeleteBeatResponse, error)
 	CreateConnection(ctx context.Context, in *CreateConnectionRequest, opts ...grpc.CallOption) (*CreateConnectionResponse, error)
-	GetConnection(ctx context.Context, in *GetConnectionRequest, opts ...grpc.CallOption) (*GetConnectionResponse, error)
 	DeleteConnection(ctx context.Context, in *DeleteConnectionRequest, opts ...grpc.CallOption) (*DeleteConnectionResponse, error)
 	CreateLane(ctx context.Context, in *CreateLaneRequest, opts ...grpc.CallOption) (*CreateLaneResponse, error)
 	GetProjectLanes(ctx context.Context, in *GetProjectLanesRequest, opts ...grpc.CallOption) (*GetProjectLanesResponse, error)
 	UpdateLane(ctx context.Context, in *UpdateLaneRequest, opts ...grpc.CallOption) (*UpdateLaneResponse, error)
 	UpdateLaneOrder(ctx context.Context, in *UpdateLaneOrderRequest, opts ...grpc.CallOption) (*UpdateLaneOrderResponse, error)
-	GetLane(ctx context.Context, in *GetLaneRequest, opts ...grpc.CallOption) (*GetLaneResponse, error)
 	DeleteLane(ctx context.Context, in *DeleteLaneRequest, opts ...grpc.CallOption) (*DeleteLaneResponse, error)
 	CreateOutlineItem(ctx context.Context, in *CreateOutlineItemRequest, opts ...grpc.CallOption) (*CreateOutlineItemResponse, error)
 	UpdateOutlineItem(ctx context.Context, in *UpdateOutlineItemRequest, opts ...grpc.CallOption) (*UpdateOutlineItemResponse, error)
-	GetOutlineItem(ctx context.Context, in *GetOutlineItemRequest, opts ...grpc.CallOption) (*GetOutlineItemResponse, error)
 	DeleteOutlineItem(ctx context.Context, in *DeleteOutlineItemRequest, opts ...grpc.CallOption) (*DeleteOutlineItemResponse, error)
+	// GetResourceProject resolves which project owns a sub-resource (beat, lane,
+	// connection, outline item, or element). The gateway calls it to authorize
+	// mutations against the resource's real project. It is an internal lookup —
+	// no ownership check — so the gateway must authorize the returned project.
+	GetResourceProject(ctx context.Context, in *GetResourceProjectRequest, opts ...grpc.CallOption) (*GetResourceProjectResponse, error)
 }
 
 type scriptsServiceClient struct {
@@ -477,16 +477,6 @@ func (c *scriptsServiceClient) CreateConnection(ctx context.Context, in *CreateC
 	return out, nil
 }
 
-func (c *scriptsServiceClient) GetConnection(ctx context.Context, in *GetConnectionRequest, opts ...grpc.CallOption) (*GetConnectionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetConnectionResponse)
-	err := c.cc.Invoke(ctx, ScriptsService_GetConnection_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *scriptsServiceClient) DeleteConnection(ctx context.Context, in *DeleteConnectionRequest, opts ...grpc.CallOption) (*DeleteConnectionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteConnectionResponse)
@@ -537,16 +527,6 @@ func (c *scriptsServiceClient) UpdateLaneOrder(ctx context.Context, in *UpdateLa
 	return out, nil
 }
 
-func (c *scriptsServiceClient) GetLane(ctx context.Context, in *GetLaneRequest, opts ...grpc.CallOption) (*GetLaneResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetLaneResponse)
-	err := c.cc.Invoke(ctx, ScriptsService_GetLane_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *scriptsServiceClient) DeleteLane(ctx context.Context, in *DeleteLaneRequest, opts ...grpc.CallOption) (*DeleteLaneResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteLaneResponse)
@@ -577,20 +557,20 @@ func (c *scriptsServiceClient) UpdateOutlineItem(ctx context.Context, in *Update
 	return out, nil
 }
 
-func (c *scriptsServiceClient) GetOutlineItem(ctx context.Context, in *GetOutlineItemRequest, opts ...grpc.CallOption) (*GetOutlineItemResponse, error) {
+func (c *scriptsServiceClient) DeleteOutlineItem(ctx context.Context, in *DeleteOutlineItemRequest, opts ...grpc.CallOption) (*DeleteOutlineItemResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetOutlineItemResponse)
-	err := c.cc.Invoke(ctx, ScriptsService_GetOutlineItem_FullMethodName, in, out, cOpts...)
+	out := new(DeleteOutlineItemResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_DeleteOutlineItem_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *scriptsServiceClient) DeleteOutlineItem(ctx context.Context, in *DeleteOutlineItemRequest, opts ...grpc.CallOption) (*DeleteOutlineItemResponse, error) {
+func (c *scriptsServiceClient) GetResourceProject(ctx context.Context, in *GetResourceProjectRequest, opts ...grpc.CallOption) (*GetResourceProjectResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeleteOutlineItemResponse)
-	err := c.cc.Invoke(ctx, ScriptsService_DeleteOutlineItem_FullMethodName, in, out, cOpts...)
+	out := new(GetResourceProjectResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_GetResourceProject_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -645,18 +625,20 @@ type ScriptsServiceServer interface {
 	UpdateBeat(context.Context, *UpdateBeatRequest) (*UpdateBeatResponse, error)
 	DeleteBeat(context.Context, *DeleteBeatRequest) (*DeleteBeatResponse, error)
 	CreateConnection(context.Context, *CreateConnectionRequest) (*CreateConnectionResponse, error)
-	GetConnection(context.Context, *GetConnectionRequest) (*GetConnectionResponse, error)
 	DeleteConnection(context.Context, *DeleteConnectionRequest) (*DeleteConnectionResponse, error)
 	CreateLane(context.Context, *CreateLaneRequest) (*CreateLaneResponse, error)
 	GetProjectLanes(context.Context, *GetProjectLanesRequest) (*GetProjectLanesResponse, error)
 	UpdateLane(context.Context, *UpdateLaneRequest) (*UpdateLaneResponse, error)
 	UpdateLaneOrder(context.Context, *UpdateLaneOrderRequest) (*UpdateLaneOrderResponse, error)
-	GetLane(context.Context, *GetLaneRequest) (*GetLaneResponse, error)
 	DeleteLane(context.Context, *DeleteLaneRequest) (*DeleteLaneResponse, error)
 	CreateOutlineItem(context.Context, *CreateOutlineItemRequest) (*CreateOutlineItemResponse, error)
 	UpdateOutlineItem(context.Context, *UpdateOutlineItemRequest) (*UpdateOutlineItemResponse, error)
-	GetOutlineItem(context.Context, *GetOutlineItemRequest) (*GetOutlineItemResponse, error)
 	DeleteOutlineItem(context.Context, *DeleteOutlineItemRequest) (*DeleteOutlineItemResponse, error)
+	// GetResourceProject resolves which project owns a sub-resource (beat, lane,
+	// connection, outline item, or element). The gateway calls it to authorize
+	// mutations against the resource's real project. It is an internal lookup —
+	// no ownership check — so the gateway must authorize the returned project.
+	GetResourceProject(context.Context, *GetResourceProjectRequest) (*GetResourceProjectResponse, error)
 	mustEmbedUnimplementedScriptsServiceServer()
 }
 
@@ -769,9 +751,6 @@ func (UnimplementedScriptsServiceServer) DeleteBeat(context.Context, *DeleteBeat
 func (UnimplementedScriptsServiceServer) CreateConnection(context.Context, *CreateConnectionRequest) (*CreateConnectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateConnection not implemented")
 }
-func (UnimplementedScriptsServiceServer) GetConnection(context.Context, *GetConnectionRequest) (*GetConnectionResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetConnection not implemented")
-}
 func (UnimplementedScriptsServiceServer) DeleteConnection(context.Context, *DeleteConnectionRequest) (*DeleteConnectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteConnection not implemented")
 }
@@ -787,9 +766,6 @@ func (UnimplementedScriptsServiceServer) UpdateLane(context.Context, *UpdateLane
 func (UnimplementedScriptsServiceServer) UpdateLaneOrder(context.Context, *UpdateLaneOrderRequest) (*UpdateLaneOrderResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateLaneOrder not implemented")
 }
-func (UnimplementedScriptsServiceServer) GetLane(context.Context, *GetLaneRequest) (*GetLaneResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetLane not implemented")
-}
 func (UnimplementedScriptsServiceServer) DeleteLane(context.Context, *DeleteLaneRequest) (*DeleteLaneResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteLane not implemented")
 }
@@ -799,11 +775,11 @@ func (UnimplementedScriptsServiceServer) CreateOutlineItem(context.Context, *Cre
 func (UnimplementedScriptsServiceServer) UpdateOutlineItem(context.Context, *UpdateOutlineItemRequest) (*UpdateOutlineItemResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateOutlineItem not implemented")
 }
-func (UnimplementedScriptsServiceServer) GetOutlineItem(context.Context, *GetOutlineItemRequest) (*GetOutlineItemResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetOutlineItem not implemented")
-}
 func (UnimplementedScriptsServiceServer) DeleteOutlineItem(context.Context, *DeleteOutlineItemRequest) (*DeleteOutlineItemResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteOutlineItem not implemented")
+}
+func (UnimplementedScriptsServiceServer) GetResourceProject(context.Context, *GetResourceProjectRequest) (*GetResourceProjectResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetResourceProject not implemented")
 }
 func (UnimplementedScriptsServiceServer) mustEmbedUnimplementedScriptsServiceServer() {}
 func (UnimplementedScriptsServiceServer) testEmbeddedByValue()                        {}
@@ -1438,24 +1414,6 @@ func _ScriptsService_CreateConnection_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ScriptsService_GetConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetConnectionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ScriptsServiceServer).GetConnection(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ScriptsService_GetConnection_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ScriptsServiceServer).GetConnection(ctx, req.(*GetConnectionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _ScriptsService_DeleteConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteConnectionRequest)
 	if err := dec(in); err != nil {
@@ -1546,24 +1504,6 @@ func _ScriptsService_UpdateLaneOrder_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ScriptsService_GetLane_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetLaneRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ScriptsServiceServer).GetLane(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ScriptsService_GetLane_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ScriptsServiceServer).GetLane(ctx, req.(*GetLaneRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _ScriptsService_DeleteLane_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteLaneRequest)
 	if err := dec(in); err != nil {
@@ -1618,24 +1558,6 @@ func _ScriptsService_UpdateOutlineItem_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ScriptsService_GetOutlineItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetOutlineItemRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ScriptsServiceServer).GetOutlineItem(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ScriptsService_GetOutlineItem_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ScriptsServiceServer).GetOutlineItem(ctx, req.(*GetOutlineItemRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _ScriptsService_DeleteOutlineItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteOutlineItemRequest)
 	if err := dec(in); err != nil {
@@ -1650,6 +1572,24 @@ func _ScriptsService_DeleteOutlineItem_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ScriptsServiceServer).DeleteOutlineItem(ctx, req.(*DeleteOutlineItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_GetResourceProject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetResourceProjectRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).GetResourceProject(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_GetResourceProject_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).GetResourceProject(ctx, req.(*GetResourceProjectRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1798,10 +1738,6 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ScriptsService_CreateConnection_Handler,
 		},
 		{
-			MethodName: "GetConnection",
-			Handler:    _ScriptsService_GetConnection_Handler,
-		},
-		{
 			MethodName: "DeleteConnection",
 			Handler:    _ScriptsService_DeleteConnection_Handler,
 		},
@@ -1822,10 +1758,6 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ScriptsService_UpdateLaneOrder_Handler,
 		},
 		{
-			MethodName: "GetLane",
-			Handler:    _ScriptsService_GetLane_Handler,
-		},
-		{
 			MethodName: "DeleteLane",
 			Handler:    _ScriptsService_DeleteLane_Handler,
 		},
@@ -1838,12 +1770,12 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ScriptsService_UpdateOutlineItem_Handler,
 		},
 		{
-			MethodName: "GetOutlineItem",
-			Handler:    _ScriptsService_GetOutlineItem_Handler,
-		},
-		{
 			MethodName: "DeleteOutlineItem",
 			Handler:    _ScriptsService_DeleteOutlineItem_Handler,
+		},
+		{
+			MethodName: "GetResourceProject",
+			Handler:    _ScriptsService_GetResourceProject_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

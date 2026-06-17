@@ -585,9 +585,14 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
+			resolvedID, err := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT, elementID)
+			if err != nil {
+				return nil, err
+			}
+
 			updateReq := &scriptspb.UpdateElementRequest{
 				ElementId: elementID,
-				UserId:    userID,
+				UserId:    resolvedID,
 			}
 
 			if req.Content != nil {
@@ -599,12 +604,6 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 			}
 
 			response, err := h.scriptsClient.UpdateElement(ctx, updateReq)
-			if err != nil {
-				// Retry with empty userID — collaborator access is confirmed by JWT auth;
-				// the user must have loaded the scene to know this element ID.
-				updateReq.UserId = ""
-				response, err = h.scriptsClient.UpdateElement(ctx, updateReq)
-			}
 			if err != nil {
 				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to update element")
 			}
@@ -632,9 +631,14 @@ func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			_, err := h.scriptsClient.DeleteScriptElement(ctx, &scriptspb.DeleteScriptElementRequest{
+			resolvedID, err := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT, elementID)
+			if err != nil {
+				return nil, err
+			}
+
+			_, err = h.scriptsClient.DeleteScriptElement(ctx, &scriptspb.DeleteScriptElementRequest{
 				ScriptElementId: elementID,
-				UserId:          userID,
+				UserId:          resolvedID,
 			})
 
 			if err != nil {

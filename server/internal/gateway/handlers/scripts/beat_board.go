@@ -151,46 +151,22 @@ func (h *ScriptsHandler) resolveAccessOrForbidden(ctx context.Context, userID, p
 	return resolvedID, nil
 }
 
-// authorizeBeat looks up the project that owns beatID (with the collaborator
-// bypass) and authorizes the caller against it, returning the effective
-// downstream user id. A non-nil error means the beat is missing or the caller
-// has no access; in both cases the mutation must not proceed.
-func (h *ScriptsHandler) authorizeBeat(ctx context.Context, userID, beatID string) (string, error) {
-	resp, err := h.scriptsClient.GetBeat(ctx, &scriptspb.GetBeatRequest{BeatId: beatID})
+// authorizeResource resolves the project that owns a sub-resource (via the
+// scripts service's GetResourceProject lookup) and authorizes the caller
+// against it, returning the effective downstream user id. The project is read
+// from the resource itself, never supplied by the client, so a caller can't
+// authorize a project they own while acting on a resource in another. A non-nil
+// error means the resource is missing or the caller has no access; in both
+// cases the mutation must not proceed.
+func (h *ScriptsHandler) authorizeResource(ctx context.Context, userID string, resourceType scriptspb.ResourceType, resourceID string) (string, error) {
+	resp, err := h.scriptsClient.GetResourceProject(ctx, &scriptspb.GetResourceProjectRequest{
+		ResourceType: resourceType,
+		ResourceId:   resourceID,
+	})
 	if err != nil {
 		return "", err
 	}
-	return h.resolveAccessOrForbidden(ctx, userID, resp.Beat.ProjectId)
-}
-
-// authorizeConnection resolves the project owning connectionID and authorizes
-// the caller against it. See authorizeBeat.
-func (h *ScriptsHandler) authorizeConnection(ctx context.Context, userID, connectionID string) (string, error) {
-	resp, err := h.scriptsClient.GetConnection(ctx, &scriptspb.GetConnectionRequest{ConnectionId: connectionID})
-	if err != nil {
-		return "", err
-	}
-	return h.resolveAccessOrForbidden(ctx, userID, resp.Connection.ProjectId)
-}
-
-// authorizeLane resolves the project owning laneID and authorizes the caller
-// against it. See authorizeBeat.
-func (h *ScriptsHandler) authorizeLane(ctx context.Context, userID, laneID string) (string, error) {
-	resp, err := h.scriptsClient.GetLane(ctx, &scriptspb.GetLaneRequest{LaneId: laneID})
-	if err != nil {
-		return "", err
-	}
-	return h.resolveAccessOrForbidden(ctx, userID, resp.Lane.ProjectId)
-}
-
-// authorizeOutlineItem resolves the project owning itemID and authorizes the
-// caller against it. See authorizeBeat.
-func (h *ScriptsHandler) authorizeOutlineItem(ctx context.Context, userID, itemID string) (string, error) {
-	resp, err := h.scriptsClient.GetOutlineItem(ctx, &scriptspb.GetOutlineItemRequest{OutlineItemId: itemID})
-	if err != nil {
-		return "", err
-	}
-	return h.resolveAccessOrForbidden(ctx, userID, resp.OutlineItem.ProjectId)
+	return h.resolveAccessOrForbidden(ctx, userID, resp.ProjectId)
 }
 
 // UpdateBeat handles PUT/PATCH /beats/{beatID}
@@ -228,7 +204,7 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *updateBeatBody) (*BeatResponse, error) {
 			beatID := chi.URLParam(r, "beatId")
 
-			resolvedID, err := h.authorizeBeat(r.Context(), userID, beatID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_BEAT, beatID)
 			if err != nil {
 				return nil, err
 			}
@@ -328,7 +304,7 @@ func (h *ScriptsHandler) DeleteBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			beatID := chi.URLParam(r, "beatId")
 
-			resolvedID, err := h.authorizeBeat(r.Context(), userID, beatID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_BEAT, beatID)
 			if err != nil {
 				return nil, err
 			}
@@ -402,7 +378,7 @@ func (h *ScriptsHandler) DeleteConnection(w http.ResponseWriter, r *http.Request
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			connectionID := chi.URLParam(r, "connectionId")
 
-			resolvedID, err := h.authorizeConnection(r.Context(), userID, connectionID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_CONNECTION, connectionID)
 			if err != nil {
 				return nil, err
 			}
@@ -520,7 +496,7 @@ func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *updateLaneBody) (*LaneResponse, error) {
 			laneID := chi.URLParam(r, "laneId")
 
-			resolvedID, err := h.authorizeLane(r.Context(), userID, laneID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_LANE, laneID)
 			if err != nil {
 				return nil, err
 			}
@@ -606,7 +582,7 @@ func (h *ScriptsHandler) DeleteLane(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			laneID := chi.URLParam(r, "laneId")
 
-			resolvedID, err := h.authorizeLane(r.Context(), userID, laneID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_LANE, laneID)
 			if err != nil {
 				return nil, err
 			}
@@ -695,7 +671,7 @@ func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Reques
 		Handle: func(r *http.Request, userID string, req *updateOutlineItemBody) (*OutlineItemResponse, error) {
 			outlineItemID := chi.URLParam(r, "itemId")
 
-			resolvedID, err := h.authorizeOutlineItem(r.Context(), userID, outlineItemID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_OUTLINE_ITEM, outlineItemID)
 			if err != nil {
 				return nil, err
 			}
@@ -741,7 +717,7 @@ func (h *ScriptsHandler) DeleteOutlineItem(w http.ResponseWriter, r *http.Reques
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			outlineItemID := chi.URLParam(r, "itemId")
 
-			resolvedID, err := h.authorizeOutlineItem(r.Context(), userID, outlineItemID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_OUTLINE_ITEM, outlineItemID)
 			if err != nil {
 				return nil, err
 			}

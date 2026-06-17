@@ -16,22 +16,29 @@ import (
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
 
-// fakeScriptsClient is a hand-rolled ScriptsServiceClient for the gateway beat
-// board handlers. It embeds the generated interface so unused methods are
-// present (and panic if reached). The Get* discovery calls return a sub-resource
-// owned by projectID; GetProject succeeds only for ownerUserID (the owner
-// fast-path in ResolveProjectAccess); the Delete* calls record what they were
-// dispatched with.
+// fakeScriptsClient is a hand-rolled ScriptsServiceClient for the gateway
+// sub-resource handlers. It embeds the generated interface so unused methods are
+// present (and panic if reached). GetResourceProject is the single discovery
+// path the handlers use to learn a resource's project; GetProject succeeds only
+// for ownerUserID (the owner fast-path in ResolveProjectAccess); the delete
+// methods record what they were dispatched with.
 type fakeScriptsClient struct {
 	scriptspb.ScriptsServiceClient
 
-	projectID   string // project the discovered sub-resources belong to
+	projectID   string // project every resolved resource belongs to
 	ownerUserID string // GetProject succeeds only when called with this user id
 
-	discoveredID string // id passed to the Get* discovery call
-	deletedID    string // id passed to the Delete* call
-	deletedUser  string // user id passed to the Delete* call
+	discType scriptspb.ResourceType // resource_type passed to GetResourceProject
+	discID   string                 // resource_id passed to GetResourceProject
+
+	deletedID    string // id passed to the dispatched delete
+	deletedUser  string // user id passed to the dispatched delete
 	deleteCalled bool
+}
+
+func (f *fakeScriptsClient) GetResourceProject(_ context.Context, in *scriptspb.GetResourceProjectRequest, _ ...grpc.CallOption) (*scriptspb.GetResourceProjectResponse, error) {
+	f.discType, f.discID = in.ResourceType, in.ResourceId
+	return &scriptspb.GetResourceProjectResponse{ProjectId: f.projectID}, nil
 }
 
 func (f *fakeScriptsClient) GetProject(_ context.Context, in *scriptspb.GetProjectRequest, _ ...grpc.CallOption) (*scriptspb.GetProjectResponse, error) {
@@ -39,26 +46,6 @@ func (f *fakeScriptsClient) GetProject(_ context.Context, in *scriptspb.GetProje
 		return &scriptspb.GetProjectResponse{}, nil
 	}
 	return nil, status.Error(codes.PermissionDenied, "not owner")
-}
-
-func (f *fakeScriptsClient) GetBeat(_ context.Context, in *scriptspb.GetBeatRequest, _ ...grpc.CallOption) (*scriptspb.GetBeatResponse, error) {
-	f.discoveredID = in.BeatId
-	return &scriptspb.GetBeatResponse{Beat: &scriptspb.Beat{ProjectId: f.projectID}}, nil
-}
-
-func (f *fakeScriptsClient) GetConnection(_ context.Context, in *scriptspb.GetConnectionRequest, _ ...grpc.CallOption) (*scriptspb.GetConnectionResponse, error) {
-	f.discoveredID = in.ConnectionId
-	return &scriptspb.GetConnectionResponse{Connection: &scriptspb.Connection{ProjectId: f.projectID}}, nil
-}
-
-func (f *fakeScriptsClient) GetLane(_ context.Context, in *scriptspb.GetLaneRequest, _ ...grpc.CallOption) (*scriptspb.GetLaneResponse, error) {
-	f.discoveredID = in.LaneId
-	return &scriptspb.GetLaneResponse{Lane: &scriptspb.Lane{ProjectId: f.projectID}}, nil
-}
-
-func (f *fakeScriptsClient) GetOutlineItem(_ context.Context, in *scriptspb.GetOutlineItemRequest, _ ...grpc.CallOption) (*scriptspb.GetOutlineItemResponse, error) {
-	f.discoveredID = in.OutlineItemId
-	return &scriptspb.GetOutlineItemResponse{OutlineItem: &scriptspb.OutlineItem{ProjectId: f.projectID}}, nil
 }
 
 func (f *fakeScriptsClient) DeleteBeat(_ context.Context, in *scriptspb.DeleteBeatRequest, _ ...grpc.CallOption) (*scriptspb.DeleteBeatResponse, error) {
@@ -81,6 +68,11 @@ func (f *fakeScriptsClient) DeleteOutlineItem(_ context.Context, in *scriptspb.D
 	return &scriptspb.DeleteOutlineItemResponse{}, nil
 }
 
+func (f *fakeScriptsClient) DeleteScriptElement(_ context.Context, in *scriptspb.DeleteScriptElementRequest, _ ...grpc.CallOption) (*scriptspb.DeleteScriptElementResponse, error) {
+	f.deletedID, f.deletedUser, f.deleteCalled = in.ScriptElementId, in.UserId, true
+	return &scriptspb.DeleteScriptElementResponse{Success: true}, nil
+}
+
 // fakeCollabClient reports a single active collaborator (activeUserID). An empty
 // activeUserID means the project has no collaborators.
 type fakeCollabClient struct {
@@ -97,7 +89,7 @@ func (f *fakeCollabClient) GetProjectCollaborators(_ context.Context, _ *collab.
 	}, nil
 }
 
-// deleteRouter mounts the four beat-board DELETE routes under /api/v1 (the prefix
+// deleteRouter mounts every sub-resource DELETE route under /api/v1 (the prefix
 // that broke the old TrimPrefix id parsing) with the supplied user injected as
 // the authenticated caller.
 func deleteRouter(h *ScriptsHandler, callerUserID string) *chi.Mux {
@@ -112,27 +104,37 @@ func deleteRouter(h *ScriptsHandler, callerUserID string) *chi.Mux {
 		r.Delete("/connections/{connectionId}", h.DeleteConnection)
 		r.Route("/lanes", func(r chi.Router) { r.Delete("/{laneId}", h.DeleteLane) })
 		r.Route("/outline-items", func(r chi.Router) { r.Delete("/{itemId}", h.DeleteOutlineItem) })
+		r.Route("/elements", func(r chi.Router) { r.Delete("/{elementId}", h.DeleteElement) })
 	})
 	return r
 }
 
-// TestBeatSubResourceDeleteAsOwner pins two things at once for every beat-board
-// sub-resource: (1) the bare id is extracted from the /api/v1-mounted URL (the
-// regression where TrimPrefix leaked the whole path), and (2) the project owner
-// is authorized, so the downstream delete fires with the owner's id.
-func TestBeatSubResourceDeleteAsOwner(t *testing.T) {
-	cases := []struct {
-		name   string
-		path   string
-		wantID string
-	}{
-		{"beat", "/api/v1/beats/beat-123", "beat-123"},
-		{"connection", "/api/v1/connections/conn-456", "conn-456"},
-		{"lane", "/api/v1/lanes/lane-789", "lane-789"},
-		{"outlineItem", "/api/v1/outline-items/item-abc", "item-abc"},
-	}
+// subResourceCase describes one sub-resource DELETE route. wantType pins that the
+// gateway routes the resource to GetResourceProject under the right enum, and
+// wantID pins that the bare id is extracted from the /api/v1-mounted path (the
+// regression where TrimPrefix leaked the whole path).
+type subResourceCase struct {
+	name       string
+	path       string
+	wantType   scriptspb.ResourceType
+	wantID     string
+	wantStatus int // 204 for the beat-board deletes; 200 for the element delete (returns a body)
+}
 
-	for _, tc := range cases {
+var subResourceCases = []subResourceCase{
+	{"beat", "/api/v1/beats/beat-123", scriptspb.ResourceType_RESOURCE_TYPE_BEAT, "beat-123", http.StatusNoContent},
+	{"connection", "/api/v1/connections/conn-456", scriptspb.ResourceType_RESOURCE_TYPE_CONNECTION, "conn-456", http.StatusNoContent},
+	{"lane", "/api/v1/lanes/lane-789", scriptspb.ResourceType_RESOURCE_TYPE_LANE, "lane-789", http.StatusNoContent},
+	{"outlineItem", "/api/v1/outline-items/item-abc", scriptspb.ResourceType_RESOURCE_TYPE_OUTLINE_ITEM, "item-abc", http.StatusNoContent},
+	{"element", "/api/v1/elements/el-xyz", scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT, "el-xyz", http.StatusOK},
+}
+
+// TestSubResourceDeleteAsOwner pins three things for every sub-resource: (1) the
+// bare id is extracted from the /api/v1-mounted URL, (2) it is resolved under the
+// correct ResourceType, and (3) the project owner is authorized, so the delete
+// fires with the owner's id.
+func TestSubResourceDeleteAsOwner(t *testing.T) {
+	for _, tc := range subResourceCases {
 		t.Run(tc.name, func(t *testing.T) {
 			sc := &fakeScriptsClient{projectID: "proj-1", ownerUserID: "user-1"}
 			h := &ScriptsHandler{scriptsClient: sc, collabClient: &fakeCollabClient{}}
@@ -141,11 +143,14 @@ func TestBeatSubResourceDeleteAsOwner(t *testing.T) {
 			rec := httptest.NewRecorder()
 			deleteRouter(h, "user-1").ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusNoContent {
-				t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d", rec.Code, tc.wantStatus)
 			}
-			if sc.discoveredID != tc.wantID {
-				t.Errorf("discovery id = %q, want %q (full path leaked?)", sc.discoveredID, tc.wantID)
+			if sc.discType != tc.wantType {
+				t.Errorf("resolved as type %v, want %v", sc.discType, tc.wantType)
+			}
+			if sc.discID != tc.wantID {
+				t.Errorf("resolved id = %q, want %q (full path leaked?)", sc.discID, tc.wantID)
 			}
 			if sc.deletedID != tc.wantID {
 				t.Errorf("deleted id = %q, want %q", sc.deletedID, tc.wantID)
@@ -157,45 +162,55 @@ func TestBeatSubResourceDeleteAsOwner(t *testing.T) {
 	}
 }
 
-// TestBeatSubResourceDeleteUnauthorized is the security regression: a signed-in
-// user who is neither owner nor collaborator of the beat's project must be
-// rejected with 403, and the delete must never reach the scripts service. This
-// is exactly the hole the old blanket "retry with empty user_id" opened.
-func TestBeatSubResourceDeleteUnauthorized(t *testing.T) {
-	sc := &fakeScriptsClient{projectID: "proj-1", ownerUserID: "owner-9"}
-	h := &ScriptsHandler{scriptsClient: sc, collabClient: &fakeCollabClient{}} // no collaborators
+// TestSubResourceDeleteUnauthorized is the security regression: a signed-in user
+// who is neither owner nor collaborator of the resource's project must be
+// rejected with 403, and the delete must never reach the scripts service — the
+// exact hole the old blanket "retry with empty user_id" opened.
+func TestSubResourceDeleteUnauthorized(t *testing.T) {
+	for _, tc := range subResourceCases {
+		t.Run(tc.name, func(t *testing.T) {
+			sc := &fakeScriptsClient{projectID: "proj-1", ownerUserID: "owner-9"}
+			h := &ScriptsHandler{scriptsClient: sc, collabClient: &fakeCollabClient{}} // no collaborators
 
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/beats/beat-123", nil)
-	rec := httptest.NewRecorder()
-	deleteRouter(h, "intruder-7").ServeHTTP(rec, req)
+			req := httptest.NewRequest(http.MethodDelete, tc.path, nil)
+			rec := httptest.NewRecorder()
+			deleteRouter(h, "intruder-7").ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
-	}
-	if sc.deleteCalled {
-		t.Errorf("DeleteBeat was dispatched for an unauthorized caller (id=%q user=%q)", sc.deletedID, sc.deletedUser)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
+			}
+			if sc.deleteCalled {
+				t.Errorf("delete was dispatched for an unauthorized caller (id=%q user=%q)", sc.deletedID, sc.deletedUser)
+			}
+		})
 	}
 }
 
-// TestBeatSubResourceDeleteAsCollaborator confirms an active collaborator (not
-// the owner) is authorized, and the delete is dispatched with the empty-user
-// bypass sentinel the scripts service expects for a gateway-authorized caller.
-func TestBeatSubResourceDeleteAsCollaborator(t *testing.T) {
-	sc := &fakeScriptsClient{projectID: "proj-1", ownerUserID: "owner-9"}
-	cc := &fakeCollabClient{activeUserID: "collab-3"}
-	h := &ScriptsHandler{scriptsClient: sc, collabClient: cc}
+// TestSubResourceDeleteAsCollaborator confirms an active collaborator (not the
+// owner) is authorized, and the delete is dispatched with the empty-user bypass
+// sentinel the scripts service expects for a gateway-authorized caller. The
+// element case also exercises the DeleteScriptElement empty-user_id path that
+// previously rejected collaborators.
+func TestSubResourceDeleteAsCollaborator(t *testing.T) {
+	for _, tc := range subResourceCases {
+		t.Run(tc.name, func(t *testing.T) {
+			sc := &fakeScriptsClient{projectID: "proj-1", ownerUserID: "owner-9"}
+			cc := &fakeCollabClient{activeUserID: "collab-3"}
+			h := &ScriptsHandler{scriptsClient: sc, collabClient: cc}
 
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/beats/beat-123", nil)
-	rec := httptest.NewRecorder()
-	deleteRouter(h, "collab-3").ServeHTTP(rec, req)
+			req := httptest.NewRequest(http.MethodDelete, tc.path, nil)
+			rec := httptest.NewRecorder()
+			deleteRouter(h, "collab-3").ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
-	}
-	if !sc.deleteCalled {
-		t.Fatal("DeleteBeat was not dispatched for an authorized collaborator")
-	}
-	if sc.deletedUser != "" {
-		t.Errorf("collaborator delete dispatched with user %q, want empty bypass sentinel", sc.deletedUser)
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d", rec.Code, tc.wantStatus)
+			}
+			if !sc.deleteCalled {
+				t.Fatal("delete was not dispatched for an authorized collaborator")
+			}
+			if sc.deletedUser != "" {
+				t.Errorf("collaborator delete dispatched with user %q, want empty bypass sentinel", sc.deletedUser)
+			}
+		})
 	}
 }

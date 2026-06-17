@@ -477,9 +477,14 @@ func (h *ScriptsHandler) DeleteScriptElement(ctx context.Context, req *scriptspb
 		return nil, status.Errorf(codes.InvalidArgument, "invalid script element ID: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	// userID is optional — empty means collaborator access already verified by
+	// the gateway; uuid.Nil makes the service skip the ownership check.
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+		}
 	}
 
 	// Call service to delete script element
@@ -834,11 +839,6 @@ func (h *ScriptsHandler) CreateConnection(ctx context.Context, req *scriptspb.Cr
 	return h.beatBoardHandler.CreateConnection(ctx, req)
 }
 
-// GetConnection delegates to BeatBoardHandler.GetConnection.
-func (h *ScriptsHandler) GetConnection(ctx context.Context, req *scriptspb.GetConnectionRequest) (*scriptspb.GetConnectionResponse, error) {
-	return h.beatBoardHandler.GetConnection(ctx, req)
-}
-
 // DeleteConnection delegates to BeatBoardHandler.DeleteConnection.
 func (h *ScriptsHandler) DeleteConnection(ctx context.Context, req *scriptspb.DeleteConnectionRequest) (*scriptspb.DeleteConnectionResponse, error) {
 	return h.beatBoardHandler.DeleteConnection(ctx, req)
@@ -864,11 +864,6 @@ func (h *ScriptsHandler) UpdateLaneOrder(ctx context.Context, req *scriptspb.Upd
 	return h.beatBoardHandler.UpdateLaneOrder(ctx, req)
 }
 
-// GetLane delegates to BeatBoardHandler.GetLane.
-func (h *ScriptsHandler) GetLane(ctx context.Context, req *scriptspb.GetLaneRequest) (*scriptspb.GetLaneResponse, error) {
-	return h.beatBoardHandler.GetLane(ctx, req)
-}
-
 // DeleteLane delegates to BeatBoardHandler.DeleteLane.
 func (h *ScriptsHandler) DeleteLane(ctx context.Context, req *scriptspb.DeleteLaneRequest) (*scriptspb.DeleteLaneResponse, error) {
 	return h.beatBoardHandler.DeleteLane(ctx, req)
@@ -884,12 +879,46 @@ func (h *ScriptsHandler) UpdateOutlineItem(ctx context.Context, req *scriptspb.U
 	return h.beatBoardHandler.UpdateOutlineItem(ctx, req)
 }
 
-// GetOutlineItem delegates to BeatBoardHandler.GetOutlineItem.
-func (h *ScriptsHandler) GetOutlineItem(ctx context.Context, req *scriptspb.GetOutlineItemRequest) (*scriptspb.GetOutlineItemResponse, error) {
-	return h.beatBoardHandler.GetOutlineItem(ctx, req)
-}
-
 // DeleteOutlineItem delegates to BeatBoardHandler.DeleteOutlineItem.
 func (h *ScriptsHandler) DeleteOutlineItem(ctx context.Context, req *scriptspb.DeleteOutlineItemRequest) (*scriptspb.DeleteOutlineItemResponse, error) {
 	return h.beatBoardHandler.DeleteOutlineItem(ctx, req)
+}
+
+// resourceKindFromProto maps the proto ResourceType to the domain ResourceKind.
+func resourceKindFromProto(t scriptspb.ResourceType) (domain.ResourceKind, bool) {
+	switch t {
+	case scriptspb.ResourceType_RESOURCE_TYPE_BEAT:
+		return domain.ResourceKindBeat, true
+	case scriptspb.ResourceType_RESOURCE_TYPE_CONNECTION:
+		return domain.ResourceKindConnection, true
+	case scriptspb.ResourceType_RESOURCE_TYPE_LANE:
+		return domain.ResourceKindLane, true
+	case scriptspb.ResourceType_RESOURCE_TYPE_OUTLINE_ITEM:
+		return domain.ResourceKindOutlineItem, true
+	case scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT:
+		return domain.ResourceKindElement, true
+	default:
+		return domain.ResourceKindUnspecified, false
+	}
+}
+
+// GetResourceProject resolves which project owns a sub-resource so the gateway
+// can authorize a mutation against it. It performs no access check itself.
+func (h *ScriptsHandler) GetResourceProject(ctx context.Context, req *scriptspb.GetResourceProjectRequest) (*scriptspb.GetResourceProjectResponse, error) {
+	kind, ok := resourceKindFromProto(req.ResourceType)
+	if !ok {
+		return nil, status.Error(codes.InvalidArgument, "unknown or unspecified resource_type")
+	}
+
+	resourceID, err := uuid.Parse(req.ResourceId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid resource_id: %v", err)
+	}
+
+	projectID, err := h.service.GetResourceProject(ctx, kind, resourceID)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	return &scriptspb.GetResourceProjectResponse{ProjectId: projectID.String()}, nil
 }

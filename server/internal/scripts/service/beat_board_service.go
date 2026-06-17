@@ -21,20 +21,17 @@ type BeatBoardService interface {
 
 	// Connection operations
 	CreateConnection(ctx context.Context, projectID, userID uuid.UUID, conn *domain.Connection) (*domain.Connection, error)
-	GetConnection(ctx context.Context, connID, userID uuid.UUID) (*domain.Connection, error)
 	DeleteConnection(ctx context.Context, connID, userID uuid.UUID) error
 
 	// Lane operations
 	CreateLane(ctx context.Context, projectID, userID uuid.UUID, lane *domain.Lane) (*domain.Lane, error)
 	GetProjectLanes(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Lane, error)
-	GetLane(ctx context.Context, laneID, userID uuid.UUID) (*domain.Lane, error)
 	UpdateLane(ctx context.Context, laneID, userID uuid.UUID, updates *domain.Lane) (*domain.Lane, error)
 	UpdateLaneOrder(ctx context.Context, projectID, userID uuid.UUID, laneIDs []uuid.UUID) error
 	DeleteLane(ctx context.Context, laneID, userID uuid.UUID) error
 
 	// Outline item operations
 	CreateOutlineItem(ctx context.Context, projectID, userID uuid.UUID, item *domain.OutlineItem) (*domain.OutlineItem, error)
-	GetOutlineItem(ctx context.Context, itemID, userID uuid.UUID) (*domain.OutlineItem, error)
 	UpdateOutlineItem(ctx context.Context, itemID, userID uuid.UUID, updates *domain.OutlineItem) (*domain.OutlineItem, error)
 	DeleteOutlineItem(ctx context.Context, itemID, userID uuid.UUID) error
 }
@@ -78,55 +75,6 @@ func (s *beatBoardService) GetBeat(ctx context.Context, beatID, userID uuid.UUID
 	}
 
 	return beat, nil
-}
-
-// GetConnection fetches a single connection after verifying the caller has
-// access to its project. The gateway uses this to discover the owning project
-// of a connection so it can authorize mutations against the connection's real
-// project rather than a client-supplied one.
-func (s *beatBoardService) GetConnection(ctx context.Context, connID, userID uuid.UUID) (*domain.Connection, error) {
-	conn, err := s.repo.Connection.GetConnection(ctx, connID)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.verifyProjectAccess(ctx, conn.ProjectID, userID); err != nil {
-		return nil, err
-	}
-
-	return conn, nil
-}
-
-// GetLane fetches a single lane after verifying the caller has access to its
-// project. Used by the gateway to resolve a lane's owning project before
-// authorizing a mutation.
-func (s *beatBoardService) GetLane(ctx context.Context, laneID, userID uuid.UUID) (*domain.Lane, error) {
-	lane, err := s.repo.Lane.GetLane(ctx, laneID)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.verifyProjectAccess(ctx, lane.ProjectID, userID); err != nil {
-		return nil, err
-	}
-
-	return lane, nil
-}
-
-// GetOutlineItem fetches a single outline item after verifying the caller has
-// access to its project. Used by the gateway to resolve an item's owning
-// project before authorizing a mutation.
-func (s *beatBoardService) GetOutlineItem(ctx context.Context, itemID, userID uuid.UUID) (*domain.OutlineItem, error) {
-	item, err := s.repo.OutlineItem.GetOutlineItem(ctx, itemID)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.verifyProjectAccess(ctx, item.ProjectID, userID); err != nil {
-		return nil, err
-	}
-
-	return item, nil
 }
 
 // GetProjectBeatBoard retrieves all beat board data for a project
