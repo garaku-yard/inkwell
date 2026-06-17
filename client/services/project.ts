@@ -43,7 +43,7 @@ export interface UpdateProjectRequest {
   status?: string
 }
 
-export interface ScriptElement {
+export interface ProjectElement {
   id: string
   project_id: string
   scene_id?: string
@@ -63,7 +63,7 @@ export interface Scene {
   scene_heading: string
   content: string
   order_index: number
-  elements?: ScriptElement[]
+  elements?: ProjectElement[]
   created_at: string
   updated_at: string
   comments?: Comment[]
@@ -225,7 +225,7 @@ export const createElement = (
     line_number?: number
     formatting?: Record<string, string>
   },
-): Promise<ScriptElement> =>
+): Promise<ProjectElement> =>
   getStorage().elements.create({
     projectId,
     sceneId: elementData.scene_id,
@@ -238,7 +238,7 @@ export const updateElementContent = (
   elementId: string,
   _userId: string,
   content: string,
-): Promise<ScriptElement> => getStorage().elements.update(elementId, { content })
+): Promise<ProjectElement> => getStorage().elements.update(elementId, { content })
 
 export const createSceneElement = (
   projectId: string,
@@ -249,7 +249,7 @@ export const createSceneElement = (
     content: string
     order_index?: number
   },
-): Promise<ScriptElement> =>
+): Promise<ProjectElement> =>
   createElement(projectId, userId, {
     scene_id: sceneId,
     element_type: elementData.element_type,

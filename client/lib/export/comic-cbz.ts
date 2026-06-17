@@ -14,7 +14,7 @@
  */
 
 import { strToU8, zipSync } from "fflate"
-import type { FullProject, ScriptElement } from "@/services/project"
+import type { FullProject, ProjectElement } from "@/services/project"
 
 /** Width of the zero-padded page number in the entry filename. Three
  *  digits is plenty for any practical comic script (longest published
@@ -26,7 +26,7 @@ const PAGE_NUMBER_PAD = 3
 /** Format a single page as plain text. Mirrors the on-screen layout
  *  (Page header → panels → character/balloon/caption/sfx/transition
  *  blocks) so an exported CBZ still reads like a script. */
-function pageToText(pageIndex: number, heading: string, elements: ScriptElement[]): string {
+function pageToText(pageIndex: number, heading: string, elements: ProjectElement[]): string {
   const lines: string[] = []
   lines.push(`PAGE ${pageIndex + 1}${heading ? ` — ${heading}` : ""}`)
   lines.push("=".repeat(40))

@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button"
 import { MessageSquare, MoreHorizontal, Edit, Trash2, Check, RotateCcw } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type { Scene, ScriptElement, Comment } from "@/services/project"
+import type { Scene, ProjectElement, Comment } from "@/services/project"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
-type ActiveScriptItem = (Scene & { isScene: true }) | (ScriptElement & { isScene: false })
+type ActiveScriptItem = (Scene & { isScene: true }) | (ProjectElement & { isScene: false })
 
 interface CommentPanelProps {
   activeElement: ActiveScriptItem | null

@@ -22,7 +22,7 @@ import { StableContentEditable } from "./shared/StableContentEditable"
 import {
   createScene,
   createSceneElement,
-  type ScriptElement,
+  type ProjectElement,
   type FullProject,
 } from "@/services/project"
 
@@ -200,7 +200,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     (
       e: React.KeyboardEvent<HTMLDivElement>,
       sectionId: string,
-      el: ScriptElement,
+      el: ProjectElement,
       elIdx: number,
     ) => {
       dispatchKey(e, keyMap, {
@@ -229,7 +229,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     (
       text: string,
       sectionId: string,
-      el: ScriptElement,
+      el: ProjectElement,
       elIdx: number,
     ) => {
       handleContentChange(el.id, text, false)
@@ -299,7 +299,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     setDiceRoll(prev => ({ ...prev, [id]: { roll: Number(roll) || idx + 1, result } }))
   }
 
-  const renderElement = (el: ScriptElement, sectionId: string, elIdx: number) => {
+  const renderElement = (el: ProjectElement, sectionId: string, elIdx: number) => {
     const isCollapsed = collapsed.has(el.id)
 
     if (el.element_type === "h2") {

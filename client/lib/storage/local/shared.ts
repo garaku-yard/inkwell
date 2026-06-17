@@ -18,7 +18,7 @@ import type {
   OutlineItem,
   Project,
   Scene,
-  ScriptElement,
+  ProjectElement,
   Workspace,
 } from "@/lib/storage"
 import { NotSupportedError } from "../errors"
@@ -114,7 +114,7 @@ export interface ElementRow {
   updated_at: string
 }
 
-export function toElement(row: ElementRow): ScriptElement {
+export function toElement(row: ElementRow): ProjectElement {
   let formatting: Record<string, string> = {}
   try {
     formatting = JSON.parse(row.formatting_json || "{}")

@@ -19,7 +19,7 @@ import { StableContentEditable } from "./shared/StableContentEditable"
 import {
   createScene,
   createSceneElement,
-  type ScriptElement,
+  type ProjectElement,
   type FullProject,
 } from "@/services/project"
 import { deleteScriptElement } from "@/services/editor"
@@ -37,7 +37,7 @@ interface ComicScriptEditorProps {
   projectData: FullProject
 }
 
-function panelCount(elements: ScriptElement[]): number {
+function panelCount(elements: ProjectElement[]): number {
   return elements.filter(el => el.element_type === "panel").length
 }
 
@@ -164,7 +164,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
     (
       e: React.KeyboardEvent<HTMLDivElement>,
       pageId: string,
-      el: ScriptElement,
+      el: ProjectElement,
       elIdx: number,
     ) => {
       dispatchKey(e, keyMap, {

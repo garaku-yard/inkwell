@@ -1,12 +1,12 @@
 "use client"
 
 import React, { useRef, useImperativeHandle, useEffect, useMemo } from "react"
-import type { Scene, ScriptElement } from "@/services/project"
+import type { Scene, ProjectElement } from "@/services/project"
 import { EditableElement } from "./EditableElement"
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { useTheme } from "@/lib/ThemeContext"
 
-type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ScriptElement }
+type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ProjectElement }
 
 interface EditorPaneProps {
   items: ScriptItem[]
@@ -190,7 +190,7 @@ export const EditorPane = React.memo(
                   // Get the current scene ID - for scene headings it's the scene itself, for elements it's the scene_id
                   const currentSceneId = item.type === "SCENE_HEADING" 
                     ? element.id 
-                    : (element as ScriptElement).scene_id || ""
+                    : (element as ProjectElement).scene_id || ""
 
                   return (
                     <div key={element.id} className="relative">

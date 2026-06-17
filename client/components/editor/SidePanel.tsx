@@ -7,15 +7,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Clipboard, Film, Hash, MessageCircle } from "lucide-react"
-import type { FullProject, Scene, ScriptElement, Comment } from "@/services/project"
+import type { FullProject, Scene, ProjectElement, Comment } from "@/services/project"
 import { getComments } from "@/services/project"
 import { SCRIPT_ELEMENT_CONFIG } from "@/lib/helpers/screenplay-config"
 import { Separator } from "@/components/ui/separator"
 import { CommentPanel } from "./CommentPanel"
 
-type ActiveScriptItem = (Scene & { isScene: true; comments?: Comment[] }) | (ScriptElement & { isScene: false; comments?: Comment[] })
+type ActiveScriptItem = (Scene & { isScene: true; comments?: Comment[] }) | (ProjectElement & { isScene: false; comments?: Comment[] })
 
-type GroupedItem = { type: "group"; elements: ScriptElement[] } | { type: "single"; element: ScriptElement }
+type GroupedItem = { type: "group"; elements: ProjectElement[] } | { type: "single"; element: ProjectElement }
 
 interface SidePanelProps {
   project: FullProject
@@ -71,7 +71,7 @@ export const SidePanel = React.memo(
         }
       };
 
-      const getElementIcon = (elementType: ScriptElement["element_type"]) => {
+      const getElementIcon = (elementType: ProjectElement["element_type"]) => {
         const config = SCRIPT_ELEMENT_CONFIG[elementType as keyof typeof SCRIPT_ELEMENT_CONFIG]
         if (config && typeof config.icon === "function") {
           const IconComponent = config.icon
@@ -80,7 +80,7 @@ export const SidePanel = React.memo(
         return <Hash className="h-3 w-3" />
       }
 
-      const getElementTypeColor = (elementType: ScriptElement["element_type"]) => {
+      const getElementTypeColor = (elementType: ProjectElement["element_type"]) => {
         return SCRIPT_ELEMENT_CONFIG[elementType as keyof typeof SCRIPT_ELEMENT_CONFIG]?.badgeColor || "bg-gray-100 text-gray-700 border-gray-200"
       }
 

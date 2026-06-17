@@ -754,8 +754,8 @@ func convertPaginationFromProto(pagination *common.PaginationResponse) map[strin
 	}
 }
 
-// convertElementFromProto converts a protobuf ScriptElement message to a JSON-serialisable map.
-func convertElementFromProto(element *scriptspb.ScriptElement) map[string]interface{} {
+// convertElementFromProto converts a protobuf ProjectElement message to a JSON-serialisable map.
+func convertElementFromProto(element *scriptspb.ProjectElement) map[string]interface{} {
 	result := map[string]interface{}{
 		"id":           element.Id,
 		"project_id":   element.ProjectId,

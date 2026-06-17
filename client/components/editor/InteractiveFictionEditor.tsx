@@ -22,7 +22,7 @@ import { StableContentEditable } from "./shared/StableContentEditable"
 import {
   createScene,
   createSceneElement,
-  type ScriptElement,
+  type ProjectElement,
   type FullProject,
 } from "@/services/project"
 
@@ -212,7 +212,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   )
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>, el: ScriptElement) => {
+    (e: React.KeyboardEvent<HTMLDivElement>, el: ProjectElement) => {
       if (!activePassageId) return
       dispatchKey(e, keyMap, {
         passageId: activePassageId,

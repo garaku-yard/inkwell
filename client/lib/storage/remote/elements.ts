@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api"
 
-import type { ElementStorage, ScriptElement } from "@/lib/storage"
+import type { ElementStorage, ProjectElement } from "@/lib/storage"
 import { projectsHelpers } from "./shared"
 
 // ─── Elements ─────────────────────────────────────────────────────────────
@@ -12,7 +12,7 @@ export const elements: ElementStorage = {
     // service doesn't derive project membership from scene id). The
     // local SQLite impl ignores projectId and looks it up via SQL,
     // so the desktop path doesn't depend on this contract.
-    apiClient<ScriptElement>(`elements`, {
+    apiClient<ProjectElement>(`elements`, {
       method: "POST",
       body: {
         project_id: input.projectId,
@@ -27,7 +27,7 @@ export const elements: ElementStorage = {
   listForScene: (sceneId, userId) => projectsHelpers.listElementsForScene(sceneId, userId),
 
   update: async (elementId, patch) =>
-    apiClient<ScriptElement>(`elements/${elementId}`, {
+    apiClient<ProjectElement>(`elements/${elementId}`, {
       method: "PATCH",
       body: patch,
     }),
@@ -40,7 +40,7 @@ export const elements: ElementStorage = {
     let url = `script-elements?project_id=${projectId}&user_id=${userId}`
     if (startLine !== undefined) url += `&start_line=${startLine}`
     if (endLine !== undefined) url += `&end_line=${endLine}`
-    const response = await apiClient<{ script_elements: ScriptElement[] }>(url, {
+    const response = await apiClient<{ script_elements: ProjectElement[] }>(url, {
       method: "GET",
     })
     return response.script_elements

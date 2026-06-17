@@ -1,7 +1,7 @@
 /** Editor service — thin wrappers around the Storage abstraction for the
  *  create/update/delete flows used by the editor UI. */
 import { getStorage } from "@/lib/storage"
-import type { ScriptElement } from "./project"
+import type { ProjectElement } from "./project"
 
 export interface CreateElementRequest {
   /** Required by the remote gateway, which doesn't derive project
@@ -13,19 +13,19 @@ export interface CreateElementRequest {
   projectId: string
   sceneId: string
   elementOrder: number
-  elementType: ScriptElement["element_type"]
+  elementType: ProjectElement["element_type"]
   content: string
 }
 
 export interface UpdateElementRequest {
   content?: string
-  elementType?: ScriptElement["element_type"]
+  elementType?: ProjectElement["element_type"]
 }
 
 export const updateScriptElement = (
   elementId: string,
   updateData: UpdateElementRequest,
-): Promise<ScriptElement> => getStorage().elements.update(elementId, updateData)
+): Promise<ProjectElement> => getStorage().elements.update(elementId, updateData)
 
 export const deleteScriptElement = (elementId: string): Promise<void> =>
   getStorage().elements.delete(elementId)

@@ -4,13 +4,13 @@ import React, { useCallback, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { SCRIPT_ELEMENT_CONFIG, type ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { MessageSquare } from "lucide-react"
-import type { Scene, ScriptElement } from "@/services/project"
+import type { Scene, ProjectElement } from "@/services/project"
 import { SceneHeadingAutocomplete } from "./SceneHeadingAutocomplete"
 import { CharacterAutocomplete } from "./CharacterAutocomplete"
 import { useStableContentEditable } from "./shared/StableContentEditable"
 
 interface EditableElementProps {
-  element: ScriptElement | Scene
+  element: ProjectElement | Scene
   onContentChange: (id: string, content: string, isScene: boolean) => void
   onFinalizeUpdate: (id: string, content: string, isScene: boolean) => void
   onKeyDown: (

@@ -17,7 +17,7 @@
  */
 
 import { strToU8, zipSync, type Zippable } from "fflate"
-import type { FullProject, Scene, ScriptElement } from "@/services/project"
+import type { FullProject, Scene, ProjectElement } from "@/services/project"
 
 // ─── XML helpers ────────────────────────────────────────────────────
 
@@ -44,7 +44,7 @@ function slugify(s: string): string {
 /** Render one prose element as a paragraph- or heading-shaped XHTML
  *  fragment. Element types we don't have a mapping for fall back to
  *  a plain `<p>` so the writer's words still surface in the export. */
-function elementToXhtml(el: ScriptElement): string {
+function elementToXhtml(el: ProjectElement): string {
   const content = escapeXmlText((el.content ?? "").trim())
   if (!content) return ""
   switch (el.element_type) {

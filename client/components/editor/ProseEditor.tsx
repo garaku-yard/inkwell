@@ -20,7 +20,7 @@ import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   createScene,
   createSceneElement,
-  type ScriptElement,
+  type ProjectElement,
   type FullProject,
 } from "@/services/project"
 import { deleteScriptElement } from "@/services/editor"
@@ -168,7 +168,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     (
       e: React.KeyboardEvent<HTMLDivElement>,
       sceneId: string,
-      el: ScriptElement,
+      el: ProjectElement,
       elIdx: number,
     ) => {
       dispatchKey(e, keyMap, { sceneId, elementId: el.id, elementIndex: elIdx })

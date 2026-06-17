@@ -20,7 +20,7 @@ message Project {
 }
 
 // Note: Screenplay is now represented by Project entity
-// The Project contains the script content through ScriptElements
+// The Project contains the script content through ProjectElements
 
 // Scene entity
 message Scene {
@@ -34,8 +34,8 @@ message Scene {
   common.Timestamp updated_at = 8;
 }
 
-// Script element entity (individual lines/elements of a screenplay)
-message ScriptElement {
+// ProjectElement is a single content element (paragraph, line, panel, stat block, passage body, etc.) within a scene/container — interpreted per format.
+message ProjectElement {
   string id = 1;
   string project_id = 2; // Changed from screenplay_id to project_id
   string scene_id = 3; // Required link to scene - elements must belong to a scene
@@ -210,7 +210,7 @@ message GetUserProjectsResponse {
   common.PaginationResponse pagination = 2;
 }
 
-// Script content is now managed through ScriptElements linked to Project
+// Script content is now managed through ProjectElements linked to Project
 
 // Outline unit requests/responses
 message CreateOutlineUnitRequest {
@@ -390,7 +390,7 @@ message CreateElementRequest {
 }
 
 message CreateElementResponse {
-  ScriptElement element = 1;
+  ProjectElement element = 1;
 }
 
 message UpdateElementRequest {
@@ -401,7 +401,7 @@ message UpdateElementRequest {
 }
 
 message UpdateElementResponse {
-  ScriptElement element = 1;
+  ProjectElement element = 1;
 }
 
 message GetSceneElementsRequest {
@@ -410,18 +410,18 @@ message GetSceneElementsRequest {
 }
 
 message GetSceneElementsResponse {
-  repeated ScriptElement elements = 1;
+  repeated ProjectElement elements = 1;
 }
 
 // Batch create elements for imports
 message BatchCreateElementsRequest {
   string project_id = 1;
   string user_id = 2;
-  repeated ScriptElement elements = 3;
+  repeated ProjectElement elements = 3;
 }
 
 message BatchCreateElementsResponse {
-  repeated ScriptElement created_elements = 1;
+  repeated ProjectElement created_elements = 1;
 }
 
 // Beat Board requests/responses

@@ -6,7 +6,7 @@ import {
   createElement,
   type FullProject,
   type Scene,
-  type ScriptElement,
+  type ProjectElement,
 } from "@/services/project"
 import { deleteScriptElement, updateScriptElement, deleteScene } from "@/services/editor"
 import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
@@ -16,7 +16,7 @@ import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
  *  delete and navigate handlers walk to find neighbours. */
 type ScriptItem =
   | { type: "SCENE_HEADING"; data: Scene }
-  | { type: "ELEMENT"; data: ScriptElement }
+  | { type: "ELEMENT"; data: ProjectElement }
 
 interface ToastInput {
   title?: string
@@ -156,7 +156,7 @@ export function useScreenplayElements({
     (newType: ToolbarScriptElementType | "SCENE_HEADING") => {
       if (!activeElementId || !userId || !project.id) return
 
-      let elementToTransform: ScriptElement | null = null
+      let elementToTransform: ProjectElement | null = null
       let sceneToTransform: Scene | null = null
       let parentSceneId: string | null = null
       let elementIndex = 0
@@ -358,7 +358,7 @@ export function useScreenplayElements({
         const newScenes = prevProject.scenes.map((scene: Scene) => ({
           ...scene,
           elements: scene.elements?.filter(
-            (el: ScriptElement) => el.id !== elementIdToDelete,
+            (el: ProjectElement) => el.id !== elementIdToDelete,
           ),
         }))
 
@@ -482,7 +482,7 @@ export function useScreenplayElements({
 
         const newScenes = prevProject.scenes.map((scene: Scene) => ({
           ...scene,
-          elements: scene.elements?.map((el: ScriptElement) =>
+          elements: scene.elements?.map((el: ProjectElement) =>
             el.id === elementId
               ? { ...el, element_type: newType, content: currentContent }
               : el,

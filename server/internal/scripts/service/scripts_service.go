@@ -59,10 +59,10 @@ type ScriptsService interface {
 	DeleteOutlineUnit(ctx context.Context, unitID, userID uuid.UUID) error
 
 	// Simplified element operations for gateway
-	CreateElement(ctx context.Context, userID uuid.UUID, element *domain.ScriptElement) (*domain.ScriptElement, error)
-	UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, content string) (*domain.ScriptElement, error)
-	GetSceneElements(ctx context.Context, userID, sceneID uuid.UUID) ([]*domain.ScriptElement, error)
-	BatchCreateElements(ctx context.Context, userID, projectID uuid.UUID, elements []*domain.ScriptElement) ([]*domain.ScriptElement, error)
+	CreateElement(ctx context.Context, userID uuid.UUID, element *domain.ProjectElement) (*domain.ProjectElement, error)
+	UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, content string) (*domain.ProjectElement, error)
+	GetSceneElements(ctx context.Context, userID, sceneID uuid.UUID) ([]*domain.ProjectElement, error)
+	BatchCreateElements(ctx context.Context, userID, projectID uuid.UUID, elements []*domain.ProjectElement) ([]*domain.ProjectElement, error)
 }
 
 // scriptsService implements the ScriptsService interface
@@ -306,7 +306,7 @@ func (s *scriptsService) verifyProjectAccess(ctx context.Context, projectID, use
 // Script element operations
 func (s *scriptsService) DeleteScriptElement(ctx context.Context, elementID, userID uuid.UUID) error {
 	// Get existing element to check project ownership
-	element, err := s.repo.ScriptElement.GetScriptElement(ctx, elementID)
+	element, err := s.repo.ProjectElement.GetScriptElement(ctx, elementID)
 	if err != nil {
 		return err
 	}
@@ -315,7 +315,7 @@ func (s *scriptsService) DeleteScriptElement(ctx context.Context, elementID, use
 		return err
 	}
 
-	return s.repo.ScriptElement.DeleteScriptElement(ctx, elementID)
+	return s.repo.ProjectElement.DeleteScriptElement(ctx, elementID)
 }
 
 // GetResourceProject resolves which project owns a sub-resource by id. It is a
@@ -349,7 +349,7 @@ func (s *scriptsService) GetResourceProject(ctx context.Context, kind domain.Res
 		}
 		return item.ProjectID, nil
 	case domain.ResourceKindElement:
-		element, err := s.repo.ScriptElement.GetScriptElement(ctx, resourceID)
+		element, err := s.repo.ProjectElement.GetScriptElement(ctx, resourceID)
 		if err != nil {
 			return uuid.Nil, err
 		}
@@ -587,7 +587,7 @@ func (s *scriptsService) DeleteOutlineUnit(ctx context.Context, unitID, userID u
 }
 
 // CreateElement creates a new script element (simplified version)
-func (s *scriptsService) CreateElement(ctx context.Context, userID uuid.UUID, element *domain.ScriptElement) (*domain.ScriptElement, error) {
+func (s *scriptsService) CreateElement(ctx context.Context, userID uuid.UUID, element *domain.ProjectElement) (*domain.ProjectElement, error) {
 	// Validate required fields
 	if element.SceneID == nil {
 		return nil, errors.New("scene_id is required - script elements must belong to a scene")
@@ -604,7 +604,7 @@ func (s *scriptsService) CreateElement(ctx context.Context, userID uuid.UUID, el
 	element.UpdatedAt = time.Now()
 
 	// Create through repository
-	err := s.repo.ScriptElement.CreateScriptElement(ctx, element)
+	err := s.repo.ProjectElement.CreateScriptElement(ctx, element)
 	if err != nil {
 		return nil, err
 	}
@@ -613,9 +613,9 @@ func (s *scriptsService) CreateElement(ctx context.Context, userID uuid.UUID, el
 }
 
 // UpdateElementContent updates the content of a script element (simplified version)
-func (s *scriptsService) UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, content string) (*domain.ScriptElement, error) {
+func (s *scriptsService) UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, content string) (*domain.ProjectElement, error) {
 	// Get existing element
-	element, err := s.repo.ScriptElement.GetScriptElement(ctx, elementID)
+	element, err := s.repo.ProjectElement.GetScriptElement(ctx, elementID)
 	if err != nil {
 		return nil, err
 	}
@@ -630,7 +630,7 @@ func (s *scriptsService) UpdateElementContent(ctx context.Context, userID, eleme
 	element.UpdatedAt = time.Now()
 
 	// Update through repository
-	err = s.repo.ScriptElement.UpdateScriptElement(ctx, element)
+	err = s.repo.ProjectElement.UpdateScriptElement(ctx, element)
 	if err != nil {
 		return nil, err
 	}
@@ -639,7 +639,7 @@ func (s *scriptsService) UpdateElementContent(ctx context.Context, userID, eleme
 }
 
 // GetSceneElements gets all script elements for a scene (simplified version)
-func (s *scriptsService) GetSceneElements(ctx context.Context, userID, sceneID uuid.UUID) ([]*domain.ScriptElement, error) {
+func (s *scriptsService) GetSceneElements(ctx context.Context, userID, sceneID uuid.UUID) ([]*domain.ProjectElement, error) {
 	// Get scene first to verify project access
 	scene, err := s.repo.Scene.GetScene(ctx, sceneID)
 	if err != nil {
@@ -652,18 +652,18 @@ func (s *scriptsService) GetSceneElements(ctx context.Context, userID, sceneID u
 	}
 
 	// Get elements for the scene
-	return s.repo.ScriptElement.GetSceneElements(ctx, sceneID)
+	return s.repo.ProjectElement.GetSceneElements(ctx, sceneID)
 }
 
 // BatchCreateElements creates multiple script elements in a single transaction
-func (s *scriptsService) BatchCreateElements(ctx context.Context, userID, projectID uuid.UUID, elements []*domain.ScriptElement) ([]*domain.ScriptElement, error) {
+func (s *scriptsService) BatchCreateElements(ctx context.Context, userID, projectID uuid.UUID, elements []*domain.ProjectElement) ([]*domain.ProjectElement, error) {
 	// Verify project access
 	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
 		return nil, err
 	}
 
 	// Validate and prepare elements
-	createdElements := make([]*domain.ScriptElement, len(elements))
+	createdElements := make([]*domain.ProjectElement, len(elements))
 	for i, element := range elements {
 		if element.SceneID == nil {
 			return nil, errors.New("all elements must have a scene_id")
@@ -676,7 +676,7 @@ func (s *scriptsService) BatchCreateElements(ctx context.Context, userID, projec
 		element.UpdatedAt = time.Now()
 
 		// Create through repository
-		err := s.repo.ScriptElement.CreateScriptElement(ctx, element)
+		err := s.repo.ProjectElement.CreateScriptElement(ctx, element)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create element at index %d: %w", i, err)
 		}

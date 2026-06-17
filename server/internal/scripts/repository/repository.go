@@ -34,10 +34,10 @@ type ProjectRepository interface {
 
 // ScriptElementRepository defines the interface for script element data access
 type ScriptElementRepository interface {
-	CreateScriptElement(ctx context.Context, element *domain.ScriptElement) error
-	GetScriptElement(ctx context.Context, elementID uuid.UUID) (*domain.ScriptElement, error)
-	GetSceneElements(ctx context.Context, sceneID uuid.UUID) ([]*domain.ScriptElement, error)
-	UpdateScriptElement(ctx context.Context, element *domain.ScriptElement) error
+	CreateScriptElement(ctx context.Context, element *domain.ProjectElement) error
+	GetScriptElement(ctx context.Context, elementID uuid.UUID) (*domain.ProjectElement, error)
+	GetSceneElements(ctx context.Context, sceneID uuid.UUID) ([]*domain.ProjectElement, error)
+	UpdateScriptElement(ctx context.Context, element *domain.ProjectElement) error
 	DeleteScriptElement(ctx context.Context, elementID uuid.UUID) error
 }
 
@@ -115,31 +115,31 @@ type OutlineItemRepository interface {
 
 // Repository aggregates all repository interfaces
 type Repository struct {
-	Project       ProjectRepository
-	ScriptElement ScriptElementRepository
-	Scene         SceneRepository
-	Character     CharacterRepository
-	Location      LocationRepository
-	Outline       OutlineRepository
-	Beat          BeatRepository
-	Connection    ConnectionRepository
-	Lane          LaneRepository
-	OutlineItem   OutlineItemRepository
+	Project        ProjectRepository
+	ProjectElement ScriptElementRepository
+	Scene          SceneRepository
+	Character      CharacterRepository
+	Location       LocationRepository
+	Outline        OutlineRepository
+	Beat           BeatRepository
+	Connection     ConnectionRepository
+	Lane           LaneRepository
+	OutlineItem    OutlineItemRepository
 }
 
 // NewRepository creates a new repository instance
 func NewRepository(db *sql.DB) *Repository {
 	return &Repository{
-		Project:       NewProjectRepository(db),
-		ScriptElement: NewScriptElementRepository(db),
-		Scene:         NewSceneRepository(db),
-		Character:     NewCharacterRepository(db),
-		Location:      NewLocationRepository(db),
-		Outline:       NewOutlineRepository(db),
-		Beat:          NewBeatRepository(db),
-		Connection:    NewConnectionRepository(db),
-		Lane:          NewLaneRepository(db),
-		OutlineItem:   NewOutlineItemRepository(db),
+		Project:        NewProjectRepository(db),
+		ProjectElement: NewScriptElementRepository(db),
+		Scene:          NewSceneRepository(db),
+		Character:      NewCharacterRepository(db),
+		Location:       NewLocationRepository(db),
+		Outline:        NewOutlineRepository(db),
+		Beat:           NewBeatRepository(db),
+		Connection:     NewConnectionRepository(db),
+		Lane:           NewLaneRepository(db),
+		OutlineItem:    NewOutlineItemRepository(db),
 	}
 }
 
@@ -397,7 +397,7 @@ type scriptElementRepository struct{ db *sql.DB }
 func NewScriptElementRepository(db *sql.DB) ScriptElementRepository {
 	return &scriptElementRepository{db}
 }
-func (r *scriptElementRepository) CreateScriptElement(ctx context.Context, element *domain.ScriptElement) error {
+func (r *scriptElementRepository) CreateScriptElement(ctx context.Context, element *domain.ProjectElement) error {
 	query := `
 		INSERT INTO script_elements (element_id, project_id, scene_id, element_type, content, line_number, formatting, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -430,14 +430,14 @@ func (r *scriptElementRepository) CreateScriptElement(ctx context.Context, eleme
 
 	return err
 }
-func (r *scriptElementRepository) GetScriptElement(ctx context.Context, elementID uuid.UUID) (*domain.ScriptElement, error) {
+func (r *scriptElementRepository) GetScriptElement(ctx context.Context, elementID uuid.UUID) (*domain.ProjectElement, error) {
 	query := `
 		SELECT element_id, project_id, scene_id, element_type, content, line_number, formatting, created_at, updated_at
 		FROM script_elements
 		WHERE element_id = $1
 	`
 
-	element := &domain.ScriptElement{}
+	element := &domain.ProjectElement{}
 	var sceneID *uuid.UUID
 	var formattingJSON string
 
@@ -455,7 +455,7 @@ func (r *scriptElementRepository) GetScriptElement(ctx context.Context, elementI
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, domain.ErrScriptElementNotFound
+			return nil, domain.ErrProjectElementNotFound
 		}
 		return nil, fmt.Errorf("failed to get script element: %w", err)
 	}
@@ -473,7 +473,7 @@ func (r *scriptElementRepository) GetScriptElement(ctx context.Context, elementI
 
 	return element, nil
 }
-func (r *scriptElementRepository) GetSceneElements(ctx context.Context, sceneID uuid.UUID) ([]*domain.ScriptElement, error) {
+func (r *scriptElementRepository) GetSceneElements(ctx context.Context, sceneID uuid.UUID) ([]*domain.ProjectElement, error) {
 	query := `
 		SELECT element_id, project_id, scene_id, element_type, content, line_number, formatting, created_at, updated_at
 		FROM script_elements
@@ -487,9 +487,9 @@ func (r *scriptElementRepository) GetSceneElements(ctx context.Context, sceneID 
 	}
 	defer rows.Close()
 
-	var elements []*domain.ScriptElement
+	var elements []*domain.ProjectElement
 	for rows.Next() {
-		element := &domain.ScriptElement{}
+		element := &domain.ProjectElement{}
 		var sceneIDPtr *uuid.UUID
 		var formattingJSON string
 
@@ -523,7 +523,7 @@ func (r *scriptElementRepository) GetSceneElements(ctx context.Context, sceneID 
 
 	return elements, rows.Err()
 }
-func (r *scriptElementRepository) UpdateScriptElement(ctx context.Context, element *domain.ScriptElement) error {
+func (r *scriptElementRepository) UpdateScriptElement(ctx context.Context, element *domain.ProjectElement) error {
 	query := `
 		UPDATE script_elements 
 		SET content = $2, updated_at = $3

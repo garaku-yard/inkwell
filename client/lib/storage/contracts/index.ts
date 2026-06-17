@@ -15,7 +15,7 @@ import type {
   Project,
   ProjectCollaborator,
   Scene,
-  ScriptElement,
+  ProjectElement,
   UpdateProjectRequest,
 } from "@/services/project"
 import type { Beat, BeatBoardData, Connection } from "@/services/beat"
@@ -86,7 +86,7 @@ export type {
   ProjectCollaborator,
   RegisterRequest,
   Scene,
-  ScriptElement,
+  ProjectElement,
   SubscriptionTier,
   UpdateElementRequest,
   UpdateProfileData,

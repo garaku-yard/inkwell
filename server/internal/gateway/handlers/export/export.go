@@ -53,7 +53,7 @@ type ExportElement struct {
 // FromProto flattens the gRPC-wire types into an ExportProject that the
 // Exporter implementations consume. Callers pass a pre-assembled map of
 // sceneID → elements so this helper stays synchronous and trivially testable.
-func FromProto(project *scriptspb.Project, scenes []*scriptspb.Scene, elementsByScene map[string][]*scriptspb.ScriptElement, author string) *ExportProject {
+func FromProto(project *scriptspb.Project, scenes []*scriptspb.Scene, elementsByScene map[string][]*scriptspb.ProjectElement, author string) *ExportProject {
 	out := &ExportProject{
 		Title:  project.GetTitle(),
 		Author: author,

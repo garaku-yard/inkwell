@@ -21,7 +21,7 @@ import {
   toggleCommentResolved,
   type FullProject,
   type Scene,
-  type ScriptElement,
+  type ProjectElement,
   type Comment
 } from "@/services/project"
 import { dispatchKey } from "@/lib/editor/keymap";
@@ -42,7 +42,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
-type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ScriptElement }
+type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ProjectElement }
 
 interface ScreenplayEditorProps {
   projectData: FullProject
@@ -198,10 +198,10 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           if (isScene && scene.id === elementId) {
             return { ...scene, comments: [...(scene.comments ?? []), commentForState] }
           }
-          if (!isScene && scene.elements?.some((el: ScriptElement) => el.id === elementId)) {
+          if (!isScene && scene.elements?.some((el: ProjectElement) => el.id === elementId)) {
             return {
               ...scene,
-              elements: scene.elements.map((el: ScriptElement) =>
+              elements: scene.elements.map((el: ProjectElement) =>
                 el.id === elementId
                   ? { ...el, comments: [...(el.comments ?? []), commentForState] }
                   : el,
@@ -229,7 +229,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         const newScenes = prevProject.scenes.map((scene: Scene) => ({
           ...scene,
           comments: scene.comments?.map((c: Comment) => (c.id === commentId ? updatedComment : c)),
-          elements: scene.elements?.map((el: ScriptElement) => ({
+          elements: scene.elements?.map((el: ProjectElement) => ({
             ...el,
             comments: el.comments?.map((c: Comment) => (c.id === commentId ? updatedComment : c)),
           })),
@@ -258,7 +258,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         const newScenes = prevProject.scenes.map((scene: Scene) => ({
           ...scene,
           comments: scene.comments?.filter((c: Comment) => c.id !== commentId),
-          elements: scene.elements?.map((el: ScriptElement) => ({
+          elements: scene.elements?.map((el: ProjectElement) => ({
             ...el,
             comments: el.comments?.filter((c: Comment) => c.id !== commentId),
           })),
@@ -295,7 +295,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             }
             return {
               ...scene,
-              elements: scene.elements?.map((el: ScriptElement) =>
+              elements: scene.elements?.map((el: ProjectElement) =>
                 el.id === elementId
                   ? {
                     ...el,
@@ -346,10 +346,10 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           if (isScene && scene.id === id) {
             return { ...scene, scene_heading: content }
           }
-          if (!isScene && scene.elements?.some((el: ScriptElement) => el.id === id)) {
+          if (!isScene && scene.elements?.some((el: ProjectElement) => el.id === id)) {
             return {
               ...scene,
-              elements: scene.elements.map((el: ScriptElement) =>
+              elements: scene.elements.map((el: ProjectElement) =>
                 el.id === id ? { ...el, content } : el,
               ),
             }

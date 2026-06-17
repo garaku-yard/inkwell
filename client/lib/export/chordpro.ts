@@ -17,7 +17,7 @@
  * they're played on — so a round trip lands closer to what they typed.
  */
 
-import type { FullProject, ScriptElement } from "@/services/project"
+import type { FullProject, ProjectElement } from "@/services/project"
 
 /** Inserts chord tokens from a chord_row into the matching line at
  *  the column positions implied by the chord_row's whitespace.
@@ -54,7 +54,7 @@ function mergeChordsIntoLine(chordRow: string, line: string): string {
  *  lines. Section labels become `{comment: …}` directives because
  *  arbitrary labels (Pre-Chorus / Outro / Tag …) outpace what
  *  ChordPro's named directives can express. */
-function songToChordPro(elements: ScriptElement[]): string[] {
+function songToChordPro(elements: ProjectElement[]): string[] {
   const lines: string[] = []
 
   for (let i = 0; i < elements.length; i++) {

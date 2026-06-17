@@ -5,7 +5,7 @@
 
 import { apiClient } from "@/lib/api"
 
-import type { Comment, Scene, ScriptElement } from "@/lib/storage"
+import type { Comment, Scene, ProjectElement } from "@/lib/storage"
 
 // Helpers reused by getFull. Defined outside the struct so nested method
 // references don't get tripped up by the interface typing.
@@ -40,8 +40,8 @@ export const projectsHelpers = {
     }))
   },
 
-  async listElementsForScene(sceneId: string, userId: string): Promise<ScriptElement[]> {
-    const response = await apiClient<{ elements: ScriptElement[] }>(
+  async listElementsForScene(sceneId: string, userId: string): Promise<ProjectElement[]> {
+    const response = await apiClient<{ elements: ProjectElement[] }>(
       `elements?scene_id=${sceneId}&user_id=${userId}`,
       { method: "GET" },
     )

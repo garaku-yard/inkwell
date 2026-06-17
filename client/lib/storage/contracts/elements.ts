@@ -1,4 +1,4 @@
-import type { ScriptElement } from "@/services/project"
+import type { ProjectElement } from "@/services/project"
 import type {
   CreateElementRequest,
   UpdateElementRequest,
@@ -6,10 +6,10 @@ import type {
 
 export interface ElementStorage {
   /** Create via the scene-level endpoint (used by the editor). */
-  create(input: CreateElementRequest): Promise<ScriptElement>
-  listForScene(sceneId: string, userId: string): Promise<ScriptElement[]>
-  update(elementId: string, patch: UpdateElementRequest): Promise<ScriptElement>
+  create(input: CreateElementRequest): Promise<ProjectElement>
+  listForScene(sceneId: string, userId: string): Promise<ProjectElement[]>
+  update(elementId: string, patch: UpdateElementRequest): Promise<ProjectElement>
   delete(elementId: string): Promise<void>
   /** Range query used by the outline editor when only a line window is visible. */
-  listForProject(projectId: string, userId: string, startLine?: number, endLine?: number): Promise<ScriptElement[]>
+  listForProject(projectId: string, userId: string, startLine?: number, endLine?: number): Promise<ProjectElement[]>
 }

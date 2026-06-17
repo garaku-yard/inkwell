@@ -22,7 +22,7 @@ import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   createScene,
   createSceneElement,
-  type ScriptElement,
+  type ProjectElement,
   type FullProject,
 } from "@/services/project"
 import { deleteScriptElement } from "@/services/editor"
@@ -34,7 +34,7 @@ interface PoetryEditorProps {
   projectData: FullProject
 }
 
-function countLines(elements: ScriptElement[]): number {
+function countLines(elements: ProjectElement[]): number {
   return elements.filter(el => el.element_type === "line").length
 }
 
@@ -190,7 +190,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     (
       e: React.KeyboardEvent<HTMLDivElement>,
       sceneId: string,
-      el: ScriptElement,
+      el: ProjectElement,
       elIdx: number,
     ) => {
       dispatchKey(e, keyMap, {

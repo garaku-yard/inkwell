@@ -128,8 +128,8 @@ func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 // and returns a map keyed by scene ID. Sort order is preserved by line_number
 // within each scene. Failed fetches for individual scenes are logged and the
 // scene is emitted with an empty element list rather than aborting the export.
-func fetchSceneElements(ctx context.Context, client scriptspb.ScriptsServiceClient, scenes []*scriptspb.Scene, userID string) map[string][]*scriptspb.ScriptElement {
-	out := make(map[string][]*scriptspb.ScriptElement, len(scenes))
+func fetchSceneElements(ctx context.Context, client scriptspb.ScriptsServiceClient, scenes []*scriptspb.Scene, userID string) map[string][]*scriptspb.ProjectElement {
+	out := make(map[string][]*scriptspb.ProjectElement, len(scenes))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 

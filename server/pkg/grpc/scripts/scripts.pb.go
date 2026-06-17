@@ -293,8 +293,8 @@ func (x *Scene) GetUpdatedAt() *common.Timestamp {
 	return nil
 }
 
-// Script element entity (individual lines/elements of a screenplay)
-type ScriptElement struct {
+// ProjectElement is a single content element (paragraph, line, panel, stat block, passage body, etc.) within a scene/container — interpreted per format.
+type ProjectElement struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ProjectId     string                 `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`                                                            // Changed from screenplay_id to project_id
@@ -309,20 +309,20 @@ type ScriptElement struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ScriptElement) Reset() {
-	*x = ScriptElement{}
+func (x *ProjectElement) Reset() {
+	*x = ProjectElement{}
 	mi := &file_scripts_scripts_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ScriptElement) String() string {
+func (x *ProjectElement) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ScriptElement) ProtoMessage() {}
+func (*ProjectElement) ProtoMessage() {}
 
-func (x *ScriptElement) ProtoReflect() protoreflect.Message {
+func (x *ProjectElement) ProtoReflect() protoreflect.Message {
 	mi := &file_scripts_scripts_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -334,68 +334,68 @@ func (x *ScriptElement) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ScriptElement.ProtoReflect.Descriptor instead.
-func (*ScriptElement) Descriptor() ([]byte, []int) {
+// Deprecated: Use ProjectElement.ProtoReflect.Descriptor instead.
+func (*ProjectElement) Descriptor() ([]byte, []int) {
 	return file_scripts_scripts_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *ScriptElement) GetId() string {
+func (x *ProjectElement) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-func (x *ScriptElement) GetProjectId() string {
+func (x *ProjectElement) GetProjectId() string {
 	if x != nil {
 		return x.ProjectId
 	}
 	return ""
 }
 
-func (x *ScriptElement) GetSceneId() string {
+func (x *ProjectElement) GetSceneId() string {
 	if x != nil {
 		return x.SceneId
 	}
 	return ""
 }
 
-func (x *ScriptElement) GetType() string {
+func (x *ProjectElement) GetType() string {
 	if x != nil {
 		return x.Type
 	}
 	return ""
 }
 
-func (x *ScriptElement) GetContent() string {
+func (x *ProjectElement) GetContent() string {
 	if x != nil {
 		return x.Content
 	}
 	return ""
 }
 
-func (x *ScriptElement) GetLineNumber() int32 {
+func (x *ProjectElement) GetLineNumber() int32 {
 	if x != nil {
 		return x.LineNumber
 	}
 	return 0
 }
 
-func (x *ScriptElement) GetFormatting() map[string]string {
+func (x *ProjectElement) GetFormatting() map[string]string {
 	if x != nil {
 		return x.Formatting
 	}
 	return nil
 }
 
-func (x *ScriptElement) GetCreatedAt() *common.Timestamp {
+func (x *ProjectElement) GetCreatedAt() *common.Timestamp {
 	if x != nil {
 		return x.CreatedAt
 	}
 	return nil
 }
 
-func (x *ScriptElement) GetUpdatedAt() *common.Timestamp {
+func (x *ProjectElement) GetUpdatedAt() *common.Timestamp {
 	if x != nil {
 		return x.UpdatedAt
 	}
@@ -3591,7 +3591,7 @@ func (x *CreateElementRequest) GetFormatting() map[string]string {
 
 type CreateElementResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Element       *ScriptElement         `protobuf:"bytes,1,opt,name=element,proto3" json:"element,omitempty"`
+	Element       *ProjectElement        `protobuf:"bytes,1,opt,name=element,proto3" json:"element,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3626,7 +3626,7 @@ func (*CreateElementResponse) Descriptor() ([]byte, []int) {
 	return file_scripts_scripts_proto_rawDescGZIP(), []int{51}
 }
 
-func (x *CreateElementResponse) GetElement() *ScriptElement {
+func (x *CreateElementResponse) GetElement() *ProjectElement {
 	if x != nil {
 		return x.Element
 	}
@@ -3703,7 +3703,7 @@ func (x *UpdateElementRequest) GetType() string {
 
 type UpdateElementResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Element       *ScriptElement         `protobuf:"bytes,1,opt,name=element,proto3" json:"element,omitempty"`
+	Element       *ProjectElement        `protobuf:"bytes,1,opt,name=element,proto3" json:"element,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3738,7 +3738,7 @@ func (*UpdateElementResponse) Descriptor() ([]byte, []int) {
 	return file_scripts_scripts_proto_rawDescGZIP(), []int{53}
 }
 
-func (x *UpdateElementResponse) GetElement() *ScriptElement {
+func (x *UpdateElementResponse) GetElement() *ProjectElement {
 	if x != nil {
 		return x.Element
 	}
@@ -3799,7 +3799,7 @@ func (x *GetSceneElementsRequest) GetUserId() string {
 
 type GetSceneElementsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Elements      []*ScriptElement       `protobuf:"bytes,1,rep,name=elements,proto3" json:"elements,omitempty"`
+	Elements      []*ProjectElement      `protobuf:"bytes,1,rep,name=elements,proto3" json:"elements,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3834,7 +3834,7 @@ func (*GetSceneElementsResponse) Descriptor() ([]byte, []int) {
 	return file_scripts_scripts_proto_rawDescGZIP(), []int{55}
 }
 
-func (x *GetSceneElementsResponse) GetElements() []*ScriptElement {
+func (x *GetSceneElementsResponse) GetElements() []*ProjectElement {
 	if x != nil {
 		return x.Elements
 	}
@@ -3846,7 +3846,7 @@ type BatchCreateElementsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Elements      []*ScriptElement       `protobuf:"bytes,3,rep,name=elements,proto3" json:"elements,omitempty"`
+	Elements      []*ProjectElement      `protobuf:"bytes,3,rep,name=elements,proto3" json:"elements,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3895,7 +3895,7 @@ func (x *BatchCreateElementsRequest) GetUserId() string {
 	return ""
 }
 
-func (x *BatchCreateElementsRequest) GetElements() []*ScriptElement {
+func (x *BatchCreateElementsRequest) GetElements() []*ProjectElement {
 	if x != nil {
 		return x.Elements
 	}
@@ -3904,7 +3904,7 @@ func (x *BatchCreateElementsRequest) GetElements() []*ScriptElement {
 
 type BatchCreateElementsResponse struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	CreatedElements []*ScriptElement       `protobuf:"bytes,1,rep,name=created_elements,json=createdElements,proto3" json:"created_elements,omitempty"`
+	CreatedElements []*ProjectElement      `protobuf:"bytes,1,rep,name=created_elements,json=createdElements,proto3" json:"created_elements,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -3939,7 +3939,7 @@ func (*BatchCreateElementsResponse) Descriptor() ([]byte, []int) {
 	return file_scripts_scripts_proto_rawDescGZIP(), []int{57}
 }
 
-func (x *BatchCreateElementsResponse) GetCreatedElements() []*ScriptElement {
+func (x *BatchCreateElementsResponse) GetCreatedElements() []*ProjectElement {
 	if x != nil {
 		return x.CreatedElements
 	}
@@ -5985,8 +5985,8 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\a \x01(\v2\x11.common.TimestampR\tcreatedAt\x120\n" +
 	"\n" +
-	"updated_at\x18\b \x01(\v2\x11.common.TimestampR\tupdatedAt\"\xa7\x03\n" +
-	"\rScriptElement\x12\x0e\n" +
+	"updated_at\x18\b \x01(\v2\x11.common.TimestampR\tupdatedAt\"\xa9\x03\n" +
+	"\x0eProjectElement\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x02 \x01(\tR\tprojectId\x12\x19\n" +
@@ -5994,9 +5994,9 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\x04type\x18\x04 \x01(\tR\x04type\x12\x18\n" +
 	"\acontent\x18\x05 \x01(\tR\acontent\x12\x1f\n" +
 	"\vline_number\x18\a \x01(\x05R\n" +
-	"lineNumber\x12F\n" +
+	"lineNumber\x12G\n" +
 	"\n" +
-	"formatting\x18\b \x03(\v2&.scripts.ScriptElement.FormattingEntryR\n" +
+	"formatting\x18\b \x03(\v2'.scripts.ProjectElement.FormattingEntryR\n" +
 	"formatting\x120\n" +
 	"\n" +
 	"created_at\x18\t \x01(\v2\x11.common.TimestampR\tcreatedAt\x120\n" +
@@ -6339,29 +6339,29 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"formatting\x1a=\n" +
 	"\x0fFormattingEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x06\x10\aR\fcharacter_id\"I\n" +
-	"\x15CreateElementResponse\x120\n" +
-	"\aelement\x18\x01 \x01(\v2\x16.scripts.ScriptElementR\aelement\"|\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x06\x10\aR\fcharacter_id\"J\n" +
+	"\x15CreateElementResponse\x121\n" +
+	"\aelement\x18\x01 \x01(\v2\x17.scripts.ProjectElementR\aelement\"|\n" +
 	"\x14UpdateElementRequest\x12\x1d\n" +
 	"\n" +
 	"element_id\x18\x01 \x01(\tR\telementId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
 	"\acontent\x18\x03 \x01(\tR\acontent\x12\x12\n" +
-	"\x04type\x18\x04 \x01(\tR\x04type\"I\n" +
-	"\x15UpdateElementResponse\x120\n" +
-	"\aelement\x18\x01 \x01(\v2\x16.scripts.ScriptElementR\aelement\"M\n" +
+	"\x04type\x18\x04 \x01(\tR\x04type\"J\n" +
+	"\x15UpdateElementResponse\x121\n" +
+	"\aelement\x18\x01 \x01(\v2\x17.scripts.ProjectElementR\aelement\"M\n" +
 	"\x17GetSceneElementsRequest\x12\x19\n" +
 	"\bscene_id\x18\x01 \x01(\tR\asceneId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"N\n" +
-	"\x18GetSceneElementsResponse\x122\n" +
-	"\belements\x18\x01 \x03(\v2\x16.scripts.ScriptElementR\belements\"\x88\x01\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"O\n" +
+	"\x18GetSceneElementsResponse\x123\n" +
+	"\belements\x18\x01 \x03(\v2\x17.scripts.ProjectElementR\belements\"\x89\x01\n" +
 	"\x1aBatchCreateElementsRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\x122\n" +
-	"\belements\x18\x03 \x03(\v2\x16.scripts.ScriptElementR\belements\"`\n" +
-	"\x1bBatchCreateElementsResponse\x12A\n" +
-	"\x10created_elements\x18\x01 \x03(\v2\x16.scripts.ScriptElementR\x0fcreatedElements\"\xc9\x03\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x123\n" +
+	"\belements\x18\x03 \x03(\v2\x17.scripts.ProjectElementR\belements\"a\n" +
+	"\x1bBatchCreateElementsResponse\x12B\n" +
+	"\x10created_elements\x18\x01 \x03(\v2\x17.scripts.ProjectElementR\x0fcreatedElements\"\xc9\x03\n" +
 	"\x11CreateBeatRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
@@ -6620,7 +6620,7 @@ var file_scripts_scripts_proto_goTypes = []any{
 	(ResourceType)(0),                    // 0: scripts.ResourceType
 	(*Project)(nil),                      // 1: scripts.Project
 	(*Scene)(nil),                        // 2: scripts.Scene
-	(*ScriptElement)(nil),                // 3: scripts.ScriptElement
+	(*ProjectElement)(nil),               // 3: scripts.ProjectElement
 	(*OutlineUnit)(nil),                  // 4: scripts.OutlineUnit
 	(*Character)(nil),                    // 5: scripts.Character
 	(*Location)(nil),                     // 6: scripts.Location
@@ -6710,7 +6710,7 @@ var file_scripts_scripts_proto_goTypes = []any{
 	(*GetResourceProjectResponse)(nil),   // 90: scripts.GetResourceProjectResponse
 	(*GetProjectLocationsRequest)(nil),   // 91: scripts.GetProjectLocationsRequest
 	(*GetProjectLocationsResponse)(nil),  // 92: scripts.GetProjectLocationsResponse
-	nil,                                  // 93: scripts.ScriptElement.FormattingEntry
+	nil,                                  // 93: scripts.ProjectElement.FormattingEntry
 	nil,                                  // 94: scripts.Character.AttributesEntry
 	nil,                                  // 95: scripts.CreateCharacterRequest.AttributesEntry
 	nil,                                  // 96: scripts.UpdateCharacterRequest.AttributesEntry
@@ -6724,9 +6724,9 @@ var file_scripts_scripts_proto_depIdxs = []int32{
 	98,  // 1: scripts.Project.updated_at:type_name -> common.Timestamp
 	98,  // 2: scripts.Scene.created_at:type_name -> common.Timestamp
 	98,  // 3: scripts.Scene.updated_at:type_name -> common.Timestamp
-	93,  // 4: scripts.ScriptElement.formatting:type_name -> scripts.ScriptElement.FormattingEntry
-	98,  // 5: scripts.ScriptElement.created_at:type_name -> common.Timestamp
-	98,  // 6: scripts.ScriptElement.updated_at:type_name -> common.Timestamp
+	93,  // 4: scripts.ProjectElement.formatting:type_name -> scripts.ProjectElement.FormattingEntry
+	98,  // 5: scripts.ProjectElement.created_at:type_name -> common.Timestamp
+	98,  // 6: scripts.ProjectElement.updated_at:type_name -> common.Timestamp
 	98,  // 7: scripts.OutlineUnit.created_at:type_name -> common.Timestamp
 	98,  // 8: scripts.OutlineUnit.updated_at:type_name -> common.Timestamp
 	94,  // 9: scripts.Character.attributes:type_name -> scripts.Character.AttributesEntry
@@ -6766,11 +6766,11 @@ var file_scripts_scripts_proto_depIdxs = []int32{
 	6,   // 43: scripts.CreateLocationResponse.location:type_name -> scripts.Location
 	6,   // 44: scripts.UpdateLocationResponse.location:type_name -> scripts.Location
 	97,  // 45: scripts.CreateElementRequest.formatting:type_name -> scripts.CreateElementRequest.FormattingEntry
-	3,   // 46: scripts.CreateElementResponse.element:type_name -> scripts.ScriptElement
-	3,   // 47: scripts.UpdateElementResponse.element:type_name -> scripts.ScriptElement
-	3,   // 48: scripts.GetSceneElementsResponse.elements:type_name -> scripts.ScriptElement
-	3,   // 49: scripts.BatchCreateElementsRequest.elements:type_name -> scripts.ScriptElement
-	3,   // 50: scripts.BatchCreateElementsResponse.created_elements:type_name -> scripts.ScriptElement
+	3,   // 46: scripts.CreateElementResponse.element:type_name -> scripts.ProjectElement
+	3,   // 47: scripts.UpdateElementResponse.element:type_name -> scripts.ProjectElement
+	3,   // 48: scripts.GetSceneElementsResponse.elements:type_name -> scripts.ProjectElement
+	3,   // 49: scripts.BatchCreateElementsRequest.elements:type_name -> scripts.ProjectElement
+	3,   // 50: scripts.BatchCreateElementsResponse.created_elements:type_name -> scripts.ProjectElement
 	7,   // 51: scripts.CreateBeatResponse.beat:type_name -> scripts.Beat
 	7,   // 52: scripts.GetBeatResponse.beat:type_name -> scripts.Beat
 	11,  // 53: scripts.GetProjectBeatBoardResponse.beat_board:type_name -> scripts.BeatBoardData

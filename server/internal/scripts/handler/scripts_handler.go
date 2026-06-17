@@ -510,14 +510,14 @@ func (h *ScriptsHandler) BatchCreateElements(ctx context.Context, req *scriptspb
 	}
 
 	// Convert protobuf elements to domain elements
-	domainElements := make([]*domain.ScriptElement, len(req.Elements))
+	domainElements := make([]*domain.ProjectElement, len(req.Elements))
 	for i, protoElement := range req.Elements {
 		sceneID, err := uuid.Parse(protoElement.SceneId)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid scene_id at index %d: %v", i, err)
 		}
 
-		domainElements[i] = &domain.ScriptElement{
+		domainElements[i] = &domain.ProjectElement{
 			ProjectID:  projectID,
 			SceneID:    &sceneID,
 			Type:       protoElement.Type,
@@ -534,7 +534,7 @@ func (h *ScriptsHandler) BatchCreateElements(ctx context.Context, req *scriptspb
 	}
 
 	// Convert to protobuf
-	protoElements := make([]*scriptspb.ScriptElement, len(createdElements))
+	protoElements := make([]*scriptspb.ProjectElement, len(createdElements))
 	for i, element := range createdElements {
 		protoElements[i] = convertElementToProto(element)
 	}
@@ -573,7 +573,7 @@ func handleServiceError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrProjectNotFound),
 		errors.Is(err, domain.ErrSceneNotFound),
-		errors.Is(err, domain.ErrScriptElementNotFound),
+		errors.Is(err, domain.ErrProjectElementNotFound),
 		errors.Is(err, domain.ErrCharacterNotFound),
 		errors.Is(err, domain.ErrLocationNotFound),
 		errors.Is(err, domain.ErrOutlineUnitNotFound):
@@ -615,7 +615,7 @@ func (h *ScriptsHandler) CreateElement(ctx context.Context, req *scriptspb.Creat
 	}
 
 	// Create domain element
-	element := &domain.ScriptElement{
+	element := &domain.ProjectElement{
 		ProjectID:  projectID,
 		SceneID:    &sceneID,
 		Type:       req.ElementType,
@@ -696,7 +696,7 @@ func (h *ScriptsHandler) GetSceneElements(ctx context.Context, req *scriptspb.Ge
 	}
 
 	// Convert to protobuf
-	protoElements := make([]*scriptspb.ScriptElement, len(elements))
+	protoElements := make([]*scriptspb.ProjectElement, len(elements))
 	for i, element := range elements {
 		protoElements[i] = convertElementToProto(element)
 	}
@@ -706,10 +706,10 @@ func (h *ScriptsHandler) GetSceneElements(ctx context.Context, req *scriptspb.Ge
 	}, nil
 }
 
-// convertElementToProto maps a domain ScriptElement to the scripts proto
-// ScriptElement message. scene_id is only set when non-nil.
-func convertElementToProto(element *domain.ScriptElement) *scriptspb.ScriptElement {
-	protoElement := &scriptspb.ScriptElement{
+// convertElementToProto maps a domain ProjectElement to the scripts proto
+// ProjectElement message. scene_id is only set when non-nil.
+func convertElementToProto(element *domain.ProjectElement) *scriptspb.ProjectElement {
+	protoElement := &scriptspb.ProjectElement{
 		Id:         element.ID.String(),
 		ProjectId:  element.ProjectID.String(),
 		Type:       element.Type,

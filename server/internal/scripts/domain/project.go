@@ -21,8 +21,8 @@ type Project struct {
 	DeletedAt   *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
-// ScriptElement represents an individual line/element in a screenplay
-type ScriptElement struct {
+// ProjectElement represents an individual line/element in a screenplay
+type ProjectElement struct {
 	ID         uuid.UUID         `json:"id" db:"element_id"`
 	ProjectID  uuid.UUID         `json:"project_id" db:"project_id"`
 	SceneID    *uuid.UUID        `json:"scene_id,omitempty" db:"scene_id"`
@@ -95,9 +95,9 @@ var (
 	ErrUnauthorizedAccess = errors.New("unauthorized access to project")
 	ErrInvalidProjectData = errors.New("invalid project data")
 
-	ErrScriptElementNotFound = errors.New("script element not found")
-	ErrSceneNotFound         = errors.New("scene not found")
-	ErrCharacterNotFound     = errors.New("character not found")
-	ErrLocationNotFound      = errors.New("location not found")
-	ErrOutlineUnitNotFound   = errors.New("outline unit not found")
+	ErrProjectElementNotFound = errors.New("script element not found")
+	ErrSceneNotFound          = errors.New("scene not found")
+	ErrCharacterNotFound      = errors.New("character not found")
+	ErrLocationNotFound       = errors.New("location not found")
+	ErrOutlineUnitNotFound    = errors.New("outline unit not found")
 )

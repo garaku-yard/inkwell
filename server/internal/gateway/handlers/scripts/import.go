@@ -121,7 +121,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 
 	// Process FDX paragraphs into scenes and elements
 	var currentScene *scriptspb.Scene
-	var sceneElements []*scriptspb.ScriptElement
+	var sceneElements []*scriptspb.ProjectElement
 	lineNumber := int32(1)
 
 	for _, para := range fdx.Content.Paragraphs {
@@ -159,7 +159,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 			slog.Info("ImportFDX: created scene", "scene_id", currentScene.Id)
 		} else if currentScene != nil {
 			// Add element to current scene
-			sceneElements = append(sceneElements, &scriptspb.ScriptElement{
+			sceneElements = append(sceneElements, &scriptspb.ProjectElement{
 				ProjectId:  projectID,
 				SceneId:    currentScene.Id,
 				Type:       paraType,

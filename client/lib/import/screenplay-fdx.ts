@@ -12,7 +12,7 @@
  * coercing "Singing" or "General" into ACTION risks misformatting.
  */
 
-/** Element-type strings that match Inkwell's canonical ScriptElement
+/** Element-type strings that match Inkwell's canonical ProjectElement
  *  vocabulary. Mapping comes from FDX_TYPE in screenplay-fdx.ts in
  *  reverse — DIALOG (not DIALOGUE) is the preferred internal name. */
 const FDX_TO_INTERNAL: Record<string, string> = {
