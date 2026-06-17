@@ -108,7 +108,6 @@ export interface ElementRow {
   scene_id: string | null
   element_type: string
   content: string
-  character_id: string | null
   line_number: number
   formatting_json: string
   created_at: string
@@ -132,7 +131,6 @@ export function toElement(row: ElementRow): ScriptElement {
     // here so every downstream consumer can safely call .trim() /
     // .toLowerCase() / .split() without nil checks.
     content: row.content ?? "",
-    character_id: row.character_id ?? undefined,
     line_number: row.line_number,
     formatting,
     created_at: row.created_at,

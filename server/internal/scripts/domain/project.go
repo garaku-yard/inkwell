@@ -23,16 +23,15 @@ type Project struct {
 
 // ScriptElement represents an individual line/element in a screenplay
 type ScriptElement struct {
-	ID          uuid.UUID         `json:"id" db:"element_id"`
-	ProjectID   uuid.UUID         `json:"project_id" db:"project_id"`
-	SceneID     *uuid.UUID        `json:"scene_id,omitempty" db:"scene_id"`
-	Type        string            `json:"type" db:"element_type"` // "scene_heading", "character", "dialogue", "action", "parenthetical", "transition", "shot"
-	Content     string            `json:"content" db:"content"`
-	CharacterID *uuid.UUID        `json:"character_id,omitempty" db:"character_id"`
-	LineNumber  int32             `json:"line_number" db:"line_number"`
-	Formatting  map[string]string `json:"formatting" db:"formatting"` // JSON field for formatting attributes
-	CreatedAt   time.Time         `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at" db:"updated_at"`
+	ID         uuid.UUID         `json:"id" db:"element_id"`
+	ProjectID  uuid.UUID         `json:"project_id" db:"project_id"`
+	SceneID    *uuid.UUID        `json:"scene_id,omitempty" db:"scene_id"`
+	Type       string            `json:"type" db:"element_type"` // format-specific element type, interpreted per editor
+	Content    string            `json:"content" db:"content"`
+	LineNumber int32             `json:"line_number" db:"line_number"`
+	Formatting map[string]string `json:"formatting" db:"formatting"` // JSON field for formatting attributes
+	CreatedAt  time.Time         `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time         `json:"updated_at" db:"updated_at"`
 }
 
 // Scene represents a scene in the screenplay

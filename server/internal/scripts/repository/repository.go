@@ -399,18 +399,13 @@ func NewScriptElementRepository(db *sql.DB) ScriptElementRepository {
 }
 func (r *scriptElementRepository) CreateScriptElement(ctx context.Context, element *domain.ScriptElement) error {
 	query := `
-		INSERT INTO script_elements (element_id, project_id, scene_id, element_type, content, character_id, line_number, formatting, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO script_elements (element_id, project_id, scene_id, element_type, content, line_number, formatting, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 
 	var sceneID interface{}
 	if element.SceneID != nil {
 		sceneID = *element.SceneID
-	}
-
-	var characterID interface{}
-	if element.CharacterID != nil {
-		characterID = *element.CharacterID
 	}
 
 	// Convert map to JSON string for storage
@@ -427,7 +422,6 @@ func (r *scriptElementRepository) CreateScriptElement(ctx context.Context, eleme
 		sceneID,
 		element.Type,
 		element.Content,
-		characterID,
 		element.LineNumber,
 		formattingJSON,
 		element.CreatedAt,
@@ -438,14 +432,13 @@ func (r *scriptElementRepository) CreateScriptElement(ctx context.Context, eleme
 }
 func (r *scriptElementRepository) GetScriptElement(ctx context.Context, elementID uuid.UUID) (*domain.ScriptElement, error) {
 	query := `
-		SELECT element_id, project_id, scene_id, element_type, content, character_id, line_number, formatting, created_at, updated_at
-		FROM script_elements 
+		SELECT element_id, project_id, scene_id, element_type, content, line_number, formatting, created_at, updated_at
+		FROM script_elements
 		WHERE element_id = $1
 	`
 
 	element := &domain.ScriptElement{}
 	var sceneID *uuid.UUID
-	var characterID *uuid.UUID
 	var formattingJSON string
 
 	err := r.db.QueryRowContext(ctx, query, elementID).Scan(
@@ -454,7 +447,6 @@ func (r *scriptElementRepository) GetScriptElement(ctx context.Context, elementI
 		&sceneID,
 		&element.Type,
 		&element.Content,
-		&characterID,
 		&element.LineNumber,
 		&formattingJSON,
 		&element.CreatedAt,
@@ -469,7 +461,6 @@ func (r *scriptElementRepository) GetScriptElement(ctx context.Context, elementI
 	}
 
 	element.SceneID = sceneID
-	element.CharacterID = characterID
 
 	// Parse formatting JSON
 	element.Formatting = make(map[string]string)
@@ -484,8 +475,8 @@ func (r *scriptElementRepository) GetScriptElement(ctx context.Context, elementI
 }
 func (r *scriptElementRepository) GetSceneElements(ctx context.Context, sceneID uuid.UUID) ([]*domain.ScriptElement, error) {
 	query := `
-		SELECT element_id, project_id, scene_id, element_type, content, character_id, line_number, formatting, created_at, updated_at
-		FROM script_elements 
+		SELECT element_id, project_id, scene_id, element_type, content, line_number, formatting, created_at, updated_at
+		FROM script_elements
 		WHERE scene_id = $1
 		ORDER BY line_number
 	`
@@ -500,7 +491,6 @@ func (r *scriptElementRepository) GetSceneElements(ctx context.Context, sceneID 
 	for rows.Next() {
 		element := &domain.ScriptElement{}
 		var sceneIDPtr *uuid.UUID
-		var characterIDPtr *uuid.UUID
 		var formattingJSON string
 
 		err := rows.Scan(
@@ -509,7 +499,6 @@ func (r *scriptElementRepository) GetSceneElements(ctx context.Context, sceneID 
 			&sceneIDPtr,
 			&element.Type,
 			&element.Content,
-			&characterIDPtr,
 			&element.LineNumber,
 			&formattingJSON,
 			&element.CreatedAt,
@@ -520,7 +509,6 @@ func (r *scriptElementRepository) GetSceneElements(ctx context.Context, sceneID 
 		}
 
 		element.SceneID = sceneIDPtr
-		element.CharacterID = characterIDPtr
 
 		// Parse formatting JSON
 		if formattingJSON != "" && formattingJSON != "{}" {

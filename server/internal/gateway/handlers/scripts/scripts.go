@@ -507,7 +507,6 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 		SceneID     string            `json:"scene_id"`
 		ElementType string            `json:"element_type"`
 		Content     string            `json:"content"`
-		CharacterID string            `json:"character_id,omitempty"`
 		LineNumber  int32             `json:"line_number"`
 		Formatting  map[string]string `json:"formatting"`
 	}
@@ -536,7 +535,6 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 				SceneId:     req.SceneID,
 				ElementType: req.ElementType,
 				Content:     req.Content,
-				CharacterId: &req.CharacterID,
 				LineNumber:  req.LineNumber,
 				Formatting:  req.Formatting,
 			})
@@ -764,7 +762,6 @@ func convertElementFromProto(element *scriptspb.ScriptElement) map[string]interf
 		"scene_id":     element.SceneId,
 		"element_type": element.Type,
 		"content":      element.Content,
-		"character_id": element.CharacterId,
 		"line_number":  element.LineNumber,
 		"formatting":   element.Formatting,
 	}

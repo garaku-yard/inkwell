@@ -16,15 +16,14 @@ export const elements: ElementStorage = {
     )
     const projectId = sceneRows[0]?.project_id ?? ""
     await db.execute(
-      `INSERT INTO script_elements (id, project_id, scene_id, element_type, content, character_id, line_number, formatting_json, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)`,
+      `INSERT INTO script_elements (id, project_id, scene_id, element_type, content, line_number, formatting_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, '{}', ?, ?)`,
       [
         id,
         projectId,
         input.sceneId,
         input.elementType,
         input.content,
-        input.characterId ?? null,
         input.elementOrder,
         ts,
         ts,

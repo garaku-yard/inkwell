@@ -15,7 +15,6 @@ export interface CreateElementRequest {
   elementOrder: number
   elementType: ScriptElement["element_type"]
   content: string
-  characterId?: string | null
 }
 
 export interface UpdateElementRequest {

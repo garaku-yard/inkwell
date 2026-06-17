@@ -20,7 +20,6 @@ export const elements: ElementStorage = {
         element_type: input.elementType,
         content: input.content,
         line_number: input.elementOrder,
-        character_id: input.characterId ?? "",
         formatting: {},
       },
     }),

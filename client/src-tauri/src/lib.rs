@@ -53,6 +53,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0007_project_knowledge.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 8,
+      description: "drop screenplay-only script_elements.character_id (always NULL, unused)",
+      sql: include_str!("../migrations/0008_drop_element_character_id.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 

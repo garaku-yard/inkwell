@@ -517,23 +517,13 @@ func (h *ScriptsHandler) BatchCreateElements(ctx context.Context, req *scriptspb
 			return nil, status.Errorf(codes.InvalidArgument, "invalid scene_id at index %d: %v", i, err)
 		}
 
-		var characterID *uuid.UUID
-		if protoElement.CharacterId != "" {
-			parsedCharacterID, err := uuid.Parse(protoElement.CharacterId)
-			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "invalid character_id at index %d: %v", i, err)
-			}
-			characterID = &parsedCharacterID
-		}
-
 		domainElements[i] = &domain.ScriptElement{
-			ProjectID:   projectID,
-			SceneID:     &sceneID,
-			Type:        protoElement.Type,
-			Content:     protoElement.Content,
-			CharacterID: characterID,
-			LineNumber:  protoElement.LineNumber,
-			Formatting:  protoElement.Formatting,
+			ProjectID:  projectID,
+			SceneID:    &sceneID,
+			Type:       protoElement.Type,
+			Content:    protoElement.Content,
+			LineNumber: protoElement.LineNumber,
+			Formatting: protoElement.Formatting,
 		}
 	}
 
@@ -603,9 +593,8 @@ func handleServiceError(err error) error {
 	return status.Errorf(codes.Internal, "internal server error: %v", err)
 }
 
-// CreateElement adds a single typed script element (action, dialogue, character
-// cue, etc.) to a scene. character_id is optional and associates dialogue with a
-// known character in the project's character roster.
+// CreateElement adds a single typed element (a paragraph, line, panel, stat
+// block, passage body, etc., depending on the format) to a scene/container.
 func (h *ScriptsHandler) CreateElement(ctx context.Context, req *scriptspb.CreateElementRequest) (*scriptspb.CreateElementResponse, error) {
 	// Parse project ID
 	projectID, err := uuid.Parse(req.ProjectId)
@@ -625,25 +614,14 @@ func (h *ScriptsHandler) CreateElement(ctx context.Context, req *scriptspb.Creat
 		return nil, status.Errorf(codes.InvalidArgument, "invalid scene ID: %v", err)
 	}
 
-	// Parse optional character ID
-	var characterID *uuid.UUID
-	if req.CharacterId != nil && *req.CharacterId != "" {
-		parsedCharacterID, err := uuid.Parse(*req.CharacterId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid character ID: %v", err)
-		}
-		characterID = &parsedCharacterID
-	}
-
 	// Create domain element
 	element := &domain.ScriptElement{
-		ProjectID:   projectID,
-		SceneID:     &sceneID,
-		Type:        req.ElementType,
-		Content:     req.Content,
-		CharacterID: characterID,
-		LineNumber:  req.LineNumber,
-		Formatting:  req.Formatting,
+		ProjectID:  projectID,
+		SceneID:    &sceneID,
+		Type:       req.ElementType,
+		Content:    req.Content,
+		LineNumber: req.LineNumber,
+		Formatting: req.Formatting,
 	}
 
 	// Create element through service
@@ -729,7 +707,7 @@ func (h *ScriptsHandler) GetSceneElements(ctx context.Context, req *scriptspb.Ge
 }
 
 // convertElementToProto maps a domain ScriptElement to the scripts proto
-// ScriptElement message. scene_id and character_id are only set when non-nil.
+// ScriptElement message. scene_id is only set when non-nil.
 func convertElementToProto(element *domain.ScriptElement) *scriptspb.ScriptElement {
 	protoElement := &scriptspb.ScriptElement{
 		Id:         element.ID.String(),
@@ -750,10 +728,6 @@ func convertElementToProto(element *domain.ScriptElement) *scriptspb.ScriptEleme
 
 	if element.SceneID != nil {
 		protoElement.SceneId = element.SceneID.String()
-	}
-
-	if element.CharacterID != nil {
-		protoElement.CharacterId = element.CharacterID.String()
 	}
 
 	return protoElement

@@ -299,10 +299,9 @@ type ScriptElement struct {
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ProjectId     string                 `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`                                                            // Changed from screenplay_id to project_id
 	SceneId       string                 `protobuf:"bytes,3,opt,name=scene_id,json=sceneId,proto3" json:"scene_id,omitempty"`                                                                  // Required link to scene - elements must belong to a scene
-	Type          string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`                                                                                       // "scene_heading", "character", "dialogue", "action", "parenthetical", "transition", "shot"
+	Type          string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`                                                                                       // format-specific element type, interpreted per editor
 	Content       string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`                                                                                 // The actual text content
-	CharacterId   string                 `protobuf:"bytes,6,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`                                                      // For dialogue elements, link to character
-	LineNumber    int32                  `protobuf:"varint,7,opt,name=line_number,json=lineNumber,proto3" json:"line_number,omitempty"`                                                        // Position in screenplay
+	LineNumber    int32                  `protobuf:"varint,7,opt,name=line_number,json=lineNumber,proto3" json:"line_number,omitempty"`                                                        // ordering index within the scene/container
 	Formatting    map[string]string      `protobuf:"bytes,8,rep,name=formatting,proto3" json:"formatting,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Additional formatting attributes
 	CreatedAt     *common.Timestamp      `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *common.Timestamp      `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
@@ -371,13 +370,6 @@ func (x *ScriptElement) GetType() string {
 func (x *ScriptElement) GetContent() string {
 	if x != nil {
 		return x.Content
-	}
-	return ""
-}
-
-func (x *ScriptElement) GetCharacterId() string {
-	if x != nil {
-		return x.CharacterId
 	}
 	return ""
 }
@@ -3504,15 +3496,14 @@ func (x *DeleteScriptElementResponse) GetSuccess() bool {
 	return false
 }
 
-// Simplified Element operations for gateway
+// Element create operation for the gateway.
 type CreateElementRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	SceneId       string                 `protobuf:"bytes,3,opt,name=scene_id,json=sceneId,proto3" json:"scene_id,omitempty"`
-	ElementType   string                 `protobuf:"bytes,4,opt,name=element_type,json=elementType,proto3" json:"element_type,omitempty"` // "ACTION", "CHARACTER", "DIALOG", "PARENTHETICAL", "SHOT", "TRANSITION"
+	ElementType   string                 `protobuf:"bytes,4,opt,name=element_type,json=elementType,proto3" json:"element_type,omitempty"` // format-specific element type, interpreted per editor
 	Content       string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
-	CharacterId   *string                `protobuf:"bytes,6,opt,name=character_id,json=characterId,proto3,oneof" json:"character_id,omitempty"`
 	LineNumber    int32                  `protobuf:"varint,7,opt,name=line_number,json=lineNumber,proto3" json:"line_number,omitempty"`
 	Formatting    map[string]string      `protobuf:"bytes,8,rep,name=formatting,proto3" json:"formatting,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
@@ -3580,13 +3571,6 @@ func (x *CreateElementRequest) GetElementType() string {
 func (x *CreateElementRequest) GetContent() string {
 	if x != nil {
 		return x.Content
-	}
-	return ""
-}
-
-func (x *CreateElementRequest) GetCharacterId() string {
-	if x != nil && x.CharacterId != nil {
-		return *x.CharacterId
 	}
 	return ""
 }
@@ -6001,15 +5985,14 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\a \x01(\v2\x11.common.TimestampR\tcreatedAt\x120\n" +
 	"\n" +
-	"updated_at\x18\b \x01(\v2\x11.common.TimestampR\tupdatedAt\"\xb6\x03\n" +
+	"updated_at\x18\b \x01(\v2\x11.common.TimestampR\tupdatedAt\"\xa7\x03\n" +
 	"\rScriptElement\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x02 \x01(\tR\tprojectId\x12\x19\n" +
 	"\bscene_id\x18\x03 \x01(\tR\asceneId\x12\x12\n" +
 	"\x04type\x18\x04 \x01(\tR\x04type\x12\x18\n" +
-	"\acontent\x18\x05 \x01(\tR\acontent\x12!\n" +
-	"\fcharacter_id\x18\x06 \x01(\tR\vcharacterId\x12\x1f\n" +
+	"\acontent\x18\x05 \x01(\tR\acontent\x12\x1f\n" +
 	"\vline_number\x18\a \x01(\x05R\n" +
 	"lineNumber\x12F\n" +
 	"\n" +
@@ -6022,7 +6005,7 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	" \x01(\v2\x11.common.TimestampR\tupdatedAt\x1a=\n" +
 	"\x0fFormattingEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x83\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x06\x10\aR\fcharacter_id\"\x83\x03\n" +
 	"\vOutlineUnit\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -6341,15 +6324,14 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\x11script_element_id\x18\x01 \x01(\tR\x0fscriptElementId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"7\n" +
 	"\x1bDeleteScriptElementResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\x8e\x03\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xe9\x02\n" +
 	"\x14CreateElementRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x19\n" +
 	"\bscene_id\x18\x03 \x01(\tR\asceneId\x12!\n" +
 	"\felement_type\x18\x04 \x01(\tR\velementType\x12\x18\n" +
-	"\acontent\x18\x05 \x01(\tR\acontent\x12&\n" +
-	"\fcharacter_id\x18\x06 \x01(\tH\x00R\vcharacterId\x88\x01\x01\x12\x1f\n" +
+	"\acontent\x18\x05 \x01(\tR\acontent\x12\x1f\n" +
 	"\vline_number\x18\a \x01(\x05R\n" +
 	"lineNumber\x12M\n" +
 	"\n" +
@@ -6357,8 +6339,7 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"formatting\x1a=\n" +
 	"\x0fFormattingEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x0f\n" +
-	"\r_character_id\"I\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x06\x10\aR\fcharacter_id\"I\n" +
 	"\x15CreateElementResponse\x120\n" +
 	"\aelement\x18\x01 \x01(\v2\x16.scripts.ScriptElementR\aelement\"|\n" +
 	"\x14UpdateElementRequest\x12\x1d\n" +
@@ -6902,7 +6883,6 @@ func file_scripts_scripts_proto_init() {
 	file_scripts_scripts_proto_msgTypes[31].OneofWrappers = []any{}
 	file_scripts_scripts_proto_msgTypes[35].OneofWrappers = []any{}
 	file_scripts_scripts_proto_msgTypes[43].OneofWrappers = []any{}
-	file_scripts_scripts_proto_msgTypes[50].OneofWrappers = []any{}
 	file_scripts_scripts_proto_msgTypes[58].OneofWrappers = []any{}
 	file_scripts_scripts_proto_msgTypes[64].OneofWrappers = []any{}
 	file_scripts_scripts_proto_msgTypes[76].OneofWrappers = []any{}

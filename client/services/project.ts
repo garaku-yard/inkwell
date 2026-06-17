@@ -49,7 +49,6 @@ export interface ScriptElement {
   scene_id?: string
   element_type: string
   content: string
-  character_id?: string
   line_number: number
   formatting: Record<string, string>
   created_at: string
@@ -223,7 +222,6 @@ export const createElement = (
     scene_id: string
     element_type: string
     content: string
-    character_id?: string
     line_number?: number
     formatting?: Record<string, string>
   },
@@ -234,7 +232,6 @@ export const createElement = (
     elementOrder: elementData.line_number ?? 0,
     elementType: elementData.element_type,
     content: elementData.content,
-    characterId: elementData.character_id,
   })
 
 export const updateElementContent = (

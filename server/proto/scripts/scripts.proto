@@ -39,10 +39,11 @@ message ScriptElement {
   string id = 1;
   string project_id = 2; // Changed from screenplay_id to project_id
   string scene_id = 3; // Required link to scene - elements must belong to a scene
-  string type = 4; // "scene_heading", "character", "dialogue", "action", "parenthetical", "transition", "shot"
+  string type = 4; // format-specific element type, interpreted per editor
   string content = 5; // The actual text content
-  string character_id = 6; // For dialogue elements, link to character
-  int32 line_number = 7; // Position in screenplay
+  reserved 6; // was character_id (screenplay-only, never populated) — removed
+  reserved "character_id";
+  int32 line_number = 7; // ordering index within the scene/container
   map<string, string> formatting = 8; // Additional formatting attributes
   common.Timestamp created_at = 9;
   common.Timestamp updated_at = 10;
@@ -375,14 +376,15 @@ message DeleteScriptElementResponse {
   bool success = 1;
 }
 
-// Simplified Element operations for gateway
+// Element create operation for the gateway.
 message CreateElementRequest {
   string project_id = 1;
   string user_id = 2;
   string scene_id = 3;
-  string element_type = 4; // "ACTION", "CHARACTER", "DIALOG", "PARENTHETICAL", "SHOT", "TRANSITION"
+  string element_type = 4; // format-specific element type, interpreted per editor
   string content = 5;
-  optional string character_id = 6;
+  reserved 6; // was character_id (screenplay-only) — removed
+  reserved "character_id";
   int32 line_number = 7;
   map<string, string> formatting = 8;
 }
