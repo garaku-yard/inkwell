@@ -216,6 +216,34 @@ async function walkMarkdownFiles(
   return out
 }
 
+/** Deletes index rows whose source note is no longer present in `onDisk`.
+ *  Covers all three per-note indexes — note_links / note_tags key the source
+ *  on `from_filename`, note_embeddings on `filename`. The table and column
+ *  names are fixed literals (never user input), so interpolating them carries
+ *  no injection risk; all values stay parameterised. */
+async function pruneOrphanedRows(
+  projectId: string,
+  onDisk: Set<string>,
+): Promise<void> {
+  const db = await getDb()
+  const pruneTable = async (table: string, col: string): Promise<void> => {
+    const rows = await db.select<Array<{ f: string }>>(
+      `SELECT DISTINCT ${col} AS f FROM ${table} WHERE project_id = ?`,
+      [projectId],
+    )
+    for (const { f } of rows) {
+      if (!f || onDisk.has(f)) continue
+      await db.execute(
+        `DELETE FROM ${table} WHERE project_id = ? AND ${col} = ?`,
+        [projectId, f],
+      )
+    }
+  }
+  await pruneTable("note_links", "from_filename")
+  await pruneTable("note_tags", "from_filename")
+  await pruneTable("note_embeddings", "filename")
+}
+
 /** Ensures every `.md` file in the vault has an up-to-date row set in
  *  `note_links`. Cheap no-op on subsequent calls — the in-memory
  *  `vaultIndexBuilt` set short-circuits repeated work per session. */
@@ -234,6 +262,9 @@ async function ensureVaultIndex(
       // backlinks until the user opens them.
     }
   }
+  // Sweep rows left behind by renames/deletes that happened while the app
+  // was closed (the watcher never saw them). Reuses the walk above.
+  await pruneOrphanedRows(projectId, new Set(files.map((f) => f.rel)))
   vaultIndexBuilt.add(projectId)
 }
 
@@ -572,6 +603,16 @@ export const vault: VaultStorage = {
       // briefly rename a temp file into place). Skip this batch — the
       // watcher will fire again when the write settles.
     }
+  },
+
+  pruneOrphanedIndex: async (projectId) => {
+    // reindexLinks already cleans up a changed path that's gone; this is the
+    // safety net for the path the watcher never hears about — a delete-less
+    // external rename (only the new name fires) — by reconciling against the
+    // full on-disk listing rather than the event's changed set.
+    const folder = await getVaultPathOrThrow(projectId)
+    const files = await walkMarkdownFiles(folder)
+    await pruneOrphanedRows(projectId, new Set(files.map((f) => f.rel)))
   },
 
   getGraph: async (projectId) => {

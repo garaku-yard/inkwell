@@ -28,4 +28,7 @@ export const vault: VaultStorage = {
   reindexLinks: async () => {
     /* vault is desktop-only; nothing to index on the hosted build */
   },
+  pruneOrphanedIndex: async () => {
+    /* vault is desktop-only; nothing to reconcile on the hosted build */
+  },
 }

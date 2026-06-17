@@ -45,6 +45,10 @@ export function useVaultWatcher({
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty
 
+  // Throttle the orphaned-index sweep — it walks the whole vault, so we
+  // don't want it on every autosave-triggered batch during active editing.
+  const lastPruneAtRef = useRef(0)
+
   const onSidebarRefreshRef = useRef(onSidebarRefresh)
   onSidebarRefreshRef.current = onSidebarRefresh
 
@@ -99,6 +103,19 @@ export function useVaultWatcher({
             }
             for (const filename of changedMd) {
               void storage.vault.reindexLinks(projectId, filename).catch(() => {})
+            }
+
+            // Safety net for delete-less external renames: some platforms emit
+            // only a "create" for the new name, so the old path never reaches
+            // reindexLinks above and its rows (embeddings especially) orphan.
+            // Reconcile against the full on-disk listing — throttled because it
+            // walks the vault.
+            if (changedMd.size > 0) {
+              const nowMs = Date.now()
+              if (nowMs - lastPruneAtRef.current > 10_000) {
+                lastPruneAtRef.current = nowMs
+                void storage.vault.pruneOrphanedIndex(projectId).catch(() => {})
+              }
             }
 
             // Kick the backlinks panel to refresh if the current note is

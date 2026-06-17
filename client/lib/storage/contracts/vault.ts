@@ -116,4 +116,12 @@ export interface VaultStorage {
    *  When the file no longer exists, the note's outbound rows are deleted
    *  instead — keeps ghost sources out of backlinks. */
   reindexLinks(projectId: string, filename: string): Promise<void>
+  /** Reconciles the link / tag / embedding indexes against the notes that
+   *  actually exist on disk, dropping every row whose source note is gone.
+   *  reindexLinks keeps changed files honest, but some platforms emit no
+   *  event for the old path of an external rename (a bare "create new" with
+   *  no matching "delete old"), and renames that happen while the app is
+   *  closed are never seen at all — both strand orphaned rows, embeddings
+   *  especially (reindexLinks never touches them). This sweep clears them. */
+  pruneOrphanedIndex(projectId: string): Promise<void>
 }
