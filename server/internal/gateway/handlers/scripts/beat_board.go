@@ -169,7 +169,7 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 			return &req, nil
 		},
 		Handle: func(r *http.Request, userID string, req *updateBeatBody) (*BeatResponse, error) {
-			beatID := getIDFromPath(r.URL.Path, "/beats/")
+			beatID := chi.URLParam(r, "beatId")
 
 			grpcReq := &scriptspb.UpdateBeatRequest{
 				BeatId: beatID,
@@ -274,7 +274,7 @@ func (h *ScriptsHandler) DeleteBeat(w http.ResponseWriter, r *http.Request) {
 		Decode:        handlers.NoBody[struct{}],
 		SuccessStatus: http.StatusNoContent,
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
-			beatID := getIDFromPath(r.URL.Path, "/beats/")
+			beatID := chi.URLParam(r, "beatId")
 
 			grpcReq := &scriptspb.DeleteBeatRequest{
 				BeatId: beatID,
@@ -349,7 +349,7 @@ func (h *ScriptsHandler) DeleteConnection(w http.ResponseWriter, r *http.Request
 		Decode:        handlers.NoBody[struct{}],
 		SuccessStatus: http.StatusNoContent,
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
-			connectionID := getIDFromPath(r.URL.Path, "/connections/")
+			connectionID := chi.URLParam(r, "connectionId")
 
 			grpcReq := &scriptspb.DeleteConnectionRequest{
 				ConnectionId: connectionID,
@@ -468,7 +468,7 @@ func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 			return &req, nil
 		},
 		Handle: func(r *http.Request, userID string, req *updateLaneBody) (*LaneResponse, error) {
-			laneID := getIDFromPath(r.URL.Path, "/lanes/")
+			laneID := chi.URLParam(r, "laneId")
 
 			grpcReq := &scriptspb.UpdateLaneRequest{
 				LaneId: laneID,
@@ -555,7 +555,7 @@ func (h *ScriptsHandler) DeleteLane(w http.ResponseWriter, r *http.Request) {
 		Decode:        handlers.NoBody[struct{}],
 		SuccessStatus: http.StatusNoContent,
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
-			laneID := getIDFromPath(r.URL.Path, "/lanes/")
+			laneID := chi.URLParam(r, "laneId")
 
 			grpcReq := &scriptspb.DeleteLaneRequest{
 				LaneId: laneID,
@@ -645,7 +645,7 @@ func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Reques
 			return &req, nil
 		},
 		Handle: func(r *http.Request, userID string, req *updateOutlineItemBody) (*OutlineItemResponse, error) {
-			outlineItemID := getIDFromPath(r.URL.Path, "/outline-items/")
+			outlineItemID := chi.URLParam(r, "itemId")
 
 			grpcReq := &scriptspb.UpdateOutlineItemRequest{
 				OutlineItemId: outlineItemID,
@@ -692,7 +692,7 @@ func (h *ScriptsHandler) DeleteOutlineItem(w http.ResponseWriter, r *http.Reques
 		Decode:        handlers.NoBody[struct{}],
 		SuccessStatus: http.StatusNoContent,
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
-			outlineItemID := getIDFromPath(r.URL.Path, "/outline-items/")
+			outlineItemID := chi.URLParam(r, "itemId")
 
 			grpcReq := &scriptspb.DeleteOutlineItemRequest{
 				OutlineItemId: outlineItemID,
@@ -711,11 +711,6 @@ func (h *ScriptsHandler) DeleteOutlineItem(w http.ResponseWriter, r *http.Reques
 			return nil, nil
 		},
 	}.ServeHTTP(w, r)
-}
-
-// Helper function to extract ID from path
-func getIDFromPath(path, prefix string) string {
-	return strings.TrimPrefix(path, prefix)
 }
 
 // UploadBeatImage handles POST /beats/upload-image
