@@ -24,14 +24,15 @@ client (Next.js 15)
             ├─► scripts-service    (gRPC :50052)  — projects, scenes, script elements
             ├─► collab-service     (gRPC :50053)  — collaborators, invitations, comments
             ├─► billing-service    (gRPC :50054)  — subscriptions, tiers, gateways
-            └─► workspace-service  (gRPC :50056)  — workspaces, categories, members
+            ├─► workspace-service  (gRPC :50056)  — workspaces, categories, members
+            └─► aisettings-service (gRPC :50057)  — BYO AI provider rows + AES-256-GCM key vault
 ```
 
 **Infrastructure (all in docker-compose):**
 
 | Component   | Purpose                                              |
 |-------------|------------------------------------------------------|
-| PostgreSQL  | One database per service (ports 5432–5436)          |
+| PostgreSQL  | One database per service (ports 5432–5437)          |
 | Redis       | JWT blocklist + fixed-window rate limiting (gateway) |
 | Kafka       | Async domain events between services                 |
 | Zookeeper   | Kafka dependency                                     |
@@ -49,6 +50,7 @@ Each backend service owns its database. Services never query each other's DB dir
 | collab     | collaborators, invitations, comments  | `collab.added/removed`        |
 | billing    | subscriptions, tiers, gateways        | `billing.updated`             |
 | workspace  | workspaces, categories, members       | —                             |
+| aisettings | user_ai_providers (encrypted BYO keys)| —                             |
 
 The gateway is **not** a service — it is a thin HTTP-to-gRPC proxy. It authenticates requests (JWT → identity-service), enforces rate limits (Redis), and routes to the appropriate service.
 
@@ -74,7 +76,8 @@ docker compose up -d
 
 # Or run only infrastructure and start services manually:
 docker compose up -d postgres-identity postgres-scripts postgres-collab \
-                       postgres-billing postgres-workspace redis kafka zookeeper
+                       postgres-billing postgres-workspace postgres-aisettings \
+                       redis kafka zookeeper
 
 # Run a service locally (example: identity)
 cd server

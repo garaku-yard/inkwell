@@ -132,7 +132,8 @@ Inkwell is built in two halves that can be run independently:
 │  Local-first storage    │  cookie  │     ├─ scripts-service     │
 │  Local AI provider      │   auth   │     ├─ collab-service      │
 │                         │          │     ├─ billing-service     │
-└─────────────────────────┘          │     └─ workspace-service   │
+│                         │          │     ├─ workspace-service   │
+└─────────────────────────┘          │     └─ aisettings-service  │
                                      │                            │
                                      │  Postgres / Redis / Kafka  │
                                      └────────────────────────────┘
