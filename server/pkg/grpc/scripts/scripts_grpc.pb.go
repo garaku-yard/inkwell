@@ -19,50 +19,46 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ScriptsService_CreateProject_FullMethodName            = "/scripts.ScriptsService/CreateProject"
-	ScriptsService_GetProject_FullMethodName               = "/scripts.ScriptsService/GetProject"
-	ScriptsService_UpdateProject_FullMethodName            = "/scripts.ScriptsService/UpdateProject"
-	ScriptsService_ToggleProjectStar_FullMethodName        = "/scripts.ScriptsService/ToggleProjectStar"
-	ScriptsService_DeleteProject_FullMethodName            = "/scripts.ScriptsService/DeleteProject"
-	ScriptsService_GetUserProjects_FullMethodName          = "/scripts.ScriptsService/GetUserProjects"
-	ScriptsService_CreateOutlineUnit_FullMethodName        = "/scripts.ScriptsService/CreateOutlineUnit"
-	ScriptsService_GetProjectOutline_FullMethodName        = "/scripts.ScriptsService/GetProjectOutline"
-	ScriptsService_UpdateOutlineUnit_FullMethodName        = "/scripts.ScriptsService/UpdateOutlineUnit"
-	ScriptsService_DeleteOutlineUnit_FullMethodName        = "/scripts.ScriptsService/DeleteOutlineUnit"
-	ScriptsService_CreateScene_FullMethodName              = "/scripts.ScriptsService/CreateScene"
-	ScriptsService_GetProjectScenes_FullMethodName         = "/scripts.ScriptsService/GetProjectScenes"
-	ScriptsService_UpdateScene_FullMethodName              = "/scripts.ScriptsService/UpdateScene"
-	ScriptsService_DeleteScene_FullMethodName              = "/scripts.ScriptsService/DeleteScene"
-	ScriptsService_CreateCharacter_FullMethodName          = "/scripts.ScriptsService/CreateCharacter"
-	ScriptsService_GetProjectCharacters_FullMethodName     = "/scripts.ScriptsService/GetProjectCharacters"
-	ScriptsService_UpdateCharacter_FullMethodName          = "/scripts.ScriptsService/UpdateCharacter"
-	ScriptsService_CreateLocation_FullMethodName           = "/scripts.ScriptsService/CreateLocation"
-	ScriptsService_GetProjectLocations_FullMethodName      = "/scripts.ScriptsService/GetProjectLocations"
-	ScriptsService_CreateScriptElement_FullMethodName      = "/scripts.ScriptsService/CreateScriptElement"
-	ScriptsService_GetProjectScriptElements_FullMethodName = "/scripts.ScriptsService/GetProjectScriptElements"
-	ScriptsService_UpdateScriptElement_FullMethodName      = "/scripts.ScriptsService/UpdateScriptElement"
-	ScriptsService_DeleteScriptElement_FullMethodName      = "/scripts.ScriptsService/DeleteScriptElement"
-	ScriptsService_BulkUpdateScriptElements_FullMethodName = "/scripts.ScriptsService/BulkUpdateScriptElements"
-	ScriptsService_BatchCreateElements_FullMethodName      = "/scripts.ScriptsService/BatchCreateElements"
-	ScriptsService_CreateElement_FullMethodName            = "/scripts.ScriptsService/CreateElement"
-	ScriptsService_UpdateElement_FullMethodName            = "/scripts.ScriptsService/UpdateElement"
-	ScriptsService_GetSceneElements_FullMethodName         = "/scripts.ScriptsService/GetSceneElements"
-	ScriptsService_CreateBeat_FullMethodName               = "/scripts.ScriptsService/CreateBeat"
-	ScriptsService_GetBeat_FullMethodName                  = "/scripts.ScriptsService/GetBeat"
-	ScriptsService_GetProjectBeatBoard_FullMethodName      = "/scripts.ScriptsService/GetProjectBeatBoard"
-	ScriptsService_UpdateBeat_FullMethodName               = "/scripts.ScriptsService/UpdateBeat"
-	ScriptsService_DeleteBeat_FullMethodName               = "/scripts.ScriptsService/DeleteBeat"
-	ScriptsService_CreateConnection_FullMethodName         = "/scripts.ScriptsService/CreateConnection"
-	ScriptsService_DeleteConnection_FullMethodName         = "/scripts.ScriptsService/DeleteConnection"
-	ScriptsService_CreateLane_FullMethodName               = "/scripts.ScriptsService/CreateLane"
-	ScriptsService_GetProjectLanes_FullMethodName          = "/scripts.ScriptsService/GetProjectLanes"
-	ScriptsService_UpdateLane_FullMethodName               = "/scripts.ScriptsService/UpdateLane"
-	ScriptsService_UpdateLaneOrder_FullMethodName          = "/scripts.ScriptsService/UpdateLaneOrder"
-	ScriptsService_DeleteLane_FullMethodName               = "/scripts.ScriptsService/DeleteLane"
-	ScriptsService_CreateOutlineItem_FullMethodName        = "/scripts.ScriptsService/CreateOutlineItem"
-	ScriptsService_UpdateOutlineItem_FullMethodName        = "/scripts.ScriptsService/UpdateOutlineItem"
-	ScriptsService_DeleteOutlineItem_FullMethodName        = "/scripts.ScriptsService/DeleteOutlineItem"
-	ScriptsService_GetResourceProject_FullMethodName       = "/scripts.ScriptsService/GetResourceProject"
+	ScriptsService_CreateProject_FullMethodName        = "/scripts.ScriptsService/CreateProject"
+	ScriptsService_GetProject_FullMethodName           = "/scripts.ScriptsService/GetProject"
+	ScriptsService_UpdateProject_FullMethodName        = "/scripts.ScriptsService/UpdateProject"
+	ScriptsService_ToggleProjectStar_FullMethodName    = "/scripts.ScriptsService/ToggleProjectStar"
+	ScriptsService_DeleteProject_FullMethodName        = "/scripts.ScriptsService/DeleteProject"
+	ScriptsService_GetUserProjects_FullMethodName      = "/scripts.ScriptsService/GetUserProjects"
+	ScriptsService_CreateOutlineUnit_FullMethodName    = "/scripts.ScriptsService/CreateOutlineUnit"
+	ScriptsService_GetProjectOutline_FullMethodName    = "/scripts.ScriptsService/GetProjectOutline"
+	ScriptsService_UpdateOutlineUnit_FullMethodName    = "/scripts.ScriptsService/UpdateOutlineUnit"
+	ScriptsService_DeleteOutlineUnit_FullMethodName    = "/scripts.ScriptsService/DeleteOutlineUnit"
+	ScriptsService_CreateScene_FullMethodName          = "/scripts.ScriptsService/CreateScene"
+	ScriptsService_GetProjectScenes_FullMethodName     = "/scripts.ScriptsService/GetProjectScenes"
+	ScriptsService_UpdateScene_FullMethodName          = "/scripts.ScriptsService/UpdateScene"
+	ScriptsService_DeleteScene_FullMethodName          = "/scripts.ScriptsService/DeleteScene"
+	ScriptsService_CreateCharacter_FullMethodName      = "/scripts.ScriptsService/CreateCharacter"
+	ScriptsService_GetProjectCharacters_FullMethodName = "/scripts.ScriptsService/GetProjectCharacters"
+	ScriptsService_UpdateCharacter_FullMethodName      = "/scripts.ScriptsService/UpdateCharacter"
+	ScriptsService_CreateLocation_FullMethodName       = "/scripts.ScriptsService/CreateLocation"
+	ScriptsService_GetProjectLocations_FullMethodName  = "/scripts.ScriptsService/GetProjectLocations"
+	ScriptsService_CreateElement_FullMethodName        = "/scripts.ScriptsService/CreateElement"
+	ScriptsService_UpdateElement_FullMethodName        = "/scripts.ScriptsService/UpdateElement"
+	ScriptsService_GetSceneElements_FullMethodName     = "/scripts.ScriptsService/GetSceneElements"
+	ScriptsService_DeleteScriptElement_FullMethodName  = "/scripts.ScriptsService/DeleteScriptElement"
+	ScriptsService_BatchCreateElements_FullMethodName  = "/scripts.ScriptsService/BatchCreateElements"
+	ScriptsService_CreateBeat_FullMethodName           = "/scripts.ScriptsService/CreateBeat"
+	ScriptsService_GetBeat_FullMethodName              = "/scripts.ScriptsService/GetBeat"
+	ScriptsService_GetProjectBeatBoard_FullMethodName  = "/scripts.ScriptsService/GetProjectBeatBoard"
+	ScriptsService_UpdateBeat_FullMethodName           = "/scripts.ScriptsService/UpdateBeat"
+	ScriptsService_DeleteBeat_FullMethodName           = "/scripts.ScriptsService/DeleteBeat"
+	ScriptsService_CreateConnection_FullMethodName     = "/scripts.ScriptsService/CreateConnection"
+	ScriptsService_DeleteConnection_FullMethodName     = "/scripts.ScriptsService/DeleteConnection"
+	ScriptsService_CreateLane_FullMethodName           = "/scripts.ScriptsService/CreateLane"
+	ScriptsService_GetProjectLanes_FullMethodName      = "/scripts.ScriptsService/GetProjectLanes"
+	ScriptsService_UpdateLane_FullMethodName           = "/scripts.ScriptsService/UpdateLane"
+	ScriptsService_UpdateLaneOrder_FullMethodName      = "/scripts.ScriptsService/UpdateLaneOrder"
+	ScriptsService_DeleteLane_FullMethodName           = "/scripts.ScriptsService/DeleteLane"
+	ScriptsService_CreateOutlineItem_FullMethodName    = "/scripts.ScriptsService/CreateOutlineItem"
+	ScriptsService_UpdateOutlineItem_FullMethodName    = "/scripts.ScriptsService/UpdateOutlineItem"
+	ScriptsService_DeleteOutlineItem_FullMethodName    = "/scripts.ScriptsService/DeleteOutlineItem"
+	ScriptsService_GetResourceProject_FullMethodName   = "/scripts.ScriptsService/GetResourceProject"
 )
 
 // ScriptsServiceClient is the client API for ScriptsService service.
@@ -95,17 +91,14 @@ type ScriptsServiceClient interface {
 	// Location management
 	CreateLocation(ctx context.Context, in *CreateLocationRequest, opts ...grpc.CallOption) (*CreateLocationResponse, error)
 	GetProjectLocations(ctx context.Context, in *GetProjectLocationsRequest, opts ...grpc.CallOption) (*GetProjectLocationsResponse, error)
-	// Script element management (for line-by-line editing of the screenplay content)
-	CreateScriptElement(ctx context.Context, in *CreateScriptElementRequest, opts ...grpc.CallOption) (*CreateScriptElementResponse, error)
-	GetProjectScriptElements(ctx context.Context, in *GetProjectScriptElementsRequest, opts ...grpc.CallOption) (*GetProjectScriptElementsResponse, error)
-	UpdateScriptElement(ctx context.Context, in *UpdateScriptElementRequest, opts ...grpc.CallOption) (*UpdateScriptElementResponse, error)
-	DeleteScriptElement(ctx context.Context, in *DeleteScriptElementRequest, opts ...grpc.CallOption) (*DeleteScriptElementResponse, error)
-	BulkUpdateScriptElements(ctx context.Context, in *BulkUpdateScriptElementsRequest, opts ...grpc.CallOption) (*BulkUpdateScriptElementsResponse, error)
-	BatchCreateElements(ctx context.Context, in *BatchCreateElementsRequest, opts ...grpc.CallOption) (*BatchCreateElementsResponse, error)
-	// Simplified element operations for gateway
+	// Element operations. CreateElement / UpdateElement / GetSceneElements back
+	// the gateway's element CRUD; DeleteScriptElement deletes by id;
+	// BatchCreateElements persists a scene's elements in one call (FDX import).
 	CreateElement(ctx context.Context, in *CreateElementRequest, opts ...grpc.CallOption) (*CreateElementResponse, error)
 	UpdateElement(ctx context.Context, in *UpdateElementRequest, opts ...grpc.CallOption) (*UpdateElementResponse, error)
 	GetSceneElements(ctx context.Context, in *GetSceneElementsRequest, opts ...grpc.CallOption) (*GetSceneElementsResponse, error)
+	DeleteScriptElement(ctx context.Context, in *DeleteScriptElementRequest, opts ...grpc.CallOption) (*DeleteScriptElementResponse, error)
+	BatchCreateElements(ctx context.Context, in *BatchCreateElementsRequest, opts ...grpc.CallOption) (*BatchCreateElementsResponse, error)
 	// Beat Board management
 	CreateBeat(ctx context.Context, in *CreateBeatRequest, opts ...grpc.CallOption) (*CreateBeatResponse, error)
 	GetBeat(ctx context.Context, in *GetBeatRequest, opts ...grpc.CallOption) (*GetBeatResponse, error)
@@ -327,66 +320,6 @@ func (c *scriptsServiceClient) GetProjectLocations(ctx context.Context, in *GetP
 	return out, nil
 }
 
-func (c *scriptsServiceClient) CreateScriptElement(ctx context.Context, in *CreateScriptElementRequest, opts ...grpc.CallOption) (*CreateScriptElementResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateScriptElementResponse)
-	err := c.cc.Invoke(ctx, ScriptsService_CreateScriptElement_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *scriptsServiceClient) GetProjectScriptElements(ctx context.Context, in *GetProjectScriptElementsRequest, opts ...grpc.CallOption) (*GetProjectScriptElementsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetProjectScriptElementsResponse)
-	err := c.cc.Invoke(ctx, ScriptsService_GetProjectScriptElements_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *scriptsServiceClient) UpdateScriptElement(ctx context.Context, in *UpdateScriptElementRequest, opts ...grpc.CallOption) (*UpdateScriptElementResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpdateScriptElementResponse)
-	err := c.cc.Invoke(ctx, ScriptsService_UpdateScriptElement_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *scriptsServiceClient) DeleteScriptElement(ctx context.Context, in *DeleteScriptElementRequest, opts ...grpc.CallOption) (*DeleteScriptElementResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeleteScriptElementResponse)
-	err := c.cc.Invoke(ctx, ScriptsService_DeleteScriptElement_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *scriptsServiceClient) BulkUpdateScriptElements(ctx context.Context, in *BulkUpdateScriptElementsRequest, opts ...grpc.CallOption) (*BulkUpdateScriptElementsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BulkUpdateScriptElementsResponse)
-	err := c.cc.Invoke(ctx, ScriptsService_BulkUpdateScriptElements_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *scriptsServiceClient) BatchCreateElements(ctx context.Context, in *BatchCreateElementsRequest, opts ...grpc.CallOption) (*BatchCreateElementsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BatchCreateElementsResponse)
-	err := c.cc.Invoke(ctx, ScriptsService_BatchCreateElements_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *scriptsServiceClient) CreateElement(ctx context.Context, in *CreateElementRequest, opts ...grpc.CallOption) (*CreateElementResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateElementResponse)
@@ -411,6 +344,26 @@ func (c *scriptsServiceClient) GetSceneElements(ctx context.Context, in *GetScen
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSceneElementsResponse)
 	err := c.cc.Invoke(ctx, ScriptsService_GetSceneElements_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) DeleteScriptElement(ctx context.Context, in *DeleteScriptElementRequest, opts ...grpc.CallOption) (*DeleteScriptElementResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteScriptElementResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_DeleteScriptElement_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) BatchCreateElements(ctx context.Context, in *BatchCreateElementsRequest, opts ...grpc.CallOption) (*BatchCreateElementsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchCreateElementsResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_BatchCreateElements_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -607,17 +560,14 @@ type ScriptsServiceServer interface {
 	// Location management
 	CreateLocation(context.Context, *CreateLocationRequest) (*CreateLocationResponse, error)
 	GetProjectLocations(context.Context, *GetProjectLocationsRequest) (*GetProjectLocationsResponse, error)
-	// Script element management (for line-by-line editing of the screenplay content)
-	CreateScriptElement(context.Context, *CreateScriptElementRequest) (*CreateScriptElementResponse, error)
-	GetProjectScriptElements(context.Context, *GetProjectScriptElementsRequest) (*GetProjectScriptElementsResponse, error)
-	UpdateScriptElement(context.Context, *UpdateScriptElementRequest) (*UpdateScriptElementResponse, error)
-	DeleteScriptElement(context.Context, *DeleteScriptElementRequest) (*DeleteScriptElementResponse, error)
-	BulkUpdateScriptElements(context.Context, *BulkUpdateScriptElementsRequest) (*BulkUpdateScriptElementsResponse, error)
-	BatchCreateElements(context.Context, *BatchCreateElementsRequest) (*BatchCreateElementsResponse, error)
-	// Simplified element operations for gateway
+	// Element operations. CreateElement / UpdateElement / GetSceneElements back
+	// the gateway's element CRUD; DeleteScriptElement deletes by id;
+	// BatchCreateElements persists a scene's elements in one call (FDX import).
 	CreateElement(context.Context, *CreateElementRequest) (*CreateElementResponse, error)
 	UpdateElement(context.Context, *UpdateElementRequest) (*UpdateElementResponse, error)
 	GetSceneElements(context.Context, *GetSceneElementsRequest) (*GetSceneElementsResponse, error)
+	DeleteScriptElement(context.Context, *DeleteScriptElementRequest) (*DeleteScriptElementResponse, error)
+	BatchCreateElements(context.Context, *BatchCreateElementsRequest) (*BatchCreateElementsResponse, error)
 	// Beat Board management
 	CreateBeat(context.Context, *CreateBeatRequest) (*CreateBeatResponse, error)
 	GetBeat(context.Context, *GetBeatRequest) (*GetBeatResponse, error)
@@ -706,24 +656,6 @@ func (UnimplementedScriptsServiceServer) CreateLocation(context.Context, *Create
 func (UnimplementedScriptsServiceServer) GetProjectLocations(context.Context, *GetProjectLocationsRequest) (*GetProjectLocationsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetProjectLocations not implemented")
 }
-func (UnimplementedScriptsServiceServer) CreateScriptElement(context.Context, *CreateScriptElementRequest) (*CreateScriptElementResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method CreateScriptElement not implemented")
-}
-func (UnimplementedScriptsServiceServer) GetProjectScriptElements(context.Context, *GetProjectScriptElementsRequest) (*GetProjectScriptElementsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetProjectScriptElements not implemented")
-}
-func (UnimplementedScriptsServiceServer) UpdateScriptElement(context.Context, *UpdateScriptElementRequest) (*UpdateScriptElementResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method UpdateScriptElement not implemented")
-}
-func (UnimplementedScriptsServiceServer) DeleteScriptElement(context.Context, *DeleteScriptElementRequest) (*DeleteScriptElementResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method DeleteScriptElement not implemented")
-}
-func (UnimplementedScriptsServiceServer) BulkUpdateScriptElements(context.Context, *BulkUpdateScriptElementsRequest) (*BulkUpdateScriptElementsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method BulkUpdateScriptElements not implemented")
-}
-func (UnimplementedScriptsServiceServer) BatchCreateElements(context.Context, *BatchCreateElementsRequest) (*BatchCreateElementsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method BatchCreateElements not implemented")
-}
 func (UnimplementedScriptsServiceServer) CreateElement(context.Context, *CreateElementRequest) (*CreateElementResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateElement not implemented")
 }
@@ -732,6 +664,12 @@ func (UnimplementedScriptsServiceServer) UpdateElement(context.Context, *UpdateE
 }
 func (UnimplementedScriptsServiceServer) GetSceneElements(context.Context, *GetSceneElementsRequest) (*GetSceneElementsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSceneElements not implemented")
+}
+func (UnimplementedScriptsServiceServer) DeleteScriptElement(context.Context, *DeleteScriptElementRequest) (*DeleteScriptElementResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteScriptElement not implemented")
+}
+func (UnimplementedScriptsServiceServer) BatchCreateElements(context.Context, *BatchCreateElementsRequest) (*BatchCreateElementsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BatchCreateElements not implemented")
 }
 func (UnimplementedScriptsServiceServer) CreateBeat(context.Context, *CreateBeatRequest) (*CreateBeatResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateBeat not implemented")
@@ -1144,114 +1082,6 @@ func _ScriptsService_GetProjectLocations_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ScriptsService_CreateScriptElement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateScriptElementRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ScriptsServiceServer).CreateScriptElement(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ScriptsService_CreateScriptElement_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ScriptsServiceServer).CreateScriptElement(ctx, req.(*CreateScriptElementRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ScriptsService_GetProjectScriptElements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetProjectScriptElementsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ScriptsServiceServer).GetProjectScriptElements(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ScriptsService_GetProjectScriptElements_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ScriptsServiceServer).GetProjectScriptElements(ctx, req.(*GetProjectScriptElementsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ScriptsService_UpdateScriptElement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateScriptElementRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ScriptsServiceServer).UpdateScriptElement(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ScriptsService_UpdateScriptElement_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ScriptsServiceServer).UpdateScriptElement(ctx, req.(*UpdateScriptElementRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ScriptsService_DeleteScriptElement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteScriptElementRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ScriptsServiceServer).DeleteScriptElement(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ScriptsService_DeleteScriptElement_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ScriptsServiceServer).DeleteScriptElement(ctx, req.(*DeleteScriptElementRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ScriptsService_BulkUpdateScriptElements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BulkUpdateScriptElementsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ScriptsServiceServer).BulkUpdateScriptElements(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ScriptsService_BulkUpdateScriptElements_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ScriptsServiceServer).BulkUpdateScriptElements(ctx, req.(*BulkUpdateScriptElementsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ScriptsService_BatchCreateElements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BatchCreateElementsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ScriptsServiceServer).BatchCreateElements(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ScriptsService_BatchCreateElements_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ScriptsServiceServer).BatchCreateElements(ctx, req.(*BatchCreateElementsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _ScriptsService_CreateElement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateElementRequest)
 	if err := dec(in); err != nil {
@@ -1302,6 +1132,42 @@ func _ScriptsService_GetSceneElements_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ScriptsServiceServer).GetSceneElements(ctx, req.(*GetSceneElementsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_DeleteScriptElement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteScriptElementRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).DeleteScriptElement(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_DeleteScriptElement_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).DeleteScriptElement(ctx, req.(*DeleteScriptElementRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_BatchCreateElements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchCreateElementsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).BatchCreateElements(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_BatchCreateElements_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).BatchCreateElements(ctx, req.(*BatchCreateElementsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1678,30 +1544,6 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ScriptsService_GetProjectLocations_Handler,
 		},
 		{
-			MethodName: "CreateScriptElement",
-			Handler:    _ScriptsService_CreateScriptElement_Handler,
-		},
-		{
-			MethodName: "GetProjectScriptElements",
-			Handler:    _ScriptsService_GetProjectScriptElements_Handler,
-		},
-		{
-			MethodName: "UpdateScriptElement",
-			Handler:    _ScriptsService_UpdateScriptElement_Handler,
-		},
-		{
-			MethodName: "DeleteScriptElement",
-			Handler:    _ScriptsService_DeleteScriptElement_Handler,
-		},
-		{
-			MethodName: "BulkUpdateScriptElements",
-			Handler:    _ScriptsService_BulkUpdateScriptElements_Handler,
-		},
-		{
-			MethodName: "BatchCreateElements",
-			Handler:    _ScriptsService_BatchCreateElements_Handler,
-		},
-		{
 			MethodName: "CreateElement",
 			Handler:    _ScriptsService_CreateElement_Handler,
 		},
@@ -1712,6 +1554,14 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSceneElements",
 			Handler:    _ScriptsService_GetSceneElements_Handler,
+		},
+		{
+			MethodName: "DeleteScriptElement",
+			Handler:    _ScriptsService_DeleteScriptElement_Handler,
+		},
+		{
+			MethodName: "BatchCreateElements",
+			Handler:    _ScriptsService_BatchCreateElements_Handler,
 		},
 		{
 			MethodName: "CreateBeat",

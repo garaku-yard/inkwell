@@ -453,21 +453,6 @@ func (h *ScriptsHandler) GetProjectLocations(ctx context.Context, req *scriptspb
 	return nil, status.Errorf(codes.Unimplemented, "method GetProjectLocations not implemented")
 }
 
-// CreateScriptElement is not yet implemented and always returns codes.Unimplemented.
-func (h *ScriptsHandler) CreateScriptElement(ctx context.Context, req *scriptspb.CreateScriptElementRequest) (*scriptspb.CreateScriptElementResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateScriptElement not implemented")
-}
-
-// GetProjectScriptElements is not yet implemented and always returns codes.Unimplemented.
-func (h *ScriptsHandler) GetProjectScriptElements(ctx context.Context, req *scriptspb.GetProjectScriptElementsRequest) (*scriptspb.GetProjectScriptElementsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetProjectScriptElements not implemented")
-}
-
-// UpdateScriptElement is not yet implemented and always returns codes.Unimplemented.
-func (h *ScriptsHandler) UpdateScriptElement(ctx context.Context, req *scriptspb.UpdateScriptElementRequest) (*scriptspb.UpdateScriptElementResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateScriptElement not implemented")
-}
-
 // DeleteScriptElement removes a single script element by ID. The service enforces
 // that the caller has write access to the element's parent project.
 func (h *ScriptsHandler) DeleteScriptElement(ctx context.Context, req *scriptspb.DeleteScriptElementRequest) (*scriptspb.DeleteScriptElementResponse, error) {
@@ -496,11 +481,6 @@ func (h *ScriptsHandler) DeleteScriptElement(ctx context.Context, req *scriptspb
 	return &scriptspb.DeleteScriptElementResponse{
 		Success: true,
 	}, nil
-}
-
-// BulkUpdateScriptElements is not yet implemented and always returns codes.Unimplemented.
-func (h *ScriptsHandler) BulkUpdateScriptElements(ctx context.Context, req *scriptspb.BulkUpdateScriptElementsRequest) (*scriptspb.BulkUpdateScriptElementsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BulkUpdateScriptElements not implemented")
 }
 
 // BatchCreateElements creates multiple script elements in a single call. It is

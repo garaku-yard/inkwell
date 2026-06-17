@@ -30,11 +30,7 @@ type ScriptsService interface {
 	GetUserProjects(ctx context.Context, userID uuid.UUID, offset, limit int) ([]*domain.Project, int64, error)
 
 	// Script element operations
-	CreateScriptElement(ctx context.Context, projectID, userID uuid.UUID, element *domain.ScriptElement) (*domain.ScriptElement, error)
-	GetProjectScriptElements(ctx context.Context, projectID, userID uuid.UUID, startLine, endLine int32) ([]*domain.ScriptElement, error)
-	UpdateScriptElement(ctx context.Context, elementID, userID uuid.UUID, updates *domain.ScriptElement) (*domain.ScriptElement, error)
 	DeleteScriptElement(ctx context.Context, elementID, userID uuid.UUID) error
-	BulkUpdateScriptElements(ctx context.Context, projectID, userID uuid.UUID, elements []*domain.ScriptElement) ([]*domain.ScriptElement, error)
 
 	// GetResourceProject resolves which project owns a sub-resource. It is an
 	// internal lookup with no access check — the gateway authorizes the caller
@@ -308,67 +304,6 @@ func (s *scriptsService) verifyProjectAccess(ctx context.Context, projectID, use
 }
 
 // Script element operations
-func (s *scriptsService) CreateScriptElement(ctx context.Context, projectID, userID uuid.UUID, element *domain.ScriptElement) (*domain.ScriptElement, error) {
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
-		return nil, err
-	}
-
-	element.ID = uuid.New()
-	element.ProjectID = projectID
-	element.CreatedAt = time.Now()
-	element.UpdatedAt = time.Now()
-
-	if err := s.repo.ScriptElement.CreateScriptElement(ctx, element); err != nil {
-		return nil, err
-	}
-
-	return element, nil
-}
-
-func (s *scriptsService) GetProjectScriptElements(ctx context.Context, projectID, userID uuid.UUID, startLine, endLine int32) ([]*domain.ScriptElement, error) {
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
-		return nil, err
-	}
-
-	return s.repo.ScriptElement.GetProjectScriptElements(ctx, projectID, startLine, endLine)
-}
-
-func (s *scriptsService) UpdateScriptElement(ctx context.Context, elementID, userID uuid.UUID, updates *domain.ScriptElement) (*domain.ScriptElement, error) {
-	// Get existing element to check project ownership
-	element, err := s.repo.ScriptElement.GetScriptElement(ctx, elementID)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.verifyProjectAccess(ctx, element.ProjectID, userID); err != nil {
-		return nil, err
-	}
-
-	// Apply updates
-	element.UpdatedAt = time.Now()
-	if updates.Type != "" {
-		element.Type = updates.Type
-	}
-	if updates.Content != "" {
-		element.Content = updates.Content
-	}
-	if updates.CharacterID != nil {
-		element.CharacterID = updates.CharacterID
-	}
-	if updates.LineNumber != 0 {
-		element.LineNumber = updates.LineNumber
-	}
-	if updates.Formatting != nil {
-		element.Formatting = updates.Formatting
-	}
-
-	if err := s.repo.ScriptElement.UpdateScriptElement(ctx, element); err != nil {
-		return nil, err
-	}
-
-	return element, nil
-}
-
 func (s *scriptsService) DeleteScriptElement(ctx context.Context, elementID, userID uuid.UUID) error {
 	// Get existing element to check project ownership
 	element, err := s.repo.ScriptElement.GetScriptElement(ctx, elementID)
@@ -381,29 +316,6 @@ func (s *scriptsService) DeleteScriptElement(ctx context.Context, elementID, use
 	}
 
 	return s.repo.ScriptElement.DeleteScriptElement(ctx, elementID)
-}
-
-func (s *scriptsService) BulkUpdateScriptElements(ctx context.Context, projectID, userID uuid.UUID, elements []*domain.ScriptElement) ([]*domain.ScriptElement, error) {
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
-		return nil, err
-	}
-
-	// Ensure all elements belong to the project and set timestamps
-	now := time.Now()
-	for _, element := range elements {
-		element.ProjectID = projectID
-		element.UpdatedAt = now
-		if element.ID == uuid.Nil {
-			element.ID = uuid.New()
-			element.CreatedAt = now
-		}
-	}
-
-	if err := s.repo.ScriptElement.BulkUpdateScriptElements(ctx, elements); err != nil {
-		return nil, err
-	}
-
-	return elements, nil
 }
 
 // GetResourceProject resolves which project owns a sub-resource by id. It is a

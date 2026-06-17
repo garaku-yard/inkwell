@@ -36,11 +36,9 @@ type ProjectRepository interface {
 type ScriptElementRepository interface {
 	CreateScriptElement(ctx context.Context, element *domain.ScriptElement) error
 	GetScriptElement(ctx context.Context, elementID uuid.UUID) (*domain.ScriptElement, error)
-	GetProjectScriptElements(ctx context.Context, projectID uuid.UUID, startLine, endLine int32) ([]*domain.ScriptElement, error)
 	GetSceneElements(ctx context.Context, sceneID uuid.UUID) ([]*domain.ScriptElement, error)
 	UpdateScriptElement(ctx context.Context, element *domain.ScriptElement) error
 	DeleteScriptElement(ctx context.Context, elementID uuid.UUID) error
-	BulkUpdateScriptElements(ctx context.Context, elements []*domain.ScriptElement) error
 }
 
 // SceneRepository defines the interface for scene data access
@@ -484,9 +482,6 @@ func (r *scriptElementRepository) GetScriptElement(ctx context.Context, elementI
 
 	return element, nil
 }
-func (r *scriptElementRepository) GetProjectScriptElements(ctx context.Context, projectID uuid.UUID, startLine, endLine int32) ([]*domain.ScriptElement, error) {
-	return nil, nil
-}
 func (r *scriptElementRepository) GetSceneElements(ctx context.Context, sceneID uuid.UUID) ([]*domain.ScriptElement, error) {
 	query := `
 		SELECT element_id, project_id, scene_id, element_type, content, character_id, line_number, formatting, created_at, updated_at
@@ -599,9 +594,6 @@ func (r *scriptElementRepository) DeleteScriptElement(ctx context.Context, eleme
 	}
 
 	return tx.Commit()
-}
-func (r *scriptElementRepository) BulkUpdateScriptElements(ctx context.Context, elements []*domain.ScriptElement) error {
-	return nil
 }
 
 type sceneRepository struct{ db *sql.DB }

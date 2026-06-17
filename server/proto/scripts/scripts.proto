@@ -366,46 +366,6 @@ message UpdateLocationResponse {
 }
 
 // Script element requests/responses
-message CreateScriptElementRequest {
-  string project_id = 1; // Changed from screenplay_id to project_id
-  string user_id = 2; // For authorization check
-  optional string scene_id = 3;
-  string type = 4;
-  string content = 5;
-  optional string character_id = 6;
-  int32 line_number = 7;
-  map<string, string> formatting = 8;
-}
-
-message CreateScriptElementResponse {
-  ScriptElement script_element = 1;
-}
-
-message GetProjectScriptElementsRequest {
-  string project_id = 1; // Changed from screenplay_id to project_id
-  string user_id = 2; // For authorization check
-  optional int32 start_line = 3; // For pagination
-  optional int32 end_line = 4;
-}
-
-message GetProjectScriptElementsResponse {
-  repeated ScriptElement script_elements = 1;
-}
-
-message UpdateScriptElementRequest {
-  string script_element_id = 1;
-  string user_id = 2; // For authorization check
-  optional string content = 3;
-  optional string type = 4;
-  optional string character_id = 5;
-  optional int32 line_number = 6;
-  map<string, string> formatting = 7;
-}
-
-message UpdateScriptElementResponse {
-  ScriptElement script_element = 1;
-}
-
 message DeleteScriptElementRequest {
   string script_element_id = 1;
   string user_id = 2; // For authorization check
@@ -449,17 +409,6 @@ message GetSceneElementsRequest {
 
 message GetSceneElementsResponse {
   repeated ScriptElement elements = 1;
-}
-
-// Bulk operations for real-time editing
-message BulkUpdateScriptElementsRequest {
-  string project_id = 1; // Changed from screenplay_id to project_id
-  string user_id = 2;
-  repeated ScriptElement elements = 3;
-}
-
-message BulkUpdateScriptElementsResponse {
-  repeated ScriptElement updated_elements = 1;
 }
 
 // Batch create elements for imports
@@ -717,18 +666,14 @@ service ScriptsService {
   rpc CreateLocation(CreateLocationRequest) returns (CreateLocationResponse);
   rpc GetProjectLocations(GetProjectLocationsRequest) returns (GetProjectLocationsResponse);
   
-  // Script element management (for line-by-line editing of the screenplay content)
-  rpc CreateScriptElement(CreateScriptElementRequest) returns (CreateScriptElementResponse);
-  rpc GetProjectScriptElements(GetProjectScriptElementsRequest) returns (GetProjectScriptElementsResponse);
-  rpc UpdateScriptElement(UpdateScriptElementRequest) returns (UpdateScriptElementResponse);
-  rpc DeleteScriptElement(DeleteScriptElementRequest) returns (DeleteScriptElementResponse);
-  rpc BulkUpdateScriptElements(BulkUpdateScriptElementsRequest) returns (BulkUpdateScriptElementsResponse);
-  rpc BatchCreateElements(BatchCreateElementsRequest) returns (BatchCreateElementsResponse);
-  
-  // Simplified element operations for gateway
+  // Element operations. CreateElement / UpdateElement / GetSceneElements back
+  // the gateway's element CRUD; DeleteScriptElement deletes by id;
+  // BatchCreateElements persists a scene's elements in one call (FDX import).
   rpc CreateElement(CreateElementRequest) returns (CreateElementResponse);
   rpc UpdateElement(UpdateElementRequest) returns (UpdateElementResponse);
   rpc GetSceneElements(GetSceneElementsRequest) returns (GetSceneElementsResponse);
+  rpc DeleteScriptElement(DeleteScriptElementRequest) returns (DeleteScriptElementResponse);
+  rpc BatchCreateElements(BatchCreateElementsRequest) returns (BatchCreateElementsResponse);
   
   // Beat Board management
   rpc CreateBeat(CreateBeatRequest) returns (CreateBeatResponse);
