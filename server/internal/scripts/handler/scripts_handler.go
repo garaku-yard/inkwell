@@ -834,6 +834,11 @@ func (h *ScriptsHandler) CreateConnection(ctx context.Context, req *scriptspb.Cr
 	return h.beatBoardHandler.CreateConnection(ctx, req)
 }
 
+// GetConnection delegates to BeatBoardHandler.GetConnection.
+func (h *ScriptsHandler) GetConnection(ctx context.Context, req *scriptspb.GetConnectionRequest) (*scriptspb.GetConnectionResponse, error) {
+	return h.beatBoardHandler.GetConnection(ctx, req)
+}
+
 // DeleteConnection delegates to BeatBoardHandler.DeleteConnection.
 func (h *ScriptsHandler) DeleteConnection(ctx context.Context, req *scriptspb.DeleteConnectionRequest) (*scriptspb.DeleteConnectionResponse, error) {
 	return h.beatBoardHandler.DeleteConnection(ctx, req)
@@ -859,6 +864,11 @@ func (h *ScriptsHandler) UpdateLaneOrder(ctx context.Context, req *scriptspb.Upd
 	return h.beatBoardHandler.UpdateLaneOrder(ctx, req)
 }
 
+// GetLane delegates to BeatBoardHandler.GetLane.
+func (h *ScriptsHandler) GetLane(ctx context.Context, req *scriptspb.GetLaneRequest) (*scriptspb.GetLaneResponse, error) {
+	return h.beatBoardHandler.GetLane(ctx, req)
+}
+
 // DeleteLane delegates to BeatBoardHandler.DeleteLane.
 func (h *ScriptsHandler) DeleteLane(ctx context.Context, req *scriptspb.DeleteLaneRequest) (*scriptspb.DeleteLaneResponse, error) {
 	return h.beatBoardHandler.DeleteLane(ctx, req)
@@ -872,6 +882,11 @@ func (h *ScriptsHandler) CreateOutlineItem(ctx context.Context, req *scriptspb.C
 // UpdateOutlineItem delegates to BeatBoardHandler.UpdateOutlineItem.
 func (h *ScriptsHandler) UpdateOutlineItem(ctx context.Context, req *scriptspb.UpdateOutlineItemRequest) (*scriptspb.UpdateOutlineItemResponse, error) {
 	return h.beatBoardHandler.UpdateOutlineItem(ctx, req)
+}
+
+// GetOutlineItem delegates to BeatBoardHandler.GetOutlineItem.
+func (h *ScriptsHandler) GetOutlineItem(ctx context.Context, req *scriptspb.GetOutlineItemRequest) (*scriptspb.GetOutlineItemResponse, error) {
+	return h.beatBoardHandler.GetOutlineItem(ctx, req)
 }
 
 // DeleteOutlineItem delegates to BeatBoardHandler.DeleteOutlineItem.

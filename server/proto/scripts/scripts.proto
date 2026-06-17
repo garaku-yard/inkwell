@@ -567,6 +567,15 @@ message DeleteConnectionResponse {
   bool success = 1;
 }
 
+message GetConnectionRequest {
+  string connection_id = 1;
+  string user_id = 2;
+}
+
+message GetConnectionResponse {
+  Connection connection = 1;
+}
+
 message CreateLaneRequest {
   string project_id = 1;
   string user_id = 2;
@@ -619,6 +628,15 @@ message DeleteLaneResponse {
   bool success = 1;
 }
 
+message GetLaneRequest {
+  string lane_id = 1;
+  string user_id = 2;
+}
+
+message GetLaneResponse {
+  Lane lane = 1;
+}
+
 message CreateOutlineItemRequest {
   string project_id = 1;
   string user_id = 2;
@@ -654,6 +672,15 @@ message DeleteOutlineItemRequest {
 
 message DeleteOutlineItemResponse {
   bool success = 1;
+}
+
+message GetOutlineItemRequest {
+  string outline_item_id = 1;
+  string user_id = 2;
+}
+
+message GetOutlineItemResponse {
+  OutlineItem outline_item = 1;
 }
 
 message GetProjectLocationsRequest {
@@ -717,15 +744,18 @@ service ScriptsService {
   rpc DeleteBeat(DeleteBeatRequest) returns (DeleteBeatResponse);
   
   rpc CreateConnection(CreateConnectionRequest) returns (CreateConnectionResponse);
+  rpc GetConnection(GetConnectionRequest) returns (GetConnectionResponse);
   rpc DeleteConnection(DeleteConnectionRequest) returns (DeleteConnectionResponse);
   
   rpc CreateLane(CreateLaneRequest) returns (CreateLaneResponse);
   rpc GetProjectLanes(GetProjectLanesRequest) returns (GetProjectLanesResponse);
   rpc UpdateLane(UpdateLaneRequest) returns (UpdateLaneResponse);
   rpc UpdateLaneOrder(UpdateLaneOrderRequest) returns (UpdateLaneOrderResponse);
+  rpc GetLane(GetLaneRequest) returns (GetLaneResponse);
   rpc DeleteLane(DeleteLaneRequest) returns (DeleteLaneResponse);
   
   rpc CreateOutlineItem(CreateOutlineItemRequest) returns (CreateOutlineItemResponse);
   rpc UpdateOutlineItem(UpdateOutlineItemRequest) returns (UpdateOutlineItemResponse);
+  rpc GetOutlineItem(GetOutlineItemRequest) returns (GetOutlineItemResponse);
   rpc DeleteOutlineItem(DeleteOutlineItemRequest) returns (DeleteOutlineItemResponse);
 }

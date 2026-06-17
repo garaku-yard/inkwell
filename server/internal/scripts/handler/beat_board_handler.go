@@ -110,6 +110,99 @@ func (h *BeatBoardHandler) GetBeat(ctx context.Context, req *scriptspb.GetBeatRe
 	}, nil
 }
 
+// GetConnection returns a single connection. An empty user_id is the
+// collaborator bypass sentinel — the gateway calls this to learn the
+// connection's owning project before authorizing a mutation.
+func (h *BeatBoardHandler) GetConnection(ctx context.Context, req *scriptspb.GetConnectionRequest) (*scriptspb.GetConnectionResponse, error) {
+	if req.ConnectionId == "" {
+		return nil, status.Error(codes.InvalidArgument, "connection_id is required")
+	}
+
+	connID, err := uuid.Parse(req.ConnectionId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid connection_id: %v", err)
+	}
+
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
+	}
+
+	conn, err := h.service.GetConnection(ctx, connID, userID)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	return &scriptspb.GetConnectionResponse{
+		Connection: convertConnectionToProto(conn),
+	}, nil
+}
+
+// GetLane returns a single lane. An empty user_id is the collaborator bypass
+// sentinel — the gateway calls this to learn the lane's owning project before
+// authorizing a mutation.
+func (h *BeatBoardHandler) GetLane(ctx context.Context, req *scriptspb.GetLaneRequest) (*scriptspb.GetLaneResponse, error) {
+	if req.LaneId == "" {
+		return nil, status.Error(codes.InvalidArgument, "lane_id is required")
+	}
+
+	laneID, err := uuid.Parse(req.LaneId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid lane_id: %v", err)
+	}
+
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
+	}
+
+	lane, err := h.service.GetLane(ctx, laneID, userID)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	return &scriptspb.GetLaneResponse{
+		Lane: convertLaneToProto(lane),
+	}, nil
+}
+
+// GetOutlineItem returns a single outline item. An empty user_id is the
+// collaborator bypass sentinel — the gateway calls this to learn the item's
+// owning project before authorizing a mutation.
+func (h *BeatBoardHandler) GetOutlineItem(ctx context.Context, req *scriptspb.GetOutlineItemRequest) (*scriptspb.GetOutlineItemResponse, error) {
+	if req.OutlineItemId == "" {
+		return nil, status.Error(codes.InvalidArgument, "outline_item_id is required")
+	}
+
+	itemID, err := uuid.Parse(req.OutlineItemId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid outline_item_id: %v", err)
+	}
+
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
+	}
+
+	item, err := h.service.GetOutlineItem(ctx, itemID, userID)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	return &scriptspb.GetOutlineItemResponse{
+		OutlineItem: convertOutlineItemToProto(item),
+	}, nil
+}
+
 // GetProjectBeatBoard returns all beat-board data for a project in a single
 // response: beats, connections, lanes, and outline items. This is the primary
 // load call for the beat-board editor.
