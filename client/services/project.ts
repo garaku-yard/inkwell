@@ -243,38 +243,6 @@ export const updateElementContent = (
   content: string,
 ): Promise<ScriptElement> => getStorage().elements.update(elementId, { content })
 
-export const getSceneElements = (sceneId: string, userId: string): Promise<ScriptElement[]> =>
-  getStorage().elements.listForScene(sceneId, userId)
-
-export const createScriptElement = (
-  projectId: string,
-  _userId: string,
-  elementData: {
-    scene_id: string
-    element_type: string
-    content: string
-    character_id?: string
-    line_number: number
-    formatting?: Record<string, string>
-  },
-): Promise<ScriptElement> =>
-  getStorage().elements.create({
-    projectId,
-    sceneId: elementData.scene_id,
-    elementOrder: elementData.line_number,
-    elementType: elementData.element_type,
-    content: elementData.content,
-    characterId: elementData.character_id,
-  })
-
-export const getProjectScriptElements = (
-  projectId: string,
-  userId: string,
-  startLine?: number,
-  endLine?: number,
-): Promise<ScriptElement[]> =>
-  getStorage().elements.listForProject(projectId, userId, startLine, endLine)
-
 export const createSceneElement = (
   projectId: string,
   sceneId: string,

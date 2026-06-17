@@ -23,9 +23,6 @@ export interface UpdateElementRequest {
   elementType?: ScriptElement["element_type"]
 }
 
-export const createScriptElement = (elementData: CreateElementRequest): Promise<ScriptElement> =>
-  getStorage().elements.create(elementData)
-
 export const updateScriptElement = (
   elementId: string,
   updateData: UpdateElementRequest,
