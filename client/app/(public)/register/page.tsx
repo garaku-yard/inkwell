@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react"
 
+import { BrandLogo } from "@/components/brand-logo"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -89,11 +90,8 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground text-background font-serif font-bold text-xl select-none">
-            I
-          </div>
-          <h1 className="text-2xl font-bold">Inkwell</h1>
+        <div className="flex justify-center mb-8">
+          <BrandLogo />
         </div>
 
         <Card>

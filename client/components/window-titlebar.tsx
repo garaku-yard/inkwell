@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Maximize2, Minus, Square, X } from "lucide-react"
 import { isTauri } from "@tauri-apps/api/core"
 
+import { BrandLogo } from "@/components/brand-logo"
 import { cn } from "@/lib/utils"
 
 /** Root `<html>` class toggled by the titlebar so global CSS can flatten
@@ -88,9 +89,8 @@ export function WindowTitlebar() {
         data-tauri-drag-region
         className="flex items-center gap-2 px-3 text-muted-foreground"
       >
-        <span data-tauri-drag-region className="text-[13px] font-medium">
-          Inkwell
-        </span>
+        <BrandLogo show="mark" className="pointer-events-none h-4 w-auto" />
+        <BrandLogo show="wordmark" className="pointer-events-none h-2.5 w-auto opacity-90" />
       </div>
       <div data-tauri-drag-region className="flex-1" />
       <div className="flex items-center gap-1.5 px-3">
