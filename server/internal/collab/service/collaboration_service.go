@@ -208,6 +208,23 @@ func (s *CollaborationService) AddCollaboratorByEmail(ctx context.Context, proje
 		return nil, err
 	}
 
+	// Best-effort invitation.sent event so the notifications service emails the
+	// invitee an accept link. The invitation row is already persisted, so a
+	// missed email still leaves the invite visible in the invitee's inbox once
+	// they sign in; we don't pay for the transactional outbox here.
+	invitePayload, err := json.Marshal(map[string]string{
+		"project_id": projectID.String(),
+		"email":      email,
+		"role":       role,
+		"invited_by": invitedBy.String(),
+		"token":      invitation.Token,
+	})
+	if err == nil {
+		if perr := s.publisher.Publish(ctx, events.EventTypeCollabInvited, invitePayload); perr != nil {
+			slog.Warn("collaboration.invited: publish failed (email skipped)", "error", perr)
+		}
+	}
+
 	// Return a collaborator representation for API compatibility
 	// Note: UserID is nil since this is a pending invitation
 	collaborator := &domain.Collaborator{
@@ -293,7 +310,58 @@ func (s *CollaborationService) AddComment(ctx context.Context, userID, projectID
 		return nil, err
 	}
 
+	s.publishCommentAdded(ctx, comment)
 	return comment, nil
+}
+
+// publishCommentAdded emits a best-effort comment.added event naming the
+// project's collaborators (minus the author) as recipients, so the
+// notifications service can fan out in-app + email notifications. Best-effort:
+// the comment row is already persisted, and a missed notification is low-stakes,
+// so we don't pay for the transactional outbox here.
+//
+// Known limitation: recipients are drawn from the collaborators table only. A
+// project owner who has no collaborator row (owners aren't always added as one)
+// won't be notified.
+func (s *CollaborationService) publishCommentAdded(ctx context.Context, c *domain.Comment) {
+	collaborators, err := s.repo.GetProjectCollaborators(ctx, c.ProjectID)
+	if err != nil {
+		slog.Warn("comment.added: could not load collaborators for notification", "project_id", c.ProjectID, "error", err)
+		return
+	}
+
+	var recipients []string
+	for _, collab := range collaborators {
+		if collab.UserID == uuid.Nil || collab.UserID == c.UserID {
+			continue // pending email-invite, or the comment author
+		}
+		if collab.Status != "active" {
+			continue
+		}
+		recipients = append(recipients, collab.UserID.String())
+	}
+	if len(recipients) == 0 {
+		return // no one to notify
+	}
+
+	snippet := c.Content
+	if len(snippet) > 120 {
+		snippet = snippet[:120] + "…"
+	}
+	payload, err := json.Marshal(map[string]any{
+		"project_id": c.ProjectID.String(),
+		"comment_id": c.ID.String(),
+		"author_id":  c.UserID.String(),
+		"recipients": recipients,
+		"snippet":    snippet,
+	})
+	if err != nil {
+		slog.Warn("comment.added: marshal payload", "error", err)
+		return
+	}
+	if err := s.publisher.Publish(ctx, events.EventTypeCommentAdded, payload); err != nil {
+		slog.Warn("comment.added: publish failed (notification skipped)", "error", err)
+	}
 }
 
 func (s *CollaborationService) GetComments(ctx context.Context, userID, projectID uuid.UUID, elementID, sceneID *uuid.UUID, offset, limit int32) ([]*domain.Comment, error) {

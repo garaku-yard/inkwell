@@ -39,6 +39,7 @@ const (
 	EventTypeProjectDeleted = "project.deleted"
 	EventTypeCollabAdded    = "collaboration.added"
 	EventTypeCollabRemoved  = "collaboration.removed"
+	EventTypeCollabInvited  = "collaboration.invited"
 	EventTypeBillingUpdated = "billing.updated"
 	EventTypeCommentAdded   = "comment.added"
 )
@@ -52,6 +53,10 @@ func Topic(eventType string) string {
 	case len(eventType) >= 7 && eventType[:7] == "project":
 		return "project-events"
 	case len(eventType) >= 13 && eventType[:13] == "collaboration":
+		return "collab-events"
+	case len(eventType) >= 7 && eventType[:7] == "comment":
+		// Comments are a collaboration-service concern; group them on the
+		// collab topic so the same consumer subscription covers them.
 		return "collab-events"
 	case len(eventType) >= 7 && eventType[:7] == "billing":
 		return "billing-events"

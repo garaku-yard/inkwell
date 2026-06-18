@@ -24,6 +24,10 @@ func (s *notificationService) Process(ctx context.Context, evt events.Event) err
 		return s.handleCollabAdded(ctx, evt)
 	case events.EventTypeUserCreated:
 		return s.handleUserCreated(ctx, evt)
+	case events.EventTypeCommentAdded:
+		return s.handleCommentAdded(ctx, evt)
+	case events.EventTypeCollabInvited:
+		return s.handleInvitationSent(ctx, evt)
 	default:
 		return nil
 	}
@@ -140,6 +144,117 @@ func (s *notificationService) handleUserCreated(ctx context.Context, evt events.
 	)
 	emailKey := fmt.Sprintf("email:%s:%s", evt.Type, p.UserID)
 	return s.sendEmailIfNew(ctx, p.Email, "Welcome to Inkwell", body, emailKey)
+}
+
+// commentAddedPayload is the JSON shape collab-service publishes for
+// comment.added. recipients are the project's collaborators minus the author.
+type commentAddedPayload struct {
+	ProjectID  string   `json:"project_id"`
+	CommentID  string   `json:"comment_id"`
+	AuthorID   string   `json:"author_id"`
+	Recipients []string `json:"recipients"`
+	Snippet    string   `json:"snippet"`
+}
+
+// handleCommentAdded fans out a new-comment notification to each recipient,
+// honouring their in-app (master) and emailComments toggles independently. A
+// per-recipient error aborts the event so it retries; already-delivered
+// recipients are skipped on the retry via their dedup keys.
+func (s *notificationService) handleCommentAdded(ctx context.Context, evt events.Event) error {
+	var p commentAddedPayload
+	if err := json.Unmarshal(evt.Payload, &p); err != nil {
+		return fmt.Errorf("comment.added: unmarshal payload: %w", err)
+	}
+	body := p.Snippet
+	if body == "" {
+		body = "Someone commented on a project you collaborate on."
+	}
+	link := "/projects/" + p.ProjectID
+
+	for _, rid := range p.Recipients {
+		recipient, err := uuid.Parse(rid)
+		if err != nil {
+			continue // skip a malformed recipient rather than wedging the batch
+		}
+		prefs, err := s.GetPreferences(ctx, recipient)
+		if err != nil {
+			return fmt.Errorf("comment.added: load preferences: %w", err)
+		}
+
+		if prefs.InAppNotifications {
+			n := &domain.Notification{
+				UserID: recipient,
+				Type:   evt.Type,
+				Title:  "New comment",
+				Body:   body,
+				Link:   link,
+			}
+			inAppKey := fmt.Sprintf("inapp:%s:%s:%s", evt.Type, p.CommentID, rid)
+			if _, err := s.repo.CreateNotificationIfNew(ctx, n, inAppKey); err != nil {
+				return err
+			}
+		}
+
+		if prefs.EmailComments && s.users != nil {
+			email, _, err := s.users.Lookup(ctx, rid)
+			if err != nil {
+				return fmt.Errorf("comment.added: resolve recipient email: %w", err)
+			}
+			if email == "" {
+				continue
+			}
+			emailKey := fmt.Sprintf("email:%s:%s:%s", evt.Type, p.CommentID, rid)
+			emailBody := fmt.Sprintf(
+				`<p>There's a new comment on a project you collaborate on:</p>`+
+					`<blockquote>%s</blockquote>`+
+					`<p><a href="%s%s">Open the project</a></p>`,
+				body, s.appBaseURL, link,
+			)
+			if err := s.sendEmailIfNew(ctx, email, "New comment on your project", emailBody, emailKey); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// invitationSentPayload is the JSON shape collab-service publishes for
+// collaboration.invited (an email invite to a possibly-not-yet-registered user).
+type invitationSentPayload struct {
+	ProjectID string `json:"project_id"`
+	Email     string `json:"email"`
+	Role      string `json:"role"`
+	InvitedBy string `json:"invited_by"`
+	Token     string `json:"token"`
+}
+
+// handleInvitationSent emails an invitee an accept link. There's no preference
+// to consult — the invitee may not have an account yet — so this is always sent
+// (once, via the token dedup key). It's the email that makes "invite by email"
+// actually reach the recipient.
+func (s *notificationService) handleInvitationSent(ctx context.Context, evt events.Event) error {
+	var p invitationSentPayload
+	if err := json.Unmarshal(evt.Payload, &p); err != nil {
+		return fmt.Errorf("collaboration.invited: unmarshal payload: %w", err)
+	}
+	if p.Email == "" {
+		return nil
+	}
+	body := fmt.Sprintf(
+		`<p>You've been invited to collaborate on a project in Inkwell as a <strong>%s</strong>.</p>`+
+			`<p>Sign in (or create an account) with this email to accept:</p>`+
+			`<p><a href="%s/invites">View your invitations</a></p>`,
+		roleOrDefault(p.Role), s.appBaseURL,
+	)
+	dedupKey := fmt.Sprintf("email:%s:%s", evt.Type, p.Token)
+	return s.sendEmailIfNew(ctx, p.Email, "You've been invited to a project", body, dedupKey)
+}
+
+func roleOrDefault(role string) string {
+	if role == "" {
+		return "collaborator"
+	}
+	return role
 }
 
 // sendEmailIfNew sends the email at most once per dedupKey. It checks the

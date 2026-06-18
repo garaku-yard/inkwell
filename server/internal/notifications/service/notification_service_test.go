@@ -54,6 +54,18 @@ func collabAddedEvent(projectID, userID, invitedBy uuid.UUID, role string) event
 	return events.Event{Type: events.EventTypeCollabAdded, Payload: payload}
 }
 
+// commentAddedEvent builds a comment.added envelope.
+func commentAddedEvent(projectID, commentID, authorID uuid.UUID, recipients []string, snippet string) events.Event {
+	payload, _ := json.Marshal(map[string]any{
+		"project_id": projectID.String(),
+		"comment_id": commentID.String(),
+		"author_id":  authorID.String(),
+		"recipients": recipients,
+		"snippet":    snippet,
+	})
+	return events.Event{Type: events.EventTypeCommentAdded, Payload: payload}
+}
+
 // fakeRepo is an in-memory NotificationRepository for service tests. A missing
 // preferences entry models "no row saved yet".
 type fakeRepo struct {
@@ -344,5 +356,77 @@ func TestProcess_UserCreated_SendFailureIsRetryable(t *testing.T) {
 	exists, _ := repo.DeliveryExists(context.Background(), "email:user.created:"+userID.String())
 	if exists {
 		t.Error("a failed send must not record a delivery (it must remain retryable)")
+	}
+}
+
+// comment.added must fan out one in-app notification and one email per
+// recipient, deduped across the producer's double-publish.
+func TestProcess_CommentAdded_FansOut(t *testing.T) {
+	repo := newFakeRepo()
+	mail := &captureMailer{}
+	project, comment, author := uuid.New(), uuid.New(), uuid.New()
+	r1, r2 := uuid.New(), uuid.New()
+	svc := newSvc(repo, mail, fakeUsers{r1.String(): "r1@example.com", r2.String(): "r2@example.com"})
+	evt := commentAddedEvent(project, comment, author, []string{r1.String(), r2.String()}, "Nice scene")
+
+	for i := 0; i < 2; i++ {
+		if err := svc.Process(context.Background(), evt); err != nil {
+			t.Fatalf("process #%d: %v", i, err)
+		}
+	}
+	if len(repo.notifs) != 2 {
+		t.Fatalf("expected 2 in-app notifications (one per recipient), got %d", len(repo.notifs))
+	}
+	if len(mail.sent) != 2 {
+		t.Fatalf("expected 2 emails (one per recipient), got %d", len(mail.sent))
+	}
+}
+
+// A recipient with emailComments off gets the in-app notification but no email.
+func TestProcess_CommentAdded_RespectsEmailCommentsOff(t *testing.T) {
+	repo := newFakeRepo()
+	mail := &captureMailer{}
+	project, comment, author := uuid.New(), uuid.New(), uuid.New()
+	r1 := uuid.New()
+	prefs := domain.DefaultPreferences(r1)
+	prefs.EmailComments = false
+	repo.store[r1] = prefs
+	svc := newSvc(repo, mail, fakeUsers{r1.String(): "r1@example.com"})
+
+	if err := svc.Process(context.Background(), commentAddedEvent(project, comment, author, []string{r1.String()}, "hi")); err != nil {
+		t.Fatalf("process: %v", err)
+	}
+	if len(repo.notifs) != 1 {
+		t.Fatalf("expected 1 in-app notification, got %d", len(repo.notifs))
+	}
+	if len(mail.sent) != 0 {
+		t.Fatalf("expected no email when emailComments is off, got %d", len(mail.sent))
+	}
+}
+
+// collaboration.invited must email the invitee (no preference gate) exactly once.
+func TestProcess_InvitationSent_SendsEmail(t *testing.T) {
+	repo := newFakeRepo()
+	mail := &captureMailer{}
+	svc := newSvc(repo, mail, fakeUsers{})
+	payload, _ := json.Marshal(map[string]string{
+		"project_id": uuid.New().String(),
+		"email":      "invitee@example.com",
+		"role":       "editor",
+		"invited_by": uuid.New().String(),
+		"token":      "tok-123",
+	})
+	evt := events.Event{Type: events.EventTypeCollabInvited, Payload: payload}
+
+	for i := 0; i < 2; i++ {
+		if err := svc.Process(context.Background(), evt); err != nil {
+			t.Fatalf("process #%d: %v", i, err)
+		}
+	}
+	if len(mail.sent) != 1 {
+		t.Fatalf("expected exactly 1 invite email after double-publish, got %d", len(mail.sent))
+	}
+	if mail.sent[0].To != "invitee@example.com" {
+		t.Errorf("invite To = %q", mail.sent[0].To)
 	}
 }

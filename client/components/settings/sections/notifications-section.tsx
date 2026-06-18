@@ -68,9 +68,9 @@ export function NotificationsSection() {
       <PreviewNotice>
         {serverSide ? (
           <>
-            Saved to your account. Email and in-app delivery are rolling out —
-            mentions, project-update emails, and marketing broadcasts aren&apos;t
-            delivered yet.
+            Saved to your account. In-app notifications and comment, collaborator,
+            and invitation emails are delivered. Mentions, project-update emails,
+            and marketing broadcasts aren&apos;t wired up yet.
           </>
         ) : (
           <>
