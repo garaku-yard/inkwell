@@ -22,7 +22,7 @@ import (
 	aisettingspb "inkwell/server/pkg/grpc/aisettings"
 )
 
-// AISettingsHandler handles `/api/ai/settings` CRUD + key endpoints.
+// AISettingsHandler handles `/api/v1/ai/settings` CRUD + key endpoints.
 type AISettingsHandler struct {
 	client                aisettingspb.AISettingsServiceClient
 	openAICompatibleHosts []string
@@ -106,7 +106,7 @@ func (h *AISettingsHandler) guardOpenAICompatible(kind, baseURL string) error {
 
 // ── Endpoints ───────────────────────────────────────────────────────────────
 
-// List handles GET /api/ai/settings.
+// List handles GET /api/v1/ai/settings.
 func (h *AISettingsHandler) List(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[struct{}, []settingDTO]{
 		Method: http.MethodGet,
@@ -126,7 +126,7 @@ func (h *AISettingsHandler) List(w http.ResponseWriter, r *http.Request) {
 	}.ServeHTTP(w, r)
 }
 
-// Create handles POST /api/ai/settings.
+// Create handles POST /api/v1/ai/settings.
 func (h *AISettingsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[saveInputDTO, settingDTO]{
 		Method: http.MethodPost,
@@ -153,7 +153,7 @@ func (h *AISettingsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}.ServeHTTP(w, r)
 }
 
-// Update handles PUT/PATCH /api/ai/settings/{id}.
+// Update handles PUT/PATCH /api/v1/ai/settings/{id}.
 func (h *AISettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[saveInputDTO, settingDTO]{
 		// Registered for both PUT and PATCH; leave Method empty so the
@@ -183,7 +183,7 @@ func (h *AISettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}.ServeHTTP(w, r)
 }
 
-// Delete handles DELETE /api/ai/settings/{id}.
+// Delete handles DELETE /api/v1/ai/settings/{id}.
 func (h *AISettingsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[struct{}, struct{}]{
 		Method:        http.MethodDelete,
@@ -203,7 +203,7 @@ func (h *AISettingsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}.ServeHTTP(w, r)
 }
 
-// SetKey handles POST /api/ai/settings/{id}/key.
+// SetKey handles POST /api/v1/ai/settings/{id}/key.
 func (h *AISettingsHandler) SetKey(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[setKeyDTO, struct{}]{
 		Method:        http.MethodPost,
@@ -227,7 +227,7 @@ func (h *AISettingsHandler) SetKey(w http.ResponseWriter, r *http.Request) {
 	}.ServeHTTP(w, r)
 }
 
-// ClearKey handles DELETE /api/ai/settings/{id}/key.
+// ClearKey handles DELETE /api/v1/ai/settings/{id}/key.
 func (h *AISettingsHandler) ClearKey(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[struct{}, struct{}]{
 		Method:        http.MethodDelete,

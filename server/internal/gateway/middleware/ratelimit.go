@@ -68,7 +68,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 // UserMiddleware returns an HTTP middleware that enforces the rate limit
 // per authenticated user instead of per source IP. This is the right
 // bucket for endpoints where a single account can inflict real costs
-// (provider bills on /api/ai/chat, enumeration on /api/ai/settings/{id})
+// (provider bills on /api/v1/ai/chat, enumeration on /api/v1/ai/settings/{id})
 // regardless of how many IPs the request arrives from.
 //
 // It must run AFTER AuthMiddleware so the userID is present in the

@@ -6,13 +6,13 @@ import type { AuthStorage, AuthResponse, CurrentUser } from "@/lib/storage"
 
 export const auth: AuthStorage = {
   login: async (credentials) =>
-    apiClient<AuthResponse>("api/v1/login", { method: "POST", body: credentials }),
+    apiClient<AuthResponse>("login", { method: "POST", body: credentials }),
 
   register: async (payload) =>
-    apiClient<AuthResponse>("api/v1/register", { method: "POST", body: payload }),
+    apiClient<AuthResponse>("register", { method: "POST", body: payload }),
 
   logout: async () => {
-    await apiClient<void>("api/v1/logout", { method: "POST" })
+    await apiClient<void>("logout", { method: "POST" })
   },
 
   me: async () => {
@@ -27,7 +27,7 @@ export const auth: AuthStorage = {
           lastName: string
           role?: string
         }
-      }>("api/v1/users/me", { method: "GET" })
+      }>("users/me", { method: "GET" })
       const u = data.user
       const out: CurrentUser = {
         id: u.id,

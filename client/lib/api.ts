@@ -7,6 +7,28 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
+/**
+ * API version prefix. Every gateway request is served under `/api/v1`; call
+ * sites pass bare resource paths (e.g. `"projects/123"`) and the prefix is
+ * added here so the version lives in exactly one place — bump it (or branch
+ * on the path) to introduce `/api/v2` without touching call sites.
+ */
+const API_VERSION_PREFIX = "api/v1";
+
+/**
+ * Builds the absolute request URL from a bare endpoint path: strips any
+ * leading slash, prepends the version prefix (idempotently — a path already
+ * under the prefix is left as-is), then joins it to the base URL.
+ */
+function buildUrl(endpoint: string): string {
+  const path = endpoint.replace(/^\/+/, "");
+  const versioned =
+    path === API_VERSION_PREFIX || path.startsWith(`${API_VERSION_PREFIX}/`)
+      ? path
+      : `${API_VERSION_PREFIX}/${path}`;
+  return `${API_BASE_URL}/${versioned}`;
+}
+
 /** Extends the standard `RequestInit` with a typed `body` field that is
  *  automatically serialised to JSON before the request is sent. Accepts any
  *  JSON-serialisable value, including typed interfaces and arrays. */
@@ -146,7 +168,7 @@ export async function apiClient<T>(
     config.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${API_BASE_URL}/${endpoint}`, config);
+  const response = await fetch(buildUrl(endpoint), config);
 
   if (response.status === 401) {
     notifySessionExpired();
@@ -185,7 +207,7 @@ export async function apiClient<T>(
  *
  * @example
  * ```ts
- * const stream = await apiStreamClient("api/ai/chat", { method: "POST", body: payload });
+ * const stream = await apiStreamClient("ai/chat", { method: "POST", body: payload });
  * const reader = stream.getReader();
  * ```
  */
@@ -212,7 +234,7 @@ export async function apiStreamClient(
     config.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${API_BASE_URL}/${endpoint}`, config);
+  const response = await fetch(buildUrl(endpoint), config);
 
   if (response.status === 401) {
     notifySessionExpired();

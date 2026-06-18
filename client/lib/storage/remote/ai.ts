@@ -180,7 +180,7 @@ export const ai: AiStorage = {
 
     // Gateway path — legacy hosted (no providerId) and hosted BYO
     // (providerId resolves server-side).
-    return apiStreamClient("api/ai/chat", {
+    return apiStreamClient("ai/chat", {
       method: "POST",
       body: { provider: "ollama", stream: true, ...request },
       signal: options?.signal,
@@ -190,7 +190,7 @@ export const ai: AiStorage = {
   async listProviderSettings(): Promise<AIProviderSettings[]> {
     const local = readStoredRows().map(rowToSettings)
     try {
-      const hosted = await apiClient<HostedSettingDTO[]>("api/ai/settings")
+      const hosted = await apiClient<HostedSettingDTO[]>("ai/settings")
       return [...hosted.map(hostedDTOtoSettings), ...local]
     } catch (err) {
       // Propagate auth failures so the UI can prompt re-login instead of
@@ -250,12 +250,12 @@ export const ai: AiStorage = {
     }
     if (input.id) {
       const dto = await apiClient<HostedSettingDTO>(
-        `api/ai/settings/${encodeURIComponent(input.id)}`,
+        `ai/settings/${encodeURIComponent(input.id)}`,
         { method: "PUT", body },
       )
       return hostedDTOtoSettings(dto)
     }
-    const dto = await apiClient<HostedSettingDTO>("api/ai/settings", {
+    const dto = await apiClient<HostedSettingDTO>("ai/settings", {
       method: "POST",
       body,
     })
@@ -268,7 +268,7 @@ export const ai: AiStorage = {
       clearStoredKey(id)
       return
     }
-    await apiClient<void>(`api/ai/settings/${encodeURIComponent(id)}`, {
+    await apiClient<void>(`ai/settings/${encodeURIComponent(id)}`, {
       method: "DELETE",
     })
   },
@@ -281,7 +281,7 @@ export const ai: AiStorage = {
       writeStoredKey(id, apiKey)
       return
     }
-    await apiClient<void>(`api/ai/settings/${encodeURIComponent(id)}/key`, {
+    await apiClient<void>(`ai/settings/${encodeURIComponent(id)}/key`, {
       method: "POST",
       body: { apiKey },
     })
@@ -292,7 +292,7 @@ export const ai: AiStorage = {
       clearStoredKey(id)
       return
     }
-    await apiClient<void>(`api/ai/settings/${encodeURIComponent(id)}/key`, {
+    await apiClient<void>(`ai/settings/${encodeURIComponent(id)}/key`, {
       method: "DELETE",
     })
   },
@@ -347,7 +347,7 @@ export const ai: AiStorage = {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 15_000)
       try {
-        const stream = await apiStreamClient("api/ai/chat", {
+        const stream = await apiStreamClient("ai/chat", {
           method: "POST",
           body: {
             providerId: id,
