@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
+import { PreviewNotice } from "@/components/settings/preview-notice"
 
 const STORAGE_KEY = "inkwell:notifications"
 
@@ -47,7 +48,7 @@ export function NotificationsSection() {
     const next = { ...prefs, [key]: value }
     setPrefs(next)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-    toast({ title: "Preferences saved", description: "Your notification settings have been updated." })
+    toast({ title: "Saved on this device", description: "Notification preferences updated locally." })
   }
 
   const { emailComments, emailMentions, emailProjectUpdates, emailCollaboratorJoins,
@@ -55,6 +56,10 @@ export function NotificationsSection() {
 
   return (
     <div className="space-y-6">
+      <PreviewNotice>
+        Saved on this device. Inkwell doesn&apos;t deliver notifications yet —
+        these preferences will apply once notification delivery ships.
+      </PreviewNotice>
       <Card>
         <CardHeader>
           <div className="flex items-start gap-3">

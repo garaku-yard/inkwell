@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { PreviewNotice } from "@/components/settings/preview-notice"
 
 const STORAGE_KEY = "inkwell:privacy"
 
@@ -40,13 +41,18 @@ export function PrivacySection() {
     const next = { ...prefs, [key]: value }
     setPrefs(next)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-    toast({ title: "Preferences saved", description: "Your privacy settings have been updated." })
+    toast({ title: "Saved on this device", description: "Privacy preferences updated locally." })
   }
 
   const { profileVisibility, projectVisibilityDefault, allowSearchEngineIndexing } = prefs
 
   return (
     <div className="space-y-6">
+      <PreviewNotice>
+        These visibility settings are saved on this device but aren&apos;t
+        enforced yet — Inkwell is local-first, so profile and project
+        visibility will take effect once a hosted sharing layer ships.
+      </PreviewNotice>
       <Card>
         <CardHeader>
           <CardTitle>Profile Visibility</CardTitle>
@@ -152,26 +158,25 @@ export function PrivacySection() {
         <CardContent className="space-y-4">
           <div className="rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900 p-4">
             <h4 className="font-medium text-sm mb-2 text-blue-900 dark:text-blue-100">
-              How We Use Your Data
+              How Inkwell handles your data
             </h4>
             <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
               <li className="flex items-start gap-2">
                 <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
-                <span>Project data is stored securely and encrypted at rest</span>
+                <span>Your writing stays on your device (desktop) or on the instance you connect to (hosted).</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
-                <span>We use anonymized analytics to improve our services</span>
+                <span>AI keys live in your OS keychain (desktop) or encrypted at rest (hosted); requests go only to the provider you configure.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
-                <span>Your email is only used for account-related communications</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
-                <span>We never sell your personal data to third parties</span>
+                <span>No third-party analytics or tracking in the app, and we never sell your data.</span>
               </li>
             </ul>
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-sm font-medium text-blue-700 dark:text-blue-300 underline">
+              Read the full privacy statement
+            </a>
           </div>
         </CardContent>
       </Card>

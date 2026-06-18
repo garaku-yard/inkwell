@@ -25,7 +25,7 @@ export function AboutSection() {
       "inkwell:notifications",
       "inkwell:privacy",
       "inkwell:collaboration",
-      "inkwell:accessibility",
+      // accessibility prefs now live inside inkwell:appearance (ThemeContext)
       "inkwell:appearance",
     ]
     keysToClear.forEach((key) => localStorage.removeItem(key))

@@ -1,21 +1,62 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Users, MessageSquare, GitBranch, Lock } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
+import { PreviewNotice } from "@/components/settings/preview-notice"
+
+const STORAGE_KEY = "inkwell:collaboration"
+
+interface CollaborationPrefs {
+  defaultSharePermission: string
+  allowInvitePermission: string
+  allowComments: boolean
+  enableTrackChanges: boolean
+  requireApproval: boolean
+}
+
+const DEFAULTS: CollaborationPrefs = {
+  defaultSharePermission: "view",
+  allowInvitePermission: "editor",
+  allowComments: true,
+  enableTrackChanges: true,
+  requireApproval: false,
+}
+
+function loadPrefs(): CollaborationPrefs {
+  if (typeof window === "undefined") return DEFAULTS
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored ? { ...DEFAULTS, ...JSON.parse(stored) } : DEFAULTS
+  } catch { return DEFAULTS }
+}
 
 export function CollaborationSection() {
-  const [defaultSharePermission, setDefaultSharePermission] = useState("view")
-  const [allowInvitePermission, setAllowInvitePermission] = useState("editor")
-  const [allowComments, setAllowComments] = useState(true)
-  const [enableTrackChanges, setEnableTrackChanges] = useState(true)
-  const [requireApproval, setRequireApproval] = useState(false)
+  const [prefs, setPrefs] = useState<CollaborationPrefs>(DEFAULTS)
+  const { toast } = useToast()
+
+  useEffect(() => { setPrefs(loadPrefs()) }, [])
+
+  const update = (key: keyof CollaborationPrefs, value: string | boolean) => {
+    const next = { ...prefs, [key]: value }
+    setPrefs(next)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    toast({ title: "Saved on this device", description: "Collaboration defaults updated locally." })
+  }
+
+  const { defaultSharePermission, allowInvitePermission, allowComments, enableTrackChanges, requireApproval } = prefs
 
   return (
     <div className="space-y-6">
+      <PreviewNotice>
+        These collaboration defaults are saved on this device but aren&apos;t
+        enforced by the server yet — collaborator access is managed per project
+        for now.
+      </PreviewNotice>
       <Card>
         <CardHeader>
           <div className="flex items-start gap-3">
@@ -33,7 +74,7 @@ export function CollaborationSection() {
         <CardContent className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="defaultShare">Default Share Permission</Label>
-            <Select value={defaultSharePermission} onValueChange={setDefaultSharePermission}>
+            <Select value={defaultSharePermission} onValueChange={(v) => update("defaultSharePermission", v)}>
               <SelectTrigger id="defaultShare">
                 <SelectValue />
               </SelectTrigger>
@@ -51,7 +92,7 @@ export function CollaborationSection() {
 
           <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-800">
             <Label htmlFor="invitePermission">Who Can Invite Others</Label>
-            <Select value={allowInvitePermission} onValueChange={setAllowInvitePermission}>
+            <Select value={allowInvitePermission} onValueChange={(v) => update("allowInvitePermission", v)}>
               <SelectTrigger id="invitePermission">
                 <SelectValue />
               </SelectTrigger>
@@ -76,7 +117,7 @@ export function CollaborationSection() {
             <Switch
               id="requireApproval"
               checked={requireApproval}
-              onCheckedChange={setRequireApproval}
+              onCheckedChange={(v) => update("requireApproval", v)}
             />
           </div>
         </CardContent>
@@ -107,7 +148,7 @@ export function CollaborationSection() {
             <Switch
               id="allowComments"
               checked={allowComments}
-              onCheckedChange={setAllowComments}
+              onCheckedChange={(v) => update("allowComments", v)}
             />
           </div>
         </CardContent>
@@ -138,7 +179,7 @@ export function CollaborationSection() {
             <Switch
               id="trackChanges"
               checked={enableTrackChanges}
-              onCheckedChange={setEnableTrackChanges}
+              onCheckedChange={(v) => update("enableTrackChanges", v)}
             />
           </div>
         </CardContent>

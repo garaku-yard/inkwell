@@ -63,7 +63,23 @@ export interface AppearancePrefs {
   editorFonts: Record<EditorKind, string>
   uiFont: string
   editorLineHeight: string
+  // ── Accessibility ── applied globally to <html> alongside the theme so
+  // they take effect on every route, not just the settings page.
+  /** Strengthen text/border contrast (adds `html.high-contrast`). */
+  highContrast: boolean
+  /** Near-disable animations + transitions (adds `html.reduce-motion`). */
+  reduceMotion: boolean
+  /** Looser letter/word/line spacing for easier reading (`html.readable-text`). */
+  readableText: boolean
+  /** Whole-UI zoom as a percentage of the root font size (80–150). */
+  interfaceScale: number
 }
+
+/** The subset of prefs owned by the Accessibility settings section. */
+export type AccessibilityPrefs = Pick<
+  AppearancePrefs,
+  "highContrast" | "reduceMotion" | "readableText" | "interfaceScale"
+>
 
 const DEFAULTS: AppearancePrefs = {
   colorMode: "system",
@@ -71,6 +87,10 @@ const DEFAULTS: AppearancePrefs = {
   editorFonts: EDITOR_FONT_DEFAULTS,
   uiFont: "inter",
   editorLineHeight: "1.6",
+  highContrast: false,
+  reduceMotion: false,
+  readableText: false,
+  interfaceScale: 100,
 }
 
 /** Font-family stacks shared by both UI and editor pickers. The
@@ -158,6 +178,13 @@ function applyPrefs(prefs: AppearancePrefs) {
   // typography simultaneously.
   root.style.setProperty("--inkwell-ui-font", getFontStack(prefs.uiFont))
   root.style.setProperty("--inkwell-editor-lh", prefs.editorLineHeight)
+  // Accessibility classes — globals.css carries the matching rules.
+  root.classList.toggle("high-contrast", prefs.highContrast)
+  root.classList.toggle("reduce-motion", prefs.reduceMotion)
+  root.classList.toggle("readable-text", prefs.readableText)
+  // Interface scale rides the root font size; Tailwind's rem units scale the
+  // whole UI with it. 100% leaves the browser default untouched.
+  root.style.fontSize = prefs.interfaceScale === 100 ? "" : `${prefs.interfaceScale}%`
 }
 
 interface ThemeContextType {
@@ -167,6 +194,8 @@ interface ThemeContextType {
   setEditorFontFor: (kind: EditorKind, font: string) => void
   setUiFont: (font: string) => void
   setEditorLineHeight: (lh: string) => void
+  /** Patch one or more accessibility prefs; persists + applies immediately. */
+  setAccessibility: (patch: Partial<AccessibilityPrefs>) => void
   /** Resolve the font-family stack for the given editor kind.
    *  Editors call this once per render to set their wrapper's
    *  fontFamily. */
@@ -247,6 +276,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [])
   const setUiFont = useCallback((uiFont: string) => update({ uiFont }), [update])
   const setEditorLineHeight = useCallback((editorLineHeight: string) => update({ editorLineHeight }), [update])
+  const setAccessibility = useCallback((patch: Partial<AccessibilityPrefs>) => update(patch), [update])
   const editorFontStack = useCallback(
     (kind: EditorKind) => getFontStack(prefs.editorFonts[kind] ?? EDITOR_FONT_DEFAULTS[kind]),
     [prefs.editorFonts],
@@ -273,11 +303,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setEditorFontFor,
       setUiFont,
       setEditorLineHeight,
+      setAccessibility,
       editorFontStack,
       theme: resolvedTheme,
       toggleTheme,
     }),
-    [prefs, setColorMode, setTheme, setEditorFontFor, setUiFont, setEditorLineHeight, editorFontStack, resolvedTheme, toggleTheme],
+    [prefs, setColorMode, setTheme, setEditorFontFor, setUiFont, setEditorLineHeight, setAccessibility, editorFontStack, resolvedTheme, toggleTheme],
   )
 
   if (!mounted) return <>{children}</>

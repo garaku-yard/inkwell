@@ -286,3 +286,44 @@ html.window-maximised body {
 html.dark .cm-md-task-checkbox:checked {
   background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%231f2420'%3E%3Cpath d='M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z'/%3E%3C/svg%3E");
 }
+
+/* ─── Accessibility (Settings → Accessibility) ─────────────────────────────
+ * Toggled as classes on <html> by ThemeContext.applyPrefs so they apply on
+ * every route, not just the settings page. Interface Scale rides the root
+ * font-size (set inline by applyPrefs) and needs no rule here. */
+
+/* High contrast — strengthen text + hairlines against the warm palette by
+ * overriding the key tokens; everything downstream inherits. */
+html.high-contrast {
+  --foreground: oklch(0.10 0 0);
+  --muted-foreground: oklch(0.34 0.012 58);
+  --border: oklch(0.68 0.01 95);
+}
+html.high-contrast.dark {
+  --foreground: oklch(0.99 0 0);
+  --muted-foreground: oklch(0.90 0.006 145);
+  --border: oklch(1 0 0 / 40%);
+}
+
+/* Reduce motion — near-instant transitions/animations and instant scrolling. */
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Readable text — looser letter/word/line spacing aids many readers. Reset
+ * for monospace surfaces (screenplay/comic Courier, CodeMirror) so column
+ * alignment and chord rows stay intact. */
+html.readable-text body {
+  letter-spacing: 0.03em;
+  word-spacing: 0.08em;
+  line-height: 1.7;
+}
+html.readable-text :where(code, pre, .font-mono, .cm-editor) {
+  letter-spacing: normal;
+  word-spacing: normal;
+}

@@ -1,20 +1,14 @@
 "use client"
 
-import { useState } from "react"
 import { Contrast, Zap, Maximize2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useTheme } from "@/lib/ThemeContext"
 
 export function AccessibilitySection() {
-  const [highContrast, setHighContrast] = useState(false)
-  const [dyslexiaFont, setDyslexiaFont] = useState(false)
-  const [reduceMotion, setReduceMotion] = useState(false)
-  const [fontSize, setFontSize] = useState([16])
-  const [cursorSize, setCursorSize] = useState("normal")
-  const [uiScale, setUiScale] = useState([100])
+  const { prefs, setAccessibility } = useTheme()
 
   return (
     <div className="space-y-6">
@@ -36,47 +30,29 @@ export function AccessibilitySection() {
           <div className="flex items-center justify-between">
             <div>
               <Label htmlFor="highContrast">High Contrast Mode</Label>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Increase contrast for better visibility
+              <p className="text-sm text-muted-foreground mt-1">
+                Strengthen text and borders for better visibility
               </p>
             </div>
             <Switch
               id="highContrast"
-              checked={highContrast}
-              onCheckedChange={setHighContrast}
+              checked={prefs.highContrast}
+              onCheckedChange={(v) => setAccessibility({ highContrast: v })}
             />
           </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800">
+          <div className="flex items-center justify-between pt-4 border-t border-border">
             <div>
-              <Label htmlFor="dyslexiaFont">Dyslexia-Friendly Font</Label>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Use OpenDyslexic font for easier reading
+              <Label htmlFor="readableText">Readable Text Spacing</Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Increase letter, word, and line spacing for easier reading
               </p>
             </div>
             <Switch
-              id="dyslexiaFont"
-              checked={dyslexiaFont}
-              onCheckedChange={setDyslexiaFont}
+              id="readableText"
+              checked={prefs.readableText}
+              onCheckedChange={(v) => setAccessibility({ readableText: v })}
             />
-          </div>
-
-          <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-800">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="fontSize">Editor Font Size</Label>
-              <span className="text-sm font-medium">{fontSize[0]}px</span>
-            </div>
-            <Slider
-              id="fontSize"
-              min={12}
-              max={24}
-              step={1}
-              value={fontSize}
-              onValueChange={setFontSize}
-            />
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Adjust the base font size in the editor
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -88,7 +64,7 @@ export function AccessibilitySection() {
               <Zap className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <CardTitle>Motion & Animation</CardTitle>
+              <CardTitle>Motion &amp; Animation</CardTitle>
               <CardDescription>
                 Control animations and motion effects
               </CardDescription>
@@ -99,14 +75,14 @@ export function AccessibilitySection() {
           <div className="flex items-center justify-between">
             <div>
               <Label htmlFor="reduceMotion">Reduce Motion</Label>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Minimize animations and transitions throughout the app
               </p>
             </div>
             <Switch
               id="reduceMotion"
-              checked={reduceMotion}
-              onCheckedChange={setReduceMotion}
+              checked={prefs.reduceMotion}
+              onCheckedChange={(v) => setAccessibility({ reduceMotion: v })}
             />
           </div>
         </CardContent>
@@ -119,47 +95,29 @@ export function AccessibilitySection() {
               <Maximize2 className="h-5 w-5 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <CardTitle>Interface Scaling</CardTitle>
+              <CardTitle>Interface Scale</CardTitle>
               <CardDescription>
-                Adjust cursor and UI element sizes
+                Scale the whole interface up or down
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="cursorSize">Cursor Size</Label>
-            <Select value={cursorSize} onValueChange={setCursorSize}>
-              <SelectTrigger id="cursorSize">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="small">Small</SelectItem>
-                <SelectItem value="normal">Normal</SelectItem>
-                <SelectItem value="large">Large</SelectItem>
-                <SelectItem value="extra-large">Extra Large</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Increase cursor size for better visibility
-            </p>
-          </div>
-
-          <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-800">
+        <CardContent>
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label htmlFor="uiScale">Interface Scale</Label>
-              <span className="text-sm font-medium">{uiScale[0]}%</span>
+              <span className="text-sm font-medium tabular-nums">{prefs.interfaceScale}%</span>
             </div>
             <Slider
               id="uiScale"
               min={80}
               max={150}
               step={10}
-              value={uiScale}
-              onValueChange={setUiScale}
+              value={[prefs.interfaceScale]}
+              onValueChange={([v]) => setAccessibility({ interfaceScale: v })}
             />
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Scale all UI elements for easier interaction
+            <p className="text-sm text-muted-foreground">
+              Scales every UI element. Takes effect immediately across the app.
             </p>
           </div>
         </CardContent>
@@ -194,9 +152,9 @@ export function AccessibilitySection() {
                 </kbd>
               </div>
               <div className="flex justify-between text-blue-800 dark:text-blue-200">
-                <span>Close dialogs</span>
+                <span>Open the shortcuts cheat sheet</span>
                 <kbd className="px-2 py-1 bg-white dark:bg-gray-800 rounded border border-blue-300 dark:border-blue-700 font-mono text-xs">
-                  Esc
+                  ?
                 </kbd>
               </div>
             </div>
