@@ -229,6 +229,7 @@ type RegisterResponse struct {
 	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	AccessToken   string                 `protobuf:"bytes,2,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
 	RefreshToken  string                 `protobuf:"bytes,3,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	SessionId     string                 `protobuf:"bytes,4,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -280,6 +281,13 @@ func (x *RegisterResponse) GetAccessToken() string {
 func (x *RegisterResponse) GetRefreshToken() string {
 	if x != nil {
 		return x.RefreshToken
+	}
+	return ""
+}
+
+func (x *RegisterResponse) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
 	}
 	return ""
 }
@@ -341,6 +349,7 @@ type LoginResponse struct {
 	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	AccessToken   string                 `protobuf:"bytes,2,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
 	RefreshToken  string                 `protobuf:"bytes,3,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	SessionId     string                 `protobuf:"bytes,4,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -392,6 +401,13 @@ func (x *LoginResponse) GetAccessToken() string {
 func (x *LoginResponse) GetRefreshToken() string {
 	if x != nil {
 		return x.RefreshToken
+	}
+	return ""
+}
+
+func (x *LoginResponse) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
 	}
 	return ""
 }
@@ -1073,6 +1089,294 @@ func (x *ChangePasswordResponse) GetSuccess() bool {
 	return false
 }
 
+// Active session (a row in user_sessions) surfaced to the user for the
+// Security → Active Sessions UI.
+type Session struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	CreatedAt     *common.Timestamp      `protobuf:"bytes,2,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ExpiresAt     *common.Timestamp      `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	LastUsedAt    *common.Timestamp      `protobuf:"bytes,4,opt,name=last_used_at,json=lastUsedAt,proto3" json:"last_used_at,omitempty"`
+	DeviceInfo    string                 `protobuf:"bytes,5,opt,name=device_info,json=deviceInfo,proto3" json:"device_info,omitempty"` // user-agent captured at login
+	IpAddress     string                 `protobuf:"bytes,6,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`    // client IP captured at login
+	IsCurrent     bool                   `protobuf:"varint,7,opt,name=is_current,json=isCurrent,proto3" json:"is_current,omitempty"`   // matches the requesting device's session
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Session) Reset() {
+	*x = Session{}
+	mi := &file_identity_identity_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Session) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Session) ProtoMessage() {}
+
+func (x *Session) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Session.ProtoReflect.Descriptor instead.
+func (*Session) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *Session) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *Session) GetCreatedAt() *common.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *Session) GetExpiresAt() *common.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+func (x *Session) GetLastUsedAt() *common.Timestamp {
+	if x != nil {
+		return x.LastUsedAt
+	}
+	return nil
+}
+
+func (x *Session) GetDeviceInfo() string {
+	if x != nil {
+		return x.DeviceInfo
+	}
+	return ""
+}
+
+func (x *Session) GetIpAddress() string {
+	if x != nil {
+		return x.IpAddress
+	}
+	return ""
+}
+
+func (x *Session) GetIsCurrent() bool {
+	if x != nil {
+		return x.IsCurrent
+	}
+	return false
+}
+
+type ListSessionsRequest struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	UserId string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// The caller's current session id (from the gateway's sid cookie), used to
+	// flag is_current. Empty when the caller can't be identified.
+	CurrentSessionId string `protobuf:"bytes,2,opt,name=current_session_id,json=currentSessionId,proto3" json:"current_session_id,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ListSessionsRequest) Reset() {
+	*x = ListSessionsRequest{}
+	mi := &file_identity_identity_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSessionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSessionsRequest) ProtoMessage() {}
+
+func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
+func (*ListSessionsRequest) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ListSessionsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ListSessionsRequest) GetCurrentSessionId() string {
+	if x != nil {
+		return x.CurrentSessionId
+	}
+	return ""
+}
+
+type ListSessionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sessions      []*Session             `protobuf:"bytes,1,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSessionsResponse) Reset() {
+	*x = ListSessionsResponse{}
+	mi := &file_identity_identity_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSessionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSessionsResponse) ProtoMessage() {}
+
+func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSessionsResponse.ProtoReflect.Descriptor instead.
+func (*ListSessionsResponse) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ListSessionsResponse) GetSessions() []*Session {
+	if x != nil {
+		return x.Sessions
+	}
+	return nil
+}
+
+type RevokeSessionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // owner check — a user may only revoke their own
+	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeSessionRequest) Reset() {
+	*x = RevokeSessionRequest{}
+	mi := &file_identity_identity_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeSessionRequest) ProtoMessage() {}
+
+func (x *RevokeSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeSessionRequest.ProtoReflect.Descriptor instead.
+func (*RevokeSessionRequest) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *RevokeSessionRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *RevokeSessionRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type RevokeSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeSessionResponse) Reset() {
+	*x = RevokeSessionResponse{}
+	mi := &file_identity_identity_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeSessionResponse) ProtoMessage() {}
+
+func (x *RevokeSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeSessionResponse.ProtoReflect.Descriptor instead.
+func (*RevokeSessionResponse) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *RevokeSessionResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
 var File_identity_identity_proto protoreflect.FileDescriptor
 
 const file_identity_identity_proto_rawDesc = "" +
@@ -1101,18 +1405,22 @@ const file_identity_identity_proto_rawDesc = "" +
 	"\bpassword\x18\x03 \x01(\tR\bpassword\x12\x1d\n" +
 	"\n" +
 	"first_name\x18\x04 \x01(\tR\tfirstName\x12\x1b\n" +
-	"\tlast_name\x18\x05 \x01(\tR\blastName\"~\n" +
+	"\tlast_name\x18\x05 \x01(\tR\blastName\"\x9d\x01\n" +
 	"\x10RegisterResponse\x12\"\n" +
 	"\x04user\x18\x01 \x01(\v2\x0e.identity.UserR\x04user\x12!\n" +
 	"\faccess_token\x18\x02 \x01(\tR\vaccessToken\x12#\n" +
-	"\rrefresh_token\x18\x03 \x01(\tR\frefreshToken\"@\n" +
+	"\rrefresh_token\x18\x03 \x01(\tR\frefreshToken\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x04 \x01(\tR\tsessionId\"@\n" +
 	"\fLoginRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\"{\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x9a\x01\n" +
 	"\rLoginResponse\x12\"\n" +
 	"\x04user\x18\x01 \x01(\v2\x0e.identity.UserR\x04user\x12!\n" +
 	"\faccess_token\x18\x02 \x01(\tR\vaccessToken\x12#\n" +
-	"\rrefresh_token\x18\x03 \x01(\tR\frefreshToken\":\n" +
+	"\rrefresh_token\x18\x03 \x01(\tR\frefreshToken\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x04 \x01(\tR\tsessionId\":\n" +
 	"\x13RefreshTokenRequest\x12#\n" +
 	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"^\n" +
 	"\x14RefreshTokenResponse\x12!\n" +
@@ -1164,7 +1472,33 @@ const file_identity_identity_proto_rawDesc = "" +
 	"\x10current_password\x18\x02 \x01(\tR\x0fcurrentPassword\x12!\n" +
 	"\fnew_password\x18\x03 \x01(\tR\vnewPassword\"2\n" +
 	"\x16ChangePasswordResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2\xaa\x05\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xa0\x02\n" +
+	"\aSession\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x120\n" +
+	"\n" +
+	"created_at\x18\x02 \x01(\v2\x11.common.TimestampR\tcreatedAt\x120\n" +
+	"\n" +
+	"expires_at\x18\x03 \x01(\v2\x11.common.TimestampR\texpiresAt\x123\n" +
+	"\flast_used_at\x18\x04 \x01(\v2\x11.common.TimestampR\n" +
+	"lastUsedAt\x12\x1f\n" +
+	"\vdevice_info\x18\x05 \x01(\tR\n" +
+	"deviceInfo\x12\x1d\n" +
+	"\n" +
+	"ip_address\x18\x06 \x01(\tR\tipAddress\x12\x1d\n" +
+	"\n" +
+	"is_current\x18\a \x01(\bR\tisCurrent\"\\\n" +
+	"\x13ListSessionsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12,\n" +
+	"\x12current_session_id\x18\x02 \x01(\tR\x10currentSessionId\"E\n" +
+	"\x14ListSessionsResponse\x12-\n" +
+	"\bsessions\x18\x01 \x03(\v2\x11.identity.SessionR\bsessions\"N\n" +
+	"\x14RevokeSessionRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\"1\n" +
+	"\x15RevokeSessionResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess2\xcb\x06\n" +
 	"\x0fIdentityService\x12A\n" +
 	"\bRegister\x12\x19.identity.RegisterRequest\x1a\x1a.identity.RegisterResponse\x128\n" +
 	"\x05Login\x12\x16.identity.LoginRequest\x1a\x17.identity.LoginResponse\x12M\n" +
@@ -1175,7 +1509,9 @@ const file_identity_identity_proto_rawDesc = "" +
 	"\bGetUsers\x12\x19.identity.GetUsersRequest\x1a\x1a.identity.GetUsersResponse\x12G\n" +
 	"\n" +
 	"UpdateUser\x12\x1b.identity.UpdateUserRequest\x1a\x1c.identity.UpdateUserResponse\x12S\n" +
-	"\x0eChangePassword\x12\x1f.identity.ChangePasswordRequest\x1a .identity.ChangePasswordResponseB\"Z inkwell/server/pkg/grpc/identityb\x06proto3"
+	"\x0eChangePassword\x12\x1f.identity.ChangePasswordRequest\x1a .identity.ChangePasswordResponse\x12M\n" +
+	"\fListSessions\x12\x1d.identity.ListSessionsRequest\x1a\x1e.identity.ListSessionsResponse\x12P\n" +
+	"\rRevokeSession\x12\x1e.identity.RevokeSessionRequest\x1a\x1f.identity.RevokeSessionResponseB\"Z inkwell/server/pkg/grpc/identityb\x06proto3"
 
 var (
 	file_identity_identity_proto_rawDescOnce sync.Once
@@ -1189,7 +1525,7 @@ func file_identity_identity_proto_rawDescGZIP() []byte {
 	return file_identity_identity_proto_rawDescData
 }
 
-var file_identity_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_identity_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_identity_identity_proto_goTypes = []any{
 	(*User)(nil),                        // 0: identity.User
 	(*RegisterRequest)(nil),             // 1: identity.RegisterRequest
@@ -1209,45 +1545,58 @@ var file_identity_identity_proto_goTypes = []any{
 	(*GetUsersResponse)(nil),            // 15: identity.GetUsersResponse
 	(*ChangePasswordRequest)(nil),       // 16: identity.ChangePasswordRequest
 	(*ChangePasswordResponse)(nil),      // 17: identity.ChangePasswordResponse
-	(*common.Timestamp)(nil),            // 18: common.Timestamp
-	(*common.PaginationRequest)(nil),    // 19: common.PaginationRequest
-	(*common.PaginationResponse)(nil),   // 20: common.PaginationResponse
+	(*Session)(nil),                     // 18: identity.Session
+	(*ListSessionsRequest)(nil),         // 19: identity.ListSessionsRequest
+	(*ListSessionsResponse)(nil),        // 20: identity.ListSessionsResponse
+	(*RevokeSessionRequest)(nil),        // 21: identity.RevokeSessionRequest
+	(*RevokeSessionResponse)(nil),       // 22: identity.RevokeSessionResponse
+	(*common.Timestamp)(nil),            // 23: common.Timestamp
+	(*common.PaginationRequest)(nil),    // 24: common.PaginationRequest
+	(*common.PaginationResponse)(nil),   // 25: common.PaginationResponse
 }
 var file_identity_identity_proto_depIdxs = []int32{
-	18, // 0: identity.User.created_at:type_name -> common.Timestamp
-	18, // 1: identity.User.updated_at:type_name -> common.Timestamp
+	23, // 0: identity.User.created_at:type_name -> common.Timestamp
+	23, // 1: identity.User.updated_at:type_name -> common.Timestamp
 	0,  // 2: identity.RegisterResponse.user:type_name -> identity.User
 	0,  // 3: identity.LoginResponse.user:type_name -> identity.User
 	0,  // 4: identity.ValidateTokenResponse.user:type_name -> identity.User
-	18, // 5: identity.ValidateTokenResponse.expires_at:type_name -> common.Timestamp
+	23, // 5: identity.ValidateTokenResponse.expires_at:type_name -> common.Timestamp
 	0,  // 6: identity.GetUserResponse.user:type_name -> identity.User
 	0,  // 7: identity.UpdateUserResponse.user:type_name -> identity.User
-	19, // 8: identity.GetUsersRequest.pagination:type_name -> common.PaginationRequest
+	24, // 8: identity.GetUsersRequest.pagination:type_name -> common.PaginationRequest
 	0,  // 9: identity.GetUsersResponse.users:type_name -> identity.User
-	20, // 10: identity.GetUsersResponse.pagination:type_name -> common.PaginationResponse
-	1,  // 11: identity.IdentityService.Register:input_type -> identity.RegisterRequest
-	3,  // 12: identity.IdentityService.Login:input_type -> identity.LoginRequest
-	5,  // 13: identity.IdentityService.RefreshToken:input_type -> identity.RefreshTokenRequest
-	7,  // 14: identity.IdentityService.ValidateToken:input_type -> identity.ValidateTokenRequest
-	9,  // 15: identity.IdentityService.GetUser:input_type -> identity.GetUserRequest
-	10, // 16: identity.IdentityService.GetUserByUsernameTag:input_type -> identity.GetUserByUsernameTagRequest
-	14, // 17: identity.IdentityService.GetUsers:input_type -> identity.GetUsersRequest
-	12, // 18: identity.IdentityService.UpdateUser:input_type -> identity.UpdateUserRequest
-	16, // 19: identity.IdentityService.ChangePassword:input_type -> identity.ChangePasswordRequest
-	2,  // 20: identity.IdentityService.Register:output_type -> identity.RegisterResponse
-	4,  // 21: identity.IdentityService.Login:output_type -> identity.LoginResponse
-	6,  // 22: identity.IdentityService.RefreshToken:output_type -> identity.RefreshTokenResponse
-	8,  // 23: identity.IdentityService.ValidateToken:output_type -> identity.ValidateTokenResponse
-	11, // 24: identity.IdentityService.GetUser:output_type -> identity.GetUserResponse
-	11, // 25: identity.IdentityService.GetUserByUsernameTag:output_type -> identity.GetUserResponse
-	15, // 26: identity.IdentityService.GetUsers:output_type -> identity.GetUsersResponse
-	13, // 27: identity.IdentityService.UpdateUser:output_type -> identity.UpdateUserResponse
-	17, // 28: identity.IdentityService.ChangePassword:output_type -> identity.ChangePasswordResponse
-	20, // [20:29] is the sub-list for method output_type
-	11, // [11:20] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	25, // 10: identity.GetUsersResponse.pagination:type_name -> common.PaginationResponse
+	23, // 11: identity.Session.created_at:type_name -> common.Timestamp
+	23, // 12: identity.Session.expires_at:type_name -> common.Timestamp
+	23, // 13: identity.Session.last_used_at:type_name -> common.Timestamp
+	18, // 14: identity.ListSessionsResponse.sessions:type_name -> identity.Session
+	1,  // 15: identity.IdentityService.Register:input_type -> identity.RegisterRequest
+	3,  // 16: identity.IdentityService.Login:input_type -> identity.LoginRequest
+	5,  // 17: identity.IdentityService.RefreshToken:input_type -> identity.RefreshTokenRequest
+	7,  // 18: identity.IdentityService.ValidateToken:input_type -> identity.ValidateTokenRequest
+	9,  // 19: identity.IdentityService.GetUser:input_type -> identity.GetUserRequest
+	10, // 20: identity.IdentityService.GetUserByUsernameTag:input_type -> identity.GetUserByUsernameTagRequest
+	14, // 21: identity.IdentityService.GetUsers:input_type -> identity.GetUsersRequest
+	12, // 22: identity.IdentityService.UpdateUser:input_type -> identity.UpdateUserRequest
+	16, // 23: identity.IdentityService.ChangePassword:input_type -> identity.ChangePasswordRequest
+	19, // 24: identity.IdentityService.ListSessions:input_type -> identity.ListSessionsRequest
+	21, // 25: identity.IdentityService.RevokeSession:input_type -> identity.RevokeSessionRequest
+	2,  // 26: identity.IdentityService.Register:output_type -> identity.RegisterResponse
+	4,  // 27: identity.IdentityService.Login:output_type -> identity.LoginResponse
+	6,  // 28: identity.IdentityService.RefreshToken:output_type -> identity.RefreshTokenResponse
+	8,  // 29: identity.IdentityService.ValidateToken:output_type -> identity.ValidateTokenResponse
+	11, // 30: identity.IdentityService.GetUser:output_type -> identity.GetUserResponse
+	11, // 31: identity.IdentityService.GetUserByUsernameTag:output_type -> identity.GetUserResponse
+	15, // 32: identity.IdentityService.GetUsers:output_type -> identity.GetUsersResponse
+	13, // 33: identity.IdentityService.UpdateUser:output_type -> identity.UpdateUserResponse
+	17, // 34: identity.IdentityService.ChangePassword:output_type -> identity.ChangePasswordResponse
+	20, // 35: identity.IdentityService.ListSessions:output_type -> identity.ListSessionsResponse
+	22, // 36: identity.IdentityService.RevokeSession:output_type -> identity.RevokeSessionResponse
+	26, // [26:37] is the sub-list for method output_type
+	15, // [15:26] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_identity_identity_proto_init() }
@@ -1262,7 +1611,7 @@ func file_identity_identity_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_identity_identity_proto_rawDesc), len(file_identity_identity_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   18,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

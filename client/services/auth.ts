@@ -40,3 +40,11 @@ export const loginUser = (credentials: LoginRequest): Promise<AuthResponse> =>
 
 export const registerUser = (userData: RegisterRequest): Promise<AuthResponse> =>
   getStorage().auth.register(userData)
+
+export type { Session } from "@/lib/storage"
+
+/** List the authenticated user's active sessions (hosted only). */
+export const listSessions = () => getStorage().auth.listSessions()
+
+/** Revoke an active session by id (hosted only). */
+export const revokeSession = (id: string) => getStorage().auth.revokeSession(id)

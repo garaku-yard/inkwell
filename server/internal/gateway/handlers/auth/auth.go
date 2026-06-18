@@ -5,13 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"google.golang.org/grpc/metadata"
+
 	"inkwell/server/internal/gateway/apierror"
+	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
 	"inkwell/server/internal/gateway/middleware"
+	commonpb "inkwell/server/pkg/grpc/common"
 	identitypb "inkwell/server/pkg/grpc/identity"
 )
 
@@ -110,6 +117,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
+	ctx = withSessionMetadata(ctx, r)
 
 	grpcResp, err := h.identityClient.Login(ctx, &identitypb.LoginRequest{
 		Email:    req.Email,
@@ -121,6 +129,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	SetAuthCookie(w, grpcResp.AccessToken, h.environment)
+	SetSidCookie(w, grpcResp.SessionId, h.environment)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(AuthResponse{User: userFromProto(grpcResp.User)})
@@ -236,6 +245,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
+	ctx = withSessionMetadata(ctx, r)
 
 	grpcResp, err := h.identityClient.Register(ctx, &identitypb.RegisterRequest{
 		Email:     req.Email,
@@ -251,6 +261,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	SetAuthCookie(w, grpcResp.AccessToken, h.environment)
+	SetSidCookie(w, grpcResp.SessionId, h.environment)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -294,10 +305,142 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Best-effort: revoke the current session row so it stops appearing in the
+	// user's Active Sessions list. Logout runs under the auth middleware, so the
+	// userID is on the context; the session id comes from the sid cookie.
+	if userID, ok := contextx.UserIDFrom(r.Context()); ok {
+		if sid := sidFromRequest(r); sid != "" {
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			if _, err := h.identityClient.RevokeSession(ctx, &identitypb.RevokeSessionRequest{UserId: userID, SessionId: sid}); err != nil {
+				slog.Warn("logout: failed to revoke session", "error", err)
+			}
+			cancel()
+		}
+	}
+
 	ClearAuthCookie(w, h.environment)
+	ClearSidCookie(w, h.environment)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+}
+
+// SessionResponse is one active session shown in Security → Active Sessions.
+type SessionResponse struct {
+	ID         string `json:"id"`
+	DeviceInfo string `json:"deviceInfo"`
+	IPAddress  string `json:"ipAddress"`
+	CreatedAt  string `json:"createdAt"`
+	LastUsedAt string `json:"lastUsedAt"`
+	ExpiresAt  string `json:"expiresAt"`
+	IsCurrent  bool   `json:"isCurrent"`
+}
+
+func sessionFromProto(s *identitypb.Session) SessionResponse {
+	return SessionResponse{
+		ID:         s.SessionId,
+		DeviceInfo: s.DeviceInfo,
+		IPAddress:  s.IpAddress,
+		CreatedAt:  commonTimeToRFC3339(s.CreatedAt),
+		LastUsedAt: commonTimeToRFC3339(s.LastUsedAt),
+		ExpiresAt:  commonTimeToRFC3339(s.ExpiresAt),
+		IsCurrent:  s.IsCurrent,
+	}
+}
+
+// ListSessions returns the authenticated user's active sessions, flagging the
+// one belonging to the requesting device (via the sid cookie).
+func (h *AuthHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, []SessionResponse]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]SessionResponse, error) {
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel()
+
+			grpcResp, err := h.identityClient.ListSessions(ctx, &identitypb.ListSessionsRequest{
+				UserId:           userID,
+				CurrentSessionId: sidFromRequest(r),
+			})
+			if err != nil {
+				slog.Error("ListSessions gRPC error", "error", err)
+				return nil, err
+			}
+
+			out := make([]SessionResponse, len(grpcResp.Sessions))
+			for i, s := range grpcResp.Sessions {
+				out[i] = sessionFromProto(s)
+			}
+			return &out, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// RevokeSession revokes one of the authenticated user's sessions by id. The
+// identity service enforces that the session belongs to the caller (404
+// otherwise). Note: this invalidates the session's refresh token immediately;
+// a still-valid access token on that device keeps working until it expires
+// (≤24h) — the UI surfaces that, and doesn't offer revoke for the current
+// device (use logout there).
+func (h *AuthHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, map[string]bool]{
+		Method: http.MethodDelete,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]bool, error) {
+			sessionID := chi.URLParam(r, "sessionId")
+			if sessionID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "session id is required")
+			}
+
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel()
+
+			if _, err := h.identityClient.RevokeSession(ctx, &identitypb.RevokeSessionRequest{
+				UserId:    userID,
+				SessionId: sessionID,
+			}); err != nil {
+				slog.Error("RevokeSession gRPC error", "error", err)
+				return nil, err
+			}
+
+			return &map[string]bool{"success": true}, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// withSessionMetadata attaches the caller's user-agent and client IP as gRPC
+// metadata so the identity service can stamp them on the new session row.
+func withSessionMetadata(ctx context.Context, r *http.Request) context.Context {
+	return metadata.AppendToOutgoingContext(ctx,
+		"x-device-info", r.UserAgent(),
+		"x-client-ip", clientIP(r),
+	)
+}
+
+// clientIP best-guesses the caller's IP: the first hop of X-Forwarded-For when
+// a proxy set it, otherwise the request's remote address with the port stripped.
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if i := strings.IndexByte(xff, ','); i >= 0 {
+			return strings.TrimSpace(xff[:i])
+		}
+		return strings.TrimSpace(xff)
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
+// commonTimeToRFC3339 formats a proto common.Timestamp as RFC3339 (UTC), or ""
+// when nil/zero.
+func commonTimeToRFC3339(ts *commonpb.Timestamp) string {
+	if ts == nil || ts.Seconds == 0 {
+		return ""
+	}
+	return time.Unix(ts.Seconds, int64(ts.Nanos)).UTC().Format(time.RFC3339)
 }
 
 // tokenFromRequest returns the JWT access token carried by r. The cookie set

@@ -34,6 +34,7 @@ message RegisterResponse {
   User user = 1;
   string access_token = 2;
   string refresh_token = 3;
+  string session_id = 4;
 }
 
 message LoginRequest {
@@ -45,6 +46,7 @@ message LoginResponse {
   User user = 1;
   string access_token = 2;
   string refresh_token = 3;
+  string session_id = 4;
 }
 
 message RefreshTokenRequest {
@@ -113,6 +115,38 @@ message ChangePasswordResponse {
   bool success = 1;
 }
 
+// Active session (a row in user_sessions) surfaced to the user for the
+// Security → Active Sessions UI.
+message Session {
+  string session_id = 1;
+  common.Timestamp created_at = 2;
+  common.Timestamp expires_at = 3;
+  common.Timestamp last_used_at = 4;
+  string device_info = 5;   // user-agent captured at login
+  string ip_address = 6;    // client IP captured at login
+  bool is_current = 7;      // matches the requesting device's session
+}
+
+message ListSessionsRequest {
+  string user_id = 1;
+  // The caller's current session id (from the gateway's sid cookie), used to
+  // flag is_current. Empty when the caller can't be identified.
+  string current_session_id = 2;
+}
+
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+}
+
+message RevokeSessionRequest {
+  string user_id = 1;     // owner check — a user may only revoke their own
+  string session_id = 2;
+}
+
+message RevokeSessionResponse {
+  bool success = 1;
+}
+
 // Identity service definition
 service IdentityService {
   // Authentication
@@ -127,4 +161,8 @@ service IdentityService {
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+
+  // Session management (Security settings)
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
 }

@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api"
 
-import type { AuthStorage, AuthResponse, CurrentUser } from "@/lib/storage"
+import type { AuthStorage, AuthResponse, CurrentUser, Session } from "@/lib/storage"
 
 // ─── Auth ─────────────────────────────────────────────────────────────────
 
@@ -42,5 +42,12 @@ export const auth: AuthStorage = {
     } catch {
       return null
     }
+  },
+
+  listSessions: async (): Promise<Session[]> =>
+    apiClient<Session[]>("users/me/sessions", { method: "GET" }),
+
+  revokeSession: async (id: string): Promise<void> => {
+    await apiClient<void>(`users/me/sessions/${encodeURIComponent(id)}`, { method: "DELETE" })
   },
 }

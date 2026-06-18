@@ -15,6 +15,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc/metadata"
 
 	"inkwell/server/internal/identity/config"
 	"inkwell/server/internal/identity/domain"
@@ -45,7 +46,7 @@ type AuthService interface {
 	ValidateRefreshToken(ctx context.Context, tokenString string) (*domain.UserSession, error)
 
 	// Session management
-	GetActiveSessions(ctx context.Context, userID uuid.UUID) ([]*SessionInfo, error)
+	GetActiveSessions(ctx context.Context, userID uuid.UUID, currentSessionID uuid.UUID) ([]*SessionInfo, error)
 	RevokeSession(ctx context.Context, userID uuid.UUID, sessionID uuid.UUID) error
 }
 
@@ -112,10 +113,13 @@ type ChangePasswordRequest struct {
 }
 
 type SessionInfo struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	ExpiresAt time.Time `json:"expires_at"`
-	IsCurrent bool      `json:"is_current"`
+	ID         uuid.UUID `json:"id"`
+	CreatedAt  time.Time `json:"created_at"`
+	ExpiresAt  time.Time `json:"expires_at"`
+	LastUsedAt time.Time `json:"last_used_at"`
+	DeviceInfo string    `json:"device_info"`
+	IPAddress  string    `json:"ip_address"`
+	IsCurrent  bool      `json:"is_current"`
 }
 
 type TokenClaims struct {
@@ -590,7 +594,7 @@ func (s *authService) ValidateRefreshToken(ctx context.Context, tokenString stri
 }
 
 // GetActiveSessions retrieves all active sessions for a user
-func (s *authService) GetActiveSessions(ctx context.Context, userID uuid.UUID) ([]*SessionInfo, error) {
+func (s *authService) GetActiveSessions(ctx context.Context, userID uuid.UUID, currentSessionID uuid.UUID) ([]*SessionInfo, error) {
 	sessions, err := s.userRepo.GetActiveSessionsByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active sessions: %w", err)
@@ -598,12 +602,20 @@ func (s *authService) GetActiveSessions(ctx context.Context, userID uuid.UUID) (
 
 	sessionInfos := make([]*SessionInfo, len(sessions))
 	for i, session := range sessions {
-		sessionInfos[i] = &SessionInfo{
-			ID:        session.ID,
-			CreatedAt: session.CreatedAt,
-			ExpiresAt: session.ExpiresAt,
-			IsCurrent: false, // This would need the current session ID to determine
+		info := &SessionInfo{
+			ID:         session.ID,
+			CreatedAt:  session.CreatedAt,
+			ExpiresAt:  session.ExpiresAt,
+			LastUsedAt: session.LastUsedAt,
+			IsCurrent:  session.ID == currentSessionID,
 		}
+		if session.DeviceInfo != nil {
+			info.DeviceInfo = *session.DeviceInfo
+		}
+		if session.IPAddress != nil {
+			info.IPAddress = *session.IPAddress
+		}
+		sessionInfos[i] = info
 	}
 
 	return sessionInfos, nil
@@ -635,12 +647,27 @@ func (s *authService) createUserSession(ctx context.Context, user *domain.User) 
 	}
 
 	// Create session
+	now := time.Now()
 	session := &domain.UserSession{
 		ID:               uuid.New(),
 		UserID:           user.ID,
 		RefreshTokenHash: s.hashRefreshToken(tokenPair.RefreshToken),
-		ExpiresAt:        time.Now().Add(s.config.JWTConfig.RefreshTokenExpiry),
-		CreatedAt:        time.Now(),
+		ExpiresAt:        now.Add(s.config.JWTConfig.RefreshTokenExpiry),
+		IsActive:         true,
+		CreatedAt:        now,
+		LastUsedAt:       now,
+	}
+
+	// Device + client IP come from gRPC metadata the gateway attaches at
+	// login (the identity service has no HTTP request of its own). Absent
+	// metadata just leaves them nil.
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if v := firstMeta(md, "x-device-info"); v != "" {
+			session.DeviceInfo = &v
+		}
+		if v := firstMeta(md, "x-client-ip"); v != "" {
+			session.IPAddress = &v
+		}
 	}
 
 	if err := s.userRepo.CreateSession(ctx, session); err != nil {
@@ -648,6 +675,14 @@ func (s *authService) createUserSession(ctx context.Context, user *domain.User) 
 	}
 
 	return tokenPair, session, nil
+}
+
+// firstMeta returns the first value for key in md, or "" when absent.
+func firstMeta(md metadata.MD, key string) string {
+	if vals := md.Get(key); len(vals) > 0 {
+		return vals[0]
+	}
+	return ""
 }
 
 // generateTokenPair generates access and refresh tokens for a user

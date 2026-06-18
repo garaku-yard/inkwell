@@ -13,6 +13,19 @@ export interface CurrentUser {
   lastName: string
 }
 
+/** One active sign-in for the Security → Active Sessions UI. */
+export interface Session {
+  id: string
+  /** Raw user-agent captured at login; the UI derives a friendly label. */
+  deviceInfo: string
+  ipAddress: string
+  createdAt: string
+  lastUsedAt: string
+  expiresAt: string
+  /** True for the session belonging to the requesting device. */
+  isCurrent: boolean
+}
+
 export interface AuthStorage {
   /** Log in with email + password. Remote sets the httpOnly cookie; local
    *  returns a synthesised user from the on-disk profile. */
@@ -23,4 +36,8 @@ export interface AuthStorage {
   logout(): Promise<void>
   /** Return the currently authenticated user, or null when signed out. */
   me(): Promise<CurrentUser | null>
+  /** List the user's active sessions. Hosted only; local returns []. */
+  listSessions(): Promise<Session[]>
+  /** Revoke a session by id. Hosted only; local no-ops. */
+  revokeSession(id: string): Promise<void>
 }

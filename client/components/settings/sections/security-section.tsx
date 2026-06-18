@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Loader2, Smartphone, Shield } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Loader2, Smartphone, Shield, Monitor } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +9,46 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { changePassword } from "@/services/settings"
+import { listSessions, revokeSession, type Session } from "@/services/auth"
+
+/** Derive a friendly "Browser on OS" label from a raw user-agent string. */
+function deviceLabel(ua: string): string {
+  if (!ua) return "Unknown device"
+  const browser = /Firefox/.test(ua)
+    ? "Firefox"
+    : /Edg\//.test(ua)
+      ? "Edge"
+      : /Chrome/.test(ua)
+        ? "Chrome"
+        : /Safari/.test(ua)
+          ? "Safari"
+          : "Browser"
+  const os = /Windows/.test(ua)
+    ? "Windows"
+    : /Mac OS/.test(ua)
+      ? "macOS"
+      : /Android/.test(ua)
+        ? "Android"
+        : /iPhone|iPad/.test(ua)
+          ? "iOS"
+          : /Linux/.test(ua)
+            ? "Linux"
+            : ""
+  return os ? `${browser} on ${os}` : browser
+}
+
+/** Compact relative-time label (e.g. "3h ago") for a last-used timestamp. */
+function formatRelative(iso: string): string {
+  if (!iso) return "unknown"
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return "unknown"
+  const mins = Math.floor((Date.now() - then) / 60000)
+  if (mins < 1) return "just now"
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
 
 export function SecuritySection() {
   const [currentPassword, setCurrentPassword] = useState("")
@@ -16,6 +56,34 @@ export function SecuritySection() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const { toast } = useToast()
+
+  // Active sessions. null = loading; [] = none/desktop; error flag for failures.
+  const [sessions, setSessions] = useState<Session[] | null>(null)
+  const [sessionsError, setSessionsError] = useState(false)
+  const [revokingId, setRevokingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    listSessions()
+      .then((s) => active && setSessions(s))
+      .catch(() => active && setSessionsError(true))
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const handleRevokeSession = async (id: string) => {
+    setRevokingId(id)
+    try {
+      await revokeSession(id)
+      setSessions((prev) => (prev ? prev.filter((s) => s.id !== id) : prev))
+      toast({ title: "Signed out", description: "That device's session was revoked." })
+    } catch {
+      toast({ title: "Failed to revoke session", variant: "destructive" })
+    } finally {
+      setRevokingId(null)
+    }
+  }
 
   const getPasswordStrength = (password: string) => {
     if (password.length === 0) return { strength: 0, label: "", color: "" }
@@ -117,12 +185,10 @@ export function SecuritySection() {
       </Card>
 
       {/*
-        Two-factor authentication and active-session management are intentionally
-        non-functional: the identity service doesn't yet expose the endpoints
-        they'd need (TOTP enrolment, session inventory, device revocation). We
-        surface them as "Coming soon" rather than hide them so users know the
-        roadmap, but the controls are disabled to avoid the previous mock
-        experience where toggles pretended to succeed.
+        Two-factor authentication is intentionally non-functional for now: the
+        identity service doesn't yet expose TOTP enrolment. We surface it as
+        "Coming soon" rather than hide it so users know the roadmap. (Active
+        Sessions, below, is fully wired to the identity service.)
       */}
       <Card className="opacity-75">
         <CardHeader>
@@ -149,29 +215,79 @@ export function SecuritySection() {
         </CardContent>
       </Card>
 
-      <Card className="opacity-75">
+      <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-start gap-3">
-              <div className="rounded-full bg-gray-100 dark:bg-gray-800 p-2">
-                <Shield className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle>Active Sessions</CardTitle>
-                <CardDescription>
-                  View and manage where you&apos;re signed in
-                </CardDescription>
-              </div>
+          <div className="flex items-start gap-3">
+            <div className="rounded-full bg-gray-100 dark:bg-gray-800 p-2">
+              <Shield className="h-5 w-5" />
             </div>
-            <Badge variant="secondary">Coming soon</Badge>
+            <div>
+              <CardTitle>Active Sessions</CardTitle>
+              <CardDescription>
+                Devices currently signed in to your account
+              </CardDescription>
+            </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Per-device session inventory and remote sign-out will land once the
-            identity service tracks device fingerprints. To sign out the current
-            device, use the avatar menu in the top-right.
-          </p>
+        <CardContent className="space-y-4">
+          {sessions === null && !sessionsError && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading sessions…
+            </div>
+          )}
+          {sessionsError && (
+            <p className="text-sm text-muted-foreground">
+              Couldn&apos;t load sessions. Session management is a hosted feature;
+              the desktop app keeps everything on your device.
+            </p>
+          )}
+          {sessions && sessions.length === 0 && !sessionsError && (
+            <p className="text-sm text-muted-foreground">No active sessions found.</p>
+          )}
+          {sessions && sessions.length > 0 && (
+            <>
+              <ul className="space-y-3">
+                {sessions.map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <Monitor className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 text-sm font-medium">
+                          <span className="truncate">{deviceLabel(s.deviceInfo)}</span>
+                          {s.isCurrent && <Badge variant="secondary">This device</Badge>}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {s.ipAddress || "Unknown IP"} · last active {formatRelative(s.lastUsedAt)}
+                        </p>
+                      </div>
+                    </div>
+                    {!s.isCurrent && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={revokingId === s.id}
+                        onClick={() => handleRevokeSession(s.id)}
+                      >
+                        {revokingId === s.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Sign out"
+                        )}
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                Signing out a device revokes its session immediately. If that
+                device has the app open, it may keep access until its sign-in
+                expires (up to 24 hours).
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

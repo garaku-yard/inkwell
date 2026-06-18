@@ -48,3 +48,46 @@ func ClearAuthCookie(w http.ResponseWriter, environment string) {
 		Expires:  time.Unix(0, 0),
 	})
 }
+
+// SidCookieName holds the current session's id (a user_sessions row), set
+// alongside the auth token at login so the Active Sessions UI can flag "this
+// device". It only identifies which session row is the caller's — it is not a
+// credential on its own.
+const SidCookieName = "inkwell_sid"
+
+// SetSidCookie persists the current session id with the same posture as the
+// auth cookie so the two stay in lockstep.
+func SetSidCookie(w http.ResponseWriter, sessionID, environment string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     SidCookieName,
+		Value:    sessionID,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   environment != "development",
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int(authCookieMaxAge.Seconds()),
+	})
+}
+
+// ClearSidCookie expires the session-id cookie. Called alongside
+// ClearAuthCookie whenever the session is dropped.
+func ClearSidCookie(w http.ResponseWriter, environment string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     SidCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   environment != "development",
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+	})
+}
+
+// sidFromRequest returns the current session id cookie value, or "".
+func sidFromRequest(r *http.Request) string {
+	if c, err := r.Cookie(SidCookieName); err == nil {
+		return c.Value
+	}
+	return ""
+}

@@ -61,6 +61,7 @@ func (h *IdentityHandler) Register(ctx context.Context, req *identitypb.Register
 		},
 		AccessToken:  resp.TokenPair.AccessToken,
 		RefreshToken: resp.TokenPair.RefreshToken,
+		SessionId:    resp.SessionID.String(),
 	}, nil
 }
 
@@ -94,6 +95,7 @@ func (h *IdentityHandler) Login(ctx context.Context, req *identitypb.LoginReques
 		},
 		AccessToken:  resp.TokenPair.AccessToken,
 		RefreshToken: resp.TokenPair.RefreshToken,
+		SessionId:    resp.SessionID.String(),
 	}, nil
 }
 
@@ -263,6 +265,58 @@ func (h *IdentityHandler) ChangePassword(ctx context.Context, req *identitypb.Ch
 	}
 
 	return &identitypb.ChangePasswordResponse{Success: true}, nil
+}
+
+// ListSessions returns the caller's active sessions for the Security UI. The
+// current_session_id (from the gateway's sid cookie) flags which row is the
+// requesting device; an empty/invalid value just means "none current".
+func (h *IdentityHandler) ListSessions(ctx context.Context, req *identitypb.ListSessionsRequest) (*identitypb.ListSessionsResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+	var currentID uuid.UUID
+	if req.CurrentSessionId != "" {
+		if id, perr := uuid.Parse(req.CurrentSessionId); perr == nil {
+			currentID = id
+		}
+	}
+
+	sessions, err := h.authService.GetActiveSessions(ctx, userID, currentID)
+	if err != nil {
+		return nil, h.handleError(err)
+	}
+
+	out := make([]*identitypb.Session, len(sessions))
+	for i, s := range sessions {
+		out[i] = &identitypb.Session{
+			SessionId:  s.ID.String(),
+			CreatedAt:  timeToCommonTimestamp(s.CreatedAt),
+			ExpiresAt:  timeToCommonTimestamp(s.ExpiresAt),
+			LastUsedAt: timeToCommonTimestamp(s.LastUsedAt),
+			DeviceInfo: s.DeviceInfo,
+			IpAddress:  s.IPAddress,
+			IsCurrent:  s.IsCurrent,
+		}
+	}
+	return &identitypb.ListSessionsResponse{Sessions: out}, nil
+}
+
+// RevokeSession soft-revokes one of the caller's sessions. Revoking a session
+// that isn't the caller's returns NotFound (ownership enforced in the service).
+func (h *IdentityHandler) RevokeSession(ctx context.Context, req *identitypb.RevokeSessionRequest) (*identitypb.RevokeSessionResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+	sessionID, err := uuid.Parse(req.SessionId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid session ID format")
+	}
+	if err := h.authService.RevokeSession(ctx, userID, sessionID); err != nil {
+		return nil, h.handleError(err)
+	}
+	return &identitypb.RevokeSessionResponse{Success: true}, nil
 }
 
 // handleError maps domain sentinel errors to gRPC status codes. It covers all error

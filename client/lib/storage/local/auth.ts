@@ -16,4 +16,7 @@ export const auth: AuthStorage = {
     // Local sessions don't exist; nothing to revoke.
   },
   me: async () => ensureUserProfile(),
+  // The desktop app has no server-side session inventory.
+  listSessions: async () => [],
+  revokeSession: async () => {},
 }
