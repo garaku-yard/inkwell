@@ -155,15 +155,6 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 						r.Patch("/lanes/order", scriptsHandler.UpdateLaneOrder)
 						r.Post("/outline-items", scriptsHandler.CreateOutlineItem)
 					})
-
-					// Convenience aliases without /beat-board prefix (backwards compat)
-					r.Post("/beats", scriptsHandler.CreateBeat)
-					r.Post("/connections", scriptsHandler.CreateConnection)
-					r.Get("/lanes", scriptsHandler.GetProjectLanes)
-					r.Post("/lanes", scriptsHandler.CreateLane)
-					r.Put("/lanes/order", scriptsHandler.UpdateLaneOrder)
-					r.Patch("/lanes/order", scriptsHandler.UpdateLaneOrder)
-					r.Post("/outline-items", scriptsHandler.CreateOutlineItem)
 				})
 			})
 

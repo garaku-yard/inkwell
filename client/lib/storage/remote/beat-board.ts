@@ -16,7 +16,7 @@ export const beatBoard: BeatBoardStorage = {
     apiClient<BeatBoardData>(`projects/${projectId}/beat-board`),
 
   createBeat: (projectId, input) =>
-    apiClient<Beat>(`projects/${projectId}/beats`, { method: "POST", body: input }),
+    apiClient<Beat>(`projects/${projectId}/beat-board/beats`, { method: "POST", body: input }),
   updateBeat: (beatId, patch) =>
     apiClient<Beat>(`beats/${beatId}`, { method: "PATCH", body: patch }),
   deleteBeat: async (beatId) => {
@@ -24,7 +24,7 @@ export const beatBoard: BeatBoardStorage = {
   },
 
   createConnection: (projectId, input) =>
-    apiClient<Connection>(`projects/${projectId}/connections`, {
+    apiClient<Connection>(`projects/${projectId}/beat-board/connections`, {
       method: "POST",
       body: input,
     }),
@@ -33,12 +33,12 @@ export const beatBoard: BeatBoardStorage = {
   },
 
   createLane: (projectId, input) =>
-    apiClient<Lane>(`projects/${projectId}/lanes`, { method: "POST", body: input }),
+    apiClient<Lane>(`projects/${projectId}/beat-board/lanes`, { method: "POST", body: input }),
   updateLane: async (laneId, patch) => {
     await apiClient<void>(`lanes/${laneId}`, { method: "PATCH", body: patch })
   },
   updateLaneOrder: async (projectId, orderedIds) => {
-    await apiClient<void>(`projects/${projectId}/lanes/order`, {
+    await apiClient<void>(`projects/${projectId}/beat-board/lanes/order`, {
       method: "PATCH",
       body: { orderedIds },
     })
