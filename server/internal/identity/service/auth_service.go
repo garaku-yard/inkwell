@@ -103,8 +103,9 @@ type UserProfileResponse struct {
 }
 
 type UpdateProfileRequest struct {
-	Email    string `json:"email" validate:"omitempty,email"`
-	Username string `json:"username" validate:"omitempty,min=3,max=30"`
+	Email     string `json:"email" validate:"omitempty,email"`
+	Username  string `json:"username" validate:"omitempty,min=3,max=30"`
+	AvatarURL string `json:"avatar_url" validate:"omitempty,url|startswith=/"`
 }
 
 type ChangePasswordRequest struct {
@@ -393,7 +394,12 @@ func (s *authService) GetUserProfile(ctx context.Context, userID uuid.UUID) (*Us
 		ID:          user.ID,
 		Email:       user.Email,
 		Username:    user.Username,
+		UserTag:     user.UserTag,
+		FirstName:   user.FirstName,
+		LastName:    user.LastName,
+		AvatarURL:   user.AvatarURL,
 		Role:        user.Role,
+		IsActive:    user.IsActive,
 		IsVerified:  user.IsVerified,
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
@@ -423,6 +429,11 @@ func (s *authService) UpdateUserProfile(ctx context.Context, userID uuid.UUID, r
 		}
 		usernameChanged = req.Username != user.Username
 		user.Username = req.Username
+	}
+
+	if req.AvatarURL != "" {
+		avatar := req.AvatarURL
+		user.AvatarURL = &avatar
 	}
 
 	user.UpdatedAt = time.Now()

@@ -219,6 +219,9 @@ func (h *IdentityHandler) UpdateUser(ctx context.Context, req *identitypb.Update
 	if req.Username != nil {
 		serviceReq.Username = *req.Username
 	}
+	if req.AvatarUrl != nil {
+		serviceReq.AvatarURL = *req.AvatarUrl
+	}
 
 	if err := h.authService.UpdateUserProfile(ctx, userID, serviceReq); err != nil {
 		return nil, h.handleError(err)

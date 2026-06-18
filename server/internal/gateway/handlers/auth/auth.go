@@ -7,10 +7,13 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/metadata"
 
 	"inkwell/server/internal/gateway/apierror"
@@ -80,6 +83,7 @@ type UserResponse struct {
 	LastName    string `json:"lastName"`
 	Email       string `json:"email"`
 	Role        string `json:"role,omitempty"`
+	AvatarURL   string `json:"avatarUrl,omitempty"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
 }
@@ -94,6 +98,7 @@ func userFromProto(u *identitypb.User) UserResponse {
 		LastName:    u.LastName,
 		Email:       u.Email,
 		Role:        u.Role,
+		AvatarURL:   u.AvatarUrl,
 		CreatedAt:   time.Now().Format(time.RFC3339),
 		UpdatedAt:   time.Now().Format(time.RFC3339),
 	}
@@ -441,6 +446,97 @@ func commonTimeToRFC3339(ts *commonpb.Timestamp) string {
 		return ""
 	}
 	return time.Unix(ts.Seconds, int64(ts.Nanos)).UTC().Format(time.RFC3339)
+}
+
+// UploadAvatar accepts a multipart image (field "image"), stores it under
+// ./uploads/avatars with a random filename (so the URL doesn't leak the user
+// id), points the user's profile at it via identity UpdateUser, and returns
+// the refreshed user. Hosted-only; the desktop build never calls this.
+func (h *AuthHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	userID, ok := contextx.UserIDFrom(r.Context())
+	if !ok {
+		handlers.WriteError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Cap avatars at 5 MB.
+	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
+	if err := r.ParseMultipartForm(5 << 20); err != nil {
+		handlers.WriteError(w, "Image too large or malformed (max 5 MB)", http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		handlers.WriteError(w, "No image provided", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	ext, ok := avatarExt(header.Header.Get("Content-Type"))
+	if !ok {
+		handlers.WriteError(w, "Unsupported image type — use PNG, JPEG, GIF, or WebP", http.StatusBadRequest)
+		return
+	}
+
+	const uploadsDir = "./uploads/avatars"
+	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
+		slog.Error("UploadAvatar: mkdir failed", "error", err)
+		handlers.WriteError(w, "Failed to save image", http.StatusInternalServerError)
+		return
+	}
+
+	filename := uuid.New().String() + ext
+	dst, err := os.Create(filepath.Join(uploadsDir, filename))
+	if err != nil {
+		slog.Error("UploadAvatar: create file failed", "error", err)
+		handlers.WriteError(w, "Failed to save image", http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+	if _, err := dst.ReadFrom(file); err != nil {
+		slog.Error("UploadAvatar: write file failed", "error", err)
+		handlers.WriteError(w, "Failed to save image", http.StatusInternalServerError)
+		return
+	}
+
+	avatarURL := "/uploads/avatars/" + filename
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	grpcResp, err := h.identityClient.UpdateUser(ctx, &identitypb.UpdateUserRequest{
+		UserId:    userID,
+		AvatarUrl: &avatarURL,
+	})
+	if err != nil {
+		slog.Error("UploadAvatar: UpdateUser failed", "error", err)
+		handlers.HandleGRPCError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(AuthResponse{User: userFromProto(grpcResp.User)})
+}
+
+// avatarExt maps an image content type to a file extension, reporting false
+// for unsupported types.
+func avatarExt(contentType string) (string, bool) {
+	switch {
+	case strings.Contains(contentType, "image/png"):
+		return ".png", true
+	case strings.Contains(contentType, "image/jpeg"):
+		return ".jpg", true
+	case strings.Contains(contentType, "image/gif"):
+		return ".gif", true
+	case strings.Contains(contentType, "image/webp"):
+		return ".webp", true
+	default:
+		return "", false
+	}
 }
 
 // tokenFromRequest returns the JWT access token carried by r. The cookie set

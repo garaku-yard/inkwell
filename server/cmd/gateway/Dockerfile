@@ -23,13 +23,18 @@ RUN apk --no-cache add ca-certificates
 # Create non-root user
 RUN adduser -D -s /bin/sh appuser
 
-WORKDIR /root/
+WORKDIR /app
 
 # Copy the binary from builder stage
 COPY --from=builder /app/bin/api-gateway .
 
-# Change ownership to appuser
-RUN chown appuser:appuser api-gateway
+# Own the binary and provide a writable uploads dir (avatars and other user
+# uploads land here, served back via /uploads). Mounted as a named volume in
+# compose so files survive container redeploys. /root was unwritable by the
+# non-root appuser, which broke uploads.
+RUN chown appuser:appuser api-gateway \
+    && mkdir -p /app/uploads \
+    && chown -R appuser:appuser /app/uploads
 USER appuser
 
 # Expose port

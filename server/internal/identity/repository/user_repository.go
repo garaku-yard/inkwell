@@ -263,7 +263,7 @@ func (r *userRepository) GetUserByUsernameAndTag(ctx context.Context, username, 
 func (r *userRepository) UpdateUser(ctx context.Context, user *domain.User) error {
 	query := `
 		UPDATE users
-		SET email = $2, username = $3, user_tag = $4, role = $5, is_verified = $6, updated_at = $7
+		SET email = $2, username = $3, user_tag = $4, role = $5, is_verified = $6, updated_at = $7, avatar_url = $8
 		WHERE user_id = $1 AND deleted_at IS NULL
 	`
 
@@ -275,6 +275,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, user *domain.User) erro
 		user.Role,
 		user.IsVerified,
 		time.Now(),
+		user.AvatarURL,
 	)
 
 	if err != nil {

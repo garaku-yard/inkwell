@@ -389,6 +389,10 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-redis}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
+    volumes:
+      # Persist user uploads (avatars, etc.) across redeploys. Served back
+      # via the gateway's /uploads static handler.
+      - gateway_uploads:/app/uploads
     depends_on:
       - redis
       - identity-service
@@ -436,6 +440,8 @@ volumes:
   zookeeper_data:
     driver: local
   zookeeper_logs:
+    driver: local
+  gateway_uploads:
     driver: local
   kafka_data:
     driver: local

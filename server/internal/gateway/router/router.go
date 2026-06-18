@@ -126,6 +126,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			r.Get("/users/me", authHandler.Me)
 			r.Patch("/users/me", authHandler.UpdateProfile)
 			r.Post("/users/me/password", authLimit(authHandler.ChangePassword))
+			r.Post("/users/me/avatar", authHandler.UploadAvatar)
 			r.Get("/users/me/sessions", authHandler.ListSessions)
 			r.Delete("/users/me/sessions/{sessionId}", authHandler.RevokeSession)
 

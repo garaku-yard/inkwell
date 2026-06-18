@@ -8,6 +8,9 @@ import type {
 
 export interface SettingsStorage {
   updateProfile(data: UpdateProfileData): Promise<UpdateProfileResponse>
+  /** Upload a new avatar image; resolves to the stored URL. Hosted-only —
+   *  the local (desktop) impl rejects with NotSupportedError. */
+  uploadAvatar(file: File): Promise<string>
   changePassword(currentPassword: string, newPassword: string): Promise<void>
   verifyPassword(password: string): Promise<boolean>
   deleteAccount(): Promise<void>

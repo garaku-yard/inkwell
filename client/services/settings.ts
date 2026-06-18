@@ -28,6 +28,10 @@ export interface UpdateProfileResponse {
 export const updateUserProfile = (data: UpdateProfileData): Promise<UpdateProfileResponse> =>
   getStorage().settings.updateProfile(data)
 
+/** Upload a new avatar image; resolves to the stored URL (hosted only). */
+export const uploadAvatar = (file: File): Promise<string> =>
+  getStorage().settings.uploadAvatar(file)
+
 export const changePassword = (
   currentPassword: string,
   newPassword: string,

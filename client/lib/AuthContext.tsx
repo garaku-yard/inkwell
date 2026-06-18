@@ -20,6 +20,8 @@ export interface AuthUser {
   role: string
   name: string
   lastName: string
+  /** Relative URL of the user's avatar (e.g. /uploads/avatars/…), if set. */
+  avatarUrl?: string
 }
 
 interface AuthContextType {

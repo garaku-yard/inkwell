@@ -26,6 +26,7 @@ export const auth: AuthStorage = {
           name: string
           lastName: string
           role?: string
+          avatarUrl?: string
         }
       }>("users/me", { method: "GET" })
       const u = data.user
@@ -37,6 +38,7 @@ export const auth: AuthStorage = {
         role: u.role ?? "user",
         name: u.name ?? "",
         lastName: u.lastName ?? "",
+        avatarUrl: u.avatarUrl,
       }
       return out
     } catch {

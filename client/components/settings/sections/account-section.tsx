@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Check, X, Loader2 } from "lucide-react"
+import { useRef, useState } from "react"
+import { Check, X, Loader2, Upload } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/AuthContext"
-import { updateUserProfile } from "@/services/settings"
+import { updateUserProfile, uploadAvatar } from "@/services/settings"
 
 interface AccountSectionProps {
   user: {
@@ -30,7 +30,33 @@ export function AccountSection({ user }: AccountSectionProps) {
   const [email, setEmail] = useState(user?.email || "")
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
-  const { updateUser } = useAuth()
+  const { user: authUser, updateUser } = useAuth()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = "" // let the same file be re-picked after an error
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Not an image", description: "Choose a PNG, JPEG, GIF, or WebP file.", variant: "destructive" })
+      return
+    }
+    setIsUploadingAvatar(true)
+    try {
+      const url = await uploadAvatar(file)
+      updateUser({ avatarUrl: url })
+      toast({ title: "Avatar updated", description: "Your profile picture has been changed." })
+    } catch (err) {
+      toast({
+        title: "Couldn't upload avatar",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploadingAvatar(false)
+    }
+  }
 
   const handleSaveUsername = async () => {
     setIsLoading(true)
@@ -91,17 +117,43 @@ export function AccountSection({ user }: AccountSectionProps) {
           {/* Profile Picture */}
           <div className="flex items-start gap-4">
             <Avatar className="h-20 w-20">
-              <AvatarImage src="" />
+              <AvatarImage
+                src={
+                  authUser?.avatarUrl
+                    ? `${process.env.NEXT_PUBLIC_API_URL}${authUser.avatarUrl}`
+                    : undefined
+                }
+                alt={user?.username || "Avatar"}
+              />
               <AvatarFallback className="text-lg">
                 {user?.username?.slice(0, 2).toUpperCase() || "U"}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <Label>Profile Picture</Label>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Avatar uploads arrive with the workspace-avatar work. For now
-                your initials stand in.
+              <p className="text-sm text-muted-foreground mt-1 mb-3">
+                PNG, JPEG, GIF, or WebP, up to 5&nbsp;MB.
               </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingAvatar}
+              >
+                {isUploadingAvatar ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                {authUser?.avatarUrl ? "Change picture" : "Upload picture"}
+              </Button>
             </div>
           </div>
 

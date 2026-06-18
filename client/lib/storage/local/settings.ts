@@ -1,4 +1,5 @@
 import type { SettingsStorage, UpdateProfileResponse } from "@/lib/storage"
+import { NotSupportedError } from "@/lib/storage"
 import { ensureUserProfile, getDb, LOCAL_USER_ID, newId, now } from "./shared"
 
 // ─── Settings (local profile + BYO-key AI keys land here) ────────────────
@@ -22,6 +23,11 @@ export const settings: SettingsStorage = {
       email: updated.email,
     }
     return resp
+  },
+  uploadAvatar: async () => {
+    // Avatars are a hosted feature (uploaded to the gateway). The desktop app
+    // has no avatar storage today.
+    throw new NotSupportedError("Avatar upload isn't available on the desktop app")
   },
   changePassword: async () => {
     // No password exists locally; expose as no-op rather than rejecting so

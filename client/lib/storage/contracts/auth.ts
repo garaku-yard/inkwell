@@ -11,6 +11,8 @@ export interface CurrentUser {
   role: string
   name: string
   lastName: string
+  /** Relative URL of the user's avatar (e.g. /uploads/avatars/…), if set. */
+  avatarUrl?: string
 }
 
 /** One active sign-in for the Security → Active Sessions UI. */
