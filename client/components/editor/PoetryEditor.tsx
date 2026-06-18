@@ -27,7 +27,6 @@ import {
 } from "@/services/project"
 import { deleteScriptElement } from "@/services/editor"
 
-const POETRY_FORMS = ["Free Verse", "Sonnet", "Haiku", "Villanelle", "Ode", "Elegy", "Ballad", "Ghazal"]
 const LYRICS_SECTION_TYPES = ["Verse", "Pre-Chorus", "Chorus", "Post-Chorus", "Bridge", "Hook", "Intro", "Outro", "Interlude"]
 
 interface PoetryEditorProps {
@@ -344,18 +343,12 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                       data-placeholder={isLyrics ? "Song title" : "Poem title"}
                     />
 
-                    {/* Form label (poetry) or Key/Tempo (lyrics) */}
-                    {isLyrics ? (
-                      <StableContentEditable
-                        value=""
-                        onValueChange={(next) => handleContentChange(scene.id + ":meta", next, false)}
-                        className="text-xs text-muted-foreground/60 mb-10 outline-none empty:before:content-['Key\00a0•\00a0Tempo\00a0•\00a0Capo'] empty:before:text-muted-foreground/50"
-                      />
-                    ) : (
-                      <p className="text-xs text-muted-foreground/50 text-center mb-10">
-                        {/* form label slot — could be made editable later */}
-                      </p>
-                    )}
+                    {/* Spacing between the title and the body lines. A lyrics
+                        Key/Tempo/Capo meta line used to render here but never
+                        persisted (it saved to a synthetic id matching no row),
+                        so it was removed; reinstating it needs a real backing
+                        field (scene content path or a `meta` element type). */}
+                    <div className="mb-10" />
 
                     {/* Elements */}
                     <div className={cn("space-y-0", centered && !isLyrics && "text-center")}>
@@ -451,7 +444,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                       <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddStanzaBreak(scene.id)}>
                         Stanza break
                       </Button>
-                      {isLyrics ? (
+                      {isLyrics && (
                         <>
                           {LYRICS_SECTION_TYPES.map(s => (
                             <Button key={s} variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddSectionLabel(scene.id, s)}>
@@ -463,12 +456,6 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                             Chords
                           </Button>
                         </>
-                      ) : (
-                        POETRY_FORMS.slice(0, 4).map(f => (
-                          <Button key={f} variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => {}}>
-                            {f}
-                          </Button>
-                        ))
                       )}
                     </div>
                   </div>
