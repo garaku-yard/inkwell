@@ -22,12 +22,35 @@ export interface NotificationPreferences {
   productUpdates: boolean
 }
 
+/** A single entry in the in-app notification feed. */
+export interface Notification {
+  id: string
+  /** Source domain event, e.g. "collaboration.added". */
+  type: string
+  title: string
+  body: string
+  /** Optional in-app navigation target, e.g. "/projects/<id>". */
+  link?: string
+  read: boolean
+  /** RFC3339 timestamp. */
+  createdAt: string
+}
+
+/** A page of the feed plus the total unread count (independent of paging). */
+export interface NotificationFeed {
+  notifications: Notification[]
+  unreadCount: number
+}
+
 /**
- * NotificationsStorage manages a user's notification delivery preferences.
+ * NotificationsStorage manages a user's notification delivery preferences and
+ * their in-app feed.
  *
- * The hosted build persists these server-side (so they sync across devices and
- * feed the delivery worker); the desktop build keeps them on-device, since it
- * has no delivery backend. Both honour the same shape.
+ * The hosted build persists preferences server-side (so they sync across
+ * devices and feed the delivery worker) and serves a real feed populated by the
+ * notification worker. The desktop build keeps preferences on-device and has no
+ * feed (no events), so its feed methods return empty/no-op. Both honour the
+ * same shape.
  */
 export interface NotificationsStorage {
   /** Returns the user's saved preferences, or the all-on defaults when none
@@ -35,4 +58,13 @@ export interface NotificationsStorage {
   getPreferences(): Promise<NotificationPreferences>
   /** Persists the full preference set and returns the stored values. */
   updatePreferences(prefs: NotificationPreferences): Promise<NotificationPreferences>
+
+  /** Returns a page of the in-app feed (newest first) plus the unread total. */
+  listNotifications(opts?: { limit?: number; offset?: number }): Promise<NotificationFeed>
+  /** Marks a single notification read. */
+  markRead(id: string): Promise<void>
+  /** Marks every unread notification read. */
+  markAllRead(): Promise<void>
+  /** Returns the unread count without fetching the feed. */
+  unreadCount(): Promise<number>
 }

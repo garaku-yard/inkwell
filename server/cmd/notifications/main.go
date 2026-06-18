@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/joho/godotenv"
@@ -15,6 +16,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"inkwell/server/internal/notifications/config"
+	"inkwell/server/internal/notifications/consumer"
 	"inkwell/server/internal/notifications/handler"
 	"inkwell/server/internal/notifications/repository"
 	"inkwell/server/internal/notifications/service"
@@ -55,6 +57,23 @@ func main() {
 	svc := service.NewNotificationService(repo)
 	h := handler.NewNotificationHandler(svc)
 
+	// Kafka consumer — the source of in-app notifications. Enabled only when
+	// brokers are configured; without it the service still serves preferences
+	// and the (empty) feed, which is the local/dev default.
+	consumerCtx, cancelConsumer := context.WithCancel(context.Background())
+	defer cancelConsumer()
+	var cons *consumer.Consumer
+	if b := strings.TrimSpace(os.Getenv("KAFKA_BROKERS")); b != "" {
+		brokers := strings.Split(b, ",")
+		// Subscribe to the families we deliver on. collaboration.added lives on
+		// collab-events; later phases add more topics here.
+		cons = consumer.New(brokers, []string{"collab-events"}, "notifications-service", svc)
+		go cons.Run(consumerCtx)
+		log.Printf("Kafka consumer enabled (brokers=%s)", b)
+	} else {
+		log.Println("KAFKA_BROKERS not set — in-app delivery disabled (preferences still served)")
+	}
+
 	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(loggingInterceptor))
 	notificationspb.RegisterNotificationsServiceServer(grpcServer, h)
 	reflection.Register(grpcServer)
@@ -76,6 +95,10 @@ func main() {
 	<-quit
 
 	log.Println("Shutting down notifications service...")
+	cancelConsumer()
+	if cons != nil {
+		_ = cons.Close()
+	}
 	grpcServer.GracefulStop()
 	log.Println("Notifications service stopped")
 }

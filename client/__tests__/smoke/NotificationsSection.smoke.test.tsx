@@ -25,7 +25,14 @@ describe("NotificationsSection — smoke", () => {
     updatePreferences = vi.fn(async (p: NotificationPreferences) => p)
     installFakeStorage({
       capabilities: new Set<Capability>(["notifications"]),
-      notifications: { getPreferences, updatePreferences },
+      notifications: {
+        getPreferences,
+        updatePreferences,
+        listNotifications: vi.fn(async () => ({ notifications: [], unreadCount: 0 })),
+        markRead: vi.fn(async () => {}),
+        markAllRead: vi.fn(async () => {}),
+        unreadCount: vi.fn(async () => 0),
+      },
     })
   })
 

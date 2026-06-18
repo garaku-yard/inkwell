@@ -259,11 +259,16 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 				})
 			})
 
-			// Notifications — per-user delivery preferences. The in-app feed
-			// and email delivery extend this group in later phases.
+			// Notifications — per-user delivery preferences + the in-app feed.
+			// Static segments (preferences / unread-count / read-all) are
+			// declared before the /{id}/read wildcard so chi matches them first.
 			r.Route("/notifications", func(r chi.Router) {
+				r.Get("/", notificationsHandler.List)
 				r.Get("/preferences", notificationsHandler.GetPreferences)
 				r.Put("/preferences", notificationsHandler.UpdatePreferences)
+				r.Get("/unread-count", notificationsHandler.UnreadCount)
+				r.Post("/read-all", notificationsHandler.MarkAllRead)
+				r.Post("/{id}/read", notificationsHandler.MarkRead)
 			})
 
 			// Workspaces

@@ -38,4 +38,12 @@ export const notifications: NotificationsStorage = {
     }
     return prefs
   },
+
+  // The desktop build consumes no domain events, so the in-app feed is always
+  // empty. These resolve to empty/no-op rather than throwing so the inbox UI
+  // can mount harmlessly (it's gated on the "notifications" capability anyway).
+  listNotifications: async () => ({ notifications: [], unreadCount: 0 }),
+  markRead: async () => {},
+  markAllRead: async () => {},
+  unreadCount: async () => 0,
 }

@@ -8,6 +8,9 @@ package notifications
 
 import (
 	"net/http"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
 
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
@@ -48,6 +51,35 @@ func toDTO(p *notificationspb.NotificationPreferences) preferencesDTO {
 		InAppNotifications:     p.InAppNotifications,
 		MarketingEmails:        p.MarketingEmails,
 		ProductUpdates:         p.ProductUpdates,
+	}
+}
+
+// notificationDTO is the JSON shape of a single in-app notification.
+type notificationDTO struct {
+	ID        string `json:"id"`
+	Type      string `json:"type"`
+	Title     string `json:"title"`
+	Body      string `json:"body"`
+	Link      string `json:"link,omitempty"`
+	Read      bool   `json:"read"`
+	CreatedAt string `json:"createdAt"`
+}
+
+// listDTO is the GET /notifications response: a page plus the unread total.
+type listDTO struct {
+	Notifications []notificationDTO `json:"notifications"`
+	UnreadCount   int32             `json:"unreadCount"`
+}
+
+func toNotificationDTO(n *notificationspb.Notification) notificationDTO {
+	return notificationDTO{
+		ID:        n.Id,
+		Type:      n.Type,
+		Title:     n.Title,
+		Body:      n.Body,
+		Link:      n.Link,
+		Read:      n.Read,
+		CreatedAt: n.CreatedAt,
 	}
 }
 
@@ -98,4 +130,94 @@ func (h *NotificationsHandler) UpdatePreferences(w http.ResponseWriter, r *http.
 			return &dto, nil
 		},
 	}.ServeHTTP(w, r)
+}
+
+// List handles GET /api/v1/notifications?limit=&offset= — the in-app feed.
+func (h *NotificationsHandler) List(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, listDTO]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*listDTO, error) {
+			limit := atoiOr(r.URL.Query().Get("limit"), 0)
+			offset := atoiOr(r.URL.Query().Get("offset"), 0)
+			resp, err := h.client.ListNotifications(r.Context(), &notificationspb.ListNotificationsRequest{
+				UserId: userID,
+				Limit:  int32(limit),
+				Offset: int32(offset),
+			})
+			if err != nil {
+				return nil, err
+			}
+			items := make([]notificationDTO, len(resp.Notifications))
+			for i, n := range resp.Notifications {
+				items[i] = toNotificationDTO(n)
+			}
+			return &listDTO{Notifications: items, UnreadCount: resp.UnreadCount}, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// UnreadCount handles GET /api/v1/notifications/unread-count.
+func (h *NotificationsHandler) UnreadCount(w http.ResponseWriter, r *http.Request) {
+	type countDTO struct {
+		Count int32 `json:"count"`
+	}
+	handlers.Endpoint[struct{}, countDTO]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*countDTO, error) {
+			resp, err := h.client.UnreadCount(r.Context(), &notificationspb.UnreadCountRequest{UserId: userID})
+			if err != nil {
+				return nil, err
+			}
+			return &countDTO{Count: resp.Count}, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// MarkRead handles POST /api/v1/notifications/{id}/read.
+func (h *NotificationsHandler) MarkRead(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, struct{}]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		Decode:        handlers.NoBody[struct{}],
+		SuccessStatus: http.StatusNoContent,
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
+			id := chi.URLParam(r, "id")
+			if _, err := h.client.MarkRead(r.Context(), &notificationspb.MarkReadRequest{UserId: userID, Id: id}); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// MarkAllRead handles POST /api/v1/notifications/read-all.
+func (h *NotificationsHandler) MarkAllRead(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, struct{}]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		Decode:        handlers.NoBody[struct{}],
+		SuccessStatus: http.StatusNoContent,
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
+			if _, err := h.client.MarkAllRead(r.Context(), &notificationspb.MarkAllReadRequest{UserId: userID}); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// atoiOr parses s as an int, returning fallback on any parse failure.
+func atoiOr(s string, fallback int) int {
+	if s == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return fallback
+	}
+	return n
 }

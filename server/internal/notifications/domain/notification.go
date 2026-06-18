@@ -53,3 +53,22 @@ func DefaultPreferences(userID uuid.UUID) Preferences {
 		ProductUpdates:         true,
 	}
 }
+
+// ─── In-app notifications ─────────────────────────────────────────────────────
+
+// Notification is one row in a user's in-app notification feed. Type carries
+// the source domain event so the client can branch on it; Title/Body are the
+// rendered copy and Link is an optional in-app navigation target.
+type Notification struct {
+	ID        uuid.UUID  `db:"id"`
+	UserID    uuid.UUID  `db:"user_id"`
+	Type      string     `db:"type"`
+	Title     string     `db:"title"`
+	Body      string     `db:"body"`
+	Link      string     `db:"link"`
+	ReadAt    *time.Time `db:"read_at"`
+	CreatedAt time.Time  `db:"created_at"`
+}
+
+// Read reports whether the notification has been marked read.
+func (n *Notification) Read() bool { return n.ReadAt != nil }

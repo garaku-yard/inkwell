@@ -14,6 +14,7 @@ import { UserIcon, Inbox, Moon, Sun, Settings, Briefcase, LogOut } from "lucide-
 
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
+import { NotificationBell } from "@/components/notifications/NotificationBell"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -59,6 +60,9 @@ export function AppHeaderActions({ inviteCount = 0 }: AppHeaderActionsProps) {
       >
         {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
       </Button>
+
+      {/* In-app notification inbox (hosted builds only; null otherwise) */}
+      <NotificationBell />
 
       {/* Invites inbox */}
       <Link href="/invites" aria-label="Invitations">

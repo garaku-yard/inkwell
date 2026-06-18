@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -53,6 +54,78 @@ func (h *NotificationHandler) UpdatePreferences(ctx context.Context, req *notifi
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &notificationspb.UpdatePreferencesResponse{Preferences: toProto(updated)}, nil
+}
+
+// ListNotifications returns a page of the caller's in-app feed plus the unread total.
+func (h *NotificationHandler) ListNotifications(ctx context.Context, req *notificationspb.ListNotificationsRequest) (*notificationspb.ListNotificationsResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
+	}
+	items, unread, err := h.svc.ListNotifications(ctx, userID, int(req.Limit), int(req.Offset))
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	out := make([]*notificationspb.Notification, len(items))
+	for i := range items {
+		out[i] = toProtoNotification(&items[i])
+	}
+	return &notificationspb.ListNotificationsResponse{Notifications: out, UnreadCount: int32(unread)}, nil
+}
+
+// MarkRead marks a single notification read, scoped to the caller.
+func (h *NotificationHandler) MarkRead(ctx context.Context, req *notificationspb.MarkReadRequest) (*notificationspb.MarkReadResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
+	}
+	id, err := uuid.Parse(req.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid notification id")
+	}
+	if err := h.svc.MarkRead(ctx, userID, id); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &notificationspb.MarkReadResponse{}, nil
+}
+
+// MarkAllRead marks every unread notification read for the caller.
+func (h *NotificationHandler) MarkAllRead(ctx context.Context, req *notificationspb.MarkAllReadRequest) (*notificationspb.MarkAllReadResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
+	}
+	if err := h.svc.MarkAllRead(ctx, userID); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &notificationspb.MarkAllReadResponse{}, nil
+}
+
+// UnreadCount returns the caller's unread total.
+func (h *NotificationHandler) UnreadCount(ctx context.Context, req *notificationspb.UnreadCountRequest) (*notificationspb.UnreadCountResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
+	}
+	count, err := h.svc.UnreadCount(ctx, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &notificationspb.UnreadCountResponse{Count: int32(count)}, nil
+}
+
+// toProtoNotification converts a domain Notification to its proto form.
+func toProtoNotification(n *domain.Notification) *notificationspb.Notification {
+	return &notificationspb.Notification{
+		Id:        n.ID.String(),
+		UserId:    n.UserID.String(),
+		Type:      n.Type,
+		Title:     n.Title,
+		Body:      n.Body,
+		Link:      n.Link,
+		Read:      n.Read(),
+		CreatedAt: n.CreatedAt.UTC().Format(time.RFC3339),
+	}
 }
 
 // toProto converts a domain Preferences to its proto representation.

@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS delivery_log CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;

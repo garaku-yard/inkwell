@@ -21,6 +21,18 @@ message NotificationPreferences {
   bool   product_updates          = 8; // product/feature announcements
 }
 
+// Notification is one entry in a user's in-app feed.
+message Notification {
+  string id         = 1;
+  string user_id    = 2;
+  string type       = 3; // source event type, e.g. "collaboration.added"
+  string title      = 4;
+  string body       = 5;
+  string link       = 6; // optional in-app navigation target
+  bool   read       = 7;
+  string created_at = 8; // RFC3339
+}
+
 // ─── Preference RPCs ─────────────────────────────────────────────────────────
 
 message GetPreferencesRequest {
@@ -42,6 +54,40 @@ message UpdatePreferencesResponse {
   NotificationPreferences preferences = 1;
 }
 
+// ─── In-app feed RPCs ────────────────────────────────────────────────────────
+
+message ListNotificationsRequest {
+  string user_id = 1;
+  int32  limit   = 2; // 0 → server default (50)
+  int32  offset  = 3;
+}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+  int32 unread_count = 2; // total unread for the user, independent of paging
+}
+
+message MarkReadRequest {
+  string user_id = 1;
+  string id      = 2;
+}
+
+message MarkReadResponse {}
+
+message MarkAllReadRequest {
+  string user_id = 1;
+}
+
+message MarkAllReadResponse {}
+
+message UnreadCountRequest {
+  string user_id = 1;
+}
+
+message UnreadCountResponse {
+  int32 count = 1;
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 service NotificationsService {
@@ -50,4 +96,14 @@ service NotificationsService {
   rpc GetPreferences(GetPreferencesRequest) returns (GetPreferencesResponse);
   // UpdatePreferences upserts the full preference set for a user.
   rpc UpdatePreferences(UpdatePreferencesRequest) returns (UpdatePreferencesResponse);
+
+  // ListNotifications returns a page of the user's in-app feed (newest first)
+  // plus the total unread count.
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  // MarkRead marks a single notification read (scoped to the owner).
+  rpc MarkRead(MarkReadRequest) returns (MarkReadResponse);
+  // MarkAllRead marks every unread notification read for the user.
+  rpc MarkAllRead(MarkAllReadRequest) returns (MarkAllReadResponse);
+  // UnreadCount returns the user's unread total.
+  rpc UnreadCount(UnreadCountRequest) returns (UnreadCountResponse);
 }
