@@ -1,25 +1,31 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base32"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image/png"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/metadata"
 
 	"inkwell/server/internal/identity/config"
 	"inkwell/server/internal/identity/domain"
 	"inkwell/server/internal/identity/repository"
+	"inkwell/server/pkg/crypto"
 	"inkwell/server/pkg/events"
 	"inkwell/server/pkg/outbox"
 )
@@ -48,6 +54,22 @@ type AuthService interface {
 	// Session management
 	GetActiveSessions(ctx context.Context, userID uuid.UUID, currentSessionID uuid.UUID) ([]*SessionInfo, error)
 	RevokeSession(ctx context.Context, userID uuid.UUID, sessionID uuid.UUID) error
+
+	// Two-factor (TOTP). Enroll generates a pending secret; Confirm verifies a
+	// code and turns it on (returning one-time recovery codes); Disable turns
+	// it off after verifying a current code.
+	EnrollTOTP(ctx context.Context, userID uuid.UUID) (*TOTPEnrollment, error)
+	ConfirmTOTP(ctx context.Context, userID uuid.UUID, code string) (recoveryCodes []string, err error)
+	DisableTOTP(ctx context.Context, userID uuid.UUID, code string) error
+}
+
+// TOTPEnrollment is the data the client needs to add Inkwell to an
+// authenticator app: the base32 secret (manual entry), the otpauth:// URI, and
+// a ready-to-render QR PNG.
+type TOTPEnrollment struct {
+	Secret     string
+	OtpauthURI string
+	QRPNG      []byte
 }
 
 // Request/Response types
@@ -62,12 +84,19 @@ type RegisterRequest struct {
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required"`
+	// TOTPCode is the second factor: empty on the first step (Login replies
+	// with TOTPRequired); on the second step it's a 6-digit TOTP code or a
+	// recovery code.
+	TOTPCode string `json:"totp_code"`
 }
 
 type AuthResponse struct {
 	User      *UserInfo         `json:"user"`
 	TokenPair *domain.TokenPair `json:"tokens"`
 	SessionID uuid.UUID         `json:"session_id"`
+	// TOTPRequired is true when the password was correct but 2FA is enabled and
+	// no (valid) code was supplied yet. In that case User/TokenPair are nil.
+	TOTPRequired bool `json:"totp_required"`
 }
 
 type UserInfo struct {
@@ -97,6 +126,7 @@ type UserProfileResponse struct {
 	Role        string     `json:"role"`
 	IsActive    bool       `json:"is_active"`
 	IsVerified  bool       `json:"is_verified"`
+	TOTPEnabled bool       `json:"totp_enabled"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 	LastLoginAt *time.Time `json:"last_login_at"`
@@ -298,6 +328,25 @@ func (s *authService) Login(ctx context.Context, req *LoginRequest) (*AuthRespon
 		return nil, domain.ErrInvalidCredentials
 	}
 
+	// Second factor: if 2FA is on, the password alone isn't enough.
+	enabled, ct, nonce, _, err := s.userRepo.GetTOTP(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read 2FA state: %w", err)
+	}
+	if enabled {
+		if req.TOTPCode == "" {
+			// Password OK, but we need the code — signal the client to prompt.
+			return &AuthResponse{TOTPRequired: true}, nil
+		}
+		ok, err := s.verifyLoginTOTP(ctx, user.ID, ct, nonce, req.TOTPCode)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, domain.ErrInvalidTOTP
+		}
+	}
+
 	// Create session and tokens
 	tokenPair, session, err := s.createUserSession(ctx, user)
 	if err != nil {
@@ -390,6 +439,10 @@ func (s *authService) GetUserProfile(ctx context.Context, userID uuid.UUID) (*Us
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
+	// 2FA state is surfaced on the profile so the Security UI can show it.
+	// Best-effort: a read failure just reports "off".
+	totpEnabled, _, _, _, _ := s.userRepo.GetTOTP(ctx, userID)
+
 	return &UserProfileResponse{
 		ID:          user.ID,
 		Email:       user.Email,
@@ -401,6 +454,7 @@ func (s *authService) GetUserProfile(ctx context.Context, userID uuid.UUID) (*Us
 		Role:        user.Role,
 		IsActive:    user.IsActive,
 		IsVerified:  user.IsVerified,
+		TOTPEnabled: totpEnabled,
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
 		LastLoginAt: user.LastLoginAt,
@@ -783,4 +837,140 @@ func (s *authService) GetUserByUsernameTag(ctx context.Context, username, userTa
 		UpdatedAt:   user.UpdatedAt,
 		LastLoginAt: user.LastLoginAt,
 	}, nil
+}
+
+// ── Two-factor (TOTP) ──────────────────────────────────────────────────────
+
+// totpKey derives the 32-byte AES key used to encrypt TOTP secrets at rest
+// from the deployment's JWT secret, so no separate key has to be configured.
+func (s *authService) totpKey() []byte {
+	sum := sha256.Sum256([]byte(s.config.JWTConfig.AccessTokenSecret))
+	return sum[:]
+}
+
+// EnrollTOTP generates a new (pending, not-yet-enabled) TOTP secret for the
+// user and returns the data needed to add it to an authenticator app.
+func (s *authService) EnrollTOTP(ctx context.Context, userID uuid.UUID) (*TOTPEnrollment, error) {
+	user, err := s.userRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	enabled, _, _, _, err := s.userRepo.GetTOTP(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if enabled {
+		return nil, domain.ErrTOTPAlreadyEnabled
+	}
+
+	key, err := totp.Generate(totp.GenerateOpts{Issuer: "Inkwell", AccountName: user.Email})
+	if err != nil {
+		return nil, fmt.Errorf("generate totp: %w", err)
+	}
+
+	ct, nonce, err := crypto.Encrypt(s.totpKey(), []byte(key.Secret()), userID[:])
+	if err != nil {
+		return nil, fmt.Errorf("encrypt totp secret: %w", err)
+	}
+	if err := s.userRepo.SetPendingTOTP(ctx, userID, ct, nonce); err != nil {
+		return nil, err
+	}
+
+	var qr []byte
+	if img, ierr := key.Image(256, 256); ierr == nil {
+		var buf bytes.Buffer
+		if png.Encode(&buf, img) == nil {
+			qr = buf.Bytes()
+		}
+	}
+
+	return &TOTPEnrollment{Secret: key.Secret(), OtpauthURI: key.URL(), QRPNG: qr}, nil
+}
+
+// ConfirmTOTP verifies a code against the pending secret and, on success, turns
+// 2FA on and returns one-time recovery codes (shown to the user exactly once).
+func (s *authService) ConfirmTOTP(ctx context.Context, userID uuid.UUID, code string) ([]string, error) {
+	enabled, ct, nonce, _, err := s.userRepo.GetTOTP(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if enabled {
+		return nil, domain.ErrTOTPAlreadyEnabled
+	}
+	if len(ct) == 0 {
+		return nil, domain.ErrTOTPNotEnrolled
+	}
+
+	secret, err := crypto.Decrypt(s.totpKey(), ct, nonce, userID[:])
+	if err != nil {
+		return nil, fmt.Errorf("decrypt totp secret: %w", err)
+	}
+	if !totp.Validate(strings.TrimSpace(code), string(secret)) {
+		return nil, domain.ErrInvalidTOTP
+	}
+
+	plain, hashes, err := generateRecoveryCodes(10)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.userRepo.EnableTOTP(ctx, userID, hashes); err != nil {
+		return nil, err
+	}
+	return plain, nil
+}
+
+// DisableTOTP turns 2FA off after verifying a current TOTP or recovery code.
+func (s *authService) DisableTOTP(ctx context.Context, userID uuid.UUID, code string) error {
+	enabled, ct, nonce, _, err := s.userRepo.GetTOTP(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		return domain.ErrTOTPNotEnabled
+	}
+	ok, err := s.verifyLoginTOTP(ctx, userID, ct, nonce, code)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrInvalidTOTP
+	}
+	return s.userRepo.DisableTOTP(ctx, userID)
+}
+
+// verifyLoginTOTP checks a submitted code against the user's TOTP secret, then
+// falls back to consuming a one-time recovery code. Reports whether it matched.
+func (s *authService) verifyLoginTOTP(ctx context.Context, userID uuid.UUID, ct, nonce []byte, code string) (bool, error) {
+	code = strings.TrimSpace(code)
+	if len(ct) > 0 {
+		if secret, derr := crypto.Decrypt(s.totpKey(), ct, nonce, userID[:]); derr == nil {
+			if totp.Validate(code, string(secret)) {
+				return true, nil
+			}
+		}
+	}
+	// Recovery-code fallback (one-time use).
+	return s.userRepo.ConsumeRecoveryCode(ctx, userID, hashRecoveryCode(code))
+}
+
+// generateRecoveryCodes returns n random codes (plaintext, shown once) and
+// their sha256 hashes (stored).
+func generateRecoveryCodes(n int) (plain, hashes []string, err error) {
+	for i := 0; i < n; i++ {
+		b := make([]byte, 5) // 5 bytes -> 8 base32 chars
+		if _, rerr := rand.Read(b); rerr != nil {
+			return nil, nil, rerr
+		}
+		code := strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b))
+		plain = append(plain, code)
+		hashes = append(hashes, hashRecoveryCode(code))
+	}
+	return plain, hashes, nil
+}
+
+// hashRecoveryCode normalises and sha256-hashes a recovery code for storage and
+// comparison.
+func hashRecoveryCode(code string) string {
+	sum := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(code))))
+	return hex.EncodeToString(sum[:])
 }

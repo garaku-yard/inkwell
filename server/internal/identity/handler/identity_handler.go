@@ -72,11 +72,18 @@ func (h *IdentityHandler) Login(ctx context.Context, req *identitypb.LoginReques
 	serviceReq := &service.LoginRequest{
 		Email:    req.Email,
 		Password: req.Password,
+		TOTPCode: req.TotpCode,
 	}
 
 	resp, err := h.authService.Login(ctx, serviceReq)
 	if err != nil {
 		return nil, h.handleError(err)
+	}
+
+	// Password verified but 2FA is on and no (valid) code yet — tell the client
+	// to prompt for it. No user/tokens in this response.
+	if resp.TOTPRequired {
+		return &identitypb.LoginResponse{TotpRequired: true}, nil
 	}
 
 	return &identitypb.LoginResponse{
@@ -158,17 +165,18 @@ func (h *IdentityHandler) GetUser(ctx context.Context, req *identitypb.GetUserRe
 
 	return &identitypb.GetUserResponse{
 		User: &identitypb.User{
-			Id:        profile.ID.String(),
-			Email:     profile.Email,
-			Username:  profile.Username,
-			UserTag:   profile.UserTag,
-			FirstName: stringValue(profile.FirstName),
-			LastName:  stringValue(profile.LastName),
-			AvatarUrl: stringValue(profile.AvatarURL),
-			CreatedAt: timeToCommonTimestamp(profile.CreatedAt),
-			UpdatedAt: timeToCommonTimestamp(profile.UpdatedAt),
-			IsActive:  profile.IsActive,
-			Role:      profile.Role,
+			Id:          profile.ID.String(),
+			Email:       profile.Email,
+			Username:    profile.Username,
+			UserTag:     profile.UserTag,
+			FirstName:   stringValue(profile.FirstName),
+			LastName:    stringValue(profile.LastName),
+			AvatarUrl:   stringValue(profile.AvatarURL),
+			CreatedAt:   timeToCommonTimestamp(profile.CreatedAt),
+			UpdatedAt:   timeToCommonTimestamp(profile.UpdatedAt),
+			IsActive:    profile.IsActive,
+			Role:        profile.Role,
+			TotpEnabled: profile.TOTPEnabled,
 		},
 	}, nil
 }
@@ -234,17 +242,18 @@ func (h *IdentityHandler) UpdateUser(ctx context.Context, req *identitypb.Update
 
 	return &identitypb.UpdateUserResponse{
 		User: &identitypb.User{
-			Id:        profile.ID.String(),
-			Email:     profile.Email,
-			Username:  profile.Username,
-			UserTag:   profile.UserTag,
-			FirstName: stringValue(profile.FirstName),
-			LastName:  stringValue(profile.LastName),
-			AvatarUrl: stringValue(profile.AvatarURL),
-			CreatedAt: timeToCommonTimestamp(profile.CreatedAt),
-			UpdatedAt: timeToCommonTimestamp(profile.UpdatedAt),
-			IsActive:  profile.IsActive,
-			Role:      profile.Role,
+			Id:          profile.ID.String(),
+			Email:       profile.Email,
+			Username:    profile.Username,
+			UserTag:     profile.UserTag,
+			FirstName:   stringValue(profile.FirstName),
+			LastName:    stringValue(profile.LastName),
+			AvatarUrl:   stringValue(profile.AvatarURL),
+			CreatedAt:   timeToCommonTimestamp(profile.CreatedAt),
+			UpdatedAt:   timeToCommonTimestamp(profile.UpdatedAt),
+			IsActive:    profile.IsActive,
+			Role:        profile.Role,
+			TotpEnabled: profile.TOTPEnabled,
 		},
 	}, nil
 }
@@ -322,6 +331,49 @@ func (h *IdentityHandler) RevokeSession(ctx context.Context, req *identitypb.Rev
 	return &identitypb.RevokeSessionResponse{Success: true}, nil
 }
 
+// EnrollTOTP generates a pending TOTP secret and returns the enrolment data.
+func (h *IdentityHandler) EnrollTOTP(ctx context.Context, req *identitypb.EnrollTOTPRequest) (*identitypb.EnrollTOTPResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+	enrollment, err := h.authService.EnrollTOTP(ctx, userID)
+	if err != nil {
+		return nil, h.handleError(err)
+	}
+	return &identitypb.EnrollTOTPResponse{
+		Secret:     enrollment.Secret,
+		OtpauthUri: enrollment.OtpauthURI,
+		QrPng:      enrollment.QRPNG,
+	}, nil
+}
+
+// ConfirmTOTP verifies a code against the pending secret, enables 2FA, and
+// returns one-time recovery codes.
+func (h *IdentityHandler) ConfirmTOTP(ctx context.Context, req *identitypb.ConfirmTOTPRequest) (*identitypb.ConfirmTOTPResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+	recoveryCodes, err := h.authService.ConfirmTOTP(ctx, userID, req.Code)
+	if err != nil {
+		return nil, h.handleError(err)
+	}
+	return &identitypb.ConfirmTOTPResponse{RecoveryCodes: recoveryCodes}, nil
+}
+
+// DisableTOTP turns 2FA off after verifying a current TOTP or recovery code.
+func (h *IdentityHandler) DisableTOTP(ctx context.Context, req *identitypb.DisableTOTPRequest) (*identitypb.DisableTOTPResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+	if err := h.authService.DisableTOTP(ctx, userID, req.Code); err != nil {
+		return nil, h.handleError(err)
+	}
+	return &identitypb.DisableTOTPResponse{Success: true}, nil
+}
+
 // handleError maps domain sentinel errors to gRPC status codes. It covers all error
 // cases defined in the identity domain so callers receive precise codes rather than
 // a blanket codes.Internal.
@@ -332,8 +384,11 @@ func (h *IdentityHandler) handleError(err error) error {
 	case domain.ErrEmailExists, domain.ErrUserTagTaken, domain.ErrUserAlreadyExists:
 		return status.Error(codes.AlreadyExists, err.Error())
 	case domain.ErrInvalidCredentials, domain.ErrInvalidToken,
-		domain.ErrInvalidRefreshToken, domain.ErrTokenExpired, domain.ErrSessionExpired:
+		domain.ErrInvalidRefreshToken, domain.ErrTokenExpired, domain.ErrSessionExpired,
+		domain.ErrInvalidTOTP:
 		return status.Error(codes.Unauthenticated, err.Error())
+	case domain.ErrTOTPAlreadyEnabled, domain.ErrTOTPNotEnrolled, domain.ErrTOTPNotEnabled:
+		return status.Error(codes.FailedPrecondition, err.Error())
 	case domain.ErrUserNotActive, domain.ErrEmailNotVerified:
 		return status.Error(codes.PermissionDenied, err.Error())
 	case domain.ErrWeakPassword, domain.ErrInvalidEmail, domain.ErrInvalidUsername:

@@ -30,6 +30,9 @@ const (
 	IdentityService_ChangePassword_FullMethodName       = "/identity.IdentityService/ChangePassword"
 	IdentityService_ListSessions_FullMethodName         = "/identity.IdentityService/ListSessions"
 	IdentityService_RevokeSession_FullMethodName        = "/identity.IdentityService/RevokeSession"
+	IdentityService_EnrollTOTP_FullMethodName           = "/identity.IdentityService/EnrollTOTP"
+	IdentityService_ConfirmTOTP_FullMethodName          = "/identity.IdentityService/ConfirmTOTP"
+	IdentityService_DisableTOTP_FullMethodName          = "/identity.IdentityService/DisableTOTP"
 )
 
 // IdentityServiceClient is the client API for IdentityService service.
@@ -52,6 +55,10 @@ type IdentityServiceClient interface {
 	// Session management (Security settings)
 	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
 	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*RevokeSessionResponse, error)
+	// Two-factor (TOTP)
+	EnrollTOTP(ctx context.Context, in *EnrollTOTPRequest, opts ...grpc.CallOption) (*EnrollTOTPResponse, error)
+	ConfirmTOTP(ctx context.Context, in *ConfirmTOTPRequest, opts ...grpc.CallOption) (*ConfirmTOTPResponse, error)
+	DisableTOTP(ctx context.Context, in *DisableTOTPRequest, opts ...grpc.CallOption) (*DisableTOTPResponse, error)
 }
 
 type identityServiceClient struct {
@@ -172,6 +179,36 @@ func (c *identityServiceClient) RevokeSession(ctx context.Context, in *RevokeSes
 	return out, nil
 }
 
+func (c *identityServiceClient) EnrollTOTP(ctx context.Context, in *EnrollTOTPRequest, opts ...grpc.CallOption) (*EnrollTOTPResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EnrollTOTPResponse)
+	err := c.cc.Invoke(ctx, IdentityService_EnrollTOTP_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *identityServiceClient) ConfirmTOTP(ctx context.Context, in *ConfirmTOTPRequest, opts ...grpc.CallOption) (*ConfirmTOTPResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConfirmTOTPResponse)
+	err := c.cc.Invoke(ctx, IdentityService_ConfirmTOTP_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *identityServiceClient) DisableTOTP(ctx context.Context, in *DisableTOTPRequest, opts ...grpc.CallOption) (*DisableTOTPResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DisableTOTPResponse)
+	err := c.cc.Invoke(ctx, IdentityService_DisableTOTP_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IdentityServiceServer is the server API for IdentityService service.
 // All implementations must embed UnimplementedIdentityServiceServer
 // for forward compatibility.
@@ -192,6 +229,10 @@ type IdentityServiceServer interface {
 	// Session management (Security settings)
 	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
 	RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error)
+	// Two-factor (TOTP)
+	EnrollTOTP(context.Context, *EnrollTOTPRequest) (*EnrollTOTPResponse, error)
+	ConfirmTOTP(context.Context, *ConfirmTOTPRequest) (*ConfirmTOTPResponse, error)
+	DisableTOTP(context.Context, *DisableTOTPRequest) (*DisableTOTPResponse, error)
 	mustEmbedUnimplementedIdentityServiceServer()
 }
 
@@ -234,6 +275,15 @@ func (UnimplementedIdentityServiceServer) ListSessions(context.Context, *ListSes
 }
 func (UnimplementedIdentityServiceServer) RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RevokeSession not implemented")
+}
+func (UnimplementedIdentityServiceServer) EnrollTOTP(context.Context, *EnrollTOTPRequest) (*EnrollTOTPResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EnrollTOTP not implemented")
+}
+func (UnimplementedIdentityServiceServer) ConfirmTOTP(context.Context, *ConfirmTOTPRequest) (*ConfirmTOTPResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConfirmTOTP not implemented")
+}
+func (UnimplementedIdentityServiceServer) DisableTOTP(context.Context, *DisableTOTPRequest) (*DisableTOTPResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DisableTOTP not implemented")
 }
 func (UnimplementedIdentityServiceServer) mustEmbedUnimplementedIdentityServiceServer() {}
 func (UnimplementedIdentityServiceServer) testEmbeddedByValue()                         {}
@@ -454,6 +504,60 @@ func _IdentityService_RevokeSession_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IdentityService_EnrollTOTP_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnrollTOTPRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityServiceServer).EnrollTOTP(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityService_EnrollTOTP_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityServiceServer).EnrollTOTP(ctx, req.(*EnrollTOTPRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IdentityService_ConfirmTOTP_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfirmTOTPRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityServiceServer).ConfirmTOTP(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityService_ConfirmTOTP_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityServiceServer).ConfirmTOTP(ctx, req.(*ConfirmTOTPRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IdentityService_DisableTOTP_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DisableTOTPRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityServiceServer).DisableTOTP(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityService_DisableTOTP_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityServiceServer).DisableTOTP(ctx, req.(*DisableTOTPRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IdentityService_ServiceDesc is the grpc.ServiceDesc for IdentityService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -504,6 +608,18 @@ var IdentityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RevokeSession",
 			Handler:    _IdentityService_RevokeSession_Handler,
+		},
+		{
+			MethodName: "EnrollTOTP",
+			Handler:    _IdentityService_EnrollTOTP_Handler,
+		},
+		{
+			MethodName: "ConfirmTOTP",
+			Handler:    _IdentityService_ConfirmTOTP_Handler,
+		},
+		{
+			MethodName: "DisableTOTP",
+			Handler:    _IdentityService_DisableTOTP_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

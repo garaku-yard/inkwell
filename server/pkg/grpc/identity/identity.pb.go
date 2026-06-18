@@ -35,7 +35,8 @@ type User struct {
 	CreatedAt     *common.Timestamp      `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *common.Timestamp      `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	IsActive      bool                   `protobuf:"varint,10,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
-	Role          string                 `protobuf:"bytes,11,opt,name=role,proto3" json:"role,omitempty"` // "admin", "user", "premium"
+	Role          string                 `protobuf:"bytes,11,opt,name=role,proto3" json:"role,omitempty"`                                   // "admin", "user", "premium"
+	TotpEnabled   bool                   `protobuf:"varint,12,opt,name=totp_enabled,json=totpEnabled,proto3" json:"totp_enabled,omitempty"` // two-factor enabled
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -145,6 +146,13 @@ func (x *User) GetRole() string {
 		return x.Role
 	}
 	return ""
+}
+
+func (x *User) GetTotpEnabled() bool {
+	if x != nil {
+		return x.TotpEnabled
+	}
+	return false
 }
 
 // Authentication requests/responses
@@ -296,6 +304,7 @@ type LoginRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
 	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	TotpCode      string                 `protobuf:"bytes,3,opt,name=totp_code,json=totpCode,proto3" json:"totp_code,omitempty"` // second factor; empty on the first step
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -344,12 +353,20 @@ func (x *LoginRequest) GetPassword() string {
 	return ""
 }
 
+func (x *LoginRequest) GetTotpCode() string {
+	if x != nil {
+		return x.TotpCode
+	}
+	return ""
+}
+
 type LoginResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	AccessToken   string                 `protobuf:"bytes,2,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
 	RefreshToken  string                 `protobuf:"bytes,3,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
 	SessionId     string                 `protobuf:"bytes,4,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	TotpRequired  bool                   `protobuf:"varint,5,opt,name=totp_required,json=totpRequired,proto3" json:"totp_required,omitempty"` // password OK but 2FA code needed; tokens are empty
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -410,6 +427,13 @@ func (x *LoginResponse) GetSessionId() string {
 		return x.SessionId
 	}
 	return ""
+}
+
+func (x *LoginResponse) GetTotpRequired() bool {
+	if x != nil {
+		return x.TotpRequired
+	}
+	return false
 }
 
 type RefreshTokenRequest struct {
@@ -1377,11 +1401,308 @@ func (x *RevokeSessionResponse) GetSuccess() bool {
 	return false
 }
 
+// Two-factor (TOTP)
+type EnrollTOTPRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnrollTOTPRequest) Reset() {
+	*x = EnrollTOTPRequest{}
+	mi := &file_identity_identity_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrollTOTPRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrollTOTPRequest) ProtoMessage() {}
+
+func (x *EnrollTOTPRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrollTOTPRequest.ProtoReflect.Descriptor instead.
+func (*EnrollTOTPRequest) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *EnrollTOTPRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type EnrollTOTPResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Secret        string                 `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`                           // base32, for manual entry
+	OtpauthUri    string                 `protobuf:"bytes,2,opt,name=otpauth_uri,json=otpauthUri,proto3" json:"otpauth_uri,omitempty"` // otpauth:// URI
+	QrPng         []byte                 `protobuf:"bytes,3,opt,name=qr_png,json=qrPng,proto3" json:"qr_png,omitempty"`                // pre-rendered QR image
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnrollTOTPResponse) Reset() {
+	*x = EnrollTOTPResponse{}
+	mi := &file_identity_identity_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrollTOTPResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrollTOTPResponse) ProtoMessage() {}
+
+func (x *EnrollTOTPResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrollTOTPResponse.ProtoReflect.Descriptor instead.
+func (*EnrollTOTPResponse) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *EnrollTOTPResponse) GetSecret() string {
+	if x != nil {
+		return x.Secret
+	}
+	return ""
+}
+
+func (x *EnrollTOTPResponse) GetOtpauthUri() string {
+	if x != nil {
+		return x.OtpauthUri
+	}
+	return ""
+}
+
+func (x *EnrollTOTPResponse) GetQrPng() []byte {
+	if x != nil {
+		return x.QrPng
+	}
+	return nil
+}
+
+type ConfirmTOTPRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfirmTOTPRequest) Reset() {
+	*x = ConfirmTOTPRequest{}
+	mi := &file_identity_identity_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfirmTOTPRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfirmTOTPRequest) ProtoMessage() {}
+
+func (x *ConfirmTOTPRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfirmTOTPRequest.ProtoReflect.Descriptor instead.
+func (*ConfirmTOTPRequest) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ConfirmTOTPRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ConfirmTOTPRequest) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+type ConfirmTOTPResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecoveryCodes []string               `protobuf:"bytes,1,rep,name=recovery_codes,json=recoveryCodes,proto3" json:"recovery_codes,omitempty"` // shown to the user exactly once
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfirmTOTPResponse) Reset() {
+	*x = ConfirmTOTPResponse{}
+	mi := &file_identity_identity_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfirmTOTPResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfirmTOTPResponse) ProtoMessage() {}
+
+func (x *ConfirmTOTPResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfirmTOTPResponse.ProtoReflect.Descriptor instead.
+func (*ConfirmTOTPResponse) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *ConfirmTOTPResponse) GetRecoveryCodes() []string {
+	if x != nil {
+		return x.RecoveryCodes
+	}
+	return nil
+}
+
+type DisableTOTPRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"` // current TOTP or recovery code
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DisableTOTPRequest) Reset() {
+	*x = DisableTOTPRequest{}
+	mi := &file_identity_identity_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisableTOTPRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisableTOTPRequest) ProtoMessage() {}
+
+func (x *DisableTOTPRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisableTOTPRequest.ProtoReflect.Descriptor instead.
+func (*DisableTOTPRequest) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *DisableTOTPRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *DisableTOTPRequest) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+type DisableTOTPResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DisableTOTPResponse) Reset() {
+	*x = DisableTOTPResponse{}
+	mi := &file_identity_identity_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisableTOTPResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisableTOTPResponse) ProtoMessage() {}
+
+func (x *DisableTOTPResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisableTOTPResponse.ProtoReflect.Descriptor instead.
+func (*DisableTOTPResponse) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *DisableTOTPResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
 var File_identity_identity_proto protoreflect.FileDescriptor
 
 const file_identity_identity_proto_rawDesc = "" +
 	"\n" +
-	"\x17identity/identity.proto\x12\bidentity\x1a\x12common/types.proto\"\xd3\x02\n" +
+	"\x17identity/identity.proto\x12\bidentity\x1a\x12common/types.proto\"\xf6\x02\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -1398,7 +1719,8 @@ const file_identity_identity_proto_rawDesc = "" +
 	"updated_at\x18\t \x01(\v2\x11.common.TimestampR\tupdatedAt\x12\x1b\n" +
 	"\tis_active\x18\n" +
 	" \x01(\bR\bisActive\x12\x12\n" +
-	"\x04role\x18\v \x01(\tR\x04role\"\x9b\x01\n" +
+	"\x04role\x18\v \x01(\tR\x04role\x12!\n" +
+	"\ftotp_enabled\x18\f \x01(\bR\vtotpEnabled\"\x9b\x01\n" +
 	"\x0fRegisterRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x1a\n" +
@@ -1411,16 +1733,18 @@ const file_identity_identity_proto_rawDesc = "" +
 	"\faccess_token\x18\x02 \x01(\tR\vaccessToken\x12#\n" +
 	"\rrefresh_token\x18\x03 \x01(\tR\frefreshToken\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x04 \x01(\tR\tsessionId\"@\n" +
+	"session_id\x18\x04 \x01(\tR\tsessionId\"]\n" +
 	"\fLoginRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x9a\x01\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1b\n" +
+	"\ttotp_code\x18\x03 \x01(\tR\btotpCode\"\xbf\x01\n" +
 	"\rLoginResponse\x12\"\n" +
 	"\x04user\x18\x01 \x01(\v2\x0e.identity.UserR\x04user\x12!\n" +
 	"\faccess_token\x18\x02 \x01(\tR\vaccessToken\x12#\n" +
 	"\rrefresh_token\x18\x03 \x01(\tR\frefreshToken\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x04 \x01(\tR\tsessionId\":\n" +
+	"session_id\x18\x04 \x01(\tR\tsessionId\x12#\n" +
+	"\rtotp_required\x18\x05 \x01(\bR\ftotpRequired\":\n" +
 	"\x13RefreshTokenRequest\x12#\n" +
 	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"^\n" +
 	"\x14RefreshTokenResponse\x12!\n" +
@@ -1498,7 +1822,24 @@ const file_identity_identity_proto_rawDesc = "" +
 	"\n" +
 	"session_id\x18\x02 \x01(\tR\tsessionId\"1\n" +
 	"\x15RevokeSessionResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2\xcb\x06\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\",\n" +
+	"\x11EnrollTOTPRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"d\n" +
+	"\x12EnrollTOTPResponse\x12\x16\n" +
+	"\x06secret\x18\x01 \x01(\tR\x06secret\x12\x1f\n" +
+	"\votpauth_uri\x18\x02 \x01(\tR\n" +
+	"otpauthUri\x12\x15\n" +
+	"\x06qr_png\x18\x03 \x01(\fR\x05qrPng\"A\n" +
+	"\x12ConfirmTOTPRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code\"<\n" +
+	"\x13ConfirmTOTPResponse\x12%\n" +
+	"\x0erecovery_codes\x18\x01 \x03(\tR\rrecoveryCodes\"A\n" +
+	"\x12DisableTOTPRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code\"/\n" +
+	"\x13DisableTOTPResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess2\xac\b\n" +
 	"\x0fIdentityService\x12A\n" +
 	"\bRegister\x12\x19.identity.RegisterRequest\x1a\x1a.identity.RegisterResponse\x128\n" +
 	"\x05Login\x12\x16.identity.LoginRequest\x1a\x17.identity.LoginResponse\x12M\n" +
@@ -1511,7 +1852,11 @@ const file_identity_identity_proto_rawDesc = "" +
 	"UpdateUser\x12\x1b.identity.UpdateUserRequest\x1a\x1c.identity.UpdateUserResponse\x12S\n" +
 	"\x0eChangePassword\x12\x1f.identity.ChangePasswordRequest\x1a .identity.ChangePasswordResponse\x12M\n" +
 	"\fListSessions\x12\x1d.identity.ListSessionsRequest\x1a\x1e.identity.ListSessionsResponse\x12P\n" +
-	"\rRevokeSession\x12\x1e.identity.RevokeSessionRequest\x1a\x1f.identity.RevokeSessionResponseB\"Z inkwell/server/pkg/grpc/identityb\x06proto3"
+	"\rRevokeSession\x12\x1e.identity.RevokeSessionRequest\x1a\x1f.identity.RevokeSessionResponse\x12G\n" +
+	"\n" +
+	"EnrollTOTP\x12\x1b.identity.EnrollTOTPRequest\x1a\x1c.identity.EnrollTOTPResponse\x12J\n" +
+	"\vConfirmTOTP\x12\x1c.identity.ConfirmTOTPRequest\x1a\x1d.identity.ConfirmTOTPResponse\x12J\n" +
+	"\vDisableTOTP\x12\x1c.identity.DisableTOTPRequest\x1a\x1d.identity.DisableTOTPResponseB\"Z inkwell/server/pkg/grpc/identityb\x06proto3"
 
 var (
 	file_identity_identity_proto_rawDescOnce sync.Once
@@ -1525,7 +1870,7 @@ func file_identity_identity_proto_rawDescGZIP() []byte {
 	return file_identity_identity_proto_rawDescData
 }
 
-var file_identity_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_identity_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_identity_identity_proto_goTypes = []any{
 	(*User)(nil),                        // 0: identity.User
 	(*RegisterRequest)(nil),             // 1: identity.RegisterRequest
@@ -1550,25 +1895,31 @@ var file_identity_identity_proto_goTypes = []any{
 	(*ListSessionsResponse)(nil),        // 20: identity.ListSessionsResponse
 	(*RevokeSessionRequest)(nil),        // 21: identity.RevokeSessionRequest
 	(*RevokeSessionResponse)(nil),       // 22: identity.RevokeSessionResponse
-	(*common.Timestamp)(nil),            // 23: common.Timestamp
-	(*common.PaginationRequest)(nil),    // 24: common.PaginationRequest
-	(*common.PaginationResponse)(nil),   // 25: common.PaginationResponse
+	(*EnrollTOTPRequest)(nil),           // 23: identity.EnrollTOTPRequest
+	(*EnrollTOTPResponse)(nil),          // 24: identity.EnrollTOTPResponse
+	(*ConfirmTOTPRequest)(nil),          // 25: identity.ConfirmTOTPRequest
+	(*ConfirmTOTPResponse)(nil),         // 26: identity.ConfirmTOTPResponse
+	(*DisableTOTPRequest)(nil),          // 27: identity.DisableTOTPRequest
+	(*DisableTOTPResponse)(nil),         // 28: identity.DisableTOTPResponse
+	(*common.Timestamp)(nil),            // 29: common.Timestamp
+	(*common.PaginationRequest)(nil),    // 30: common.PaginationRequest
+	(*common.PaginationResponse)(nil),   // 31: common.PaginationResponse
 }
 var file_identity_identity_proto_depIdxs = []int32{
-	23, // 0: identity.User.created_at:type_name -> common.Timestamp
-	23, // 1: identity.User.updated_at:type_name -> common.Timestamp
+	29, // 0: identity.User.created_at:type_name -> common.Timestamp
+	29, // 1: identity.User.updated_at:type_name -> common.Timestamp
 	0,  // 2: identity.RegisterResponse.user:type_name -> identity.User
 	0,  // 3: identity.LoginResponse.user:type_name -> identity.User
 	0,  // 4: identity.ValidateTokenResponse.user:type_name -> identity.User
-	23, // 5: identity.ValidateTokenResponse.expires_at:type_name -> common.Timestamp
+	29, // 5: identity.ValidateTokenResponse.expires_at:type_name -> common.Timestamp
 	0,  // 6: identity.GetUserResponse.user:type_name -> identity.User
 	0,  // 7: identity.UpdateUserResponse.user:type_name -> identity.User
-	24, // 8: identity.GetUsersRequest.pagination:type_name -> common.PaginationRequest
+	30, // 8: identity.GetUsersRequest.pagination:type_name -> common.PaginationRequest
 	0,  // 9: identity.GetUsersResponse.users:type_name -> identity.User
-	25, // 10: identity.GetUsersResponse.pagination:type_name -> common.PaginationResponse
-	23, // 11: identity.Session.created_at:type_name -> common.Timestamp
-	23, // 12: identity.Session.expires_at:type_name -> common.Timestamp
-	23, // 13: identity.Session.last_used_at:type_name -> common.Timestamp
+	31, // 10: identity.GetUsersResponse.pagination:type_name -> common.PaginationResponse
+	29, // 11: identity.Session.created_at:type_name -> common.Timestamp
+	29, // 12: identity.Session.expires_at:type_name -> common.Timestamp
+	29, // 13: identity.Session.last_used_at:type_name -> common.Timestamp
 	18, // 14: identity.ListSessionsResponse.sessions:type_name -> identity.Session
 	1,  // 15: identity.IdentityService.Register:input_type -> identity.RegisterRequest
 	3,  // 16: identity.IdentityService.Login:input_type -> identity.LoginRequest
@@ -1581,19 +1932,25 @@ var file_identity_identity_proto_depIdxs = []int32{
 	16, // 23: identity.IdentityService.ChangePassword:input_type -> identity.ChangePasswordRequest
 	19, // 24: identity.IdentityService.ListSessions:input_type -> identity.ListSessionsRequest
 	21, // 25: identity.IdentityService.RevokeSession:input_type -> identity.RevokeSessionRequest
-	2,  // 26: identity.IdentityService.Register:output_type -> identity.RegisterResponse
-	4,  // 27: identity.IdentityService.Login:output_type -> identity.LoginResponse
-	6,  // 28: identity.IdentityService.RefreshToken:output_type -> identity.RefreshTokenResponse
-	8,  // 29: identity.IdentityService.ValidateToken:output_type -> identity.ValidateTokenResponse
-	11, // 30: identity.IdentityService.GetUser:output_type -> identity.GetUserResponse
-	11, // 31: identity.IdentityService.GetUserByUsernameTag:output_type -> identity.GetUserResponse
-	15, // 32: identity.IdentityService.GetUsers:output_type -> identity.GetUsersResponse
-	13, // 33: identity.IdentityService.UpdateUser:output_type -> identity.UpdateUserResponse
-	17, // 34: identity.IdentityService.ChangePassword:output_type -> identity.ChangePasswordResponse
-	20, // 35: identity.IdentityService.ListSessions:output_type -> identity.ListSessionsResponse
-	22, // 36: identity.IdentityService.RevokeSession:output_type -> identity.RevokeSessionResponse
-	26, // [26:37] is the sub-list for method output_type
-	15, // [15:26] is the sub-list for method input_type
+	23, // 26: identity.IdentityService.EnrollTOTP:input_type -> identity.EnrollTOTPRequest
+	25, // 27: identity.IdentityService.ConfirmTOTP:input_type -> identity.ConfirmTOTPRequest
+	27, // 28: identity.IdentityService.DisableTOTP:input_type -> identity.DisableTOTPRequest
+	2,  // 29: identity.IdentityService.Register:output_type -> identity.RegisterResponse
+	4,  // 30: identity.IdentityService.Login:output_type -> identity.LoginResponse
+	6,  // 31: identity.IdentityService.RefreshToken:output_type -> identity.RefreshTokenResponse
+	8,  // 32: identity.IdentityService.ValidateToken:output_type -> identity.ValidateTokenResponse
+	11, // 33: identity.IdentityService.GetUser:output_type -> identity.GetUserResponse
+	11, // 34: identity.IdentityService.GetUserByUsernameTag:output_type -> identity.GetUserResponse
+	15, // 35: identity.IdentityService.GetUsers:output_type -> identity.GetUsersResponse
+	13, // 36: identity.IdentityService.UpdateUser:output_type -> identity.UpdateUserResponse
+	17, // 37: identity.IdentityService.ChangePassword:output_type -> identity.ChangePasswordResponse
+	20, // 38: identity.IdentityService.ListSessions:output_type -> identity.ListSessionsResponse
+	22, // 39: identity.IdentityService.RevokeSession:output_type -> identity.RevokeSessionResponse
+	24, // 40: identity.IdentityService.EnrollTOTP:output_type -> identity.EnrollTOTPResponse
+	26, // 41: identity.IdentityService.ConfirmTOTP:output_type -> identity.ConfirmTOTPResponse
+	28, // 42: identity.IdentityService.DisableTOTP:output_type -> identity.DisableTOTPResponse
+	29, // [29:43] is the sub-list for method output_type
+	15, // [15:29] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
 	15, // [15:15] is the sub-list for extension extendee
 	0,  // [0:15] is the sub-list for field type_name
@@ -1611,7 +1968,7 @@ func file_identity_identity_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_identity_identity_proto_rawDesc), len(file_identity_identity_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   23,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

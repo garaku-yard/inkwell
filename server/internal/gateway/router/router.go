@@ -129,6 +129,9 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			r.Post("/users/me/avatar", authHandler.UploadAvatar)
 			r.Get("/users/me/sessions", authHandler.ListSessions)
 			r.Delete("/users/me/sessions/{sessionId}", authHandler.RevokeSession)
+			r.Post("/users/me/2fa/enroll", authHandler.EnrollTwoFactor)
+			r.Post("/users/me/2fa/verify", authHandler.ConfirmTwoFactor)
+			r.Post("/users/me/2fa/disable", authHandler.DisableTwoFactor)
 
 			// Projects
 			r.Route("/projects", func(r chi.Router) {

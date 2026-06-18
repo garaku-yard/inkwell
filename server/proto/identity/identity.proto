@@ -19,6 +19,7 @@ message User {
   common.Timestamp updated_at = 9;
   bool is_active = 10;
   string role = 11; // "admin", "user", "premium"
+  bool totp_enabled = 12; // two-factor enabled
 }
 
 // Authentication requests/responses
@@ -40,6 +41,7 @@ message RegisterResponse {
 message LoginRequest {
   string email = 1;
   string password = 2;
+  string totp_code = 3; // second factor; empty on the first step
 }
 
 message LoginResponse {
@@ -47,6 +49,7 @@ message LoginResponse {
   string access_token = 2;
   string refresh_token = 3;
   string session_id = 4;
+  bool totp_required = 5; // password OK but 2FA code needed; tokens are empty
 }
 
 message RefreshTokenRequest {
@@ -147,6 +150,35 @@ message RevokeSessionResponse {
   bool success = 1;
 }
 
+// Two-factor (TOTP)
+message EnrollTOTPRequest {
+  string user_id = 1;
+}
+
+message EnrollTOTPResponse {
+  string secret = 1;        // base32, for manual entry
+  string otpauth_uri = 2;   // otpauth:// URI
+  bytes qr_png = 3;         // pre-rendered QR image
+}
+
+message ConfirmTOTPRequest {
+  string user_id = 1;
+  string code = 2;
+}
+
+message ConfirmTOTPResponse {
+  repeated string recovery_codes = 1; // shown to the user exactly once
+}
+
+message DisableTOTPRequest {
+  string user_id = 1;
+  string code = 2; // current TOTP or recovery code
+}
+
+message DisableTOTPResponse {
+  bool success = 1;
+}
+
 // Identity service definition
 service IdentityService {
   // Authentication
@@ -165,4 +197,9 @@ service IdentityService {
   // Session management (Security settings)
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
   rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+
+  // Two-factor (TOTP)
+  rpc EnrollTOTP(EnrollTOTPRequest) returns (EnrollTOTPResponse);
+  rpc ConfirmTOTP(ConfirmTOTPRequest) returns (ConfirmTOTPResponse);
+  rpc DisableTOTP(DisableTOTPRequest) returns (DisableTOTPResponse);
 }

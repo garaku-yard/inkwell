@@ -41,6 +41,14 @@ type UserRepository interface {
 
 	// Utility operations
 	EmailExists(ctx context.Context, email string) (bool, error)
+
+	// TOTP (two-factor) operations. The secret is stored encrypted (ciphertext
+	// + nonce); recovery codes are sha256 hashes consumed one-time.
+	GetTOTP(ctx context.Context, userID uuid.UUID) (enabled bool, secret, nonce []byte, recoveryCodes []string, err error)
+	SetPendingTOTP(ctx context.Context, userID uuid.UUID, secret, nonce []byte) error
+	EnableTOTP(ctx context.Context, userID uuid.UUID, recoveryCodeHashes []string) error
+	DisableTOTP(ctx context.Context, userID uuid.UUID) error
+	ConsumeRecoveryCode(ctx context.Context, userID uuid.UUID, codeHash string) (consumed bool, err error)
 }
 
 // userRepository implements UserRepository interface
@@ -637,4 +645,68 @@ func (r *userRepository) EmailExists(ctx context.Context, email string) (bool, e
 	}
 
 	return exists, nil
+}
+
+// ── TOTP (two-factor) ──────────────────────────────────────────────────────
+
+// GetTOTP returns the user's 2FA state: whether it's enabled, the encrypted
+// secret (ciphertext + nonce), and the remaining recovery-code hashes.
+func (r *userRepository) GetTOTP(ctx context.Context, userID uuid.UUID) (bool, []byte, []byte, []string, error) {
+	var enabled bool
+	var secret, nonce []byte
+	var recovery pq.StringArray
+	err := r.db.QueryRowContext(ctx,
+		`SELECT totp_enabled, totp_secret, totp_nonce, totp_recovery_codes FROM users WHERE user_id = $1 AND deleted_at IS NULL`,
+		userID,
+	).Scan(&enabled, &secret, &nonce, &recovery)
+	if err == sql.ErrNoRows {
+		return false, nil, nil, nil, domain.ErrUserNotFound
+	}
+	if err != nil {
+		return false, nil, nil, nil, fmt.Errorf("failed to get totp: %w", err)
+	}
+	return enabled, secret, nonce, []string(recovery), nil
+}
+
+// SetPendingTOTP stores a freshly generated (not-yet-confirmed) secret. Enabled
+// stays false and any prior recovery codes are cleared until ConfirmTOTP.
+func (r *userRepository) SetPendingTOTP(ctx context.Context, userID uuid.UUID, secret, nonce []byte) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET totp_secret = $2, totp_nonce = $3, totp_enabled = FALSE, totp_recovery_codes = '{}', updated_at = NOW() WHERE user_id = $1 AND deleted_at IS NULL`,
+		userID, secret, nonce,
+	)
+	return err
+}
+
+// EnableTOTP flips 2FA on and stores the recovery-code hashes (called after a
+// pending secret is verified).
+func (r *userRepository) EnableTOTP(ctx context.Context, userID uuid.UUID, recoveryCodeHashes []string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET totp_enabled = TRUE, totp_recovery_codes = $2, updated_at = NOW() WHERE user_id = $1 AND deleted_at IS NULL`,
+		userID, pq.Array(recoveryCodeHashes),
+	)
+	return err
+}
+
+// DisableTOTP clears all 2FA state for the user.
+func (r *userRepository) DisableTOTP(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET totp_secret = NULL, totp_nonce = NULL, totp_enabled = FALSE, totp_recovery_codes = '{}', updated_at = NOW() WHERE user_id = $1 AND deleted_at IS NULL`,
+		userID,
+	)
+	return err
+}
+
+// ConsumeRecoveryCode atomically removes a recovery-code hash if present,
+// reporting whether it matched (i.e. the code was valid + now spent).
+func (r *userRepository) ConsumeRecoveryCode(ctx context.Context, userID uuid.UUID, codeHash string) (bool, error) {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET totp_recovery_codes = array_remove(totp_recovery_codes, $2) WHERE user_id = $1 AND deleted_at IS NULL AND $2 = ANY(totp_recovery_codes)`,
+		userID, codeHash,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
 }

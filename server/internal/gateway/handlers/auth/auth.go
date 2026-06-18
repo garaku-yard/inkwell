@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -52,6 +53,9 @@ func NewAuthHandler(clients *grpcclient.Registry, blocklist *middleware.TokenBlo
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	// TOTPCode is supplied on the second step when 2FA is enabled (a 6-digit
+	// authenticator code or a recovery code).
+	TOTPCode string `json:"totpCode"`
 }
 
 // AuthResponse is returned by Login, Register, and GetMe. The access token is
@@ -76,31 +80,33 @@ type RegisterRequest struct {
 // UserResponse represents the user's public profile as returned by the gateway.
 // It is used after registration, login, profile update, and /users/me operations.
 type UserResponse struct {
-	ID          string `json:"id"`
-	Username    string `json:"username"`
-	UsernameTag string `json:"usernameTag"`
-	Name        string `json:"name"`
-	LastName    string `json:"lastName"`
-	Email       string `json:"email"`
-	Role        string `json:"role,omitempty"`
-	AvatarURL   string `json:"avatarUrl,omitempty"`
-	CreatedAt   string `json:"createdAt"`
-	UpdatedAt   string `json:"updatedAt"`
+	ID               string `json:"id"`
+	Username         string `json:"username"`
+	UsernameTag      string `json:"usernameTag"`
+	Name             string `json:"name"`
+	LastName         string `json:"lastName"`
+	Email            string `json:"email"`
+	Role             string `json:"role,omitempty"`
+	AvatarURL        string `json:"avatarUrl,omitempty"`
+	TwoFactorEnabled bool   `json:"twoFactorEnabled"`
+	CreatedAt        string `json:"createdAt"`
+	UpdatedAt        string `json:"updatedAt"`
 }
 
 // userFromProto maps an identity proto User to the gateway's JSON response shape.
 func userFromProto(u *identitypb.User) UserResponse {
 	return UserResponse{
-		ID:          u.Id,
-		Username:    u.Username,
-		UsernameTag: u.UserTag,
-		Name:        u.FirstName,
-		LastName:    u.LastName,
-		Email:       u.Email,
-		Role:        u.Role,
-		AvatarURL:   u.AvatarUrl,
-		CreatedAt:   time.Now().Format(time.RFC3339),
-		UpdatedAt:   time.Now().Format(time.RFC3339),
+		ID:               u.Id,
+		Username:         u.Username,
+		UsernameTag:      u.UserTag,
+		Name:             u.FirstName,
+		LastName:         u.LastName,
+		Email:            u.Email,
+		Role:             u.Role,
+		AvatarURL:        u.AvatarUrl,
+		TwoFactorEnabled: u.TotpEnabled,
+		CreatedAt:        time.Now().Format(time.RFC3339),
+		UpdatedAt:        time.Now().Format(time.RFC3339),
 	}
 }
 
@@ -127,9 +133,18 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	grpcResp, err := h.identityClient.Login(ctx, &identitypb.LoginRequest{
 		Email:    req.Email,
 		Password: req.Password,
+		TotpCode: req.TOTPCode,
 	})
 	if err != nil {
 		handlers.WriteError(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	// Password OK but 2FA is on and the code is missing/invalid — ask the
+	// client for it (no cookie set; it resubmits with totpCode).
+	if grpcResp.TotpRequired {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]bool{"totpRequired": true})
 		return
 	}
 
@@ -555,4 +570,92 @@ func tokenFromRequest(r *http.Request) string {
 		return ""
 	}
 	return header[len(prefix):]
+}
+
+// TwoFactorEnrollResponse carries the data the client shows during 2FA setup.
+type TwoFactorEnrollResponse struct {
+	Secret     string `json:"secret"`
+	OtpauthURI string `json:"otpauthUri"`
+	QRDataURI  string `json:"qrDataUri"` // data:image/png;base64,... or empty
+}
+
+// EnrollTwoFactor starts 2FA setup: generates a pending secret and returns the
+// secret, otpauth URI, and a QR data-URI to add Inkwell to an authenticator.
+func (h *AuthHandler) EnrollTwoFactor(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, TwoFactorEnrollResponse]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*TwoFactorEnrollResponse, error) {
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel()
+			resp, err := h.identityClient.EnrollTOTP(ctx, &identitypb.EnrollTOTPRequest{UserId: userID})
+			if err != nil {
+				slog.Error("EnrollTwoFactor gRPC error", "error", err)
+				return nil, err
+			}
+			qr := ""
+			if len(resp.QrPng) > 0 {
+				qr = "data:image/png;base64," + base64.StdEncoding.EncodeToString(resp.QrPng)
+			}
+			return &TwoFactorEnrollResponse{Secret: resp.Secret, OtpauthURI: resp.OtpauthUri, QRDataURI: qr}, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// ConfirmTwoFactor verifies a code against the pending secret, enables 2FA, and
+// returns one-time recovery codes.
+func (h *AuthHandler) ConfirmTwoFactor(w http.ResponseWriter, r *http.Request) {
+	type confirmBody struct {
+		Code string `json:"code"`
+	}
+	handlers.Endpoint[confirmBody, map[string][]string]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: func(r *http.Request) (*confirmBody, error) {
+			var b confirmBody
+			if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &b, nil
+		},
+		Handle: func(r *http.Request, userID string, req *confirmBody) (*map[string][]string, error) {
+			if strings.TrimSpace(req.Code) == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "code is required")
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel()
+			resp, err := h.identityClient.ConfirmTOTP(ctx, &identitypb.ConfirmTOTPRequest{UserId: userID, Code: req.Code})
+			if err != nil {
+				return nil, err
+			}
+			return &map[string][]string{"recoveryCodes": resp.RecoveryCodes}, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// DisableTwoFactor turns 2FA off after verifying a current TOTP or recovery code.
+func (h *AuthHandler) DisableTwoFactor(w http.ResponseWriter, r *http.Request) {
+	type disableBody struct {
+		Code string `json:"code"`
+	}
+	handlers.Endpoint[disableBody, map[string]bool]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: func(r *http.Request) (*disableBody, error) {
+			var b disableBody
+			if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &b, nil
+		},
+		Handle: func(r *http.Request, userID string, req *disableBody) (*map[string]bool, error) {
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel()
+			if _, err := h.identityClient.DisableTOTP(ctx, &identitypb.DisableTOTPRequest{UserId: userID, Code: req.Code}); err != nil {
+				return nil, err
+			}
+			return &map[string]bool{"success": true}, nil
+		},
+	}.ServeHTTP(w, r)
 }
