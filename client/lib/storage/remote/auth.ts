@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api"
 
-import type { AuthStorage, AuthResponse, CurrentUser, Session } from "@/lib/storage"
+import type { AuthStorage, AuthResponse, CurrentUser, Session, TwoFactorEnrollment } from "@/lib/storage"
 
 // ─── Auth ─────────────────────────────────────────────────────────────────
 
@@ -27,6 +27,7 @@ export const auth: AuthStorage = {
           lastName: string
           role?: string
           avatarUrl?: string
+          twoFactorEnabled?: boolean
         }
       }>("users/me", { method: "GET" })
       const u = data.user
@@ -39,6 +40,7 @@ export const auth: AuthStorage = {
         name: u.name ?? "",
         lastName: u.lastName ?? "",
         avatarUrl: u.avatarUrl,
+        twoFactorEnabled: u.twoFactorEnabled ?? false,
       }
       return out
     } catch {
@@ -51,5 +53,20 @@ export const auth: AuthStorage = {
 
   revokeSession: async (id: string): Promise<void> => {
     await apiClient<void>(`users/me/sessions/${encodeURIComponent(id)}`, { method: "DELETE" })
+  },
+
+  enrollTwoFactor: async (): Promise<TwoFactorEnrollment> =>
+    apiClient<TwoFactorEnrollment>("users/me/2fa/enroll", { method: "POST" }),
+
+  confirmTwoFactor: async (code: string): Promise<string[]> => {
+    const res = await apiClient<{ recoveryCodes: string[] }>("users/me/2fa/verify", {
+      method: "POST",
+      body: { code },
+    })
+    return res.recoveryCodes ?? []
+  },
+
+  disableTwoFactor: async (code: string): Promise<void> => {
+    await apiClient<void>("users/me/2fa/disable", { method: "POST", body: { code } })
   },
 }

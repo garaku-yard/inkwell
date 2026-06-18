@@ -30,9 +30,12 @@ export interface AuthUserResponse {
 }
 
 /** Envelope returned by `/login` and `/register`. The JWT is delivered as an
- *  httpOnly cookie, so only the user profile is visible to JavaScript. */
+ *  httpOnly cookie, so only the user profile is visible to JavaScript. When 2FA
+ *  is enabled and a valid code wasn't supplied, `totpRequired` is true and
+ *  `user` is absent (the client should prompt for the code and resubmit). */
 export interface AuthResponse {
-  user: AuthUserResponse
+  user?: AuthUserResponse
+  totpRequired?: boolean
 }
 
 export const loginUser = (credentials: LoginRequest): Promise<AuthResponse> =>
@@ -41,10 +44,19 @@ export const loginUser = (credentials: LoginRequest): Promise<AuthResponse> =>
 export const registerUser = (userData: RegisterRequest): Promise<AuthResponse> =>
   getStorage().auth.register(userData)
 
-export type { Session } from "@/lib/storage"
+export type { Session, TwoFactorEnrollment } from "@/lib/storage"
 
 /** List the authenticated user's active sessions (hosted only). */
 export const listSessions = () => getStorage().auth.listSessions()
 
 /** Revoke an active session by id (hosted only). */
 export const revokeSession = (id: string) => getStorage().auth.revokeSession(id)
+
+/** Begin 2FA enrolment — returns the secret/otpauth/QR to set up an app. */
+export const enrollTwoFactor = () => getStorage().auth.enrollTwoFactor()
+
+/** Verify a code and enable 2FA; resolves to one-time recovery codes. */
+export const confirmTwoFactor = (code: string) => getStorage().auth.confirmTwoFactor(code)
+
+/** Disable 2FA after verifying a current code. */
+export const disableTwoFactor = (code: string) => getStorage().auth.disableTwoFactor(code)

@@ -65,6 +65,9 @@ export default function RegisterPage() {
 
     try {
       const data = await registerUser(apiPayload)
+      if (!data.user) {
+        throw new Error("Registration failed. Please try again.")
+      }
       login({
         id: data.user.id,
         email: data.user.email,

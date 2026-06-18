@@ -48,6 +48,10 @@ export function SessionExpiryModal({
 
     try {
       const response = await loginUser({ email, password })
+      if (response.totpRequired || !response.user) {
+        setError("Two-factor is required — please sign in from the login page.")
+        return
+      }
       onLogin?.({
         id: response.user.id,
         email: response.user.email,

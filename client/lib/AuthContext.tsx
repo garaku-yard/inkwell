@@ -22,6 +22,8 @@ export interface AuthUser {
   lastName: string
   /** Relative URL of the user's avatar (e.g. /uploads/avatars/…), if set. */
   avatarUrl?: string
+  /** Whether two-factor auth is enabled. */
+  twoFactorEnabled?: boolean
 }
 
 interface AuthContextType {

@@ -20,12 +20,15 @@ import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 export interface LoginRequest {
   email: string
   password: string
+  totpCode?: string
 }
 
 function LoginPageContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [totpRequired, setTotpRequired] = useState(false)
+  const [totpCode, setTotpCode] = useState("")
 
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -39,7 +42,22 @@ function LoginPageContent() {
     setError(null)
 
     try {
-      const data = await loginUser({ email, password });
+      const data = await loginUser({
+        email,
+        password,
+        totpCode: totpRequired ? totpCode : undefined,
+      });
+
+      // 2FA is enabled — switch to the code step and prompt for it.
+      if (data.totpRequired) {
+        setTotpRequired(true);
+        return;
+      }
+
+      if (!data.user) {
+        setError("Unexpected response from the server.");
+        return;
+      }
 
       login({
         id: data.user.id,
@@ -53,7 +71,10 @@ function LoginPageContent() {
       window.location.href = nextPath;
 
     } catch (err: unknown) {
-      if (err instanceof Error) {
+      // In the code step a 401 means the code was wrong, not the password.
+      if (totpRequired) {
+        setError("Invalid code. Try your authenticator again or use a recovery code.");
+      } else if (err instanceof Error) {
         setError(err.message);
       } else {
         setError("An unknown error occurred");
@@ -86,52 +107,76 @@ function LoginPageContent() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
+              {!totpRequired ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        disabled={isLoading}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Link href="/forgot-password" className="text-sm text-muted-foreground hover:text-foreground">
+                      Forgot password?
+                    </Link>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="totpCode">Authentication code</Label>
                   <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    id="totpCode"
+                    inputMode="text"
+                    autoComplete="one-time-code"
+                    placeholder="6-digit code or recovery code"
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value)}
                     required
+                    autoFocus
                     disabled={isLoading}
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Enter the code from your authenticator app, or one of your recovery codes.
+                  </p>
                 </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <Link href="/forgot-password" className="text-sm text-muted-foreground hover:text-foreground">
-                  Forgot password?
-                </Link>
-              </div>
+              )}
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Signing In..." : "Sign In"}
+                {isLoading
+                  ? (totpRequired ? "Verifying..." : "Signing In...")
+                  : (totpRequired ? "Verify" : "Sign In")}
               </Button>
             </form>
 

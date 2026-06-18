@@ -9,7 +9,16 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { changePassword } from "@/services/settings"
-import { listSessions, revokeSession, type Session } from "@/services/auth"
+import {
+  listSessions,
+  revokeSession,
+  enrollTwoFactor,
+  confirmTwoFactor,
+  disableTwoFactor,
+  type Session,
+  type TwoFactorEnrollment,
+} from "@/services/auth"
+import { useAuth } from "@/lib/AuthContext"
 
 /** Derive a friendly "Browser on OS" label from a raw user-agent string. */
 function deviceLabel(ua: string): string {
@@ -82,6 +91,72 @@ export function SecuritySection() {
       toast({ title: "Failed to revoke session", variant: "destructive" })
     } finally {
       setRevokingId(null)
+    }
+  }
+
+  // ── Two-factor (TOTP) ──
+  const { user, updateUser } = useAuth()
+  const twoFactorEnabled = !!user?.twoFactorEnabled
+  const [twoFAMode, setTwoFAMode] = useState<"idle" | "enrolling" | "recovery" | "disabling">("idle")
+  const [enrollment, setEnrollment] = useState<TwoFactorEnrollment | null>(null)
+  const [twoFACode, setTwoFACode] = useState("")
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([])
+  const [twoFABusy, setTwoFABusy] = useState(false)
+
+  const cancelTwoFA = () => {
+    setTwoFAMode("idle")
+    setEnrollment(null)
+    setTwoFACode("")
+    setRecoveryCodes([])
+  }
+
+  const handleStartEnroll = async () => {
+    setTwoFABusy(true)
+    try {
+      const e = await enrollTwoFactor()
+      setEnrollment(e)
+      setTwoFACode("")
+      setTwoFAMode("enrolling")
+    } catch (err) {
+      toast({
+        title: "Couldn't start 2FA setup",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setTwoFABusy(false)
+    }
+  }
+
+  const handleVerifyEnroll = async () => {
+    setTwoFABusy(true)
+    try {
+      const codes = await confirmTwoFactor(twoFACode.trim())
+      setRecoveryCodes(codes)
+      setEnrollment(null)
+      setTwoFACode("")
+      setTwoFAMode("recovery")
+      updateUser({ twoFactorEnabled: true })
+      toast({ title: "Two-factor enabled", description: "Save your recovery codes." })
+    } catch {
+      toast({ title: "Invalid code", description: "Check your authenticator app and try again.", variant: "destructive" })
+    } finally {
+      setTwoFABusy(false)
+    }
+  }
+
+  const handleDisable = async () => {
+    setTwoFABusy(true)
+    try {
+      await disableTwoFactor(twoFACode.trim())
+      updateUser({ twoFactorEnabled: false })
+      setTwoFACode("")
+      setTwoFAMode("idle")
+      toast({ title: "Two-factor disabled" })
+    } catch {
+      toast({ title: "Invalid code", description: "Enter a current code or a recovery code.", variant: "destructive" })
+    } finally {
+      setTwoFABusy(false)
     }
   }
 
@@ -184,34 +259,133 @@ export function SecuritySection() {
         </CardContent>
       </Card>
 
-      {/*
-        Two-factor authentication is intentionally non-functional for now: the
-        identity service doesn't yet expose TOTP enrolment. We surface it as
-        "Coming soon" rather than hide it so users know the roadmap. (Active
-        Sessions, below, is fully wired to the identity service.)
-      */}
-      <Card className="opacity-75">
+      <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-start gap-3">
-              <div className="rounded-full bg-blue-100 dark:bg-blue-900/30 p-2">
-                <Smartphone className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <CardTitle>Two-Factor Authentication</CardTitle>
-                <CardDescription>
-                  Add an extra layer of security to your account
-                </CardDescription>
-              </div>
+          <div className="flex items-start gap-3">
+            <div className="rounded-full bg-blue-100 dark:bg-blue-900/30 p-2">
+              <Smartphone className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
-            <Badge variant="secondary">Coming soon</Badge>
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                Two-Factor Authentication
+                {twoFactorEnabled && <Badge variant="secondary">On</Badge>}
+              </CardTitle>
+              <CardDescription>
+                {twoFactorEnabled
+                  ? "Your account requires a one-time code at sign-in."
+                  : "Add a one-time code from an authenticator app to your sign-in."}
+              </CardDescription>
+            </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Authenticator-app support (TOTP) and recovery codes are on the roadmap.
-            Password changes are already protected by your current password.
-          </p>
+        <CardContent className="space-y-4">
+          {twoFactorEnabled && twoFAMode === "idle" && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Protected by an authenticator app.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setTwoFACode("")
+                  setTwoFAMode("disabling")
+                }}
+              >
+                Disable
+              </Button>
+            </div>
+          )}
+
+          {!twoFactorEnabled && twoFAMode === "idle" && (
+            <Button onClick={handleStartEnroll} disabled={twoFABusy}>
+              {twoFABusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Enable two-factor
+            </Button>
+          )}
+
+          {twoFAMode === "enrolling" && enrollment && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Scan the QR code with your authenticator app (or enter the secret
+                manually), then enter the 6-digit code to confirm.
+              </p>
+              {enrollment.qrDataUri && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={enrollment.qrDataUri}
+                  alt="Two-factor QR code"
+                  className="h-44 w-44 rounded border bg-white p-2"
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                Secret:{" "}
+                <code className="font-mono text-foreground break-all">{enrollment.secret}</code>
+              </p>
+              <div className="max-w-xs space-y-2">
+                <Label htmlFor="twoFACode">Verification code</Label>
+                <Input
+                  id="twoFACode"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="6-digit code"
+                  value={twoFACode}
+                  onChange={(e) => setTwoFACode(e.target.value)}
+                  disabled={twoFABusy}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleVerifyEnroll} disabled={twoFABusy || twoFACode.trim().length < 6}>
+                  {twoFABusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Verify &amp; enable
+                </Button>
+                <Button variant="outline" onClick={cancelTwoFA} disabled={twoFABusy}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {twoFAMode === "recovery" && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-900/10">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  Save these recovery codes somewhere safe. Each one works once if
+                  you lose your authenticator — <strong>they won&apos;t be shown again.</strong>
+                </p>
+              </div>
+              <ul className="grid grid-cols-2 gap-2 font-mono text-sm">
+                {recoveryCodes.map((c) => (
+                  <li key={c} className="rounded bg-muted px-2 py-1 text-center">{c}</li>
+                ))}
+              </ul>
+              <Button onClick={() => setTwoFAMode("idle")}>Done</Button>
+            </div>
+          )}
+
+          {twoFAMode === "disabling" && (
+            <div className="max-w-xs space-y-3">
+              <Label htmlFor="disableCode">Enter a current code to disable</Label>
+              <Input
+                id="disableCode"
+                inputMode="text"
+                autoComplete="one-time-code"
+                placeholder="Code or recovery code"
+                value={twoFACode}
+                onChange={(e) => setTwoFACode(e.target.value)}
+                disabled={twoFABusy}
+              />
+              <div className="flex gap-2">
+                <Button variant="destructive" onClick={handleDisable} disabled={twoFABusy || !twoFACode.trim()}>
+                  {twoFABusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Disable 2FA
+                </Button>
+                <Button variant="outline" onClick={cancelTwoFA} disabled={twoFABusy}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
