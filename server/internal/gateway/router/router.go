@@ -11,6 +11,7 @@ import (
 	"inkwell/server/internal/gateway/handlers/auth"
 	"inkwell/server/internal/gateway/handlers/billing"
 	"inkwell/server/internal/gateway/handlers/collab"
+	"inkwell/server/internal/gateway/handlers/notifications"
 	"inkwell/server/internal/gateway/handlers/scripts"
 	"inkwell/server/internal/gateway/handlers/workspace"
 	"inkwell/server/internal/gateway/middleware"
@@ -100,6 +101,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		return nil, err
 	}
 	aiSettingsHandler := aisettings.NewAISettingsHandler(clients, cfg.OpenAICompatibleHosts)
+	notificationsHandler := notifications.NewNotificationsHandler(clients)
 
 	// Auth middleware — shared across all protected route groups.
 	identityServiceURL := cfg.IdentityService.Host + ":" + cfg.IdentityService.Port
@@ -255,6 +257,13 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 					r.Post("/key", aiLimit(aiSettingsHandler.SetKey))
 					r.Delete("/key", aiLimit(aiSettingsHandler.ClearKey))
 				})
+			})
+
+			// Notifications — per-user delivery preferences. The in-app feed
+			// and email delivery extend this group in later phases.
+			r.Route("/notifications", func(r chi.Router) {
+				r.Get("/preferences", notificationsHandler.GetPreferences)
+				r.Put("/preferences", notificationsHandler.UpdatePreferences)
 			})
 
 			// Workspaces

@@ -38,6 +38,7 @@ import { locations } from "./locations"
 import { beatBoard } from "./beat-board"
 import { workspaces } from "./workspaces"
 import { collaboration } from "./collaboration"
+import { notifications } from "./notifications"
 import { settings } from "./settings"
 import { vault } from "./vault"
 import { knowledge } from "./knowledge"
@@ -68,6 +69,7 @@ export function createLocalStorage(): Storage {
     beatBoard,
     workspaces,
     collaboration,
+    notifications,
     settings,
     vault,
     knowledge,

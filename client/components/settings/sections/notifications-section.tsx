@@ -7,20 +7,9 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { PreviewNotice } from "@/components/settings/preview-notice"
+import { getStorage, type NotificationPreferences } from "@/lib/storage"
 
-const STORAGE_KEY = "inkwell:notifications"
-
-interface NotificationPrefs {
-  emailComments: boolean
-  emailMentions: boolean
-  emailProjectUpdates: boolean
-  emailCollaboratorJoins: boolean
-  inAppNotifications: boolean
-  marketingEmails: boolean
-  productUpdates: boolean
-}
-
-const DEFAULTS: NotificationPrefs = {
+const DEFAULTS: NotificationPreferences = {
   emailComments: true,
   emailMentions: true,
   emailProjectUpdates: true,
@@ -30,25 +19,45 @@ const DEFAULTS: NotificationPrefs = {
   productUpdates: true,
 }
 
-function loadPrefs(): NotificationPrefs {
-  if (typeof window === "undefined") return DEFAULTS
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? { ...DEFAULTS, ...JSON.parse(stored) } : DEFAULTS
-  } catch { return DEFAULTS }
-}
-
 export function NotificationsSection() {
-  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULTS)
+  const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULTS)
   const { toast } = useToast()
+  // Hosted builds persist preferences server-side (synced + feeding the
+  // delivery worker); the desktop build keeps them on-device. The copy and
+  // toast wording follow this distinction.
+  const serverSide = getStorage().capabilities.has("notifications")
 
-  useEffect(() => { setPrefs(loadPrefs()) }, [])
+  useEffect(() => {
+    let active = true
+    getStorage()
+      .notifications.getPreferences()
+      .then((p) => { if (active) setPrefs(p) })
+      .catch(() => { /* keep defaults on read failure */ })
+    return () => { active = false }
+  }, [])
 
-  const update = (key: keyof NotificationPrefs, value: boolean) => {
+  const update = (key: keyof NotificationPreferences, value: boolean) => {
     const next = { ...prefs, [key]: value }
+    const prev = prefs
     setPrefs(next)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-    toast({ title: "Saved on this device", description: "Notification preferences updated locally." })
+    getStorage()
+      .notifications.updatePreferences(next)
+      .then(() => {
+        toast({
+          title: serverSide ? "Preferences saved" : "Saved on this device",
+          description: serverSide
+            ? "Notification preferences updated for your account."
+            : "Notification preferences updated locally.",
+        })
+      })
+      .catch(() => {
+        setPrefs(prev) // revert optimistic toggle on failure
+        toast({
+          variant: "destructive",
+          title: "Couldn't save",
+          description: "Your notification preferences weren't saved. Please try again.",
+        })
+      })
   }
 
   const { emailComments, emailMentions, emailProjectUpdates, emailCollaboratorJoins,
@@ -57,8 +66,18 @@ export function NotificationsSection() {
   return (
     <div className="space-y-6">
       <PreviewNotice>
-        Saved on this device. Inkwell doesn&apos;t deliver notifications yet —
-        these preferences will apply once notification delivery ships.
+        {serverSide ? (
+          <>
+            Saved to your account. Email and in-app delivery are rolling out —
+            mentions, project-update emails, and marketing broadcasts aren&apos;t
+            delivered yet.
+          </>
+        ) : (
+          <>
+            Saved on this device. The desktop app doesn&apos;t deliver
+            notifications — these preferences apply on the hosted service.
+          </>
+        )}
       </PreviewNotice>
       <Card>
         <CardHeader>
@@ -116,7 +135,7 @@ export function NotificationsSection() {
                 <div>
                   <Label htmlFor="emailProjectUpdates">Project Updates</Label>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Get notified about changes to projects you're collaborating on
+                    Get notified about changes to projects you&apos;re collaborating on
                   </p>
                 </div>
               </div>

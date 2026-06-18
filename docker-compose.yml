@@ -314,6 +314,26 @@ services:
     networks:
       - inkwell-network
 
+  postgres-notifications:
+    image: postgres:15-alpine
+    container_name: inkwell-notifications-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: notifications_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5438:5432"
+    volumes:
+      - postgres_notifications_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - inkwell-network
+
   workspace-service:
     build:
       context: ./server
@@ -361,6 +381,29 @@ services:
     networks:
       - inkwell-network
 
+  notifications-service:
+    build:
+      context: ./server
+      dockerfile: cmd/notifications/Dockerfile
+    container_name: inkwell-notifications-service
+    restart: unless-stopped
+    ports:
+      - "50058:50058"
+    environment:
+      - GRPC_PORT=50058
+      - NOTIFICATIONS_DB_HOST=postgres-notifications
+      - NOTIFICATIONS_DB_PORT=5432
+      - NOTIFICATIONS_DB_USER=${POSTGRES_USER:-postgres}
+      - NOTIFICATIONS_DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - NOTIFICATIONS_DB_NAME=notifications_db
+      - NOTIFICATIONS_DB_SSLMODE=disable
+      - RUN_MIGRATIONS=true
+    depends_on:
+      postgres-notifications:
+        condition: service_healthy
+    networks:
+      - inkwell-network
+
   api-gateway:
     build:
       context: ./server
@@ -383,6 +426,8 @@ services:
       - WORKSPACE_SERVICE_PORT=50056
       - AI_SETTINGS_SERVICE_HOST=aisettings-service
       - AI_SETTINGS_SERVICE_PORT=50057
+      - NOTIFICATIONS_SERVICE_HOST=notifications-service
+      - NOTIFICATIONS_SERVICE_PORT=50058
       - AI_OPENAI_COMPATIBLE_HOSTS=${AI_OPENAI_COMPATIBLE_HOSTS:-}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -401,6 +446,7 @@ services:
       - billing-service
       - workspace-service
       - aisettings-service
+      - notifications-service
     networks:
       - inkwell-network
 
@@ -434,6 +480,8 @@ volumes:
   postgres_workspace_data:
     driver: local
   postgres_aisettings_data:
+    driver: local
+  postgres_notifications_data:
     driver: local
   redis_data:
     driver: local

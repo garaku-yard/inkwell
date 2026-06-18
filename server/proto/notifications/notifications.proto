@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package notifications;
+
+option go_package = "inkwell/server/pkg/grpc/notifications";
+
+// ─── Entities ────────────────────────────────────────────────────────────────
+
+// NotificationPreferences mirrors the seven toggles surfaced in the client
+// settings UI. Each field gates one delivery decision the notification worker
+// makes when it consumes a domain event. Defaults (when a user has never saved
+// preferences) are all-on except marketing_emails.
+message NotificationPreferences {
+  string user_id                  = 1;
+  bool   email_comments           = 2; // "someone commented on your project"
+  bool   email_mentions           = 3; // "someone mentioned you" (no event source yet)
+  bool   email_project_updates    = 4; // "a project you collaborate on changed" (no event source yet)
+  bool   email_collaborator_joins = 5; // "someone joined your project"
+  bool   in_app_notifications     = 6; // master switch for the in-app feed
+  bool   marketing_emails         = 7; // promotional broadcasts (no broadcast system yet)
+  bool   product_updates          = 8; // product/feature announcements
+}
+
+// ─── Preference RPCs ─────────────────────────────────────────────────────────
+
+message GetPreferencesRequest {
+  string user_id = 1;
+}
+
+message GetPreferencesResponse {
+  NotificationPreferences preferences = 1;
+}
+
+// UpdatePreferencesRequest carries the full preference set. The client always
+// holds all seven toggles in state and sends them together, so there is no
+// partial-update / field-mask ambiguity.
+message UpdatePreferencesRequest {
+  NotificationPreferences preferences = 1;
+}
+
+message UpdatePreferencesResponse {
+  NotificationPreferences preferences = 1;
+}
+
+// ─── Service ─────────────────────────────────────────────────────────────────
+
+service NotificationsService {
+  // GetPreferences returns the user's saved preferences, or the all-on
+  // defaults when they have never saved any.
+  rpc GetPreferences(GetPreferencesRequest) returns (GetPreferencesResponse);
+  // UpdatePreferences upserts the full preference set for a user.
+  rpc UpdatePreferences(UpdatePreferencesRequest) returns (UpdatePreferencesResponse);
+}

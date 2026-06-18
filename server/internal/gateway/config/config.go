@@ -19,12 +19,13 @@ type Config struct {
 	AllowedOrigins []string
 
 	// Service configurations
-	IdentityService   ServiceConfig
-	ScriptsService    ServiceConfig
-	CollabService     ServiceConfig
-	BillingService    ServiceConfig
-	WorkspaceService  ServiceConfig
-	AISettingsService ServiceConfig
+	IdentityService      ServiceConfig
+	ScriptsService       ServiceConfig
+	CollabService        ServiceConfig
+	BillingService       ServiceConfig
+	WorkspaceService     ServiceConfig
+	AISettingsService    ServiceConfig
+	NotificationsService ServiceConfig
 
 	// Redis configuration — used for JWT blocklist and rate limiting
 	Redis RedisConfig
@@ -91,6 +92,10 @@ func (c *Config) AISettingsServiceURL() string {
 	return c.AISettingsService.URL()
 }
 
+func (c *Config) NotificationsServiceURL() string {
+	return c.NotificationsService.URL()
+}
+
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	config := &Config{
@@ -122,6 +127,10 @@ func Load() (*Config, error) {
 		AISettingsService: ServiceConfig{
 			Host: env.String("AI_SETTINGS_SERVICE_HOST", "localhost"),
 			Port: env.String("AI_SETTINGS_SERVICE_PORT", "50057"),
+		},
+		NotificationsService: ServiceConfig{
+			Host: env.String("NOTIFICATIONS_SERVICE_HOST", "localhost"),
+			Port: env.String("NOTIFICATIONS_SERVICE_PORT", "50058"),
 		},
 		Redis: RedisConfig{
 			Host:     env.String("REDIS_HOST", "localhost"),

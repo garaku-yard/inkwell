@@ -37,6 +37,7 @@ export function installFakeStorage(overrides: Partial<Storage> = {}): Storage {
     beatBoard: makeScreamingProxy("beatBoard"),
     workspaces: makeScreamingProxy("workspaces"),
     collaboration: makeScreamingProxy("collaboration"),
+    notifications: makeScreamingProxy("notifications"),
     settings: makeScreamingProxy("settings"),
     vault: makeScreamingProxy("vault"),
     knowledge: makeScreamingProxy("knowledge"),

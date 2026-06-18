@@ -45,6 +45,7 @@ import type {
   ElementStorage,
   KnowledgeStorage,
   LocationStorage,
+  NotificationsStorage,
   ProjectStorage,
   SceneStorage,
   SettingsStorage,
@@ -67,6 +68,7 @@ export type Capability =
   | "admin" // Billing admin endpoints (remote only).
   | "ai.byo" // BYO-key AI providers configurable in settings.
   | "ai.knowledge" // Vault-as-knowledge RAG for the AI chat (desktop only).
+  | "notifications" // Server-side notification prefs + delivery (remote only).
 
 // ─── Root Storage ────────────────────────────────────────────────────────
 
@@ -83,6 +85,7 @@ export interface Storage {
   beatBoard: BeatBoardStorage
   workspaces: WorkspaceStorage
   collaboration: CollaborationStorage
+  notifications: NotificationsStorage
   settings: SettingsStorage
   vault: VaultStorage
   knowledge: KnowledgeStorage

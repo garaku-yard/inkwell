@@ -111,6 +111,11 @@ tasks:
     cmds:
       - "{{.DOCKER_COMPOSE}} build workspace-service"
 
+  docker:build:notifications:
+    desc: Build Notifications Service image only (no start)
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build notifications-service"
+
   docker:build:client:
     desc: Build Client image only (no start)
     cmds:
@@ -159,6 +164,12 @@ tasks:
       - "{{.DOCKER_COMPOSE}} build workspace-service"
       - "{{.DOCKER_COMPOSE}} up -d workspace-service"
 
+  docker:rebuild:notifications:
+    desc: Rebuild and restart Notifications Service (use `task docker:logs:notifications` to tail)
+    cmds:
+      - "{{.DOCKER_COMPOSE}} build notifications-service"
+      - "{{.DOCKER_COMPOSE}} up -d notifications-service"
+
   docker:rebuild:client:
     desc: Rebuild and restart Client (use `task docker:logs:client` to tail)
     cmds:
@@ -195,6 +206,11 @@ tasks:
     cmds:
       - "{{.DOCKER_COMPOSE}} logs -f workspace-service"
 
+  docker:logs:notifications:
+    desc: Tail logs for Notifications Service
+    cmds:
+      - "{{.DOCKER_COMPOSE}} logs -f notifications-service"
+
   docker:logs:client:
     desc: Tail logs for Client
     cmds:
@@ -221,12 +237,12 @@ tasks:
   db:up:
     desc: Start only database containers
     cmds:
-      - "{{.DOCKER_COMPOSE}} up -d postgres-identity postgres-scripts postgres-collab postgres-billing postgres-workspace redis"
+      - "{{.DOCKER_COMPOSE}} up -d postgres-identity postgres-scripts postgres-collab postgres-billing postgres-workspace postgres-notifications redis"
 
   db:down:
     desc: Stop database containers
     cmds:
-      - "{{.DOCKER_COMPOSE}} stop postgres-identity postgres-scripts postgres-collab postgres-billing postgres-workspace redis"
+      - "{{.DOCKER_COMPOSE}} stop postgres-identity postgres-scripts postgres-collab postgres-billing postgres-workspace postgres-notifications redis"
 
   db:migrate:
     desc: Run migrations for all services (applied automatically on service startup)
@@ -398,6 +414,7 @@ tasks:
       - task: proto:gen:billing
       - task: proto:gen:workspace
       - task: proto:gen:aisettings
+      - task: proto:gen:notifications
 
   proto:gen:common:
     desc: Generate protobuf code for Common types
@@ -440,6 +457,12 @@ tasks:
     dir: server
     cmds:
       - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative aisettings/aisettings.proto
+
+  proto:gen:notifications:
+    desc: Generate protobuf code for Notifications service
+    dir: server
+    cmds:
+      - protoc --proto_path=proto --go_out=pkg/grpc --go_opt=paths=source_relative --go-grpc_out=pkg/grpc --go-grpc_opt=paths=source_relative notifications/notifications.proto
 
   # ====================
   # Service-Specific Operations
