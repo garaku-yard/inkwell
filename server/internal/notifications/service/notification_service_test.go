@@ -3,13 +3,45 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 
 	"inkwell/server/internal/notifications/domain"
+	"inkwell/server/internal/notifications/mailer"
 	"inkwell/server/pkg/events"
 )
+
+// captureMailer records the emails Send is asked to deliver.
+type captureMailer struct {
+	sent []mailer.Message
+	fail bool
+}
+
+func (m *captureMailer) Send(_ context.Context, msg mailer.Message) error {
+	if m.fail {
+		return errors.New("smtp boom")
+	}
+	m.sent = append(m.sent, msg)
+	return nil
+}
+
+// fakeUsers is a static user-id → email lookup.
+type fakeUsers map[string]string
+
+func (f fakeUsers) Lookup(_ context.Context, userID string) (string, string, error) {
+	email, ok := f[userID]
+	if !ok {
+		return "", "", errors.New("user not found")
+	}
+	return email, "Tester", nil
+}
+
+// newSvc builds a service with a capture mailer + user lookup for tests.
+func newSvc(repo *fakeRepo, mail *captureMailer, users fakeUsers) NotificationService {
+	return NewNotificationService(repo, mail, users, "https://app.test")
+}
 
 // collabAddedEvent builds a collaboration.added envelope for the given ids.
 func collabAddedEvent(projectID, userID, invitedBy uuid.UUID, role string) events.Event {
@@ -88,10 +120,19 @@ func (r *fakeRepo) CountUnread(_ context.Context, userID uuid.UUID) (int, error)
 func (r *fakeRepo) MarkRead(_ context.Context, userID, id uuid.UUID) error { return nil }
 func (r *fakeRepo) MarkAllRead(_ context.Context, userID uuid.UUID) error  { return nil }
 
+func (r *fakeRepo) DeliveryExists(_ context.Context, dedupKey string) (bool, error) {
+	return r.dedup[dedupKey], nil
+}
+
+func (r *fakeRepo) RecordDelivery(_ context.Context, dedupKey string) error {
+	r.dedup[dedupKey] = true
+	return nil
+}
+
 // GetPreferences must synthesize the all-on (except marketing) defaults when a
 // user has never saved a row, never surfacing ErrPreferencesNotFound.
 func TestGetPreferences_DefaultsWhenAbsent(t *testing.T) {
-	svc := NewNotificationService(newFakeRepo())
+	svc := NewNotificationService(newFakeRepo(), nil, nil, "")
 	userID := uuid.New()
 
 	got, err := svc.GetPreferences(context.Background(), userID)
@@ -114,7 +155,7 @@ func TestGetPreferences_DefaultsWhenAbsent(t *testing.T) {
 // GetPreferences must return the stored row verbatim once one exists.
 func TestGetPreferences_ReturnsStored(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewNotificationService(repo)
+	svc := NewNotificationService(repo, nil, nil, "")
 	userID := uuid.New()
 
 	stored := domain.DefaultPreferences(userID)
@@ -137,7 +178,7 @@ func TestGetPreferences_ReturnsStored(t *testing.T) {
 // UpdatePreferences must upsert and return the freshly stored values.
 func TestUpdatePreferences_UpsertsAndReturns(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewNotificationService(repo)
+	svc := NewNotificationService(repo, nil, nil, "")
 	userID := uuid.New()
 
 	in := domain.DefaultPreferences(userID)
@@ -160,7 +201,7 @@ func TestUpdatePreferences_UpsertsAndReturns(t *testing.T) {
 // addressed to the added user, and dedupe the producer's double-publish.
 func TestProcess_CollabAdded_CreatesOneNotification(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewNotificationService(repo)
+	svc := NewNotificationService(repo, nil, nil, "")
 	project, recipient, inviter := uuid.New(), uuid.New(), uuid.New()
 	evt := collabAddedEvent(project, recipient, inviter, "editor")
 
@@ -190,7 +231,7 @@ func TestProcess_CollabAdded_CreatesOneNotification(t *testing.T) {
 // Process must skip in-app delivery when the recipient disabled the feed.
 func TestProcess_CollabAdded_RespectsInAppOff(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewNotificationService(repo)
+	svc := NewNotificationService(repo, nil, nil, "")
 	project, recipient, inviter := uuid.New(), uuid.New(), uuid.New()
 
 	prefs := domain.DefaultPreferences(recipient)
@@ -208,7 +249,7 @@ func TestProcess_CollabAdded_RespectsInAppOff(t *testing.T) {
 // Unknown event types are ignored without error or side effects.
 func TestProcess_UnknownType_Ignored(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewNotificationService(repo)
+	svc := NewNotificationService(repo, nil, nil, "")
 
 	evt := events.Event{Type: "billing.updated", Payload: json.RawMessage(`{}`)}
 	if err := svc.Process(context.Background(), evt); err != nil {
@@ -216,5 +257,92 @@ func TestProcess_UnknownType_Ignored(t *testing.T) {
 	}
 	if len(repo.notifs) != 0 {
 		t.Error("unknown event should not create notifications")
+	}
+}
+
+// collaboration.added must email the added user (address resolved via lookup)
+// when their collaborator-join email toggle is on, exactly once across the
+// producer's double-publish.
+func TestProcess_CollabAdded_SendsEmail(t *testing.T) {
+	repo := newFakeRepo()
+	mail := &captureMailer{}
+	project, recipient, inviter := uuid.New(), uuid.New(), uuid.New()
+	svc := newSvc(repo, mail, fakeUsers{recipient.String(): "added@example.com"})
+	evt := collabAddedEvent(project, recipient, inviter, "editor")
+
+	for i := 0; i < 2; i++ {
+		if err := svc.Process(context.Background(), evt); err != nil {
+			t.Fatalf("process #%d: %v", i, err)
+		}
+	}
+	if len(mail.sent) != 1 {
+		t.Fatalf("expected exactly 1 email after double-publish, got %d", len(mail.sent))
+	}
+	if mail.sent[0].To != "added@example.com" {
+		t.Errorf("email To = %q, want the resolved recipient address", mail.sent[0].To)
+	}
+}
+
+// collaboration.added must not email when the collaborator-join toggle is off
+// (the in-app delivery is governed separately).
+func TestProcess_CollabAdded_RespectsEmailOff(t *testing.T) {
+	repo := newFakeRepo()
+	mail := &captureMailer{}
+	project, recipient, inviter := uuid.New(), uuid.New(), uuid.New()
+	prefs := domain.DefaultPreferences(recipient)
+	prefs.EmailCollaboratorJoins = false
+	repo.store[recipient] = prefs
+	svc := newSvc(repo, mail, fakeUsers{recipient.String(): "added@example.com"})
+
+	if err := svc.Process(context.Background(), collabAddedEvent(project, recipient, inviter, "viewer")); err != nil {
+		t.Fatalf("process: %v", err)
+	}
+	if len(mail.sent) != 0 {
+		t.Fatalf("expected no email when collaborator-join email is off, got %d", len(mail.sent))
+	}
+}
+
+// user.created must send exactly one welcome email to the payload address.
+func TestProcess_UserCreated_SendsWelcome(t *testing.T) {
+	repo := newFakeRepo()
+	mail := &captureMailer{}
+	svc := newSvc(repo, mail, fakeUsers{})
+	userID := uuid.New()
+	payload, _ := json.Marshal(map[string]string{
+		"user_id": userID.String(), "email": "new@example.com", "username": "newbie",
+	})
+	evt := events.Event{Type: events.EventTypeUserCreated, Payload: payload}
+
+	for i := 0; i < 2; i++ {
+		if err := svc.Process(context.Background(), evt); err != nil {
+			t.Fatalf("process #%d: %v", i, err)
+		}
+	}
+	if len(mail.sent) != 1 {
+		t.Fatalf("expected exactly 1 welcome email after double-publish, got %d", len(mail.sent))
+	}
+	if mail.sent[0].To != "new@example.com" {
+		t.Errorf("welcome To = %q", mail.sent[0].To)
+	}
+}
+
+// A send failure must surface as an error and record no delivery, so the
+// message stays uncommitted and is retried.
+func TestProcess_UserCreated_SendFailureIsRetryable(t *testing.T) {
+	repo := newFakeRepo()
+	mail := &captureMailer{fail: true}
+	svc := newSvc(repo, mail, fakeUsers{})
+	userID := uuid.New()
+	payload, _ := json.Marshal(map[string]string{
+		"user_id": userID.String(), "email": "new@example.com", "username": "newbie",
+	})
+	evt := events.Event{Type: events.EventTypeUserCreated, Payload: payload}
+
+	if err := svc.Process(context.Background(), evt); err == nil {
+		t.Fatal("expected an error when the send fails")
+	}
+	exists, _ := repo.DeliveryExists(context.Background(), "email:user.created:"+userID.String())
+	if exists {
+		t.Error("a failed send must not record a delivery (it must remain retryable)")
 	}
 }

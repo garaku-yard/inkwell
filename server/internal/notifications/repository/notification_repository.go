@@ -32,6 +32,13 @@ type NotificationRepository interface {
 	MarkRead(ctx context.Context, userID, id uuid.UUID) error
 	// MarkAllRead marks every unread notification read for a user.
 	MarkAllRead(ctx context.Context, userID uuid.UUID) error
+
+	// DeliveryExists reports whether dedupKey has already been recorded. Used by
+	// channels (email) whose delivery is an external side effect that can't share
+	// a transaction with the dedup-log insert.
+	DeliveryExists(ctx context.Context, dedupKey string) (bool, error)
+	// RecordDelivery records dedupKey in the delivery log (idempotent).
+	RecordDelivery(ctx context.Context, dedupKey string) error
 }
 
 type postgresNotificationRepository struct {
@@ -188,6 +195,27 @@ func (r *postgresNotificationRepository) MarkAllRead(ctx context.Context, userID
 	)
 	if err != nil {
 		return fmt.Errorf("mark all read: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresNotificationRepository) DeliveryExists(ctx context.Context, dedupKey string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM delivery_log WHERE dedup_key = $1)`, dedupKey,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("delivery exists: %w", err)
+	}
+	return exists, nil
+}
+
+func (r *postgresNotificationRepository) RecordDelivery(ctx context.Context, dedupKey string) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO delivery_log (dedup_key) VALUES ($1) ON CONFLICT (dedup_key) DO NOTHING`, dedupKey,
+	)
+	if err != nil {
+		return fmt.Errorf("record delivery: %w", err)
 	}
 	return nil
 }

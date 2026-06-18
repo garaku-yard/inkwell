@@ -13,14 +13,18 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 
 	"inkwell/server/internal/notifications/config"
 	"inkwell/server/internal/notifications/consumer"
 	"inkwell/server/internal/notifications/handler"
+	"inkwell/server/internal/notifications/mailer"
 	"inkwell/server/internal/notifications/repository"
 	"inkwell/server/internal/notifications/service"
+	"inkwell/server/internal/notifications/userlookup"
 	"inkwell/server/pkg/database"
+	identitypb "inkwell/server/pkg/grpc/identity"
 	notificationspb "inkwell/server/pkg/grpc/notifications"
 )
 
@@ -53,8 +57,30 @@ func main() {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
+	// Mailer — real SMTP when configured, else a logging no-op.
+	mail := mailer.New(mailer.Config{
+		Host:         cfg.SMTP.Host,
+		Port:         cfg.SMTP.Port,
+		Username:     cfg.SMTP.Username,
+		Password:     cfg.SMTP.Password,
+		From:         cfg.SMTP.From,
+		FromName:     cfg.SMTP.FromName,
+		ImplicitTLS:  cfg.SMTP.ImplicitTLS,
+		InsecureSkip: cfg.SMTP.InsecureSkip,
+	})
+
+	// Identity client — resolves user ids to email addresses for events that
+	// carry only UUIDs (e.g. collaboration.added). Lazy connect: a dial here
+	// doesn't block startup if identity is briefly unavailable.
+	identityConn, err := grpc.NewClient(cfg.IdentityServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("Failed to create identity client: %v", err)
+	}
+	defer identityConn.Close()
+	users := userlookup.New(identitypb.NewIdentityServiceClient(identityConn))
+
 	repo := repository.NewNotificationRepository(db)
-	svc := service.NewNotificationService(repo)
+	svc := service.NewNotificationService(repo, mail, users, cfg.AppBaseURL)
 	h := handler.NewNotificationHandler(svc)
 
 	// Kafka consumer — the source of in-app notifications. Enabled only when
@@ -65,9 +91,9 @@ func main() {
 	var cons *consumer.Consumer
 	if b := strings.TrimSpace(os.Getenv("KAFKA_BROKERS")); b != "" {
 		brokers := strings.Split(b, ",")
-		// Subscribe to the families we deliver on. collaboration.added lives on
-		// collab-events; later phases add more topics here.
-		cons = consumer.New(brokers, []string{"collab-events"}, "notifications-service", svc)
+		// Subscribe to the families we deliver on: collaboration.added on
+		// collab-events, user.created (welcome email) on user-events.
+		cons = consumer.New(brokers, []string{"collab-events", "user-events"}, "notifications-service", svc)
 		go cons.Run(consumerCtx)
 		log.Printf("Kafka consumer enabled (brokers=%s)", b)
 	} else {

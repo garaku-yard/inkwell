@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"inkwell/server/internal/notifications/domain"
+	"inkwell/server/internal/notifications/mailer"
 	"inkwell/server/internal/notifications/repository"
 	"inkwell/server/pkg/events"
 )
@@ -42,13 +43,31 @@ type NotificationService interface {
 	Process(ctx context.Context, evt events.Event) error
 }
 
-type notificationService struct {
-	repo repository.NotificationRepository
+// UserLookup resolves a user id to contact details. Events that carry only
+// UUIDs (e.g. collaboration.added) need this to find an email address.
+// Implemented by the userlookup package over the identity gRPC client.
+type UserLookup interface {
+	Lookup(ctx context.Context, userID string) (email, displayName string, err error)
 }
 
-// NewNotificationService builds a NotificationService over the given repository.
-func NewNotificationService(repo repository.NotificationRepository) NotificationService {
-	return &notificationService{repo: repo}
+type notificationService struct {
+	repo       repository.NotificationRepository
+	mailer     mailer.Mailer
+	users      UserLookup
+	appBaseURL string
+}
+
+// NewNotificationService builds a NotificationService.
+//
+// mailer sends emails (pass a NoopMailer to disable real sending); users
+// resolves ids to emails (may be nil when no email delivery is wired, in which
+// case email handlers are skipped); appBaseURL is the public origin used to
+// build absolute links in emails.
+func NewNotificationService(repo repository.NotificationRepository, m mailer.Mailer, users UserLookup, appBaseURL string) NotificationService {
+	if m == nil {
+		m = &mailer.NoopMailer{}
+	}
+	return &notificationService{repo: repo, mailer: m, users: users, appBaseURL: appBaseURL}
 }
 
 func (s *notificationService) GetPreferences(ctx context.Context, userID uuid.UUID) (*domain.Preferences, error) {

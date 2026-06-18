@@ -398,9 +398,28 @@ services:
       - NOTIFICATIONS_DB_NAME=notifications_db
       - NOTIFICATIONS_DB_SSLMODE=disable
       - RUN_MIGRATIONS=true
+      # Consumer source + identity lookup for resolving recipient emails.
+      - KAFKA_BROKERS=kafka:29092
+      - IDENTITY_SERVICE_HOST=identity-service
+      - IDENTITY_SERVICE_PORT=50051
+      # Public origin for absolute links in emails.
+      - APP_BASE_URL=${APP_BASE_URL:-http://localhost:3000}
+      # SMTP relay — leave SMTP_HOST empty to log emails instead of sending.
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - FROM_EMAIL=${FROM_EMAIL:-noreply@inkwell.app}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Inkwell}
+      - SMTP_IMPLICIT_TLS=${SMTP_IMPLICIT_TLS:-false}
+      - SMTP_INSECURE_SKIP_VERIFY=${SMTP_INSECURE_SKIP_VERIFY:-false}
     depends_on:
       postgres-notifications:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
+      identity-service:
+        condition: service_started
     networks:
       - inkwell-network
 

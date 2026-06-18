@@ -41,3 +41,15 @@ func Duration(key string, def time.Duration) time.Duration {
 	}
 	return def
 }
+
+// Bool returns the value of the environment variable named key parsed as a
+// bool (1/t/true/0/f/false, case-insensitive), or def if the variable is unset,
+// empty, or not a valid boolean.
+func Bool(key string, def bool) bool {
+	if v := os.Getenv(key); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
+		}
+	}
+	return def
+}
