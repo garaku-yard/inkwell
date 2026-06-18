@@ -83,28 +83,35 @@ Write **Inkwell** as one word, capitalised. Never *inkwell*, *INKWELL*, or
 
 ### The monogram (primary mark)
 
-A **bold serif "I"** on a solid background, inside a 10-pixel rounded-corner
-square. Colours invert between modes.
+A **nib-and-ink-drop monogram** — a fountain-pen nib over a teardrop ink
+loop, drawn as vertical line-art. It ships in two colour variants that swap
+by theme rather than inverting a fill:
 
-- Light mode: black square, white "I"
-- Dark mode: white square, black "I"
+- Light mode: charcoal mark (`#1f2420` family) on transparent
+- Dark mode: cream/ivory mark on transparent
 
-Live in code:
-- `client/components/AppHeader.tsx:30-33`
-- `client/app/(public)/login/page.tsx:73-75`
-- `client/app/(public)/register/page.tsx:89-91`
+Live in code via `<BrandLogo show="mark">` (`client/components/brand-logo.tsx`),
+which renders both variants and toggles on the `.dark` class:
+- `client/components/AppHeader.tsx` (page header)
+- `client/components/window-titlebar.tsx` (desktop titlebar)
+- `client/app/(public)/login/page.tsx` + `register/page.tsx` (auth `lockup`)
+
+Trimmed PNG assets: `client/public/brand/inkwell-mark-{dark,light}.png`.
 
 **Sizes:**
-- Header: `h-8 w-8` (32 px)
-- Auth cards: `h-9 w-9` (36 px)
+- Titlebar: `h-4` (16 px)
+- Header: `h-7` (28 px)
+- Auth lockup: `h-14` (56 px), wordmark stacked beneath
 - Marketing (extrapolation): 48 px minimum at 1× density; never below 24 px.
 
 ### Wordmark
 
-"**Inkwell**" set in the primary sans (Geist) at the monogram's baseline,
-tracked normally. Use alongside the monogram in headers, documentation,
-and social profiles. For contexts where space is tight (favicon, app icon),
-use the monogram alone.
+A thin geometric uppercase **"INKWELL"**, shipped as image assets (not set in
+a live font), in the same charcoal/cream theme pair as the monogram. Rendered
+via `<BrandLogo show="wordmark">`; trimmed PNGs at
+`client/public/brand/inkwell-wordmark-{dark,light}.png`. Use alongside the
+monogram in headers, documentation, and social profiles. For contexts where
+space is tight (favicon, app icon), use the monogram alone.
 
 ### Hero logo (secondary)
 
@@ -117,21 +124,28 @@ not suitable for UI chrome. Reserve it for:
 Do **not** use the hero logo in the product header, favicons, or any
 context smaller than ~128 px.
 
-### Assets still to create (extrapolation)
+### Assets
 
-- **Favicon** at 16/32/48/64 px — a simplified version of the monogram.
+**Shipped:**
+- **Favicon** — `client/app/icon.png` (512 px) + `client/app/favicon.ico`
+  (multi-size): the cream monogram on a warm-charcoal rounded square.
+- **OS app icon** — `client/src-tauri/icons/*` (every platform variant)
+  regenerated from the nib monogram via `tauri icon`. `source.svg` embeds the
+  mark so `rsvg-convert source.svg | tauri icon` reproduces the full set.
+
+**Still to create (extrapolation):**
 - **Apple touch icon** (180 px) and **maskable PWA icon** (512 px).
 - **Open-graph image** (1200 × 630) — monogram + wordmark + tagline on the
   primary background colour.
 
 ### Clear space
 
-Leave a margin equal to the "I" stem width around the monogram on all sides.
+Leave a margin equal to the nib's width around the monogram on all sides.
 Don't place text, icons, or imagery closer than that.
 
 ### Misuses
 
-- ❌ Don't re-colour the monogram outside the black/white pair.
+- ❌ Don't re-colour the monogram outside the charcoal/cream theme pair.
 - ❌ Don't outline, add shadows, or place on busy photography without a scrim.
 - ❌ Don't stretch, rotate, or distort.
 - ❌ Don't use the illustrative `logo.png` as an app icon.
@@ -217,11 +231,13 @@ throughout so tones read as neutral but never cold.
 - `--font-geist-mono` — code samples, element types in the editor, system
   metadata.
 
-No serif is currently loaded. The monogram uses `font-serif`, which falls
-back to the OS default. **Recommendation:** load a warm humanist serif
-(e.g. Fraunces, Source Serif 4, or Newsreader) as `--font-serif` and use it
-in long-form marketing pull quotes and the monogram itself. This gives the
-brand a "quiet craft" texture without overspending typographically.
+The monogram no longer relies on `font-serif` — it's a drawn nib mark shipped
+as an image (see §3). Serif faces (Lora, Merriweather) are loaded via
+`next/font` for the editor's prose surfaces. **Recommendation:** if a brand
+display serif is wanted for long-form marketing pull quotes, load a warm
+humanist serif (e.g. Fraunces, Source Serif 4, or Newsreader) as
+`--font-serif`. This gives the brand a "quiet craft" texture without
+overspending typographically.
 
 ### Hierarchy (extrapolation — codify once adopted)
 

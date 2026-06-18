@@ -85,12 +85,15 @@ export function WindowTitlebar() {
       data-tauri-drag-region
       className="flex h-9 shrink-0 select-none items-center justify-between border-b bg-background"
     >
+      {/* Just the mark here — it reads as the window icon. The page header
+          below carries the full mark + wordmark lockup (and is the only
+          brand surface on the web build, which has no titlebar), so showing
+          the wordmark here too would stack "INKWELL" twice in a tiny span. */}
       <div
         data-tauri-drag-region
-        className="flex items-center gap-2 px-3 text-muted-foreground"
+        className="flex items-center px-3 text-muted-foreground"
       >
         <BrandLogo show="mark" className="pointer-events-none h-4 w-auto" />
-        <BrandLogo show="wordmark" className="pointer-events-none h-2.5 w-auto opacity-90" />
       </div>
       <div data-tauri-drag-region className="flex-1" />
       <div className="flex items-center gap-1.5 px-3">
