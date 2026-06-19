@@ -177,7 +177,7 @@ func (h *BillingHandler) CreateCheckout(ctx context.Context, req *billingpb.Crea
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid tier_id")
 	}
-	url, err := h.svc.CreateCheckout(ctx, userID, tierID)
+	url, err := h.svc.CreateCheckout(ctx, userID, tierID, int(req.Quantity))
 	if err != nil {
 		return nil, handleError(err)
 	}
@@ -428,6 +428,7 @@ func subscriptionToProto(s *domain.UserSubscription) *billingpb.Subscription {
 		UserId:             s.UserID.String(),
 		PlanId:             s.TierID.String(),
 		Status:             s.Status,
+		Quantity:           int32(s.Quantity),
 		CurrentPeriodStart: protoTime(s.CurrentPeriodStart),
 		CurrentPeriodEnd:   protoTime(s.CurrentPeriodEnd),
 		TrialEnd:           protoTimePtr(s.TrialEnd),

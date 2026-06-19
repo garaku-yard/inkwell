@@ -115,7 +115,7 @@ func TestCreateCheckout(t *testing.T) {
 	defer srv.Close()
 
 	c := New("pdl_test_key", "sandbox").WithBaseURL(srv.URL)
-	url, err := c.CreateCheckout(context.Background(), "pri_pro", map[string]string{"user_id": "u1", "tier_id": "t1"})
+	url, err := c.CreateCheckout(context.Background(), "pri_pro", 3, map[string]string{"user_id": "u1", "tier_id": "t1"})
 	if err != nil {
 		t.Fatalf("checkout: %v", err)
 	}
@@ -128,6 +128,9 @@ func TestCreateCheckout(t *testing.T) {
 	if !contains(gotBody, "pri_pro") || !contains(gotBody, "user_id") {
 		t.Errorf("request body missing price/custom data: %s", gotBody)
 	}
+	if !contains(gotBody, `"quantity":3`) {
+		t.Errorf("request body missing seat quantity: %s", gotBody)
+	}
 }
 
 func TestCreateCheckoutNoURL(t *testing.T) {
@@ -136,7 +139,7 @@ func TestCreateCheckoutNoURL(t *testing.T) {
 	}))
 	defer srv.Close()
 	c := New("k", "sandbox").WithBaseURL(srv.URL)
-	if _, err := c.CreateCheckout(context.Background(), "pri_x", nil); err == nil {
+	if _, err := c.CreateCheckout(context.Background(), "pri_x", 1, nil); err == nil {
 		t.Fatal("expected error when checkout URL is empty")
 	}
 }

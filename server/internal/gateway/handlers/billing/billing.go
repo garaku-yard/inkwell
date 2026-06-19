@@ -128,6 +128,7 @@ type myBillingDTO struct {
 	PriceCents                 int64  `json:"priceCents"`
 	Status                     string `json:"status"`
 	CurrentPeriodEnd           string `json:"currentPeriodEnd,omitempty"`
+	Seats                      int32  `json:"seats"`                      // purchased seats (per-seat tiers); 0 when no subscription
 	MaxProjects                int64  `json:"maxProjects"`                // -1 means unlimited (matches tierDTO)
 	MaxCollaboratorsPerProject int64  `json:"maxCollaboratorsPerProject"` // -1 means unlimited
 	AIFeaturesEnabled          bool   `json:"aiFeaturesEnabled"`
@@ -182,6 +183,7 @@ func (h *BillingHandler) GetMyBilling(w http.ResponseWriter, r *http.Request) {
 				sub := subResp.GetSubscription()
 				out.Status = sub.GetStatus()
 				out.CurrentPeriodEnd = handlers.TimestampToString(sub.GetCurrentPeriodEnd())
+				out.Seats = sub.GetQuantity()
 			}
 			return &out, nil
 		},
@@ -218,9 +220,11 @@ func (h *BillingHandler) GetPublicTiers(w http.ResponseWriter, r *http.Request) 
 	}.ServeHTTP(w, r)
 }
 
-// checkoutBody is the request shape for CreateCheckout.
+// checkoutBody is the request shape for CreateCheckout. seats applies to per-seat
+// tiers (Business); flat tiers ignore it.
 type checkoutBody struct {
 	TierID string `json:"tierId"`
+	Seats  int32  `json:"seats"`
 }
 
 // checkoutResponse carries the hosted checkout link the client redirects to.
@@ -244,8 +248,9 @@ func (h *BillingHandler) CreateCheckout(w http.ResponseWriter, r *http.Request) 
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 			resp, err := h.client.CreateCheckout(ctx, &billingpb.CreateCheckoutRequest{
-				UserId: userID,
-				TierId: req.TierID,
+				UserId:   userID,
+				TierId:   req.TierID,
+				Quantity: req.Seats,
 			})
 			if err != nil {
 				return nil, err

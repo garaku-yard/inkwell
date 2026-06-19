@@ -221,17 +221,33 @@ const subscriptionInsert = `
 	INSERT INTO user_subscriptions
 	  (id, user_id, tier_id, gateway_id, external_subscription_id, external_customer_id,
 	   status, billing_cycle, current_period_start, current_period_end,
-	   cancel_at_period_end, created_at, updated_at)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`
+	   cancel_at_period_end, quantity, created_at, updated_at)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`
 
-func (r *postgresRepository) CreateSubscription(ctx context.Context, sub *domain.UserSubscription) error {
-	_, err := r.db.ExecContext(ctx, subscriptionInsert,
+// subscriptionInsertArgs is the ordered argument list shared by both
+// CreateSubscription variants, keeping the placeholder count in one place.
+func subscriptionInsertArgs(sub *domain.UserSubscription) []any {
+	return []any{
 		sub.ID, sub.UserID, sub.TierID, sub.GatewayID,
 		sub.ExternalSubscriptionID, sub.ExternalCustomerID,
 		sub.Status, sub.BillingCycle,
 		sub.CurrentPeriodStart, sub.CurrentPeriodEnd,
-		sub.CancelAtPeriodEnd, sub.CreatedAt, sub.UpdatedAt,
-	)
+		sub.CancelAtPeriodEnd, clampQuantity(sub.Quantity),
+		sub.CreatedAt, sub.UpdatedAt,
+	}
+}
+
+// clampQuantity ensures a sane seat count: the column is NOT NULL DEFAULT 1, so a
+// zero-valued domain struct would otherwise write 0 seats.
+func clampQuantity(q int) int {
+	if q < 1 {
+		return 1
+	}
+	return q
+}
+
+func (r *postgresRepository) CreateSubscription(ctx context.Context, sub *domain.UserSubscription) error {
+	_, err := r.db.ExecContext(ctx, subscriptionInsert, subscriptionInsertArgs(sub)...)
 	return err
 }
 
@@ -239,13 +255,7 @@ func (r *postgresRepository) CreateSubscription(ctx context.Context, sub *domain
 // caller-provided transaction. The service layer commits this together with
 // the matching outbox event so both land or neither does.
 func (r *postgresRepository) CreateSubscriptionTx(ctx context.Context, tx *sql.Tx, sub *domain.UserSubscription) error {
-	_, err := tx.ExecContext(ctx, subscriptionInsert,
-		sub.ID, sub.UserID, sub.TierID, sub.GatewayID,
-		sub.ExternalSubscriptionID, sub.ExternalCustomerID,
-		sub.Status, sub.BillingCycle,
-		sub.CurrentPeriodStart, sub.CurrentPeriodEnd,
-		sub.CancelAtPeriodEnd, sub.CreatedAt, sub.UpdatedAt,
-	)
+	_, err := tx.ExecContext(ctx, subscriptionInsert, subscriptionInsertArgs(sub)...)
 	return err
 }
 
@@ -253,7 +263,7 @@ func (r *postgresRepository) GetSubscriptionByUserID(ctx context.Context, userID
 	row := r.db.QueryRowContext(ctx, `
 		SELECT id, user_id, tier_id, gateway_id, external_subscription_id, external_customer_id,
 		       status, billing_cycle, current_period_start, current_period_end,
-		       cancel_at_period_end, canceled_at, trial_start, trial_end, created_at, updated_at
+		       cancel_at_period_end, canceled_at, trial_start, trial_end, quantity, created_at, updated_at
 		FROM user_subscriptions
 		WHERE user_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC LIMIT 1`, userID)
@@ -268,7 +278,7 @@ func (r *postgresRepository) GetSubscriptionByID(ctx context.Context, id uuid.UU
 	row := r.db.QueryRowContext(ctx, `
 		SELECT id, user_id, tier_id, gateway_id, external_subscription_id, external_customer_id,
 		       status, billing_cycle, current_period_start, current_period_end,
-		       cancel_at_period_end, canceled_at, trial_start, trial_end, created_at, updated_at
+		       cancel_at_period_end, canceled_at, trial_start, trial_end, quantity, created_at, updated_at
 		FROM user_subscriptions WHERE id = $1 AND deleted_at IS NULL`, id)
 	sub, err := scanSubscription(row)
 	if err == sql.ErrNoRows {
@@ -281,7 +291,7 @@ func (r *postgresRepository) GetSubscriptionByExternalID(ctx context.Context, ex
 	row := r.db.QueryRowContext(ctx, `
 		SELECT id, user_id, tier_id, gateway_id, external_subscription_id, external_customer_id,
 		       status, billing_cycle, current_period_start, current_period_end,
-		       cancel_at_period_end, canceled_at, trial_start, trial_end, created_at, updated_at
+		       cancel_at_period_end, canceled_at, trial_start, trial_end, quantity, created_at, updated_at
 		FROM user_subscriptions WHERE external_subscription_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC LIMIT 1`, externalID)
 	sub, err := scanSubscription(row)
@@ -296,26 +306,28 @@ const subscriptionUpdate = `
 	UPDATE user_subscriptions SET
 	  status = $1, billing_cycle = $2, current_period_start = $3,
 	  current_period_end = $4, cancel_at_period_end = $5,
-	  canceled_at = $6, updated_at = $7
-	WHERE id = $8`
+	  canceled_at = $6, quantity = $7, updated_at = $8
+	WHERE id = $9`
 
-func (r *postgresRepository) UpdateSubscription(ctx context.Context, sub *domain.UserSubscription) error {
-	_, err := r.db.ExecContext(ctx, subscriptionUpdate,
+// subscriptionUpdateArgs is the ordered argument list shared by both
+// UpdateSubscription variants. now is passed in so the Tx and non-Tx paths agree.
+func subscriptionUpdateArgs(sub *domain.UserSubscription, now time.Time) []any {
+	return []any{
 		sub.Status, sub.BillingCycle, sub.CurrentPeriodStart,
 		sub.CurrentPeriodEnd, sub.CancelAtPeriodEnd,
-		sub.CanceledAt, time.Now(), sub.ID,
-	)
+		sub.CanceledAt, clampQuantity(sub.Quantity), now, sub.ID,
+	}
+}
+
+func (r *postgresRepository) UpdateSubscription(ctx context.Context, sub *domain.UserSubscription) error {
+	_, err := r.db.ExecContext(ctx, subscriptionUpdate, subscriptionUpdateArgs(sub, time.Now())...)
 	return err
 }
 
 // UpdateSubscriptionTx runs the same update as UpdateSubscription inside the
 // caller-provided transaction, paired with an outbox enqueue by the service layer.
 func (r *postgresRepository) UpdateSubscriptionTx(ctx context.Context, tx *sql.Tx, sub *domain.UserSubscription) error {
-	_, err := tx.ExecContext(ctx, subscriptionUpdate,
-		sub.Status, sub.BillingCycle, sub.CurrentPeriodStart,
-		sub.CurrentPeriodEnd, sub.CancelAtPeriodEnd,
-		sub.CanceledAt, time.Now(), sub.ID,
-	)
+	_, err := tx.ExecContext(ctx, subscriptionUpdate, subscriptionUpdateArgs(sub, time.Now())...)
 	return err
 }
 
@@ -323,7 +335,7 @@ func (r *postgresRepository) ListSubscriptions(ctx context.Context, offset, limi
 	query := `
 		SELECT id, user_id, tier_id, gateway_id, external_subscription_id, external_customer_id,
 		       status, billing_cycle, current_period_start, current_period_end,
-		       cancel_at_period_end, canceled_at, trial_start, trial_end, created_at, updated_at
+		       cancel_at_period_end, canceled_at, trial_start, trial_end, quantity, created_at, updated_at
 		FROM user_subscriptions WHERE deleted_at IS NULL`
 	countQuery := `SELECT COUNT(*) FROM user_subscriptions WHERE deleted_at IS NULL`
 
@@ -559,7 +571,7 @@ func scanSubscription(s scanner) (*domain.UserSubscription, error) {
 		&sub.Status, &sub.BillingCycle,
 		&sub.CurrentPeriodStart, &sub.CurrentPeriodEnd,
 		&sub.CancelAtPeriodEnd, &sub.CanceledAt,
-		&sub.TrialStart, &sub.TrialEnd,
+		&sub.TrialStart, &sub.TrialEnd, &sub.Quantity,
 		&sub.CreatedAt, &sub.UpdatedAt,
 	)
 	sub.ExternalSubscriptionID = extSub.String

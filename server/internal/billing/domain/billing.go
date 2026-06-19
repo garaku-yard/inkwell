@@ -78,6 +78,7 @@ type UserSubscription struct {
 	ExternalCustomerID     string     `db:"external_customer_id"`
 	Status                 string     `db:"status"`        // "active", "trialing", "past_due", "canceled"
 	BillingCycle           string     `db:"billing_cycle"` // "monthly", "yearly"
+	Quantity               int        `db:"quantity"`      // seats purchased (per-seat tiers); 1 otherwise
 	CurrentPeriodStart     time.Time  `db:"current_period_start"`
 	CurrentPeriodEnd       time.Time  `db:"current_period_end"`
 	CancelAtPeriodEnd      bool       `db:"cancel_at_period_end"`

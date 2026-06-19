@@ -17,10 +17,11 @@ export interface BillingStorage {
   getPublicTiers(): Promise<SubscriptionTier[]>
   /**
    * Starts a hosted checkout for a tier and resolves the URL to redirect the
-   * user to. Throws `ApiError` with code `FAILED_PRECONDITION` when no payment
+   * user to. seats applies to per-seat tiers (Business) and is ignored by flat
+   * tiers. Throws `ApiError` with code `FAILED_PRECONDITION` when no payment
    * gateway is configured yet (checkout not available). Not supported on desktop.
    */
-  createCheckout(tierId: string): Promise<CheckoutSession>
+  createCheckout(tierId: string, seats?: number): Promise<CheckoutSession>
 }
 
 /** The result of starting a checkout — the hosted payment URL to navigate to. */

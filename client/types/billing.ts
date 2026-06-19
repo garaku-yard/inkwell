@@ -75,6 +75,8 @@ export interface MyBilling {
   status: "active" | "trialing" | "canceled" | "past_due" | "none"
   /** Renewal/expiry of the current period, RFC3339. Absent for free users. */
   currentPeriodEnd?: string
+  /** Purchased seats on a per-seat subscription; 0 when there is no subscription. */
+  seats: number
   /** Enforced caps on the effective tier. -1 means unlimited. */
   maxProjects: number
   maxCollaboratorsPerProject: number

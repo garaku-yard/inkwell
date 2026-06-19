@@ -829,6 +829,7 @@ type Subscription struct {
 	StripeSubscriptionId string                 `protobuf:"bytes,9,opt,name=stripe_subscription_id,json=stripeSubscriptionId,proto3" json:"stripe_subscription_id,omitempty"`
 	CreatedAt            *common.Timestamp      `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt            *common.Timestamp      `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Quantity             int32                  `protobuf:"varint,12,opt,name=quantity,proto3" json:"quantity,omitempty"` // seats (per-seat tiers); 1 otherwise
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -938,6 +939,13 @@ func (x *Subscription) GetUpdatedAt() *common.Timestamp {
 		return x.UpdatedAt
 	}
 	return nil
+}
+
+func (x *Subscription) GetQuantity() int32 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
 }
 
 // Payment method
@@ -2605,6 +2613,7 @@ type CreateCheckoutRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	TierId        string                 `protobuf:"bytes,2,opt,name=tier_id,json=tierId,proto3" json:"tier_id,omitempty"`
+	Quantity      int32                  `protobuf:"varint,3,opt,name=quantity,proto3" json:"quantity,omitempty"` // seats for per-seat tiers; 0/1 ⇒ single seat
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2651,6 +2660,13 @@ func (x *CreateCheckoutRequest) GetTierId() string {
 		return x.TierId
 	}
 	return ""
+}
+
+func (x *CreateCheckoutRequest) GetQuantity() int32 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
 }
 
 type CreateCheckoutResponse struct {
@@ -3388,7 +3404,7 @@ const file_billing_billing_proto_rawDesc = "" +
 	"\x17GetEffectiveTierRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"=\n" +
 	"\x18GetEffectiveTierResponse\x12!\n" +
-	"\x04plan\x18\x01 \x01(\v2\r.billing.PlanR\x04plan\"\xee\x03\n" +
+	"\x04plan\x18\x01 \x01(\v2\r.billing.PlanR\x04plan\"\x8a\x04\n" +
 	"\fSubscription\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x17\n" +
@@ -3403,7 +3419,8 @@ const file_billing_billing_proto_rawDesc = "" +
 	"created_at\x18\n" +
 	" \x01(\v2\x11.common.TimestampR\tcreatedAt\x120\n" +
 	"\n" +
-	"updated_at\x18\v \x01(\v2\x11.common.TimestampR\tupdatedAt\"\xc1\x02\n" +
+	"updated_at\x18\v \x01(\v2\x11.common.TimestampR\tupdatedAt\x12\x1a\n" +
+	"\bquantity\x18\f \x01(\x05R\bquantity\"\xc1\x02\n" +
 	"\rPaymentMethod\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
@@ -3528,10 +3545,11 @@ const file_billing_billing_proto_rawDesc = "" +
 	"\n" +
 	"period_end\x18\x04 \x01(\v2\x11.common.TimestampR\tperiodEnd\"<\n" +
 	"\x14GetUserUsageResponse\x12$\n" +
-	"\x05usage\x18\x01 \x03(\v2\x0e.billing.UsageR\x05usage\"I\n" +
+	"\x05usage\x18\x01 \x03(\v2\x0e.billing.UsageR\x05usage\"e\n" +
 	"\x15CreateCheckoutRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x17\n" +
-	"\atier_id\x18\x02 \x01(\tR\x06tierId\";\n" +
+	"\atier_id\x18\x02 \x01(\tR\x06tierId\x12\x1a\n" +
+	"\bquantity\x18\x03 \x01(\x05R\bquantity\";\n" +
 	"\x16CreateCheckoutResponse\x12!\n" +
 	"\fcheckout_url\x18\x01 \x01(\tR\vcheckoutUrl\"k\n" +
 	"\x15ProcessWebhookRequest\x12\x1a\n" +

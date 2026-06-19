@@ -7,6 +7,6 @@ import type { BillingStorage, CheckoutSession, MyBilling, SubscriptionTier } fro
 export const billing: BillingStorage = {
   getMyBilling: () => apiClient<MyBilling>("billing/me"),
   getPublicTiers: () => apiClient<SubscriptionTier[]>("billing/tiers"),
-  createCheckout: (tierId) =>
-    apiClient<CheckoutSession>("billing/checkout", { method: "POST", body: { tierId } }),
+  createCheckout: (tierId, seats) =>
+    apiClient<CheckoutSession>("billing/checkout", { method: "POST", body: { tierId, seats } }),
 }

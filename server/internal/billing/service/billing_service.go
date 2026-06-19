@@ -42,10 +42,11 @@ type BillingService interface {
 
 	// ListGateways returns all configured payment gateways.
 	ListGateways(ctx context.Context) ([]*domain.PaymentGateway, error)
-	// CreateCheckout creates a hosted checkout for a tier and returns its URL.
-	// Returns ErrGatewayNotConfigured when no payment gateway is set up, or
-	// ErrPriceNotConfigured when the tier has no mapped gateway price.
-	CreateCheckout(ctx context.Context, userID, tierID uuid.UUID) (string, error)
+	// CreateCheckout creates a hosted checkout for a tier and seat quantity and
+	// returns its URL. quantity is the number of seats for per-seat tiers (1 for
+	// flat tiers). Returns ErrGatewayNotConfigured when no payment gateway is set
+	// up, or ErrPriceNotConfigured when the tier has no mapped gateway price.
+	CreateCheckout(ctx context.Context, userID, tierID uuid.UUID, quantity int) (string, error)
 	// ProcessWebhook verifies a payment-gateway (Paddle) webhook and applies its
 	// subscription event to user_subscriptions. Returns ErrGatewayNotConfigured
 	// when the gateway is disabled, or a signature error on a bad payload.
@@ -76,10 +77,11 @@ type BillingService interface {
 	ListAllSubscriptions(ctx context.Context, offset, limit int, statusFilter string) ([]*domain.UserSubscription, int, error)
 }
 
-// CheckoutCreator creates a hosted checkout for a price and returns its URL.
-// *paddle.Client satisfies it; a nil value means no payment gateway is configured.
+// CheckoutCreator creates a hosted checkout for a price and seat quantity and
+// returns its URL. *paddle.Client satisfies it; a nil value means no payment
+// gateway is configured.
 type CheckoutCreator interface {
-	CreateCheckout(ctx context.Context, priceID string, customData map[string]string) (string, error)
+	CreateCheckout(ctx context.Context, priceID string, quantity int, customData map[string]string) (string, error)
 }
 
 // PaymentConfig wires the payment gateway into the billing service. The whole
@@ -192,7 +194,7 @@ func (s *billingService) ListGateways(ctx context.Context) ([]*domain.PaymentGat
 // CreateCheckout resolves the tier's gateway price and asks the payment gateway
 // for a hosted checkout link, stamping the user and tier into custom data so the
 // resulting subscription webhook can be attributed back to them.
-func (s *billingService) CreateCheckout(ctx context.Context, userID, tierID uuid.UUID) (string, error) {
+func (s *billingService) CreateCheckout(ctx context.Context, userID, tierID uuid.UUID, quantity int) (string, error) {
 	if s.payment.Checkout == nil {
 		return "", domain.ErrGatewayNotConfigured
 	}
@@ -204,7 +206,11 @@ func (s *billingService) CreateCheckout(ctx context.Context, userID, tierID uuid
 	if priceID == "" {
 		return "", domain.ErrPriceNotConfigured
 	}
-	return s.payment.Checkout.CreateCheckout(ctx, priceID, map[string]string{
+	// Only per-seat tiers honour a seat quantity; flat tiers are always 1 seat.
+	if !tier.PerSeat || quantity < 1 {
+		quantity = 1
+	}
+	return s.payment.Checkout.CreateCheckout(ctx, priceID, quantity, map[string]string{
 		"user_id": userID.String(),
 		"tier_id": tierID.String(),
 	})
@@ -255,6 +261,7 @@ func (s *billingService) applySubscriptionEvent(ctx context.Context, sub *paddle
 	if existing != nil {
 		existing.TierID = tierID
 		existing.Status = status
+		existing.Quantity = sub.Quantity
 		existing.CurrentPeriodStart = sub.CurrentPeriodStart
 		existing.CurrentPeriodEnd = sub.CurrentPeriodEnd
 		existing.CanceledAt = sub.CanceledAt
@@ -270,6 +277,7 @@ func (s *billingService) applySubscriptionEvent(ctx context.Context, sub *paddle
 		ExternalCustomerID:     sub.CustomerID,
 		Status:                 status,
 		BillingCycle:           "monthly",
+		Quantity:               sub.Quantity,
 		CurrentPeriodStart:     sub.CurrentPeriodStart,
 		CurrentPeriodEnd:       sub.CurrentPeriodEnd,
 		CancelAtPeriodEnd:      sub.CanceledAt != nil,

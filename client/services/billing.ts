@@ -13,7 +13,8 @@ export const getMyBilling = (): Promise<MyBilling> => getStorage().billing.getMy
 export const getPublicTiers = (): Promise<SubscriptionTier[]> =>
   getStorage().billing.getPublicTiers()
 
-/** Starts a hosted checkout for a tier, returning the URL to redirect to.
- *  Throws when no payment gateway is configured (checkout not available). */
-export const createCheckout = (tierId: string): Promise<CheckoutSession> =>
-  getStorage().billing.createCheckout(tierId)
+/** Starts a hosted checkout for a tier, returning the URL to redirect to. seats
+ *  applies to per-seat tiers (Business). Throws when no payment gateway is
+ *  configured (checkout not available). */
+export const createCheckout = (tierId: string, seats?: number): Promise<CheckoutSession> =>
+  getStorage().billing.createCheckout(tierId, seats)

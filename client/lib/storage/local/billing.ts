@@ -14,6 +14,7 @@ const FREE_TIER: MyBilling = {
   tierName: "Free",
   priceCents: 0,
   status: "none",
+  seats: 0,
   maxProjects: -1,
   maxCollaboratorsPerProject: -1,
   aiFeaturesEnabled: false,

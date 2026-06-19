@@ -59,13 +59,17 @@ func (c *Client) WithBaseURL(u string) *Client {
 	return c
 }
 
-// CreateCheckout creates an automatically-collected transaction for a single
-// price and returns its hosted checkout URL. The customData map (user_id,
+// CreateCheckout creates an automatically-collected transaction for a price and
+// seat quantity and returns its hosted checkout URL. The customData map (user_id,
 // tier_id) is stored on the transaction and copied onto the subscription Paddle
-// creates, so the subscription webhooks carry it back to us.
-func (c *Client) CreateCheckout(ctx context.Context, priceID string, customData map[string]string) (string, error) {
+// creates, so the subscription webhooks carry it back to us. A quantity below 1
+// is treated as a single seat.
+func (c *Client) CreateCheckout(ctx context.Context, priceID string, quantity int, customData map[string]string) (string, error) {
+	if quantity < 1 {
+		quantity = 1
+	}
 	reqBody, err := json.Marshal(map[string]any{
-		"items":       []map[string]any{{"price_id": priceID, "quantity": 1}},
+		"items":       []map[string]any{{"price_id": priceID, "quantity": quantity}},
 		"custom_data": customData,
 	})
 	if err != nil {

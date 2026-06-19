@@ -80,6 +80,7 @@ type Subscription struct {
 	Status             string     // active | trialing | past_due | paused | canceled
 	CustomerID         string     // Paddle customer id (ctm_...)
 	PriceID            string     // first item's price id (pri_...)
+	Quantity           int        // first item's quantity (seats); 1 when absent
 	UserID             string     // from custom_data.user_id
 	TierID             string     // from custom_data.tier_id
 	CurrentPeriodStart time.Time  // current_billing_period.starts_at
@@ -109,7 +110,8 @@ func ParseEvent(rawBody []byte) (*Event, error) {
 		Status     string `json:"status"`
 		CustomerID string `json:"customer_id"`
 		Items      []struct {
-			Price struct {
+			Quantity int `json:"quantity"`
+			Price    struct {
 				ID string `json:"id"`
 			} `json:"price"`
 		} `json:"items"`
@@ -137,8 +139,12 @@ func ParseEvent(rawBody []byte) (*Event, error) {
 		CurrentPeriodEnd:   d.CurrentBillingPeriod.EndsAt,
 		CanceledAt:         d.CanceledAt,
 	}
+	sub.Quantity = 1
 	if len(d.Items) > 0 {
 		sub.PriceID = d.Items[0].Price.ID
+		if d.Items[0].Quantity > 0 {
+			sub.Quantity = d.Items[0].Quantity
+		}
 	}
 	evt.Subscription = sub
 	return evt, nil

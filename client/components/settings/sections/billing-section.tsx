@@ -5,6 +5,7 @@ import { Check, CreditCard, Loader2, Sparkles, Users } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { ApiError } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { createCheckout, getMyBilling, getPublicTiers } from "@/services/billing"
@@ -39,6 +40,7 @@ export function BillingSection() {
   const [tiers, setTiers] = useState<SubscriptionTier[]>([])
   const [loading, setLoading] = useState(true)
   const [upgradingId, setUpgradingId] = useState<string | null>(null)
+  const [seats, setSeats] = useState<Record<string, number>>({})
   const { toast } = useToast()
 
   // Start a hosted checkout and redirect to it. While the payment gateway is
@@ -47,7 +49,8 @@ export function BillingSection() {
   const handleUpgrade = async (tier: SubscriptionTier) => {
     setUpgradingId(tier.id)
     try {
-      const { checkoutUrl } = await createCheckout(tier.id)
+      const seatCount = tier.perSeat ? Math.max(1, seats[tier.id] ?? 1) : undefined
+      const { checkoutUrl } = await createCheckout(tier.id, seatCount)
       window.location.assign(checkoutUrl) // navigate away on success
     } catch (err) {
       const notReady = err instanceof ApiError && err.code === "FAILED_PRECONDITION"
@@ -106,6 +109,9 @@ export function BillingSection() {
           <div className="flex items-center gap-2">
             <span className="text-2xl font-bold">{billing?.tierName ?? "Free"}</span>
             <Badge variant="secondary">{STATUS_LABELS[status]}</Badge>
+            {isPaid && (billing?.seats ?? 0) > 1 && (
+              <Badge variant="outline">{billing?.seats} seats</Badge>
+            )}
           </div>
           {periodEnd && (
             <p className="text-sm text-muted-foreground mt-1">
@@ -165,9 +171,23 @@ export function BillingSection() {
                       </li>
                     ))}
                   </ul>
+                  {!isCurrent && paid && tier.perSeat && (
+                    <label className="mt-4 flex items-center justify-between gap-2 text-sm">
+                      <span className="text-muted-foreground">Seats</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        className="h-8 w-20"
+                        value={seats[tier.id] ?? 1}
+                        onChange={e =>
+                          setSeats(s => ({ ...s, [tier.id]: Math.max(1, Number(e.target.value) || 1) }))
+                        }
+                      />
+                    </label>
+                  )}
                   {!isCurrent && paid && (
                     <Button
-                      className="mt-4 w-full"
+                      className="mt-3 w-full"
                       size="sm"
                       disabled={upgradingId !== null}
                       onClick={() => handleUpgrade(tier)}
