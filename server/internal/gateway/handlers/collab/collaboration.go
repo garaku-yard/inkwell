@@ -11,6 +11,7 @@ import (
 	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
+	billingpb "inkwell/server/pkg/grpc/billing"
 	"inkwell/server/pkg/grpc/collab"
 	"inkwell/server/pkg/grpc/identity"
 	"inkwell/server/pkg/grpc/scripts"
@@ -24,6 +25,7 @@ type CollaborationHandler struct {
 	client         collab.CollaborationServiceClient
 	identityClient identity.IdentityServiceClient
 	scriptsClient  scripts.ScriptsServiceClient
+	billingClient  billingpb.BillingServiceClient
 }
 
 // NewCollaborationHandler creates a CollaborationHandler using the gRPC clients
@@ -33,6 +35,7 @@ func NewCollaborationHandler(clients *grpcclient.Registry) *CollaborationHandler
 		client:         clients.Collab,
 		identityClient: clients.Identity,
 		scriptsClient:  clients.Scripts,
+		billingClient:  clients.Billing,
 	}
 }
 
@@ -69,6 +72,13 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Failed to resolve user: "+err.Error())
 			}
 
+			// Enforce the per-project collaborator cap from the project owner's
+			// billing tier. Best-effort / fail-open: only blocks when the project
+			// is positively over its limit (see checkCollaboratorQuota).
+			if err := h.checkCollaboratorQuota(r.Context(), req.ProjectID, userID); err != nil {
+				return nil, err
+			}
+
 			// Call collaboration service
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
@@ -100,6 +110,71 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 			return &response, nil
 		},
 	}.ServeHTTP(w, r)
+}
+
+// checkCollaboratorQuota enforces the per-project collaborator limit defined by
+// the project owner's effective billing tier. It is best-effort and fails OPEN:
+// any lookup error, a missing project/plan, or an unlimited tier (limit <= 0)
+// returns nil so collaboration is never blocked by a billing hiccup. It returns
+// a 429 apierror only when the project is positively at or above its cap.
+//
+// The limit is read from the project OWNER's plan (not the inviter's), since the
+// owner is who pays for the project. Pending invitations count toward the cap —
+// they occupy a seat the moment they are issued.
+func (h *CollaborationHandler) checkCollaboratorQuota(ctx context.Context, projectID, userID string) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	// Resolve the project to find its real owner. Never trust a client-supplied
+	// owner id; read it from the project record.
+	projResp, err := h.scriptsClient.GetProject(ctx, &scripts.GetProjectRequest{
+		ProjectId: projectID,
+		UserId:    userID,
+	})
+	if err != nil || projResp.GetProject() == nil {
+		return nil // fail open
+	}
+	ownerID := projResp.GetProject().GetOwnerId()
+	if ownerID == "" {
+		return nil // fail open
+	}
+
+	// Look up the owner's effective tier (active/trialing subscription, else the
+	// default Free tier). limit <= 0 means unlimited — tierToPlan only sets the
+	// field when a positive cap exists.
+	tierResp, err := h.billingClient.GetEffectiveTier(ctx, &billingpb.GetEffectiveTierRequest{
+		UserId: ownerID,
+	})
+	if err != nil || tierResp.GetPlan() == nil {
+		return nil // fail open
+	}
+	limit := int64(tierResp.GetPlan().GetMaxCollaboratorsPerProject())
+	if limit <= 0 {
+		return nil // unlimited
+	}
+
+	// Count the seats the project already consumes. A pending email invitation
+	// occupies a seat the moment it is issued — collaborators added by email live
+	// in the invitations table until accepted, so counting only active members
+	// would let an owner invite past the cap. The collab service owns both tables
+	// and returns the combined usage.
+	usage, err := h.client.GetProjectSeatUsage(ctx, &collab.GetProjectSeatUsageRequest{
+		ProjectId: projectID,
+	})
+	if err != nil {
+		return nil // fail open
+	}
+	used := int64(usage.GetActiveCollaborators()) + int64(usage.GetPendingInvitations())
+
+	// Block only when adding one more would exceed the cap.
+	if used >= limit {
+		return apierror.New(
+			apierror.CodeResourceExhausted,
+			http.StatusTooManyRequests,
+			fmt.Sprintf("Collaborator limit reached (%d per project on the owner's plan). Upgrade to add more.", limit),
+		)
+	}
+	return nil
 }
 
 // GetProjectCollaborators returns all collaborators for a project, both active and

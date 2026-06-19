@@ -100,6 +100,20 @@ message GetProjectCollaboratorsResponse {
   repeated Collaborator collaborators = 1;
 }
 
+message GetProjectSeatUsageRequest {
+  string project_id = 1;
+}
+
+// GetProjectSeatUsageResponse reports how many collaborator "seats" a project is
+// currently consuming, split by source. A seat is held by every non-owner
+// collaborator that has not been removed, plus every outstanding (unaccepted,
+// unexpired) email invitation. The gateway sums these against the project
+// owner's billing tier to enforce the per-project collaborator cap.
+message GetProjectSeatUsageResponse {
+  int32 active_collaborators = 1; // non-owner collaborator rows not in the "removed" state
+  int32 pending_invitations = 2;  // outstanding email invitations (accepted = false, not expired)
+}
+
 message UpdateCollaboratorRoleRequest {
   string collaborator_id = 1;
   string user_id = 2; // User making the change (must be owner)
@@ -276,6 +290,7 @@ service CollaborationService {
   rpc AddCollaborator(AddCollaboratorRequest) returns (AddCollaboratorResponse);
   rpc AddCollaboratorDirect(AddCollaboratorDirectRequest) returns (AddCollaboratorDirectResponse);
   rpc GetProjectCollaborators(GetProjectCollaboratorsRequest) returns (GetProjectCollaboratorsResponse);
+  rpc GetProjectSeatUsage(GetProjectSeatUsageRequest) returns (GetProjectSeatUsageResponse);
   rpc UpdateCollaboratorRole(UpdateCollaboratorRoleRequest) returns (UpdateCollaboratorRoleResponse);
   rpc RemoveCollaborator(RemoveCollaboratorRequest) returns (RemoveCollaboratorResponse);
   

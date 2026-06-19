@@ -351,6 +351,23 @@ func (r *PostgresCollaborationRepository) GetPendingInvitationByEmailAndProject(
 	return &inv, nil
 }
 
+// CountPendingProjectInvitations returns the number of outstanding invitations for
+// a project — those neither accepted nor expired. These occupy a collaborator seat
+// the moment they are issued, so the per-project quota counts them alongside active
+// collaborators.
+func (r *PostgresCollaborationRepository) CountPendingProjectInvitations(ctx context.Context, projectID uuid.UUID) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM invitations
+		WHERE project_id = $1 AND accepted = false AND expires_at > NOW()`
+
+	var count int
+	if err := r.db.QueryRowContext(ctx, query, projectID).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // AcceptInvitationByID marks the invitation as accepted and creates a collaborator record
 func (r *PostgresCollaborationRepository) AcceptInvitationByID(ctx context.Context, invitationID uuid.UUID, userID uuid.UUID) (*domain.Collaborator, error) {
 	inv, err := r.GetInvitationByID(ctx, invitationID)

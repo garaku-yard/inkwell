@@ -32,6 +32,7 @@ type CollaborationRepository interface {
 	CreateInvitation(ctx context.Context, invitation *domain.Invitation) error
 	GetInvitationByID(ctx context.Context, id uuid.UUID) (*domain.Invitation, error)
 	GetPendingInvitationByEmailAndProject(ctx context.Context, email string, projectID uuid.UUID) (*domain.Invitation, error)
+	CountPendingProjectInvitations(ctx context.Context, projectID uuid.UUID) (int, error)
 	AcceptInvitationByID(ctx context.Context, invitationID uuid.UUID, userID uuid.UUID) (*domain.Collaborator, error)
 	DeclineInvitationByID(ctx context.Context, invitationID uuid.UUID) error
 

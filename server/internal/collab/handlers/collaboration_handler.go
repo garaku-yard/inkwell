@@ -193,6 +193,26 @@ func (h *CollaborationHandler) GetProjectCollaborators(ctx context.Context, req 
 	}, nil
 }
 
+// GetProjectSeatUsage returns the project's collaborator seat usage — non-owner
+// collaborators plus outstanding invitations — for the gateway's per-project
+// quota check.
+func (h *CollaborationHandler) GetProjectSeatUsage(ctx context.Context, req *collab_pb.GetProjectSeatUsageRequest) (*collab_pb.GetProjectSeatUsageResponse, error) {
+	projectID, err := parseUUID(req.ProjectId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project ID: %v", err)
+	}
+
+	active, pending, err := h.service.GetProjectSeatUsage(ctx, projectID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get seat usage: %v", err)
+	}
+
+	return &collab_pb.GetProjectSeatUsageResponse{
+		ActiveCollaborators: int32(active),
+		PendingInvitations:  int32(pending),
+	}, nil
+}
+
 // UpdateCollaboratorRole changes a collaborator's role. It re-fetches the updated
 // record after applying the change to return the current state.
 func (h *CollaborationHandler) UpdateCollaboratorRole(ctx context.Context, req *collab_pb.UpdateCollaboratorRoleRequest) (*collab_pb.UpdateCollaboratorRoleResponse, error) {

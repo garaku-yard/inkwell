@@ -249,6 +249,31 @@ func (s *CollaborationService) GetProjectCollaborators(ctx context.Context, user
 	return s.repo.GetProjectCollaborators(ctx, projectID)
 }
 
+// GetProjectSeatUsage reports how many collaborator seats a project is consuming:
+// non-owner collaborator rows that have not been removed (active or pending
+// direct-adds), plus outstanding email invitations. It performs no permission
+// check — the result is an aggregate count with no per-user detail, and the
+// gateway, which is the sole caller, authorizes the surrounding operation and
+// supplies the billing limit. Returns (activeCollaborators, pendingInvitations).
+func (s *CollaborationService) GetProjectSeatUsage(ctx context.Context, projectID uuid.UUID) (active int, pending int, err error) {
+	collaborators, err := s.repo.GetProjectCollaborators(ctx, projectID)
+	if err != nil {
+		return 0, 0, err
+	}
+	for _, c := range collaborators {
+		if c.Role == "owner" || c.Status == "removed" {
+			continue
+		}
+		active++
+	}
+
+	pending, err = s.repo.CountPendingProjectInvitations(ctx, projectID)
+	if err != nil {
+		return 0, 0, err
+	}
+	return active, pending, nil
+}
+
 func (s *CollaborationService) UpdateCollaboratorRole(ctx context.Context, userID, collaboratorID uuid.UUID, newRole string) error {
 	// Validate role
 	if err := s.ValidateRole(newRole); err != nil {
