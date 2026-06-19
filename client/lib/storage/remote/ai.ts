@@ -207,6 +207,29 @@ export const ai: AiStorage = {
     }
   },
 
+  async listManagedProviders(): Promise<AIProviderSettings[]> {
+    const labels: Record<string, string> = {
+      openai: "OpenAI",
+      anthropic: "Anthropic",
+      gemini: "Gemini",
+    }
+    try {
+      const managed = await apiClient<
+        { providerId: string; kind: string; defaultModel: string }[]
+      >("ai/managed")
+      return managed.map((m) => ({
+        id: m.providerId, // "managed:openai"
+        kind: m.kind as AIProviderSettings["kind"],
+        label: `${labels[m.kind] ?? m.kind} (Managed)`,
+        enabled: true,
+        hasKey: true, // Inkwell holds the key server-side
+        defaultModel: m.defaultModel,
+      }))
+    } catch {
+      return [] // managed AI not offered / unreachable — degrade silently
+    }
+  },
+
   async saveProviderSettings(
     input: SaveProviderSettingsInput,
   ): Promise<AIProviderSettings> {

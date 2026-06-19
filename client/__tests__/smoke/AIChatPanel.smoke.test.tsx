@@ -20,6 +20,7 @@ describe("AIChatPanel — smoke", () => {
     installFakeStorage({
       ai: {
         listProviderSettings: async (): Promise<AIProviderSettings[]> => [],
+        listManagedProviders: async (): Promise<AIProviderSettings[]> => [],
         saveProviderSettings: fail as never,
         deleteProviderSettings: fail,
         setApiKey: fail,

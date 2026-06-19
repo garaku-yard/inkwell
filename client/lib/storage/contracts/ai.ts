@@ -64,6 +64,11 @@ export interface AiStorage {
    *  returns the raw API key — see `hasKey` on {@link AIProviderSettings}
    *  instead. */
   listProviderSettings(): Promise<AIProviderSettings[]>
+  /** List managed (Inkwell-keyed) providers this deployment offers, shaped as
+   *  provider rows (id `managed:<kind>`) so the chat picker can show them next
+   *  to BYO. Managed usage is metered and capped per the user's tier. Empty on
+   *  desktop and when the server has no managed keys configured. */
+  listManagedProviders(): Promise<AIProviderSettings[]>
   /** Create or update a provider row. Returns the saved record (with
    *  generated `id` when creating). Does not touch the stored API key. */
   saveProviderSettings(input: SaveProviderSettingsInput): Promise<AIProviderSettings>

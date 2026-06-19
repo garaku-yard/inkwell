@@ -331,6 +331,12 @@ export const ai: AiStorage = {
 
   listProviderSettings: loadProviderSettings,
 
+  // Desktop has no hosted account, so no managed (Inkwell-keyed) providers —
+  // the desktop app dispatches BYO keys directly from the user's machine.
+  async listManagedProviders(): Promise<AIProviderSettings[]> {
+    return []
+  },
+
   async saveProviderSettings(
     input: SaveProviderSettingsInput,
   ): Promise<AIProviderSettings> {

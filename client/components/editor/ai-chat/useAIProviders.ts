@@ -67,10 +67,15 @@ export function useAIProviders(
 
   const reload = useCallback(async () => {
     try {
-      const rows = await storage.ai.listProviderSettings()
-      const usable = rows.filter(
+      const [rows, managed] = await Promise.all([
+        storage.ai.listProviderSettings(),
+        storage.ai.listManagedProviders(),
+      ])
+      const byo = rows.filter(
         (p) => p.enabled && (p.hasKey || p.kind === "openai_compatible"),
       )
+      // Managed (Inkwell-keyed) providers lead the list; BYO follows.
+      const usable = [...managed, ...byo]
       setProviders(usable)
       const stored = readSelection(projectId)
       const fallback = usable[0]?.id ?? null
