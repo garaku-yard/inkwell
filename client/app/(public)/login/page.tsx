@@ -189,6 +189,11 @@ function LoginPageContent() {
             </div>
           </CardContent>
         </Card>
+        <nav className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground [&_a]:hover:text-foreground [&_a]:hover:underline">
+          <Link href="/terms">Terms</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/refund">Refunds</Link>
+        </nav>
       </div>
     </div>
   )

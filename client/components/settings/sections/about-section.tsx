@@ -126,6 +126,12 @@ export function AboutSection() {
             </a>
           </Button>
           <Button variant="outline" className="w-full justify-start" asChild>
+            <a href="/refund" target="_blank" rel="noopener noreferrer">
+              <FileText className="h-4 w-4 mr-2" />
+              Refund Policy
+            </a>
+          </Button>
+          <Button variant="outline" className="w-full justify-start" asChild>
             <a href="/licenses" target="_blank" rel="noopener noreferrer">
               <Code className="h-4 w-4 mr-2" />
               Open Source Licenses

@@ -34,6 +34,12 @@ export function LegalPage({
         <div className="space-y-4 text-sm leading-relaxed text-muted-foreground [&_h2]:mt-8 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-foreground [&_a]:text-[var(--link)] [&_a]:underline [&_strong]:text-foreground">
           {children}
         </div>
+        <nav className="mt-12 flex flex-wrap gap-x-6 gap-y-2 border-t pt-6 text-sm text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 hover:[&_a]:text-foreground">
+          <Link href="/terms">Terms of Service</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/refund">Refund Policy</Link>
+          <Link href="/licenses">Licenses</Link>
+        </nav>
       </main>
     </div>
   )
