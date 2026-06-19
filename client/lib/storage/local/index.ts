@@ -43,6 +43,7 @@ import { settings } from "./settings"
 import { vault } from "./vault"
 import { knowledge } from "./knowledge"
 import { ai } from "./ai"
+import { billing } from "./billing"
 import { adminBilling } from "./admin-billing"
 
 // ─── Root Storage ─────────────────────────────────────────────────────────
@@ -74,6 +75,7 @@ export function createLocalStorage(): Storage {
     vault,
     knowledge,
     ai,
+    billing,
     admin: { billing: adminBilling },
   }
 }

@@ -22,6 +22,7 @@ import { settings } from "./settings"
 import { vault } from "./vault"
 import { knowledge } from "./knowledge"
 import { ai } from "./ai"
+import { billing } from "./billing"
 import { adminBilling } from "./admin-billing"
 
 // The remote build exposes every capability the gateway supports. Hosted
@@ -57,6 +58,7 @@ export function createRemoteStorage(): Storage {
     vault,
     knowledge,
     ai,
+    billing,
     admin: { billing: adminBilling },
   }
 }

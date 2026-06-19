@@ -40,6 +40,7 @@ import type {
 import type {
   BillingAuditLog,
   GatewayConfig,
+  MyBilling,
   PaymentGateway,
   SubscriptionTier,
   UsageMetrics,
@@ -60,6 +61,7 @@ export * from "./settings"
 export * from "./vault"
 export * from "./knowledge"
 export * from "./ai"
+export * from "./billing"
 export * from "./admin-billing"
 
 export type {
@@ -81,6 +83,7 @@ export type {
   Invitation,
   Lane,
   Location,
+  MyBilling,
   OutlineItem,
   PaymentGateway,
   Project,

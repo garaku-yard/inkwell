@@ -40,6 +40,7 @@ import type {
   AiStorage,
   AuthStorage,
   BeatBoardStorage,
+  BillingStorage,
   CharacterStorage,
   CollaborationStorage,
   ElementStorage,
@@ -90,6 +91,7 @@ export interface Storage {
   vault: VaultStorage
   knowledge: KnowledgeStorage
   ai: AiStorage
+  billing: BillingStorage
   admin: { billing: AdminBillingStorage }
 }
 

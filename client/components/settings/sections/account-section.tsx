@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Check, X, Loader2, Upload } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/AuthContext"
 import { updateUserProfile, uploadAvatar } from "@/services/settings"
+import { getMyBilling } from "@/services/billing"
+import type { MyBilling } from "@/types/billing"
 
 interface AccountSectionProps {
   user: {
@@ -33,6 +35,22 @@ export function AccountSection({ user }: AccountSectionProps) {
   const { user: authUser, updateUser } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+  const [billing, setBilling] = useState<MyBilling | null>(null)
+
+  // Resolve the real tier from billing. Failures fall back to null, which the
+  // badge renders as "Free" — never a hard error on the account page.
+  useEffect(() => {
+    let active = true
+    getMyBilling()
+      .then(b => active && setBilling(b))
+      .catch(() => active && setBilling(null))
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const tierName = billing?.tierName ?? "Free"
+  const isPaid = !!billing && billing.status !== "none" && billing.priceCents > 0
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -271,17 +289,14 @@ export function AccountSection({ user }: AccountSectionProps) {
             <Label>Account Type</Label>
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="text-sm">
-                {user?.role === "admin" ? "Pro" : "Free"}
+                {tierName}
               </Badge>
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                {user?.role === "admin" ? "You have access to all premium features" : "Upgrade to unlock premium features"}
+                {isPaid
+                  ? "You have access to premium features on this plan."
+                  : "Manage your plan in the Billing section."}
               </span>
             </div>
-            {user?.role !== "admin" && (
-              <Button variant="default" size="sm" className="mt-2">
-                Upgrade to Pro
-              </Button>
-            )}
           </div>
         </CardContent>
       </Card>

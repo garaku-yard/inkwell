@@ -4,6 +4,7 @@ package handler
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -11,6 +12,7 @@ import (
 	"inkwell/server/internal/billing/domain"
 	"inkwell/server/internal/billing/service"
 	billingpb "inkwell/server/pkg/grpc/billing"
+	"inkwell/server/pkg/grpc/common"
 
 	"github.com/google/uuid"
 )
@@ -359,9 +361,32 @@ func protoToTier(p *billingpb.SubscriptionTier) *domain.SubscriptionTier {
 // dates and payment-method details are not yet included.
 func subscriptionToProto(s *domain.UserSubscription) *billingpb.Subscription {
 	return &billingpb.Subscription{
-		Id:     s.ID.String(),
-		UserId: s.UserID.String(),
-		PlanId: s.TierID.String(),
-		Status: s.Status,
+		Id:                 s.ID.String(),
+		UserId:             s.UserID.String(),
+		PlanId:             s.TierID.String(),
+		Status:             s.Status,
+		CurrentPeriodStart: protoTime(s.CurrentPeriodStart),
+		CurrentPeriodEnd:   protoTime(s.CurrentPeriodEnd),
+		TrialEnd:           protoTimePtr(s.TrialEnd),
+		CancelledAt:        protoTimePtr(s.CanceledAt),
+		CreatedAt:          protoTime(s.CreatedAt),
+		UpdatedAt:          protoTime(s.UpdatedAt),
 	}
+}
+
+// protoTime converts a time.Time to the proto common.Timestamp, returning nil for
+// the zero value so unset times don't serialise as the Unix epoch.
+func protoTime(t time.Time) *common.Timestamp {
+	if t.IsZero() {
+		return nil
+	}
+	return &common.Timestamp{Seconds: t.Unix(), Nanos: int32(t.Nanosecond())}
+}
+
+// protoTimePtr is the nullable-column variant of protoTime.
+func protoTimePtr(t *time.Time) *common.Timestamp {
+	if t == nil {
+		return nil
+	}
+	return protoTime(*t)
 }

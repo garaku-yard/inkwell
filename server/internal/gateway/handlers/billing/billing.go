@@ -114,6 +114,107 @@ func dtoToProtoTier(d *tierDTO) *billingpb.SubscriptionTier {
 	}
 }
 
+// myBillingDTO is the current user's own billing state, used by the Settings
+// Account badge and Billing section. It always resolves a tier (the default Free
+// tier when the user has no subscription), so the UI never has to special-case a
+// missing plan. Status is the subscription lifecycle ("active", "trialing",
+// "canceled", "past_due") or "none" for the default free tier.
+type myBillingDTO struct {
+	TierID                     string `json:"tierId"`
+	TierName                   string `json:"tierName"`
+	PriceCents                 int64  `json:"priceCents"`
+	Status                     string `json:"status"`
+	CurrentPeriodEnd           string `json:"currentPeriodEnd,omitempty"`
+	MaxProjects                int64  `json:"maxProjects"`                // -1 means unlimited (matches tierDTO)
+	MaxCollaboratorsPerProject int64  `json:"maxCollaboratorsPerProject"` // -1 means unlimited
+	AIFeaturesEnabled          bool   `json:"aiFeaturesEnabled"`
+	PrioritySupport            bool   `json:"prioritySupport"`
+}
+
+// unlimitedNeg normalises a Plan cap to the client's convention: the Plan proto
+// leaves an unlimited cap at its 0 zero value, but the rest of the billing UI
+// treats -1 as unlimited. Map any non-positive cap to -1.
+func unlimitedNeg(v int32) int64 {
+	if v <= 0 {
+		return -1
+	}
+	return int64(v)
+}
+
+// GetMyBilling returns the authenticated user's effective tier and subscription
+// status. The tier comes from GetEffectiveTier (which falls back to the default
+// Free tier when there is no active subscription); subscription status and period
+// are enriched best-effort from GetUserSubscription, which errors for free users
+// with no row — that's treated as status "none", not a failure.
+func (h *BillingHandler) GetMyBilling(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, myBillingDTO]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*myBillingDTO, error) {
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+
+			tierResp, err := h.client.GetEffectiveTier(ctx, &billingpb.GetEffectiveTierRequest{UserId: userID})
+			if err != nil || tierResp.GetPlan() == nil {
+				log.Printf("GetMyBilling: effective tier error: %v", err)
+				// Always render something sane rather than failing the page.
+				return &myBillingDTO{TierName: "Free", Status: "none"}, nil
+			}
+			plan := tierResp.GetPlan()
+			out := myBillingDTO{
+				TierID:                     plan.GetId(),
+				TierName:                   plan.GetName(),
+				PriceCents:                 plan.GetPriceCents(),
+				Status:                     "none",
+				MaxProjects:                unlimitedNeg(plan.GetMaxProjects()),
+				MaxCollaboratorsPerProject: unlimitedNeg(plan.GetMaxCollaboratorsPerProject()),
+				AIFeaturesEnabled:          plan.GetAiFeaturesEnabled(),
+				PrioritySupport:            plan.GetPrioritySupport(),
+			}
+
+			// Enrich with live subscription status/period when one exists. A
+			// missing subscription (free user) errors here — that's expected.
+			if subResp, subErr := h.client.GetUserSubscription(ctx, &billingpb.GetUserSubscriptionRequest{UserId: userID}); subErr == nil && subResp.GetSubscription() != nil {
+				sub := subResp.GetSubscription()
+				out.Status = sub.GetStatus()
+				out.CurrentPeriodEnd = handlers.TimestampToString(sub.GetCurrentPeriodEnd())
+			}
+			return &out, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// GetPublicTiers returns the active, public tiers for the Settings → Billing
+// plan comparison, lowest display order first. Unlike the admin GetTiers it hides
+// inactive and non-public tiers. Falls back to an empty list if the billing
+// service is unreachable so the page stays usable.
+func (h *BillingHandler) GetPublicTiers(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, []tierDTO]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]tierDTO, error) {
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+			resp, err := h.client.ListAllTiers(ctx, &billingpb.ListAllTiersRequest{})
+			if err != nil {
+				log.Printf("GetPublicTiers: billing service error: %v", err)
+				empty := make([]tierDTO, 0)
+				return &empty, nil
+			}
+			out := make([]tierDTO, 0, len(resp.Tiers))
+			for _, t := range resp.Tiers {
+				if !t.IsActive || !t.IsPublic {
+					continue
+				}
+				out = append(out, protoTierToDTO(t))
+			}
+			return &out, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
 // GetTiers returns every tier (incl. inactive) for the admin editor. Falls back
 // to an empty list if the billing service is unreachable so the UI stays usable.
 func (h *BillingHandler) GetTiers(w http.ResponseWriter, r *http.Request) {

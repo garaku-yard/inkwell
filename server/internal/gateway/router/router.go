@@ -240,6 +240,11 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 				r.Post("/decline", collaborationHandler.DeclineInvitation)
 			})
 
+			// Billing (current user) — their own effective tier + subscription
+			// status, and the public tier list for the plan comparison.
+			r.Get("/billing/me", billingHandler.GetMyBilling)
+			r.Get("/billing/tiers", billingHandler.GetPublicTiers)
+
 			// Admin billing — requires role=admin in addition to authentication.
 			r.Route("/admin/billing", func(r chi.Router) {
 				r.Use(middleware.RequireAdmin)

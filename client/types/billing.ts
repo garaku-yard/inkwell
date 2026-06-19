@@ -58,6 +58,32 @@ export interface SubscriptionTier {
   subscriberCount?: number
 }
 
+/**
+ * The signed-in user's own billing state, as returned by `GET /billing/me`.
+ * Mirrors the gateway's `myBillingDTO`. The tier always resolves — a user with
+ * no subscription gets the default Free tier — so the UI never special-cases a
+ * missing plan.
+ */
+export interface MyBilling {
+  /** Effective tier id. */
+  tierId: string
+  /** Effective tier display name (e.g. "Free", "Pro", "Business"). */
+  tierName: string
+  /** Monthly price of the effective tier, in cents. */
+  priceCents: number
+  /** Subscription lifecycle, or "none" for the default free tier (no row). */
+  status: "active" | "trialing" | "canceled" | "past_due" | "none"
+  /** Renewal/expiry of the current period, RFC3339. Absent for free users. */
+  currentPeriodEnd?: string
+  /** Enforced caps on the effective tier. -1 means unlimited. */
+  maxProjects: number
+  maxCollaboratorsPerProject: number
+  /** Whether the tier unlocks managed-AI features (Phase B; false today). */
+  aiFeaturesEnabled: boolean
+  /** Whether the tier includes priority support. */
+  prioritySupport: boolean
+}
+
 export interface UserSubscription {
   id: string
   userId: string
