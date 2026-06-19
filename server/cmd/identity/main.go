@@ -17,9 +17,11 @@ import (
 
 	"inkwell/server/internal/identity/config"
 	"inkwell/server/internal/identity/handler"
+	"inkwell/server/internal/identity/reaper"
 	"inkwell/server/internal/identity/repository"
 	"inkwell/server/internal/identity/service"
 	"inkwell/server/pkg/database"
+	"inkwell/server/pkg/env"
 	"inkwell/server/pkg/events"
 	identitypb "inkwell/server/pkg/grpc/identity"
 	"inkwell/server/pkg/outbox"
@@ -87,6 +89,15 @@ func main() {
 		WithLogger(slog.Default().With("component", "identity_outbox"))
 	go poller.Run(pollerCtx)
 
+	// Account-deletion reaper — hard-deletes accounts soft-deleted longer ago
+	// than the grace period (default 30 days), sweeping on a configurable
+	// interval (default daily). Set ACCOUNT_DELETION_RETENTION_DAYS=0 to purge
+	// immediately (useful in tests).
+	retention := time.Duration(env.Int("ACCOUNT_DELETION_RETENTION_DAYS", 30)) * 24 * time.Hour
+	reaperInterval := env.Duration("ACCOUNT_REAPER_INTERVAL", 24*time.Hour)
+	accountReaper := reaper.New(authService, reaperInterval, retention)
+	go accountReaper.Run(pollerCtx)
+
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),
 	)
@@ -115,6 +126,7 @@ func main() {
 	slog.Info("shutting down identity service")
 	cancelPoller()
 	poller.Wait()
+	accountReaper.Wait()
 	grpcServer.GracefulStop()
 	slog.Info("identity service stopped")
 }

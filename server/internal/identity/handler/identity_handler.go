@@ -279,6 +279,75 @@ func (h *IdentityHandler) ChangePassword(ctx context.Context, req *identitypb.Ch
 	return &identitypb.ChangePasswordResponse{Success: true}, nil
 }
 
+// VerifyPassword confirms the caller's password (a gate before destructive
+// actions). Returns Unauthenticated on mismatch.
+func (h *IdentityHandler) VerifyPassword(ctx context.Context, req *identitypb.VerifyPasswordRequest) (*identitypb.VerifyPasswordResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+	if err := h.authService.VerifyPassword(ctx, userID, req.Password); err != nil {
+		return nil, h.handleError(err)
+	}
+	return &identitypb.VerifyPasswordResponse{Valid: true}, nil
+}
+
+// DeleteAccount soft-deletes the caller's account and revokes all sessions. The
+// row is hard-deleted later by the deletion reaper after the grace period.
+func (h *IdentityHandler) DeleteAccount(ctx context.Context, req *identitypb.DeleteAccountRequest) (*identitypb.DeleteAccountResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+	if err := h.authService.DeleteAccount(ctx, userID); err != nil {
+		return nil, h.handleError(err)
+	}
+	return &identitypb.DeleteAccountResponse{Success: true}, nil
+}
+
+// RequestDataDeletion records a GDPR data-deletion request for the caller.
+func (h *IdentityHandler) RequestDataDeletion(ctx context.Context, req *identitypb.RequestDataDeletionRequest) (*identitypb.RequestDataDeletionResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+	r, err := h.authService.RequestDataDeletion(ctx, userID)
+	if err != nil {
+		return nil, h.handleError(err)
+	}
+	return &identitypb.RequestDataDeletionResponse{Request: toProtoDataDeletion(r)}, nil
+}
+
+// GetDataDeletionStatus returns the caller's active data-deletion request, or
+// NotFound when none exists.
+func (h *IdentityHandler) GetDataDeletionStatus(ctx context.Context, req *identitypb.GetDataDeletionStatusRequest) (*identitypb.GetDataDeletionStatusResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+	r, err := h.authService.GetDataDeletionStatus(ctx, userID)
+	if err != nil {
+		return nil, h.handleError(err)
+	}
+	return &identitypb.GetDataDeletionStatusResponse{Request: toProtoDataDeletion(r)}, nil
+}
+
+// toProtoDataDeletion maps a domain DataDeletionRequest to its proto form, with
+// RFC3339 timestamps (completed_at empty until fulfilled).
+func toProtoDataDeletion(r *domain.DataDeletionRequest) *identitypb.DataDeletionRequest {
+	pb := &identitypb.DataDeletionRequest{
+		Id:                     r.ID.String(),
+		UserId:                 r.UserID.String(),
+		Status:                 r.Status,
+		CreatedAt:              r.CreatedAt.UTC().Format(time.RFC3339),
+		ExpectedCompletionDate: r.ExpectedCompletionDate.UTC().Format(time.RFC3339),
+	}
+	if r.CompletedAt != nil {
+		pb.CompletedAt = r.CompletedAt.UTC().Format(time.RFC3339)
+	}
+	return pb
+}
+
 // ListSessions returns the caller's active sessions for the Security UI. The
 // current_session_id (from the gateway's sid cookie) flags which row is the
 // requesting device; an empty/invalid value just means "none current".
@@ -379,7 +448,7 @@ func (h *IdentityHandler) DisableTOTP(ctx context.Context, req *identitypb.Disab
 // a blanket codes.Internal.
 func (h *IdentityHandler) handleError(err error) error {
 	switch err {
-	case domain.ErrUserNotFound, domain.ErrSessionNotFound:
+	case domain.ErrUserNotFound, domain.ErrSessionNotFound, domain.ErrDataDeletionRequestNotFound:
 		return status.Error(codes.NotFound, err.Error())
 	case domain.ErrEmailExists, domain.ErrUserTagTaken, domain.ErrUserAlreadyExists:
 		return status.Error(codes.AlreadyExists, err.Error())

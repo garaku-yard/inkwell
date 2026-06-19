@@ -45,6 +45,16 @@ type AuthService interface {
 	UpdateUserProfile(ctx context.Context, userID uuid.UUID, req *UpdateProfileRequest) error
 	ChangePassword(ctx context.Context, userID uuid.UUID, req *ChangePasswordRequest) error
 	DeleteAccount(ctx context.Context, userID uuid.UUID) error
+	// VerifyPassword checks a password against the user's stored hash (a
+	// confirmation gate before destructive actions). ErrInvalidCredentials on mismatch.
+	VerifyPassword(ctx context.Context, userID uuid.UUID, password string) error
+	// RequestDataDeletion records a GDPR data-deletion request (idempotent).
+	RequestDataDeletion(ctx context.Context, userID uuid.UUID) (*domain.DataDeletionRequest, error)
+	// GetDataDeletionStatus returns the user's active request, or ErrDataDeletionRequestNotFound.
+	GetDataDeletionStatus(ctx context.Context, userID uuid.UUID) (*domain.DataDeletionRequest, error)
+	// PurgeExpiredAccounts hard-deletes accounts soft-deleted longer ago than
+	// retention (the deletion grace-period reaper). Returns the number purged.
+	PurgeExpiredAccounts(ctx context.Context, retention time.Duration) (int64, error)
 
 	// Token validation
 	ValidateToken(ctx context.Context, tokenString string) (*UserInfo, time.Time, error)
@@ -560,6 +570,56 @@ func (s *authService) DeleteAccount(ctx context.Context, userID uuid.UUID) error
 
 	// Soft delete user
 	return s.userRepo.SoftDeleteUser(ctx, userID)
+}
+
+// dataDeletionSLADays is the window we tell users their data-deletion request
+// will be processed within. It also matches the account-deletion grace period.
+const dataDeletionSLADays = 30
+
+// VerifyPassword checks a password against the user's stored hash. Returns
+// ErrInvalidCredentials on mismatch (mirrors ChangePassword's check).
+func (s *authService) VerifyPassword(ctx context.Context, userID uuid.UUID, password string) error {
+	user, err := s.userRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return domain.ErrInvalidCredentials
+	}
+	return nil
+}
+
+// RequestDataDeletion records a GDPR data-deletion request. Idempotent: if an
+// active request already exists it's returned unchanged.
+func (s *authService) RequestDataDeletion(ctx context.Context, userID uuid.UUID) (*domain.DataDeletionRequest, error) {
+	if existing, err := s.userRepo.GetActiveDataDeletionRequest(ctx, userID); err == nil {
+		return existing, nil
+	} else if !errors.Is(err, domain.ErrDataDeletionRequestNotFound) {
+		return nil, err
+	}
+	now := time.Now()
+	req := &domain.DataDeletionRequest{
+		ID:                     uuid.New(),
+		UserID:                 userID,
+		Status:                 domain.DataDeletionPending,
+		CreatedAt:              now,
+		ExpectedCompletionDate: now.Add(dataDeletionSLADays * 24 * time.Hour),
+	}
+	if err := s.userRepo.CreateDataDeletionRequest(ctx, req); err != nil {
+		return nil, err
+	}
+	return req, nil
+}
+
+// GetDataDeletionStatus returns the user's active data-deletion request.
+func (s *authService) GetDataDeletionStatus(ctx context.Context, userID uuid.UUID) (*domain.DataDeletionRequest, error) {
+	return s.userRepo.GetActiveDataDeletionRequest(ctx, userID)
+}
+
+// PurgeExpiredAccounts hard-deletes accounts soft-deleted longer ago than
+// retention. Called periodically by the deletion reaper.
+func (s *authService) PurgeExpiredAccounts(ctx context.Context, retention time.Duration) (int64, error) {
+	return s.userRepo.HardDeleteUsersDeletedBefore(ctx, time.Now().Add(-retention))
 }
 
 // ValidateToken validates an access token and returns user info

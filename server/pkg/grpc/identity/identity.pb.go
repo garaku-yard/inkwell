@@ -1698,6 +1698,453 @@ func (x *DisableTOTPResponse) GetSuccess() bool {
 	return false
 }
 
+// Account deletion + data control (Settings → Data Controls)
+type VerifyPasswordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyPasswordRequest) Reset() {
+	*x = VerifyPasswordRequest{}
+	mi := &file_identity_identity_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyPasswordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyPasswordRequest) ProtoMessage() {}
+
+func (x *VerifyPasswordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyPasswordRequest.ProtoReflect.Descriptor instead.
+func (*VerifyPasswordRequest) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *VerifyPasswordRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *VerifyPasswordRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type VerifyPasswordResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyPasswordResponse) Reset() {
+	*x = VerifyPasswordResponse{}
+	mi := &file_identity_identity_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyPasswordResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyPasswordResponse) ProtoMessage() {}
+
+func (x *VerifyPasswordResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyPasswordResponse.ProtoReflect.Descriptor instead.
+func (*VerifyPasswordResponse) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *VerifyPasswordResponse) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
+type DeleteAccountRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteAccountRequest) Reset() {
+	*x = DeleteAccountRequest{}
+	mi := &file_identity_identity_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteAccountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteAccountRequest) ProtoMessage() {}
+
+func (x *DeleteAccountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteAccountRequest.ProtoReflect.Descriptor instead.
+func (*DeleteAccountRequest) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *DeleteAccountRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type DeleteAccountResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteAccountResponse) Reset() {
+	*x = DeleteAccountResponse{}
+	mi := &file_identity_identity_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteAccountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteAccountResponse) ProtoMessage() {}
+
+func (x *DeleteAccountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteAccountResponse.ProtoReflect.Descriptor instead.
+func (*DeleteAccountResponse) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *DeleteAccountResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+// DataDeletionRequest mirrors the client's GDPR data-deletion request record.
+// Timestamps are RFC3339 strings; completed_at is empty until fulfilled.
+type DataDeletionRequest struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Id                     string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId                 string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Status                 string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"` // pending | processing | completed
+	CreatedAt              string                 `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	CompletedAt            string                 `protobuf:"bytes,5,opt,name=completed_at,json=completedAt,proto3" json:"completed_at,omitempty"`
+	ExpectedCompletionDate string                 `protobuf:"bytes,6,opt,name=expected_completion_date,json=expectedCompletionDate,proto3" json:"expected_completion_date,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *DataDeletionRequest) Reset() {
+	*x = DataDeletionRequest{}
+	mi := &file_identity_identity_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DataDeletionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DataDeletionRequest) ProtoMessage() {}
+
+func (x *DataDeletionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DataDeletionRequest.ProtoReflect.Descriptor instead.
+func (*DataDeletionRequest) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *DataDeletionRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *DataDeletionRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *DataDeletionRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *DataDeletionRequest) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *DataDeletionRequest) GetCompletedAt() string {
+	if x != nil {
+		return x.CompletedAt
+	}
+	return ""
+}
+
+func (x *DataDeletionRequest) GetExpectedCompletionDate() string {
+	if x != nil {
+		return x.ExpectedCompletionDate
+	}
+	return ""
+}
+
+type RequestDataDeletionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestDataDeletionRequest) Reset() {
+	*x = RequestDataDeletionRequest{}
+	mi := &file_identity_identity_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestDataDeletionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestDataDeletionRequest) ProtoMessage() {}
+
+func (x *RequestDataDeletionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestDataDeletionRequest.ProtoReflect.Descriptor instead.
+func (*RequestDataDeletionRequest) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *RequestDataDeletionRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type RequestDataDeletionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Request       *DataDeletionRequest   `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestDataDeletionResponse) Reset() {
+	*x = RequestDataDeletionResponse{}
+	mi := &file_identity_identity_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestDataDeletionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestDataDeletionResponse) ProtoMessage() {}
+
+func (x *RequestDataDeletionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestDataDeletionResponse.ProtoReflect.Descriptor instead.
+func (*RequestDataDeletionResponse) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *RequestDataDeletionResponse) GetRequest() *DataDeletionRequest {
+	if x != nil {
+		return x.Request
+	}
+	return nil
+}
+
+type GetDataDeletionStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDataDeletionStatusRequest) Reset() {
+	*x = GetDataDeletionStatusRequest{}
+	mi := &file_identity_identity_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDataDeletionStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDataDeletionStatusRequest) ProtoMessage() {}
+
+func (x *GetDataDeletionStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDataDeletionStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetDataDeletionStatusRequest) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *GetDataDeletionStatusRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type GetDataDeletionStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Request       *DataDeletionRequest   `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDataDeletionStatusResponse) Reset() {
+	*x = GetDataDeletionStatusResponse{}
+	mi := &file_identity_identity_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDataDeletionStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDataDeletionStatusResponse) ProtoMessage() {}
+
+func (x *GetDataDeletionStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_identity_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDataDeletionStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetDataDeletionStatusResponse) Descriptor() ([]byte, []int) {
+	return file_identity_identity_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *GetDataDeletionStatusResponse) GetRequest() *DataDeletionRequest {
+	if x != nil {
+		return x.Request
+	}
+	return nil
+}
+
 var File_identity_identity_proto protoreflect.FileDescriptor
 
 const file_identity_identity_proto_rawDesc = "" +
@@ -1839,7 +2286,32 @@ const file_identity_identity_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\"/\n" +
 	"\x13DisableTOTPResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2\xac\b\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"L\n" +
+	"\x15VerifyPasswordRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\".\n" +
+	"\x16VerifyPasswordResponse\x12\x14\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\"/\n" +
+	"\x14DeleteAccountRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"1\n" +
+	"\x15DeleteAccountResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xd2\x01\n" +
+	"\x13DataDeletionRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x04 \x01(\tR\tcreatedAt\x12!\n" +
+	"\fcompleted_at\x18\x05 \x01(\tR\vcompletedAt\x128\n" +
+	"\x18expected_completion_date\x18\x06 \x01(\tR\x16expectedCompletionDate\"5\n" +
+	"\x1aRequestDataDeletionRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"V\n" +
+	"\x1bRequestDataDeletionResponse\x127\n" +
+	"\arequest\x18\x01 \x01(\v2\x1d.identity.DataDeletionRequestR\arequest\"7\n" +
+	"\x1cGetDataDeletionStatusRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"X\n" +
+	"\x1dGetDataDeletionStatusResponse\x127\n" +
+	"\arequest\x18\x01 \x01(\v2\x1d.identity.DataDeletionRequestR\arequest2\xa1\v\n" +
 	"\x0fIdentityService\x12A\n" +
 	"\bRegister\x12\x19.identity.RegisterRequest\x1a\x1a.identity.RegisterResponse\x128\n" +
 	"\x05Login\x12\x16.identity.LoginRequest\x1a\x17.identity.LoginResponse\x12M\n" +
@@ -1856,7 +2328,11 @@ const file_identity_identity_proto_rawDesc = "" +
 	"\n" +
 	"EnrollTOTP\x12\x1b.identity.EnrollTOTPRequest\x1a\x1c.identity.EnrollTOTPResponse\x12J\n" +
 	"\vConfirmTOTP\x12\x1c.identity.ConfirmTOTPRequest\x1a\x1d.identity.ConfirmTOTPResponse\x12J\n" +
-	"\vDisableTOTP\x12\x1c.identity.DisableTOTPRequest\x1a\x1d.identity.DisableTOTPResponseB\"Z inkwell/server/pkg/grpc/identityb\x06proto3"
+	"\vDisableTOTP\x12\x1c.identity.DisableTOTPRequest\x1a\x1d.identity.DisableTOTPResponse\x12S\n" +
+	"\x0eVerifyPassword\x12\x1f.identity.VerifyPasswordRequest\x1a .identity.VerifyPasswordResponse\x12P\n" +
+	"\rDeleteAccount\x12\x1e.identity.DeleteAccountRequest\x1a\x1f.identity.DeleteAccountResponse\x12b\n" +
+	"\x13RequestDataDeletion\x12$.identity.RequestDataDeletionRequest\x1a%.identity.RequestDataDeletionResponse\x12h\n" +
+	"\x15GetDataDeletionStatus\x12&.identity.GetDataDeletionStatusRequest\x1a'.identity.GetDataDeletionStatusResponseB\"Z inkwell/server/pkg/grpc/identityb\x06proto3"
 
 var (
 	file_identity_identity_proto_rawDescOnce sync.Once
@@ -1870,90 +2346,109 @@ func file_identity_identity_proto_rawDescGZIP() []byte {
 	return file_identity_identity_proto_rawDescData
 }
 
-var file_identity_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_identity_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
 var file_identity_identity_proto_goTypes = []any{
-	(*User)(nil),                        // 0: identity.User
-	(*RegisterRequest)(nil),             // 1: identity.RegisterRequest
-	(*RegisterResponse)(nil),            // 2: identity.RegisterResponse
-	(*LoginRequest)(nil),                // 3: identity.LoginRequest
-	(*LoginResponse)(nil),               // 4: identity.LoginResponse
-	(*RefreshTokenRequest)(nil),         // 5: identity.RefreshTokenRequest
-	(*RefreshTokenResponse)(nil),        // 6: identity.RefreshTokenResponse
-	(*ValidateTokenRequest)(nil),        // 7: identity.ValidateTokenRequest
-	(*ValidateTokenResponse)(nil),       // 8: identity.ValidateTokenResponse
-	(*GetUserRequest)(nil),              // 9: identity.GetUserRequest
-	(*GetUserByUsernameTagRequest)(nil), // 10: identity.GetUserByUsernameTagRequest
-	(*GetUserResponse)(nil),             // 11: identity.GetUserResponse
-	(*UpdateUserRequest)(nil),           // 12: identity.UpdateUserRequest
-	(*UpdateUserResponse)(nil),          // 13: identity.UpdateUserResponse
-	(*GetUsersRequest)(nil),             // 14: identity.GetUsersRequest
-	(*GetUsersResponse)(nil),            // 15: identity.GetUsersResponse
-	(*ChangePasswordRequest)(nil),       // 16: identity.ChangePasswordRequest
-	(*ChangePasswordResponse)(nil),      // 17: identity.ChangePasswordResponse
-	(*Session)(nil),                     // 18: identity.Session
-	(*ListSessionsRequest)(nil),         // 19: identity.ListSessionsRequest
-	(*ListSessionsResponse)(nil),        // 20: identity.ListSessionsResponse
-	(*RevokeSessionRequest)(nil),        // 21: identity.RevokeSessionRequest
-	(*RevokeSessionResponse)(nil),       // 22: identity.RevokeSessionResponse
-	(*EnrollTOTPRequest)(nil),           // 23: identity.EnrollTOTPRequest
-	(*EnrollTOTPResponse)(nil),          // 24: identity.EnrollTOTPResponse
-	(*ConfirmTOTPRequest)(nil),          // 25: identity.ConfirmTOTPRequest
-	(*ConfirmTOTPResponse)(nil),         // 26: identity.ConfirmTOTPResponse
-	(*DisableTOTPRequest)(nil),          // 27: identity.DisableTOTPRequest
-	(*DisableTOTPResponse)(nil),         // 28: identity.DisableTOTPResponse
-	(*common.Timestamp)(nil),            // 29: common.Timestamp
-	(*common.PaginationRequest)(nil),    // 30: common.PaginationRequest
-	(*common.PaginationResponse)(nil),   // 31: common.PaginationResponse
+	(*User)(nil),                          // 0: identity.User
+	(*RegisterRequest)(nil),               // 1: identity.RegisterRequest
+	(*RegisterResponse)(nil),              // 2: identity.RegisterResponse
+	(*LoginRequest)(nil),                  // 3: identity.LoginRequest
+	(*LoginResponse)(nil),                 // 4: identity.LoginResponse
+	(*RefreshTokenRequest)(nil),           // 5: identity.RefreshTokenRequest
+	(*RefreshTokenResponse)(nil),          // 6: identity.RefreshTokenResponse
+	(*ValidateTokenRequest)(nil),          // 7: identity.ValidateTokenRequest
+	(*ValidateTokenResponse)(nil),         // 8: identity.ValidateTokenResponse
+	(*GetUserRequest)(nil),                // 9: identity.GetUserRequest
+	(*GetUserByUsernameTagRequest)(nil),   // 10: identity.GetUserByUsernameTagRequest
+	(*GetUserResponse)(nil),               // 11: identity.GetUserResponse
+	(*UpdateUserRequest)(nil),             // 12: identity.UpdateUserRequest
+	(*UpdateUserResponse)(nil),            // 13: identity.UpdateUserResponse
+	(*GetUsersRequest)(nil),               // 14: identity.GetUsersRequest
+	(*GetUsersResponse)(nil),              // 15: identity.GetUsersResponse
+	(*ChangePasswordRequest)(nil),         // 16: identity.ChangePasswordRequest
+	(*ChangePasswordResponse)(nil),        // 17: identity.ChangePasswordResponse
+	(*Session)(nil),                       // 18: identity.Session
+	(*ListSessionsRequest)(nil),           // 19: identity.ListSessionsRequest
+	(*ListSessionsResponse)(nil),          // 20: identity.ListSessionsResponse
+	(*RevokeSessionRequest)(nil),          // 21: identity.RevokeSessionRequest
+	(*RevokeSessionResponse)(nil),         // 22: identity.RevokeSessionResponse
+	(*EnrollTOTPRequest)(nil),             // 23: identity.EnrollTOTPRequest
+	(*EnrollTOTPResponse)(nil),            // 24: identity.EnrollTOTPResponse
+	(*ConfirmTOTPRequest)(nil),            // 25: identity.ConfirmTOTPRequest
+	(*ConfirmTOTPResponse)(nil),           // 26: identity.ConfirmTOTPResponse
+	(*DisableTOTPRequest)(nil),            // 27: identity.DisableTOTPRequest
+	(*DisableTOTPResponse)(nil),           // 28: identity.DisableTOTPResponse
+	(*VerifyPasswordRequest)(nil),         // 29: identity.VerifyPasswordRequest
+	(*VerifyPasswordResponse)(nil),        // 30: identity.VerifyPasswordResponse
+	(*DeleteAccountRequest)(nil),          // 31: identity.DeleteAccountRequest
+	(*DeleteAccountResponse)(nil),         // 32: identity.DeleteAccountResponse
+	(*DataDeletionRequest)(nil),           // 33: identity.DataDeletionRequest
+	(*RequestDataDeletionRequest)(nil),    // 34: identity.RequestDataDeletionRequest
+	(*RequestDataDeletionResponse)(nil),   // 35: identity.RequestDataDeletionResponse
+	(*GetDataDeletionStatusRequest)(nil),  // 36: identity.GetDataDeletionStatusRequest
+	(*GetDataDeletionStatusResponse)(nil), // 37: identity.GetDataDeletionStatusResponse
+	(*common.Timestamp)(nil),              // 38: common.Timestamp
+	(*common.PaginationRequest)(nil),      // 39: common.PaginationRequest
+	(*common.PaginationResponse)(nil),     // 40: common.PaginationResponse
 }
 var file_identity_identity_proto_depIdxs = []int32{
-	29, // 0: identity.User.created_at:type_name -> common.Timestamp
-	29, // 1: identity.User.updated_at:type_name -> common.Timestamp
+	38, // 0: identity.User.created_at:type_name -> common.Timestamp
+	38, // 1: identity.User.updated_at:type_name -> common.Timestamp
 	0,  // 2: identity.RegisterResponse.user:type_name -> identity.User
 	0,  // 3: identity.LoginResponse.user:type_name -> identity.User
 	0,  // 4: identity.ValidateTokenResponse.user:type_name -> identity.User
-	29, // 5: identity.ValidateTokenResponse.expires_at:type_name -> common.Timestamp
+	38, // 5: identity.ValidateTokenResponse.expires_at:type_name -> common.Timestamp
 	0,  // 6: identity.GetUserResponse.user:type_name -> identity.User
 	0,  // 7: identity.UpdateUserResponse.user:type_name -> identity.User
-	30, // 8: identity.GetUsersRequest.pagination:type_name -> common.PaginationRequest
+	39, // 8: identity.GetUsersRequest.pagination:type_name -> common.PaginationRequest
 	0,  // 9: identity.GetUsersResponse.users:type_name -> identity.User
-	31, // 10: identity.GetUsersResponse.pagination:type_name -> common.PaginationResponse
-	29, // 11: identity.Session.created_at:type_name -> common.Timestamp
-	29, // 12: identity.Session.expires_at:type_name -> common.Timestamp
-	29, // 13: identity.Session.last_used_at:type_name -> common.Timestamp
+	40, // 10: identity.GetUsersResponse.pagination:type_name -> common.PaginationResponse
+	38, // 11: identity.Session.created_at:type_name -> common.Timestamp
+	38, // 12: identity.Session.expires_at:type_name -> common.Timestamp
+	38, // 13: identity.Session.last_used_at:type_name -> common.Timestamp
 	18, // 14: identity.ListSessionsResponse.sessions:type_name -> identity.Session
-	1,  // 15: identity.IdentityService.Register:input_type -> identity.RegisterRequest
-	3,  // 16: identity.IdentityService.Login:input_type -> identity.LoginRequest
-	5,  // 17: identity.IdentityService.RefreshToken:input_type -> identity.RefreshTokenRequest
-	7,  // 18: identity.IdentityService.ValidateToken:input_type -> identity.ValidateTokenRequest
-	9,  // 19: identity.IdentityService.GetUser:input_type -> identity.GetUserRequest
-	10, // 20: identity.IdentityService.GetUserByUsernameTag:input_type -> identity.GetUserByUsernameTagRequest
-	14, // 21: identity.IdentityService.GetUsers:input_type -> identity.GetUsersRequest
-	12, // 22: identity.IdentityService.UpdateUser:input_type -> identity.UpdateUserRequest
-	16, // 23: identity.IdentityService.ChangePassword:input_type -> identity.ChangePasswordRequest
-	19, // 24: identity.IdentityService.ListSessions:input_type -> identity.ListSessionsRequest
-	21, // 25: identity.IdentityService.RevokeSession:input_type -> identity.RevokeSessionRequest
-	23, // 26: identity.IdentityService.EnrollTOTP:input_type -> identity.EnrollTOTPRequest
-	25, // 27: identity.IdentityService.ConfirmTOTP:input_type -> identity.ConfirmTOTPRequest
-	27, // 28: identity.IdentityService.DisableTOTP:input_type -> identity.DisableTOTPRequest
-	2,  // 29: identity.IdentityService.Register:output_type -> identity.RegisterResponse
-	4,  // 30: identity.IdentityService.Login:output_type -> identity.LoginResponse
-	6,  // 31: identity.IdentityService.RefreshToken:output_type -> identity.RefreshTokenResponse
-	8,  // 32: identity.IdentityService.ValidateToken:output_type -> identity.ValidateTokenResponse
-	11, // 33: identity.IdentityService.GetUser:output_type -> identity.GetUserResponse
-	11, // 34: identity.IdentityService.GetUserByUsernameTag:output_type -> identity.GetUserResponse
-	15, // 35: identity.IdentityService.GetUsers:output_type -> identity.GetUsersResponse
-	13, // 36: identity.IdentityService.UpdateUser:output_type -> identity.UpdateUserResponse
-	17, // 37: identity.IdentityService.ChangePassword:output_type -> identity.ChangePasswordResponse
-	20, // 38: identity.IdentityService.ListSessions:output_type -> identity.ListSessionsResponse
-	22, // 39: identity.IdentityService.RevokeSession:output_type -> identity.RevokeSessionResponse
-	24, // 40: identity.IdentityService.EnrollTOTP:output_type -> identity.EnrollTOTPResponse
-	26, // 41: identity.IdentityService.ConfirmTOTP:output_type -> identity.ConfirmTOTPResponse
-	28, // 42: identity.IdentityService.DisableTOTP:output_type -> identity.DisableTOTPResponse
-	29, // [29:43] is the sub-list for method output_type
-	15, // [15:29] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	33, // 15: identity.RequestDataDeletionResponse.request:type_name -> identity.DataDeletionRequest
+	33, // 16: identity.GetDataDeletionStatusResponse.request:type_name -> identity.DataDeletionRequest
+	1,  // 17: identity.IdentityService.Register:input_type -> identity.RegisterRequest
+	3,  // 18: identity.IdentityService.Login:input_type -> identity.LoginRequest
+	5,  // 19: identity.IdentityService.RefreshToken:input_type -> identity.RefreshTokenRequest
+	7,  // 20: identity.IdentityService.ValidateToken:input_type -> identity.ValidateTokenRequest
+	9,  // 21: identity.IdentityService.GetUser:input_type -> identity.GetUserRequest
+	10, // 22: identity.IdentityService.GetUserByUsernameTag:input_type -> identity.GetUserByUsernameTagRequest
+	14, // 23: identity.IdentityService.GetUsers:input_type -> identity.GetUsersRequest
+	12, // 24: identity.IdentityService.UpdateUser:input_type -> identity.UpdateUserRequest
+	16, // 25: identity.IdentityService.ChangePassword:input_type -> identity.ChangePasswordRequest
+	19, // 26: identity.IdentityService.ListSessions:input_type -> identity.ListSessionsRequest
+	21, // 27: identity.IdentityService.RevokeSession:input_type -> identity.RevokeSessionRequest
+	23, // 28: identity.IdentityService.EnrollTOTP:input_type -> identity.EnrollTOTPRequest
+	25, // 29: identity.IdentityService.ConfirmTOTP:input_type -> identity.ConfirmTOTPRequest
+	27, // 30: identity.IdentityService.DisableTOTP:input_type -> identity.DisableTOTPRequest
+	29, // 31: identity.IdentityService.VerifyPassword:input_type -> identity.VerifyPasswordRequest
+	31, // 32: identity.IdentityService.DeleteAccount:input_type -> identity.DeleteAccountRequest
+	34, // 33: identity.IdentityService.RequestDataDeletion:input_type -> identity.RequestDataDeletionRequest
+	36, // 34: identity.IdentityService.GetDataDeletionStatus:input_type -> identity.GetDataDeletionStatusRequest
+	2,  // 35: identity.IdentityService.Register:output_type -> identity.RegisterResponse
+	4,  // 36: identity.IdentityService.Login:output_type -> identity.LoginResponse
+	6,  // 37: identity.IdentityService.RefreshToken:output_type -> identity.RefreshTokenResponse
+	8,  // 38: identity.IdentityService.ValidateToken:output_type -> identity.ValidateTokenResponse
+	11, // 39: identity.IdentityService.GetUser:output_type -> identity.GetUserResponse
+	11, // 40: identity.IdentityService.GetUserByUsernameTag:output_type -> identity.GetUserResponse
+	15, // 41: identity.IdentityService.GetUsers:output_type -> identity.GetUsersResponse
+	13, // 42: identity.IdentityService.UpdateUser:output_type -> identity.UpdateUserResponse
+	17, // 43: identity.IdentityService.ChangePassword:output_type -> identity.ChangePasswordResponse
+	20, // 44: identity.IdentityService.ListSessions:output_type -> identity.ListSessionsResponse
+	22, // 45: identity.IdentityService.RevokeSession:output_type -> identity.RevokeSessionResponse
+	24, // 46: identity.IdentityService.EnrollTOTP:output_type -> identity.EnrollTOTPResponse
+	26, // 47: identity.IdentityService.ConfirmTOTP:output_type -> identity.ConfirmTOTPResponse
+	28, // 48: identity.IdentityService.DisableTOTP:output_type -> identity.DisableTOTPResponse
+	30, // 49: identity.IdentityService.VerifyPassword:output_type -> identity.VerifyPasswordResponse
+	32, // 50: identity.IdentityService.DeleteAccount:output_type -> identity.DeleteAccountResponse
+	35, // 51: identity.IdentityService.RequestDataDeletion:output_type -> identity.RequestDataDeletionResponse
+	37, // 52: identity.IdentityService.GetDataDeletionStatus:output_type -> identity.GetDataDeletionStatusResponse
+	35, // [35:53] is the sub-list for method output_type
+	17, // [17:35] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_identity_identity_proto_init() }
@@ -1968,7 +2463,7 @@ func file_identity_identity_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_identity_identity_proto_rawDesc), len(file_identity_identity_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   29,
+			NumMessages:   38,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

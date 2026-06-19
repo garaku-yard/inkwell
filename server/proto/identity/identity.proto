@@ -179,6 +179,51 @@ message DisableTOTPResponse {
   bool success = 1;
 }
 
+// Account deletion + data control (Settings → Data Controls)
+message VerifyPasswordRequest {
+  string user_id = 1;
+  string password = 2;
+}
+
+message VerifyPasswordResponse {
+  bool valid = 1;
+}
+
+message DeleteAccountRequest {
+  string user_id = 1;
+}
+
+message DeleteAccountResponse {
+  bool success = 1;
+}
+
+// DataDeletionRequest mirrors the client's GDPR data-deletion request record.
+// Timestamps are RFC3339 strings; completed_at is empty until fulfilled.
+message DataDeletionRequest {
+  string id = 1;
+  string user_id = 2;
+  string status = 3; // pending | processing | completed
+  string created_at = 4;
+  string completed_at = 5;
+  string expected_completion_date = 6;
+}
+
+message RequestDataDeletionRequest {
+  string user_id = 1;
+}
+
+message RequestDataDeletionResponse {
+  DataDeletionRequest request = 1;
+}
+
+message GetDataDeletionStatusRequest {
+  string user_id = 1;
+}
+
+message GetDataDeletionStatusResponse {
+  DataDeletionRequest request = 1;
+}
+
 // Identity service definition
 service IdentityService {
   // Authentication
@@ -202,4 +247,10 @@ service IdentityService {
   rpc EnrollTOTP(EnrollTOTPRequest) returns (EnrollTOTPResponse);
   rpc ConfirmTOTP(ConfirmTOTPRequest) returns (ConfirmTOTPResponse);
   rpc DisableTOTP(DisableTOTPRequest) returns (DisableTOTPResponse);
+
+  // Account deletion + data control (Settings → Data Controls)
+  rpc VerifyPassword(VerifyPasswordRequest) returns (VerifyPasswordResponse);
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
+  rpc RequestDataDeletion(RequestDataDeletionRequest) returns (RequestDataDeletionResponse);
+  rpc GetDataDeletionStatus(GetDataDeletionStatusRequest) returns (GetDataDeletionStatusResponse);
 }

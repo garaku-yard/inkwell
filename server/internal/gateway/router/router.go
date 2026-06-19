@@ -135,6 +135,13 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			r.Post("/users/me/2fa/verify", authHandler.ConfirmTwoFactor)
 			r.Post("/users/me/2fa/disable", authHandler.DisableTwoFactor)
 
+			// Account deletion + data control (Settings → Data Controls).
+			// verify-password is a credential check → per-IP auth limiter.
+			r.Post("/users/verify-password", authLimit(authHandler.VerifyPassword))
+			r.Delete("/users/delete-account", authHandler.DeleteAccount)
+			r.Post("/users/data-deletion-request", authHandler.RequestDataDeletion)
+			r.Get("/users/data-deletion-request/status", authHandler.GetDataDeletionStatus)
+
 			// Projects
 			r.Route("/projects", func(r chi.Router) {
 				r.Get("/", scriptsHandler.GetUserProjects)

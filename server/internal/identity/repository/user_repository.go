@@ -28,6 +28,16 @@ type UserRepository interface {
 	UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error
 	UpdateLastLogin(ctx context.Context, userID uuid.UUID) error
 	SoftDeleteUser(ctx context.Context, userID uuid.UUID) error
+	// HardDeleteUsersDeletedBefore permanently removes users soft-deleted before
+	// the cutoff (the account-deletion grace period reaper). FKs cascade. Returns
+	// the number purged.
+	HardDeleteUsersDeletedBefore(ctx context.Context, cutoff time.Time) (int64, error)
+
+	// Data-deletion requests (GDPR scrub, distinct from account deletion)
+	CreateDataDeletionRequest(ctx context.Context, req *domain.DataDeletionRequest) error
+	// GetActiveDataDeletionRequest returns the user's non-completed request, or
+	// domain.ErrDataDeletionRequestNotFound when none exists.
+	GetActiveDataDeletionRequest(ctx context.Context, userID uuid.UUID) (*domain.DataDeletionRequest, error)
 
 	// Session operations
 	CreateSession(ctx context.Context, session *domain.UserSession) error
@@ -388,6 +398,56 @@ func (r *userRepository) SoftDeleteUser(ctx context.Context, userID uuid.UUID) e
 	}
 
 	return nil
+}
+
+// HardDeleteUsersDeletedBefore permanently deletes users soft-deleted before
+// cutoff. The users FKs (sessions, tokens, login_history) cascade.
+func (r *userRepository) HardDeleteUsersDeletedBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	result, err := r.db.ExecContext(ctx,
+		`DELETE FROM users WHERE deleted_at IS NOT NULL AND deleted_at < $1`, cutoff,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to hard delete expired users: %w", err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	return n, nil
+}
+
+// CreateDataDeletionRequest inserts a data-deletion request. The partial unique
+// index on (user_id) WHERE status <> 'completed' enforces one active request.
+func (r *userRepository) CreateDataDeletionRequest(ctx context.Context, req *domain.DataDeletionRequest) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO data_deletion_requests (id, user_id, status, created_at, expected_completion_date)
+		VALUES ($1, $2, $3, $4, $5)`,
+		req.ID, req.UserID, req.Status, req.CreatedAt, req.ExpectedCompletionDate,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create data deletion request: %w", err)
+	}
+	return nil
+}
+
+// GetActiveDataDeletionRequest returns the user's non-completed request, or
+// domain.ErrDataDeletionRequestNotFound when none exists.
+func (r *userRepository) GetActiveDataDeletionRequest(ctx context.Context, userID uuid.UUID) (*domain.DataDeletionRequest, error) {
+	var req domain.DataDeletionRequest
+	err := r.db.QueryRowContext(ctx, `
+		SELECT id, user_id, status, created_at, completed_at, expected_completion_date
+		FROM data_deletion_requests
+		WHERE user_id = $1 AND status <> 'completed'
+		ORDER BY created_at DESC
+		LIMIT 1`, userID,
+	).Scan(&req.ID, &req.UserID, &req.Status, &req.CreatedAt, &req.CompletedAt, &req.ExpectedCompletionDate)
+	if err == sql.ErrNoRows {
+		return nil, domain.ErrDataDeletionRequestNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get data deletion request: %w", err)
+	}
+	return &req, nil
 }
 
 // CreateSession creates a new user session

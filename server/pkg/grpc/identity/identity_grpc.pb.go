@@ -19,20 +19,24 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	IdentityService_Register_FullMethodName             = "/identity.IdentityService/Register"
-	IdentityService_Login_FullMethodName                = "/identity.IdentityService/Login"
-	IdentityService_RefreshToken_FullMethodName         = "/identity.IdentityService/RefreshToken"
-	IdentityService_ValidateToken_FullMethodName        = "/identity.IdentityService/ValidateToken"
-	IdentityService_GetUser_FullMethodName              = "/identity.IdentityService/GetUser"
-	IdentityService_GetUserByUsernameTag_FullMethodName = "/identity.IdentityService/GetUserByUsernameTag"
-	IdentityService_GetUsers_FullMethodName             = "/identity.IdentityService/GetUsers"
-	IdentityService_UpdateUser_FullMethodName           = "/identity.IdentityService/UpdateUser"
-	IdentityService_ChangePassword_FullMethodName       = "/identity.IdentityService/ChangePassword"
-	IdentityService_ListSessions_FullMethodName         = "/identity.IdentityService/ListSessions"
-	IdentityService_RevokeSession_FullMethodName        = "/identity.IdentityService/RevokeSession"
-	IdentityService_EnrollTOTP_FullMethodName           = "/identity.IdentityService/EnrollTOTP"
-	IdentityService_ConfirmTOTP_FullMethodName          = "/identity.IdentityService/ConfirmTOTP"
-	IdentityService_DisableTOTP_FullMethodName          = "/identity.IdentityService/DisableTOTP"
+	IdentityService_Register_FullMethodName              = "/identity.IdentityService/Register"
+	IdentityService_Login_FullMethodName                 = "/identity.IdentityService/Login"
+	IdentityService_RefreshToken_FullMethodName          = "/identity.IdentityService/RefreshToken"
+	IdentityService_ValidateToken_FullMethodName         = "/identity.IdentityService/ValidateToken"
+	IdentityService_GetUser_FullMethodName               = "/identity.IdentityService/GetUser"
+	IdentityService_GetUserByUsernameTag_FullMethodName  = "/identity.IdentityService/GetUserByUsernameTag"
+	IdentityService_GetUsers_FullMethodName              = "/identity.IdentityService/GetUsers"
+	IdentityService_UpdateUser_FullMethodName            = "/identity.IdentityService/UpdateUser"
+	IdentityService_ChangePassword_FullMethodName        = "/identity.IdentityService/ChangePassword"
+	IdentityService_ListSessions_FullMethodName          = "/identity.IdentityService/ListSessions"
+	IdentityService_RevokeSession_FullMethodName         = "/identity.IdentityService/RevokeSession"
+	IdentityService_EnrollTOTP_FullMethodName            = "/identity.IdentityService/EnrollTOTP"
+	IdentityService_ConfirmTOTP_FullMethodName           = "/identity.IdentityService/ConfirmTOTP"
+	IdentityService_DisableTOTP_FullMethodName           = "/identity.IdentityService/DisableTOTP"
+	IdentityService_VerifyPassword_FullMethodName        = "/identity.IdentityService/VerifyPassword"
+	IdentityService_DeleteAccount_FullMethodName         = "/identity.IdentityService/DeleteAccount"
+	IdentityService_RequestDataDeletion_FullMethodName   = "/identity.IdentityService/RequestDataDeletion"
+	IdentityService_GetDataDeletionStatus_FullMethodName = "/identity.IdentityService/GetDataDeletionStatus"
 )
 
 // IdentityServiceClient is the client API for IdentityService service.
@@ -59,6 +63,11 @@ type IdentityServiceClient interface {
 	EnrollTOTP(ctx context.Context, in *EnrollTOTPRequest, opts ...grpc.CallOption) (*EnrollTOTPResponse, error)
 	ConfirmTOTP(ctx context.Context, in *ConfirmTOTPRequest, opts ...grpc.CallOption) (*ConfirmTOTPResponse, error)
 	DisableTOTP(ctx context.Context, in *DisableTOTPRequest, opts ...grpc.CallOption) (*DisableTOTPResponse, error)
+	// Account deletion + data control (Settings → Data Controls)
+	VerifyPassword(ctx context.Context, in *VerifyPasswordRequest, opts ...grpc.CallOption) (*VerifyPasswordResponse, error)
+	DeleteAccount(ctx context.Context, in *DeleteAccountRequest, opts ...grpc.CallOption) (*DeleteAccountResponse, error)
+	RequestDataDeletion(ctx context.Context, in *RequestDataDeletionRequest, opts ...grpc.CallOption) (*RequestDataDeletionResponse, error)
+	GetDataDeletionStatus(ctx context.Context, in *GetDataDeletionStatusRequest, opts ...grpc.CallOption) (*GetDataDeletionStatusResponse, error)
 }
 
 type identityServiceClient struct {
@@ -209,6 +218,46 @@ func (c *identityServiceClient) DisableTOTP(ctx context.Context, in *DisableTOTP
 	return out, nil
 }
 
+func (c *identityServiceClient) VerifyPassword(ctx context.Context, in *VerifyPasswordRequest, opts ...grpc.CallOption) (*VerifyPasswordResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyPasswordResponse)
+	err := c.cc.Invoke(ctx, IdentityService_VerifyPassword_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *identityServiceClient) DeleteAccount(ctx context.Context, in *DeleteAccountRequest, opts ...grpc.CallOption) (*DeleteAccountResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteAccountResponse)
+	err := c.cc.Invoke(ctx, IdentityService_DeleteAccount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *identityServiceClient) RequestDataDeletion(ctx context.Context, in *RequestDataDeletionRequest, opts ...grpc.CallOption) (*RequestDataDeletionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequestDataDeletionResponse)
+	err := c.cc.Invoke(ctx, IdentityService_RequestDataDeletion_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *identityServiceClient) GetDataDeletionStatus(ctx context.Context, in *GetDataDeletionStatusRequest, opts ...grpc.CallOption) (*GetDataDeletionStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetDataDeletionStatusResponse)
+	err := c.cc.Invoke(ctx, IdentityService_GetDataDeletionStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IdentityServiceServer is the server API for IdentityService service.
 // All implementations must embed UnimplementedIdentityServiceServer
 // for forward compatibility.
@@ -233,6 +282,11 @@ type IdentityServiceServer interface {
 	EnrollTOTP(context.Context, *EnrollTOTPRequest) (*EnrollTOTPResponse, error)
 	ConfirmTOTP(context.Context, *ConfirmTOTPRequest) (*ConfirmTOTPResponse, error)
 	DisableTOTP(context.Context, *DisableTOTPRequest) (*DisableTOTPResponse, error)
+	// Account deletion + data control (Settings → Data Controls)
+	VerifyPassword(context.Context, *VerifyPasswordRequest) (*VerifyPasswordResponse, error)
+	DeleteAccount(context.Context, *DeleteAccountRequest) (*DeleteAccountResponse, error)
+	RequestDataDeletion(context.Context, *RequestDataDeletionRequest) (*RequestDataDeletionResponse, error)
+	GetDataDeletionStatus(context.Context, *GetDataDeletionStatusRequest) (*GetDataDeletionStatusResponse, error)
 	mustEmbedUnimplementedIdentityServiceServer()
 }
 
@@ -284,6 +338,18 @@ func (UnimplementedIdentityServiceServer) ConfirmTOTP(context.Context, *ConfirmT
 }
 func (UnimplementedIdentityServiceServer) DisableTOTP(context.Context, *DisableTOTPRequest) (*DisableTOTPResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DisableTOTP not implemented")
+}
+func (UnimplementedIdentityServiceServer) VerifyPassword(context.Context, *VerifyPasswordRequest) (*VerifyPasswordResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VerifyPassword not implemented")
+}
+func (UnimplementedIdentityServiceServer) DeleteAccount(context.Context, *DeleteAccountRequest) (*DeleteAccountResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteAccount not implemented")
+}
+func (UnimplementedIdentityServiceServer) RequestDataDeletion(context.Context, *RequestDataDeletionRequest) (*RequestDataDeletionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestDataDeletion not implemented")
+}
+func (UnimplementedIdentityServiceServer) GetDataDeletionStatus(context.Context, *GetDataDeletionStatusRequest) (*GetDataDeletionStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDataDeletionStatus not implemented")
 }
 func (UnimplementedIdentityServiceServer) mustEmbedUnimplementedIdentityServiceServer() {}
 func (UnimplementedIdentityServiceServer) testEmbeddedByValue()                         {}
@@ -558,6 +624,78 @@ func _IdentityService_DisableTOTP_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IdentityService_VerifyPassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyPasswordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityServiceServer).VerifyPassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityService_VerifyPassword_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityServiceServer).VerifyPassword(ctx, req.(*VerifyPasswordRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IdentityService_DeleteAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAccountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityServiceServer).DeleteAccount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityService_DeleteAccount_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityServiceServer).DeleteAccount(ctx, req.(*DeleteAccountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IdentityService_RequestDataDeletion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestDataDeletionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityServiceServer).RequestDataDeletion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityService_RequestDataDeletion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityServiceServer).RequestDataDeletion(ctx, req.(*RequestDataDeletionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IdentityService_GetDataDeletionStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDataDeletionStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityServiceServer).GetDataDeletionStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityService_GetDataDeletionStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityServiceServer).GetDataDeletionStatus(ctx, req.(*GetDataDeletionStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IdentityService_ServiceDesc is the grpc.ServiceDesc for IdentityService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -620,6 +758,22 @@ var IdentityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DisableTOTP",
 			Handler:    _IdentityService_DisableTOTP_Handler,
+		},
+		{
+			MethodName: "VerifyPassword",
+			Handler:    _IdentityService_VerifyPassword_Handler,
+		},
+		{
+			MethodName: "DeleteAccount",
+			Handler:    _IdentityService_DeleteAccount_Handler,
+		},
+		{
+			MethodName: "RequestDataDeletion",
+			Handler:    _IdentityService_RequestDataDeletion_Handler,
+		},
+		{
+			MethodName: "GetDataDeletionStatus",
+			Handler:    _IdentityService_GetDataDeletionStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -245,6 +245,138 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}.ServeHTTP(w, r)
 }
 
+// VerifyPassword confirms the caller's password — a gate the client runs before
+// destructive actions (e.g. delete account). Returns 401 on a wrong password
+// (the client only checks that this doesn't throw), 200 with `true` otherwise.
+func (h *AuthHandler) VerifyPassword(w http.ResponseWriter, r *http.Request) {
+	type verifyBody struct {
+		Password string `json:"password"`
+	}
+	handlers.Endpoint[verifyBody, bool]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: func(r *http.Request) (*verifyBody, error) {
+			var req verifyBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *verifyBody) (*bool, error) {
+			if req.Password == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "password is required")
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel()
+			if _, err := h.identityClient.VerifyPassword(ctx, &identitypb.VerifyPasswordRequest{
+				UserId:   userID,
+				Password: req.Password,
+			}); err != nil {
+				return nil, err // Unauthenticated → 401, surfaced to the client
+			}
+			ok := true
+			return &ok, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// DeleteAccount soft-deletes the caller's account (revoking all sessions
+// server-side), then blocklists the current access token and clears the auth
+// cookies so the session ends immediately. The row is permanently removed later
+// by the deletion reaper after the grace period. Raw handler (not Endpoint)
+// because it needs the ResponseWriter to clear cookies, like Logout.
+func (h *AuthHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	userID, ok := contextx.UserIDFrom(r.Context())
+	if !ok {
+		handlers.WriteError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	if _, err := h.identityClient.DeleteAccount(ctx, &identitypb.DeleteAccountRequest{UserId: userID}); err != nil {
+		handlers.HandleGRPCError(w, err)
+		return
+	}
+
+	// Soft delete alone leaves a still-valid ≤24h JWT; blocklist it now so the
+	// access token dies immediately, mirroring Logout.
+	if token := tokenFromRequest(r); token != "" && h.blocklist != nil {
+		if err := h.blocklist.Block(r.Context(), token, 24*time.Hour); err != nil {
+			slog.Warn("delete-account: failed to blocklist token", "error", err)
+		}
+	}
+	ClearAuthCookie(w, h.environment)
+	ClearSidCookie(w, h.environment)
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+}
+
+// dataDeletionDTO is the JSON shape the client's DataDeletionRequest expects.
+type dataDeletionDTO struct {
+	ID                     string `json:"id"`
+	UserID                 string `json:"userId"`
+	Status                 string `json:"status"`
+	CreatedAt              string `json:"createdAt"`
+	CompletedAt            string `json:"completedAt,omitempty"`
+	ExpectedCompletionDate string `json:"expectedCompletionDate,omitempty"`
+}
+
+func toDataDeletionDTO(r *identitypb.DataDeletionRequest) dataDeletionDTO {
+	return dataDeletionDTO{
+		ID:                     r.Id,
+		UserID:                 r.UserId,
+		Status:                 r.Status,
+		CreatedAt:              r.CreatedAt,
+		CompletedAt:            r.CompletedAt,
+		ExpectedCompletionDate: r.ExpectedCompletionDate,
+	}
+}
+
+// RequestDataDeletion records a GDPR data-deletion request for the caller.
+func (h *AuthHandler) RequestDataDeletion(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, dataDeletionDTO]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*dataDeletionDTO, error) {
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel()
+			resp, err := h.identityClient.RequestDataDeletion(ctx, &identitypb.RequestDataDeletionRequest{UserId: userID})
+			if err != nil {
+				return nil, err
+			}
+			dto := toDataDeletionDTO(resp.Request)
+			return &dto, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// GetDataDeletionStatus returns the caller's active data-deletion request, or
+// 404 when none exists (the client maps that to "no pending request").
+func (h *AuthHandler) GetDataDeletionStatus(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, dataDeletionDTO]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*dataDeletionDTO, error) {
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			defer cancel()
+			resp, err := h.identityClient.GetDataDeletionStatus(ctx, &identitypb.GetDataDeletionStatusRequest{UserId: userID})
+			if err != nil {
+				return nil, err // NotFound → 404 → client treats as null
+			}
+			dto := toDataDeletionDTO(resp.Request)
+			return &dto, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
 // Register creates a new user account and immediately logs them in by setting
 // the auth cookie alongside the new user profile in the response body. Returns
 // a structured error envelope if registration fails (e.g. email already taken).
