@@ -1,15 +1,18 @@
 package workspace
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
+	billingpb "inkwell/server/pkg/grpc/billing"
 	"inkwell/server/pkg/grpc/identity"
 	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
@@ -35,15 +38,41 @@ func jsonBodyOrInvalid[T any](r *http.Request) (*T, error) {
 type WorkspaceHandler struct {
 	client         workspacepb.WorkspaceServiceClient
 	identityClient identity.IdentityServiceClient
+	billingClient  billingpb.BillingServiceClient
 }
 
 // NewWorkspaceHandler creates a WorkspaceHandler using the workspace + identity
-// gRPC clients from the provided registry.
+// + billing gRPC clients from the provided registry.
 func NewWorkspaceHandler(clients *grpcclient.Registry) *WorkspaceHandler {
 	return &WorkspaceHandler{
 		client:         clients.Workspace,
 		identityClient: clients.Identity,
+		billingClient:  clients.Billing,
 	}
+}
+
+// checkBusinessWorkspaceEntitlement gates org (business) workspace creation behind
+// the user's effective billing tier. It mirrors the collaborator-quota gate's
+// philosophy: only DENY on a definitive negative (a resolved tier that does not
+// include business workspaces). Any billing lookup error fails OPEN so a billing
+// blip never blocks a legitimate Business customer; a configured, reachable
+// billing service enforces the paywall.
+func (h *WorkspaceHandler) checkBusinessWorkspaceEntitlement(ctx context.Context, userID string) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	resp, err := h.billingClient.GetEffectiveTier(ctx, &billingpb.GetEffectiveTierRequest{UserId: userID})
+	if err != nil || resp.GetPlan() == nil {
+		return nil // fail open
+	}
+	if !resp.GetPlan().GetBusinessWorkspaces() {
+		return apierror.New(
+			apierror.CodeFailedPrecondition,
+			http.StatusForbidden,
+			"Organization workspaces require the Business plan. Upgrade to create one.",
+		)
+	}
+	return nil
 }
 
 // ListCategories returns all available workspace content categories (e.g. "screenplay",
@@ -132,6 +161,10 @@ func (h *WorkspaceHandler) CreateOrgWorkspace(w http.ResponseWriter, r *http.Req
 		Handle: func(r *http.Request, userID string, body *createOrgWorkspaceBody) (*workspacepb.Workspace, error) {
 			if body.Name == "" {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "name is required")
+			}
+			// Gate behind the owner's billing tier — org workspaces are a Business feature.
+			if err := h.checkBusinessWorkspaceEntitlement(r.Context(), userID); err != nil {
+				return nil, err
 			}
 			resp, err := h.client.CreateOrgWorkspace(r.Context(), &workspacepb.CreateOrgWorkspaceRequest{
 				OwnerId:       userID,

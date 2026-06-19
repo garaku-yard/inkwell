@@ -35,6 +35,7 @@ type Plan struct {
 	MaxCollaboratorsPerProject int32                  `protobuf:"varint,8,opt,name=max_collaborators_per_project,json=maxCollaboratorsPerProject,proto3" json:"max_collaborators_per_project,omitempty"`
 	AiFeaturesEnabled          bool                   `protobuf:"varint,9,opt,name=ai_features_enabled,json=aiFeaturesEnabled,proto3" json:"ai_features_enabled,omitempty"`
 	PrioritySupport            bool                   `protobuf:"varint,10,opt,name=priority_support,json=prioritySupport,proto3" json:"priority_support,omitempty"`
+	BusinessWorkspaces         bool                   `protobuf:"varint,11,opt,name=business_workspaces,json=businessWorkspaces,proto3" json:"business_workspaces,omitempty"` // tier may create org (business) workspaces
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -135,6 +136,13 @@ func (x *Plan) GetAiFeaturesEnabled() bool {
 func (x *Plan) GetPrioritySupport() bool {
 	if x != nil {
 		return x.PrioritySupport
+	}
+	return false
+}
+
+func (x *Plan) GetBusinessWorkspaces() bool {
+	if x != nil {
+		return x.BusinessWorkspaces
 	}
 	return false
 }
@@ -3324,7 +3332,7 @@ var File_billing_billing_proto protoreflect.FileDescriptor
 
 const file_billing_billing_proto_rawDesc = "" +
 	"\n" +
-	"\x15billing/billing.proto\x12\abilling\x1a\x12common/types.proto\"\xf5\x02\n" +
+	"\x15billing/billing.proto\x12\abilling\x1a\x12common/types.proto\"\xa6\x03\n" +
 	"\x04Plan\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -3337,7 +3345,8 @@ const file_billing_billing_proto_rawDesc = "" +
 	"\x1dmax_collaborators_per_project\x18\b \x01(\x05R\x1amaxCollaboratorsPerProject\x12.\n" +
 	"\x13ai_features_enabled\x18\t \x01(\bR\x11aiFeaturesEnabled\x12)\n" +
 	"\x10priority_support\x18\n" +
-	" \x01(\bR\x0fprioritySupport\"\x86\x04\n" +
+	" \x01(\bR\x0fprioritySupport\x12/\n" +
+	"\x13business_workspaces\x18\v \x01(\bR\x12businessWorkspaces\"\x86\x04\n" +
 	"\x10SubscriptionTier\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +

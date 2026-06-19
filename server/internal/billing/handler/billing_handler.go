@@ -367,6 +367,7 @@ func tierToPlan(t *domain.SubscriptionTier) *billingpb.Plan {
 	if v := t.Limits["max_collaborators_per_project"]; v > 0 {
 		p.MaxCollaboratorsPerProject = int32(v)
 	}
+	p.BusinessWorkspaces = t.Limits["business_workspaces"] > 0
 	return p
 }
 

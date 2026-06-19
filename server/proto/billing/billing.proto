@@ -18,6 +18,7 @@ message Plan {
   int32 max_collaborators_per_project = 8;
   bool ai_features_enabled = 9;
   bool priority_support = 10;
+  bool business_workspaces = 11; // tier may create org (business) workspaces
 }
 
 // SubscriptionTier is the full, admin-editable tier shape (round-trips every
