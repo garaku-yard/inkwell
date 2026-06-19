@@ -243,7 +243,15 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			// Admin billing — requires role=admin in addition to authentication.
 			r.Route("/admin/billing", func(r chi.Router) {
 				r.Use(middleware.RequireAdmin)
-				r.Get("/tiers", billingHandler.GetTiers)
+				// Tier CRUD (admin tier editor). Static /reorder before /{id}.
+				r.Route("/tiers", func(r chi.Router) {
+					r.Get("/", billingHandler.GetTiers)
+					r.Post("/", billingHandler.CreateTier)
+					r.Post("/reorder", billingHandler.ReorderTiers)
+					r.Get("/{id}", billingHandler.GetTier)
+					r.Put("/{id}", billingHandler.UpdateTier)
+					r.Delete("/{id}", billingHandler.DeleteTier)
+				})
 				r.Get("/analytics", billingHandler.GetAnalytics)
 				r.Get("/gateways", billingHandler.GetGateways)
 				r.Get("/subscriptions", billingHandler.GetSubscriptions)

@@ -38,6 +38,14 @@ export function TiersManagement() {
   }
 
   const handleDelete = async (tier: SubscriptionTier) => {
+    if (tier.isDefault) {
+      toast({
+        title: "Can't delete the default tier",
+        description: "It's applied to users with no subscription.",
+        variant: "destructive",
+      })
+      return
+    }
     if (tier.subscriberCount && tier.subscriberCount > 0) {
       toast({
         title: "Cannot delete tier",
@@ -118,11 +126,13 @@ export function TiersManagement() {
                   <div className="flex-1">
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <h3 className="font-semibold text-lg">{tier.name}</h3>
-                          <Badge variant={tier.status === "active" ? "default" : "secondary"}>
-                            {tier.status}
+                          <Badge variant={tier.isActive ? "default" : "secondary"}>
+                            {tier.isActive ? "active" : "inactive"}
                           </Badge>
+                          {tier.isDefault && <Badge variant="outline">Default</Badge>}
+                          {tier.perSeat && <Badge variant="outline">Per-seat</Badge>}
                           {tier.subscriberCount && tier.subscriberCount > 0 && (
                             <Badge variant="outline" className="gap-1">
                               <Users className="h-3 w-3" />
@@ -136,26 +146,24 @@ export function TiersManagement() {
                         <div className="flex flex-wrap gap-4 text-sm">
                           <div>
                             <span className="text-gray-500">Monthly:</span>{" "}
-                            <span className="font-medium">
-                              {tier.price.currency} {tier.price.monthly}
-                            </span>
+                            <span className="font-medium">${(tier.monthlyPriceCents / 100).toFixed(2)}</span>
                           </div>
                           <div>
                             <span className="text-gray-500">Yearly:</span>{" "}
-                            <span className="font-medium">
-                              {tier.price.currency} {tier.price.yearly}
-                            </span>
+                            <span className="font-medium">${(tier.yearlyPriceCents / 100).toFixed(2)}</span>
                           </div>
                           <div>
                             <span className="text-gray-500">Projects:</span>{" "}
                             <span className="font-medium">
-                              {tier.limits.maxProjects === "unlimited" ? "∞" : tier.limits.maxProjects}
+                              {tier.limits.maxProjects < 0 ? "∞" : tier.limits.maxProjects}
                             </span>
                           </div>
                           <div>
-                            <span className="text-gray-500">AI Tokens:</span>{" "}
+                            <span className="text-gray-500">Collaborators:</span>{" "}
                             <span className="font-medium">
-                              {tier.limits.aiTokens === "unlimited" ? "∞" : tier.limits.aiTokens.toLocaleString()}
+                              {tier.limits.maxCollaboratorsPerProject < 0
+                                ? "∞"
+                                : tier.limits.maxCollaboratorsPerProject}
                             </span>
                           </div>
                         </div>
@@ -172,7 +180,7 @@ export function TiersManagement() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDelete(tier)}
-                          disabled={!!(tier.subscriberCount && tier.subscriberCount > 0)}
+                          disabled={tier.isDefault || !!(tier.subscriberCount && tier.subscriberCount > 0)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

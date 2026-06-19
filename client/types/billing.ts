@@ -20,57 +20,41 @@ export interface GatewayConfig {
   settings: Record<string, unknown>
 }
 
+/**
+ * A subscription tier as the billing model actually persists it. Mirrors the
+ * gateway's tierDTO one-to-one. Only the fields the paywall enforces or bills
+ * on are here — speculative fields (storage/themes/branding/overage rules) were
+ * dropped; AI-token allowances arrive with managed AI, per-gateway price
+ * mappings with the Paddle gateway.
+ */
 export interface SubscriptionTier {
   id: string
   name: string
   slug: string
   description: string
-  price: {
-    monthly: number
-    yearly: number
-    currency: string
-  }
-  status: "active" | "inactive" | "archived"
+  /** Prices in minor units (cents). */
+  monthlyPriceCents: number
+  yearlyPriceCents: number
   displayOrder: number
-  
-  // Usage Limits
+  /** Whether the tier is selectable. */
+  isActive: boolean
+  /** Whether the tier shows on the public pricing page. */
+  isPublic: boolean
+  /** The tier applied to users with no subscription (delete-protected). */
+  isDefault: boolean
+  /** Billed per member (Business). */
+  perSeat: boolean
+  /** Enforced caps. -1 = unlimited for the numeric caps. */
   limits: {
-    aiTokens: number | "unlimited"
-    maxProjects: number | "unlimited"
-    maxCollaborators: number | "unlimited"
-    storageGB: number | "unlimited"
+    maxProjects: number
+    maxCollaboratorsPerProject: number
+    businessWorkspaces: boolean
   }
-  
-  // Feature Access
-  features: {
-    availableThemes: string[]
-    aiFeatures: boolean
-    collaborationEnabled: boolean
-    exportFormats: string[]
-    prioritySupport: boolean
-    customBranding: boolean
-  }
-  
-  // Behavioral Rules
-  rules: {
-    limitType: "soft" | "hard"
-    overageHandling: "block" | "throttle" | "charge"
-    trialDays?: number
-    gracePeriodDays?: number
-  }
-  
-  // Gateway Mappings
-  gatewayMappings: {
-    [gatewayId: string]: {
-      productId: string
-      monthlyPriceId: string
-      yearlyPriceId: string
-    }
-  }
-  
-  // Metadata
-  createdAt: Date
-  updatedAt: Date
+  /** Marketing bullet list shown on the pricing page (display only). */
+  featureBullets: string[]
+  // Server metadata (optional so CreateTierInput's Omit still type-checks).
+  createdAt?: string
+  updatedAt?: string
   subscriberCount?: number
 }
 
