@@ -29,6 +29,7 @@ const (
 	BillingService_ReorderTiers_FullMethodName          = "/billing.BillingService/ReorderTiers"
 	BillingService_ListGateways_FullMethodName          = "/billing.BillingService/ListGateways"
 	BillingService_CreateSubscription_FullMethodName    = "/billing.BillingService/CreateSubscription"
+	BillingService_CreateCheckout_FullMethodName        = "/billing.BillingService/CreateCheckout"
 	BillingService_GetUserSubscription_FullMethodName   = "/billing.BillingService/GetUserSubscription"
 	BillingService_UpdateSubscription_FullMethodName    = "/billing.BillingService/UpdateSubscription"
 	BillingService_CancelSubscription_FullMethodName    = "/billing.BillingService/CancelSubscription"
@@ -66,6 +67,8 @@ type BillingServiceClient interface {
 	ListGateways(ctx context.Context, in *ListGatewaysRequest, opts ...grpc.CallOption) (*ListGatewaysResponse, error)
 	// Subscription management
 	CreateSubscription(ctx context.Context, in *CreateSubscriptionRequest, opts ...grpc.CallOption) (*CreateSubscriptionResponse, error)
+	// CreateCheckout returns a hosted payment-gateway checkout link for a tier.
+	CreateCheckout(ctx context.Context, in *CreateCheckoutRequest, opts ...grpc.CallOption) (*CreateCheckoutResponse, error)
 	GetUserSubscription(ctx context.Context, in *GetUserSubscriptionRequest, opts ...grpc.CallOption) (*GetUserSubscriptionResponse, error)
 	UpdateSubscription(ctx context.Context, in *UpdateSubscriptionRequest, opts ...grpc.CallOption) (*UpdateSubscriptionResponse, error)
 	CancelSubscription(ctx context.Context, in *CancelSubscriptionRequest, opts ...grpc.CallOption) (*CancelSubscriptionResponse, error)
@@ -190,6 +193,16 @@ func (c *billingServiceClient) CreateSubscription(ctx context.Context, in *Creat
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateSubscriptionResponse)
 	err := c.cc.Invoke(ctx, BillingService_CreateSubscription_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *billingServiceClient) CreateCheckout(ctx context.Context, in *CreateCheckoutRequest, opts ...grpc.CallOption) (*CreateCheckoutResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateCheckoutResponse)
+	err := c.cc.Invoke(ctx, BillingService_CreateCheckout_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -348,6 +361,8 @@ type BillingServiceServer interface {
 	ListGateways(context.Context, *ListGatewaysRequest) (*ListGatewaysResponse, error)
 	// Subscription management
 	CreateSubscription(context.Context, *CreateSubscriptionRequest) (*CreateSubscriptionResponse, error)
+	// CreateCheckout returns a hosted payment-gateway checkout link for a tier.
+	CreateCheckout(context.Context, *CreateCheckoutRequest) (*CreateCheckoutResponse, error)
 	GetUserSubscription(context.Context, *GetUserSubscriptionRequest) (*GetUserSubscriptionResponse, error)
 	UpdateSubscription(context.Context, *UpdateSubscriptionRequest) (*UpdateSubscriptionResponse, error)
 	CancelSubscription(context.Context, *CancelSubscriptionRequest) (*CancelSubscriptionResponse, error)
@@ -407,6 +422,9 @@ func (UnimplementedBillingServiceServer) ListGateways(context.Context, *ListGate
 }
 func (UnimplementedBillingServiceServer) CreateSubscription(context.Context, *CreateSubscriptionRequest) (*CreateSubscriptionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateSubscription not implemented")
+}
+func (UnimplementedBillingServiceServer) CreateCheckout(context.Context, *CreateCheckoutRequest) (*CreateCheckoutResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateCheckout not implemented")
 }
 func (UnimplementedBillingServiceServer) GetUserSubscription(context.Context, *GetUserSubscriptionRequest) (*GetUserSubscriptionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserSubscription not implemented")
@@ -644,6 +662,24 @@ func _BillingService_CreateSubscription_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(BillingServiceServer).CreateSubscription(ctx, req.(*CreateSubscriptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BillingService_CreateCheckout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateCheckoutRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).CreateCheckout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_CreateCheckout_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).CreateCheckout(ctx, req.(*CreateCheckoutRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -928,6 +964,10 @@ var BillingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateSubscription",
 			Handler:    _BillingService_CreateSubscription_Handler,
+		},
+		{
+			MethodName: "CreateCheckout",
+			Handler:    _BillingService_CreateCheckout_Handler,
 		},
 		{
 			MethodName: "GetUserSubscription",

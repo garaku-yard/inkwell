@@ -4,7 +4,10 @@ import { useEffect, useState } from "react"
 import { Check, CreditCard, Loader2, Sparkles, Users } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { getMyBilling, getPublicTiers } from "@/services/billing"
+import { Button } from "@/components/ui/button"
+import { ApiError } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
+import { createCheckout, getMyBilling, getPublicTiers } from "@/services/billing"
 import type { MyBilling, SubscriptionTier } from "@/types/billing"
 
 const STATUS_LABELS: Record<MyBilling["status"], string> = {
@@ -35,6 +38,31 @@ export function BillingSection() {
   const [billing, setBilling] = useState<MyBilling | null>(null)
   const [tiers, setTiers] = useState<SubscriptionTier[]>([])
   const [loading, setLoading] = useState(true)
+  const [upgradingId, setUpgradingId] = useState<string | null>(null)
+  const { toast } = useToast()
+
+  // Start a hosted checkout and redirect to it. While the payment gateway is
+  // unconfigured the server returns FAILED_PRECONDITION, which we surface as a
+  // friendly "not available yet" rather than an error.
+  const handleUpgrade = async (tier: SubscriptionTier) => {
+    setUpgradingId(tier.id)
+    try {
+      const { checkoutUrl } = await createCheckout(tier.id)
+      window.location.assign(checkoutUrl) // navigate away on success
+    } catch (err) {
+      const notReady = err instanceof ApiError && err.code === "FAILED_PRECONDITION"
+      toast({
+        title: notReady ? "Checkout isn't available yet" : "Couldn't start checkout",
+        description: notReady
+          ? "Paid plans aren't open for purchase yet. Check back soon."
+          : err instanceof Error
+            ? err.message
+            : "Please try again.",
+        variant: notReady ? "default" : "destructive",
+      })
+      setUpgradingId(null)
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -118,13 +146,11 @@ export function BillingSection() {
                         </span>
                       </div>
                     </div>
-                    {isCurrent ? (
+                    {isCurrent && (
                       <Badge variant="secondary" className="gap-1 shrink-0">
                         <Check className="h-3 w-3" /> Current
                       </Badge>
-                    ) : paid ? (
-                      <Badge variant="outline" className="shrink-0">Coming soon</Badge>
-                    ) : null}
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -139,6 +165,20 @@ export function BillingSection() {
                       </li>
                     ))}
                   </ul>
+                  {!isCurrent && paid && (
+                    <Button
+                      className="mt-4 w-full"
+                      size="sm"
+                      disabled={upgradingId !== null}
+                      onClick={() => handleUpgrade(tier)}
+                    >
+                      {upgradingId === tier.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>Upgrade to {tier.name}</>
+                      )}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             )

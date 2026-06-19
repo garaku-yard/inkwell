@@ -119,6 +119,11 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		r.Post("/login", authLimit(authHandler.Login))
 		r.Post("/register", authLimit(authHandler.Register))
 
+		// Payment-gateway webhooks are public: the provider authenticates by
+		// signing the body, not with a session cookie. Verification happens in
+		// the billing service over the raw bytes.
+		r.Post("/billing/webhooks/paddle", billingHandler.PaddleWebhook)
+
 		// Protected
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware.Middleware)
@@ -241,9 +246,10 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			})
 
 			// Billing (current user) — their own effective tier + subscription
-			// status, and the public tier list for the plan comparison.
+			// status, the public tier list, and the upgrade checkout.
 			r.Get("/billing/me", billingHandler.GetMyBilling)
 			r.Get("/billing/tiers", billingHandler.GetPublicTiers)
+			r.Post("/billing/checkout", billingHandler.CreateCheckout)
 
 			// Admin billing — requires role=admin in addition to authentication.
 			r.Route("/admin/billing", func(r chi.Router) {

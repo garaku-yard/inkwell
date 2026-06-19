@@ -21,6 +21,13 @@ var (
 	ErrSubscriptionAlreadyExists = errors.New("subscription already exists")
 	// ErrInvalidStatus is returned when an unknown subscription status string is supplied.
 	ErrInvalidStatus = errors.New("invalid subscription status")
+	// ErrGatewayNotConfigured is returned when a checkout or webhook is attempted
+	// but no payment gateway credentials are present (the build-now-plug-later
+	// state). The gateway surfaces this as "checkout not available".
+	ErrGatewayNotConfigured = errors.New("payment gateway not configured")
+	// ErrPriceNotConfigured is returned when a tier has no external price id mapped
+	// for the active gateway, so checkout cannot name a price to charge.
+	ErrPriceNotConfigured = errors.New("tier has no price configured for the payment gateway")
 )
 
 // ─── Types ────────────────────────────────────────────────────────────────────

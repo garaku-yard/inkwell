@@ -1,3 +1,4 @@
+import { NotSupportedError } from "@/lib/storage"
 import type { BillingStorage, MyBilling } from "@/lib/storage"
 
 // ─── Billing (current user) ────────────────────────────────────────────────
@@ -22,4 +23,7 @@ const FREE_TIER: MyBilling = {
 export const billing: BillingStorage = {
   getMyBilling: async () => FREE_TIER,
   getPublicTiers: async () => [],
+  createCheckout: async () => {
+    throw new NotSupportedError("Checkout is only available in the hosted app")
+  },
 }

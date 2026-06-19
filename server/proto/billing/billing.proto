@@ -248,11 +248,21 @@ message GetUserUsageResponse {
   repeated Usage usage = 1;
 }
 
-// Webhook handling
+// Checkout
+message CreateCheckoutRequest {
+  string user_id = 1;
+  string tier_id = 2;
+}
+message CreateCheckoutResponse {
+  string checkout_url = 1;
+}
+
+// Webhook handling — the gateway forwards the raw request body and signature
+// header so the billing service can verify the gateway's HMAC over exact bytes.
 message ProcessWebhookRequest {
-  string event_type = 1;
-  string stripe_event_id = 2;
-  bytes event_data = 3;
+  string provider = 1;  // "paddle"
+  string signature = 2; // gateway signature header (Paddle-Signature)
+  bytes payload = 3;    // raw request body, verbatim
 }
 
 message ProcessWebhookResponse {
@@ -334,6 +344,8 @@ service BillingService {
 
   // Subscription management
   rpc CreateSubscription(CreateSubscriptionRequest) returns (CreateSubscriptionResponse);
+  // CreateCheckout returns a hosted payment-gateway checkout link for a tier.
+  rpc CreateCheckout(CreateCheckoutRequest) returns (CreateCheckoutResponse);
   rpc GetUserSubscription(GetUserSubscriptionRequest) returns (GetUserSubscriptionResponse);
   rpc UpdateSubscription(UpdateSubscriptionRequest) returns (UpdateSubscriptionResponse);
   rpc CancelSubscription(CancelSubscriptionRequest) returns (CancelSubscriptionResponse);

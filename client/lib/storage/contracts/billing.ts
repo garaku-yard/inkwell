@@ -15,4 +15,15 @@ export interface BillingStorage {
   getMyBilling(): Promise<MyBilling>
   /** Active, public tiers for the plan comparison, lowest display order first. */
   getPublicTiers(): Promise<SubscriptionTier[]>
+  /**
+   * Starts a hosted checkout for a tier and resolves the URL to redirect the
+   * user to. Throws `ApiError` with code `FAILED_PRECONDITION` when no payment
+   * gateway is configured yet (checkout not available). Not supported on desktop.
+   */
+  createCheckout(tierId: string): Promise<CheckoutSession>
+}
+
+/** The result of starting a checkout — the hosted payment URL to navigate to. */
+export interface CheckoutSession {
+  checkoutUrl: string
 }

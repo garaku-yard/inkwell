@@ -2,12 +2,15 @@ package billing
 
 import (
 	"context"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/grpcclient"
@@ -213,6 +216,79 @@ func (h *BillingHandler) GetPublicTiers(w http.ResponseWriter, r *http.Request) 
 			return &out, nil
 		},
 	}.ServeHTTP(w, r)
+}
+
+// checkoutBody is the request shape for CreateCheckout.
+type checkoutBody struct {
+	TierID string `json:"tierId"`
+}
+
+// checkoutResponse carries the hosted checkout link the client redirects to.
+type checkoutResponse struct {
+	CheckoutURL string `json:"checkoutUrl"`
+}
+
+// CreateCheckout starts a paid upgrade: it asks the billing service for a hosted
+// checkout link for the chosen tier. When no payment gateway is configured the
+// billing service returns FailedPrecondition (HTTP 422), which the client treats
+// as "checkout not available yet".
+func (h *BillingHandler) CreateCheckout(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[checkoutBody, checkoutResponse]{
+		Method: http.MethodPost,
+		Auth:   true,
+		Decode: handlers.JSONBody[checkoutBody],
+		Handle: func(r *http.Request, userID string, req *checkoutBody) (*checkoutResponse, error) {
+			if req.TierID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "tierId is required")
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+			defer cancel()
+			resp, err := h.client.CreateCheckout(ctx, &billingpb.CreateCheckoutRequest{
+				UserId: userID,
+				TierId: req.TierID,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &checkoutResponse{CheckoutURL: resp.CheckoutUrl}, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// PaddleWebhook receives Paddle's subscription webhooks. It is mounted OUTSIDE
+// the auth group — Paddle authenticates by signing the body, not with a session.
+// The raw bytes are forwarded verbatim to the billing service, which verifies the
+// HMAC and mirrors the subscription. A verified-but-failed apply returns 5xx so
+// Paddle retries; a bad signature returns 4xx so it does not.
+func (h *BillingHandler) PaddleWebhook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1 MiB cap
+	if err != nil {
+		http.Error(w, "cannot read body", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	if _, err := h.client.ProcessWebhook(ctx, &billingpb.ProcessWebhookRequest{
+		Provider:  "paddle",
+		Signature: r.Header.Get("Paddle-Signature"),
+		Payload:   body,
+	}); err != nil {
+		log.Printf("PaddleWebhook rejected: %v", err)
+		// Internal errors are transient (DB, etc.) → 5xx so Paddle retries.
+		// Everything else (bad signature, not configured) → 4xx, no retry value.
+		if status.Code(err) == codes.Internal {
+			http.Error(w, "webhook processing error", http.StatusInternalServerError)
+		} else {
+			http.Error(w, "webhook rejected", http.StatusBadRequest)
+		}
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 // GetTiers returns every tier (incl. inactive) for the admin editor. Falls back

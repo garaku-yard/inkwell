@@ -3,6 +3,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"inkwell/server/internal/billing/service"
 	billingpb "inkwell/server/pkg/grpc/billing"
 	"inkwell/server/pkg/grpc/common"
+	"inkwell/server/pkg/paddle"
 
 	"github.com/google/uuid"
 )
@@ -165,6 +167,33 @@ func gatewayToProto(g *domain.PaymentGateway) *billingpb.PaymentGateway {
 	}
 }
 
+// CreateCheckout returns a hosted checkout link for a user buying a tier.
+func (h *BillingHandler) CreateCheckout(ctx context.Context, req *billingpb.CreateCheckoutRequest) (*billingpb.CreateCheckoutResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
+	}
+	tierID, err := uuid.Parse(req.TierId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid tier_id")
+	}
+	url, err := h.svc.CreateCheckout(ctx, userID, tierID)
+	if err != nil {
+		return nil, handleError(err)
+	}
+	return &billingpb.CreateCheckoutResponse{CheckoutUrl: url}, nil
+}
+
+// ProcessWebhook verifies and applies a payment-gateway webhook forwarded by the
+// gateway. The raw payload and signature header are passed through untouched so
+// the HMAC can be checked over the exact bytes the provider signed.
+func (h *BillingHandler) ProcessWebhook(ctx context.Context, req *billingpb.ProcessWebhookRequest) (*billingpb.ProcessWebhookResponse, error) {
+	if err := h.svc.ProcessWebhook(ctx, req.Signature, req.Payload); err != nil {
+		return nil, handleError(err)
+	}
+	return &billingpb.ProcessWebhookResponse{Success: true}, nil
+}
+
 // GetUserSubscription returns the active subscription for a user.
 func (h *BillingHandler) GetUserSubscription(ctx context.Context, req *billingpb.GetUserSubscriptionRequest) (*billingpb.GetUserSubscriptionResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
@@ -298,12 +327,18 @@ func (h *BillingHandler) ListAllSubscriptions(ctx context.Context, req *billingp
 
 // handleError translates domain errors to gRPC status codes.
 func handleError(err error) error {
-	switch err {
-	case domain.ErrTierNotFound, domain.ErrSubscriptionNotFound, domain.ErrGatewayNotFound:
+	switch {
+	case errors.Is(err, domain.ErrTierNotFound), errors.Is(err, domain.ErrSubscriptionNotFound), errors.Is(err, domain.ErrGatewayNotFound):
 		return status.Error(codes.NotFound, err.Error())
-	case domain.ErrSubscriptionAlreadyExists:
+	case errors.Is(err, domain.ErrSubscriptionAlreadyExists):
 		return status.Error(codes.AlreadyExists, err.Error())
-	case domain.ErrInvalidStatus:
+	case errors.Is(err, domain.ErrInvalidStatus):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, domain.ErrGatewayNotConfigured), errors.Is(err, domain.ErrPriceNotConfigured):
+		// Build-now-plug-later: no gateway configured. The HTTP gateway maps
+		// FailedPrecondition to a "checkout not available" response.
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, paddle.ErrInvalidSignature):
 		return status.Error(codes.InvalidArgument, err.Error())
 	default:
 		return status.Errorf(codes.Internal, "internal error: %v", err)

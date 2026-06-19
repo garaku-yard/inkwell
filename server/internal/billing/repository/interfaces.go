@@ -38,6 +38,9 @@ type BillingRepository interface {
 	// GetActiveGateway returns the currently active payment gateway.
 	// Returns ErrGatewayNotFound when none is marked active.
 	GetActiveGateway(ctx context.Context) (*domain.PaymentGateway, error)
+	// GetGatewayByKey returns the gateway with the given stable key ("paddle").
+	// Returns ErrGatewayNotFound when absent.
+	GetGatewayByKey(ctx context.Context, gatewayID string) (*domain.PaymentGateway, error)
 
 	// ── Subscriptions ──────────────────────────────────────────────────────────
 
@@ -54,6 +57,10 @@ type BillingRepository interface {
 	GetSubscriptionByUserID(ctx context.Context, userID uuid.UUID) (*domain.UserSubscription, error)
 	// GetSubscriptionByID returns a subscription by its primary key.
 	GetSubscriptionByID(ctx context.Context, id uuid.UUID) (*domain.UserSubscription, error)
+	// GetSubscriptionByExternalID returns the subscription mirroring a given
+	// gateway subscription id (e.g. Paddle sub_…). Used to make webhook handling
+	// idempotent. Returns ErrSubscriptionNotFound when none exists yet.
+	GetSubscriptionByExternalID(ctx context.Context, externalID string) (*domain.UserSubscription, error)
 	// UpdateSubscription updates mutable fields on an existing subscription.
 	UpdateSubscription(ctx context.Context, sub *domain.UserSubscription) error
 	// UpdateSubscriptionTx is the transaction-scoped variant of UpdateSubscription,

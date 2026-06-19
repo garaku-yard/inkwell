@@ -5,6 +5,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -15,6 +17,7 @@ import (
 	"inkwell/server/internal/billing/repository"
 	"inkwell/server/pkg/events"
 	"inkwell/server/pkg/outbox"
+	"inkwell/server/pkg/paddle"
 )
 
 // BillingService defines the billing business-logic interface.
@@ -39,6 +42,14 @@ type BillingService interface {
 
 	// ListGateways returns all configured payment gateways.
 	ListGateways(ctx context.Context) ([]*domain.PaymentGateway, error)
+	// CreateCheckout creates a hosted checkout for a tier and returns its URL.
+	// Returns ErrGatewayNotConfigured when no payment gateway is set up, or
+	// ErrPriceNotConfigured when the tier has no mapped gateway price.
+	CreateCheckout(ctx context.Context, userID, tierID uuid.UUID) (string, error)
+	// ProcessWebhook verifies a payment-gateway (Paddle) webhook and applies its
+	// subscription event to user_subscriptions. Returns ErrGatewayNotConfigured
+	// when the gateway is disabled, or a signature error on a bad payload.
+	ProcessWebhook(ctx context.Context, signature string, payload []byte) error
 
 	// GetUserSubscription returns the active subscription for a user.
 	GetUserSubscription(ctx context.Context, userID uuid.UUID) (*domain.UserSubscription, error)
@@ -65,11 +76,28 @@ type BillingService interface {
 	ListAllSubscriptions(ctx context.Context, offset, limit int, statusFilter string) ([]*domain.UserSubscription, int, error)
 }
 
+// CheckoutCreator creates a hosted checkout for a price and returns its URL.
+// *paddle.Client satisfies it; a nil value means no payment gateway is configured.
+type CheckoutCreator interface {
+	CreateCheckout(ctx context.Context, priceID string, customData map[string]string) (string, error)
+}
+
+// PaymentConfig wires the payment gateway into the billing service. The whole
+// feature is inert until it is populated: Checkout nil disables checkout and
+// WebhookSecret empty disables webhook processing (build-now-plug-later).
+// PriceMap maps a tier slug to its gateway price id.
+type PaymentConfig struct {
+	Checkout      CheckoutCreator
+	WebhookSecret string
+	PriceMap      map[string]string
+}
+
 type billingService struct {
 	db        *sql.DB
 	repo      repository.BillingRepository
 	outbox    outbox.Store
 	publisher events.Publisher
+	payment   PaymentConfig
 }
 
 // NewBillingService creates a BillingService.
@@ -79,9 +107,10 @@ type billingService struct {
 // event store (typically outbox.NewPostgresStore(db, "billing_outbox")).
 // publisher is retained for fire-and-forget best-effort emission alongside the
 // durable outbox write; the background poller in cmd/billing handles reliability.
-// In tests, pass &events.NoopPublisher{} and an in-memory Store.
-func NewBillingService(db *sql.DB, repo repository.BillingRepository, outbox outbox.Store, publisher events.Publisher) BillingService {
-	return &billingService{db: db, repo: repo, outbox: outbox, publisher: publisher}
+// payment carries the Paddle integration, left zero-valued to run without a
+// payment gateway. In tests, pass &events.NoopPublisher{} and an in-memory Store.
+func NewBillingService(db *sql.DB, repo repository.BillingRepository, outbox outbox.Store, publisher events.Publisher, payment PaymentConfig) BillingService {
+	return &billingService{db: db, repo: repo, outbox: outbox, publisher: publisher, payment: payment}
 }
 
 func (s *billingService) ListTiers(ctx context.Context) ([]*domain.SubscriptionTier, error) {
@@ -158,6 +187,106 @@ func slugify(name string) string {
 
 func (s *billingService) ListGateways(ctx context.Context) ([]*domain.PaymentGateway, error) {
 	return s.repo.ListGateways(ctx)
+}
+
+// CreateCheckout resolves the tier's gateway price and asks the payment gateway
+// for a hosted checkout link, stamping the user and tier into custom data so the
+// resulting subscription webhook can be attributed back to them.
+func (s *billingService) CreateCheckout(ctx context.Context, userID, tierID uuid.UUID) (string, error) {
+	if s.payment.Checkout == nil {
+		return "", domain.ErrGatewayNotConfigured
+	}
+	tier, err := s.repo.GetTierByID(ctx, tierID)
+	if err != nil {
+		return "", err
+	}
+	priceID := s.payment.PriceMap[tier.Slug]
+	if priceID == "" {
+		return "", domain.ErrPriceNotConfigured
+	}
+	return s.payment.Checkout.CreateCheckout(ctx, priceID, map[string]string{
+		"user_id": userID.String(),
+		"tier_id": tierID.String(),
+	})
+}
+
+// ProcessWebhook verifies a Paddle webhook signature, parses it, and mirrors any
+// subscription change into user_subscriptions. Non-subscription events and events
+// without a signature verify-then-ignore. It is idempotent: Paddle may resend the
+// same event, so writes key on the external subscription id.
+func (s *billingService) ProcessWebhook(ctx context.Context, signature string, payload []byte) error {
+	if s.payment.WebhookSecret == "" {
+		return domain.ErrGatewayNotConfigured
+	}
+	if err := paddle.VerifySignature(s.payment.WebhookSecret, signature, payload, time.Now(), paddle.DefaultTolerance); err != nil {
+		return err
+	}
+	evt, err := paddle.ParseEvent(payload)
+	if err != nil {
+		return err
+	}
+	if evt.Subscription == nil {
+		return nil // non-subscription event — verified, nothing to mirror
+	}
+	return s.applySubscriptionEvent(ctx, evt.Subscription)
+}
+
+// applySubscriptionEvent upserts a Paddle subscription into user_subscriptions,
+// attributing it via the user_id/tier_id stamped in custom data at checkout.
+func (s *billingService) applySubscriptionEvent(ctx context.Context, sub *paddle.Subscription) error {
+	userID, err := uuid.Parse(sub.UserID)
+	if err != nil {
+		return fmt.Errorf("webhook: missing/invalid custom_data.user_id: %w", err)
+	}
+	tierID, err := uuid.Parse(sub.TierID)
+	if err != nil {
+		return fmt.Errorf("webhook: missing/invalid custom_data.tier_id: %w", err)
+	}
+	gw, err := s.repo.GetGatewayByKey(ctx, "paddle")
+	if err != nil {
+		return err
+	}
+	status := mapPaddleStatus(sub.Status)
+
+	existing, err := s.repo.GetSubscriptionByExternalID(ctx, sub.ID)
+	if err != nil && !errors.Is(err, domain.ErrSubscriptionNotFound) {
+		return err
+	}
+	if existing != nil {
+		existing.TierID = tierID
+		existing.Status = status
+		existing.CurrentPeriodStart = sub.CurrentPeriodStart
+		existing.CurrentPeriodEnd = sub.CurrentPeriodEnd
+		existing.CanceledAt = sub.CanceledAt
+		existing.CancelAtPeriodEnd = sub.CanceledAt != nil
+		return s.UpdateSubscription(ctx, existing)
+	}
+
+	return s.CreateSubscription(ctx, &domain.UserSubscription{
+		UserID:                 userID,
+		TierID:                 tierID,
+		GatewayID:              gw.ID,
+		ExternalSubscriptionID: sub.ID,
+		ExternalCustomerID:     sub.CustomerID,
+		Status:                 status,
+		BillingCycle:           "monthly",
+		CurrentPeriodStart:     sub.CurrentPeriodStart,
+		CurrentPeriodEnd:       sub.CurrentPeriodEnd,
+		CancelAtPeriodEnd:      sub.CanceledAt != nil,
+		CanceledAt:             sub.CanceledAt,
+	})
+}
+
+// mapPaddleStatus maps a Paddle subscription status to the user_subscriptions
+// status vocabulary. Paddle's "paused" has no direct equivalent; it maps to
+// past_due (access suspended but the row survives), as does anything unexpected.
+func mapPaddleStatus(paddleStatus string) string {
+	switch paddleStatus {
+	case "active", "trialing", "past_due", "canceled":
+		return paddleStatus
+	default:
+		return "past_due"
+	}
 }
 
 func (s *billingService) GetUserSubscription(ctx context.Context, userID uuid.UUID) (*domain.UserSubscription, error) {

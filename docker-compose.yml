@@ -261,8 +261,11 @@ services:
       - BILLING_DB_SSLMODE=disable
       - KAFKA_BROKERS=kafka:29092
       - IDENTITY_SERVICE_URL=identity-service:50051
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-sk_test_xxx}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-whsec_xxx}
+      # Paddle billing — inert unless PADDLE_API_KEY is set (see .env.example).
+      - PADDLE_API_KEY=${PADDLE_API_KEY:-}
+      - PADDLE_WEBHOOK_SECRET=${PADDLE_WEBHOOK_SECRET:-}
+      - PADDLE_ENVIRONMENT=${PADDLE_ENVIRONMENT:-sandbox}
+      - PADDLE_PRICE_MAP=${PADDLE_PRICE_MAP:-}
       - RUN_MIGRATIONS=true
     depends_on:
       postgres-billing:

@@ -202,6 +202,17 @@ func (r *postgresRepository) GetActiveGateway(ctx context.Context) (*domain.Paym
 	return gw, err
 }
 
+func (r *postgresRepository) GetGatewayByKey(ctx context.Context, gatewayID string) (*domain.PaymentGateway, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, gateway_id, name, description, config, active, created_at, updated_at
+		FROM payment_gateways WHERE gateway_id = $1`, gatewayID)
+	gw, err := scanGateway(row)
+	if err == sql.ErrNoRows {
+		return nil, domain.ErrGatewayNotFound
+	}
+	return gw, err
+}
+
 // ─── Subscriptions ────────────────────────────────────────────────────────────
 
 // subscriptionInsert is the shared SQL used by both the non-transactional and
@@ -259,6 +270,20 @@ func (r *postgresRepository) GetSubscriptionByID(ctx context.Context, id uuid.UU
 		       status, billing_cycle, current_period_start, current_period_end,
 		       cancel_at_period_end, canceled_at, trial_start, trial_end, created_at, updated_at
 		FROM user_subscriptions WHERE id = $1 AND deleted_at IS NULL`, id)
+	sub, err := scanSubscription(row)
+	if err == sql.ErrNoRows {
+		return nil, domain.ErrSubscriptionNotFound
+	}
+	return sub, err
+}
+
+func (r *postgresRepository) GetSubscriptionByExternalID(ctx context.Context, externalID string) (*domain.UserSubscription, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, user_id, tier_id, gateway_id, external_subscription_id, external_customer_id,
+		       status, billing_cycle, current_period_start, current_period_end,
+		       cancel_at_period_end, canceled_at, trial_start, trial_end, created_at, updated_at
+		FROM user_subscriptions WHERE external_subscription_id = $1 AND deleted_at IS NULL
+		ORDER BY created_at DESC LIMIT 1`, externalID)
 	sub, err := scanSubscription(row)
 	if err == sql.ErrNoRows {
 		return nil, domain.ErrSubscriptionNotFound

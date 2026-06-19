@@ -18,6 +18,7 @@ import (
 	"inkwell/server/pkg/events"
 	billingpb "inkwell/server/pkg/grpc/billing"
 	"inkwell/server/pkg/outbox"
+	"inkwell/server/pkg/paddle"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -73,9 +74,22 @@ func main() {
 		publisher = &events.NoopPublisher{}
 	}
 
+	// Payment gateway (Paddle). Inert until PADDLE_API_KEY is set — Checkout
+	// stays nil and WebhookSecret empty, so checkout/webhook calls fail closed.
+	payment := service.PaymentConfig{
+		WebhookSecret: cfg.PaddleConfig.WebhookSecret,
+		PriceMap:      cfg.PaddleConfig.PriceMap,
+	}
+	if cfg.PaddleConfig.Configured() {
+		payment.Checkout = paddle.New(cfg.PaddleConfig.APIKey, cfg.PaddleConfig.Environment)
+		slog.Info("paddle payment gateway enabled", "environment", cfg.PaddleConfig.Environment)
+	} else {
+		slog.Warn("paddle not configured (PADDLE_API_KEY unset) — checkout disabled")
+	}
+
 	repo := repository.NewPostgresRepository(db)
 	outboxStore := outbox.NewPostgresStore(db, "billing_outbox")
-	svc := service.NewBillingService(db, repo, outboxStore, publisher)
+	svc := service.NewBillingService(db, repo, outboxStore, publisher, payment)
 	billingHandler := handler.NewBillingHandler(svc)
 
 	// Outbox poller — flushes unpublished billing events to Kafka every 10 s.
