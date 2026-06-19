@@ -47,6 +47,20 @@ type Config struct {
 	// against the URL's Host field — provide entries with the port the
 	// users will configure with.
 	OpenAICompatibleHosts []string
+
+	// ManagedAIProviders holds Inkwell-supplied AI provider keys, keyed by
+	// adapter kind ("openai" | "anthropic" | "gemini"). Populated from
+	// AI_MANAGED_<KIND>_KEY / _MODEL env vars. Empty (the default) means managed
+	// AI is not offered and only BYO providers work — the build-now-plug-later
+	// state. Managed usage is metered and capped per the user's tier; BYO is not.
+	ManagedAIProviders map[string]ManagedAIProvider
+}
+
+// ManagedAIProvider is one Inkwell-supplied AI provider: the API key the gateway
+// dispatches with and the default model used when the request names none.
+type ManagedAIProvider struct {
+	APIKey       string
+	DefaultModel string
 }
 
 // RedisConfig holds Redis connection settings for the gateway.
@@ -154,6 +168,23 @@ func Load() (*Config, error) {
 		for _, h := range strings.Split(hosts, ",") {
 			if trimmed := strings.TrimSpace(h); trimmed != "" {
 				config.OpenAICompatibleHosts = append(config.OpenAICompatibleHosts, trimmed)
+			}
+		}
+	}
+
+	// Managed AI providers — Inkwell-supplied keys, one per adapter kind. Only
+	// kinds with a key set are offered; an empty map means managed AI is off.
+	config.ManagedAIProviders = map[string]ManagedAIProvider{}
+	for kind, defModel := range map[string]string{
+		"openai":    "gpt-4o-mini",
+		"anthropic": "claude-haiku-4-5",
+		"gemini":    "gemini-2.0-flash",
+	} {
+		envKind := strings.ToUpper(kind)
+		if key := env.String("AI_MANAGED_"+envKind+"_KEY", ""); key != "" {
+			config.ManagedAIProviders[kind] = ManagedAIProvider{
+				APIKey:       key,
+				DefaultModel: env.String("AI_MANAGED_"+envKind+"_MODEL", defModel),
 			}
 		}
 	}

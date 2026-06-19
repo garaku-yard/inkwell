@@ -184,6 +184,19 @@ func (h *BillingHandler) CreateCheckout(ctx context.Context, req *billingpb.Crea
 	return &billingpb.CreateCheckoutResponse{CheckoutUrl: url}, nil
 }
 
+// GetMonthlyUsage returns a user's current-month usage for a metric.
+func (h *BillingHandler) GetMonthlyUsage(ctx context.Context, req *billingpb.GetMonthlyUsageRequest) (*billingpb.GetMonthlyUsageResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
+	}
+	used, err := h.svc.GetMonthlyUsage(ctx, userID, req.Metric)
+	if err != nil {
+		return nil, handleError(err)
+	}
+	return &billingpb.GetMonthlyUsageResponse{Used: used}, nil
+}
+
 // SyncSeats reconciles a per-seat subscriber's seat quantity with their actual
 // usage, pushing the change to the payment gateway when configured.
 func (h *BillingHandler) SyncSeats(ctx context.Context, req *billingpb.SyncSeatsRequest) (*billingpb.SyncSeatsResponse, error) {
@@ -381,6 +394,9 @@ func tierToPlan(t *domain.SubscriptionTier) *billingpb.Plan {
 		p.MaxCollaboratorsPerProject = int32(v)
 	}
 	p.BusinessWorkspaces = t.Limits["business_workspaces"] > 0
+	if v := t.Limits["max_ai_requests_per_month"]; v > 0 {
+		p.AiRequestsPerMonth = int32(v)
+	}
 	return p
 }
 

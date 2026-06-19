@@ -41,6 +41,7 @@ const (
 	BillingService_GetInvoice_FullMethodName            = "/billing.BillingService/GetInvoice"
 	BillingService_TrackUsage_FullMethodName            = "/billing.BillingService/TrackUsage"
 	BillingService_GetUserUsage_FullMethodName          = "/billing.BillingService/GetUserUsage"
+	BillingService_GetMonthlyUsage_FullMethodName       = "/billing.BillingService/GetMonthlyUsage"
 	BillingService_ProcessWebhook_FullMethodName        = "/billing.BillingService/ProcessWebhook"
 	BillingService_GetBillingAnalytics_FullMethodName   = "/billing.BillingService/GetBillingAnalytics"
 	BillingService_ListAllSubscriptions_FullMethodName  = "/billing.BillingService/ListAllSubscriptions"
@@ -85,6 +86,9 @@ type BillingServiceClient interface {
 	// Usage tracking
 	TrackUsage(ctx context.Context, in *TrackUsageRequest, opts ...grpc.CallOption) (*TrackUsageResponse, error)
 	GetUserUsage(ctx context.Context, in *GetUserUsageRequest, opts ...grpc.CallOption) (*GetUserUsageResponse, error)
+	// GetMonthlyUsage returns a user's usage for a metric in the current calendar
+	// month — used to enforce managed-AI monthly allowances.
+	GetMonthlyUsage(ctx context.Context, in *GetMonthlyUsageRequest, opts ...grpc.CallOption) (*GetMonthlyUsageResponse, error)
 	// Webhook processing
 	ProcessWebhook(ctx context.Context, in *ProcessWebhookRequest, opts ...grpc.CallOption) (*ProcessWebhookResponse, error)
 	// Admin analytics — MRR, ARR, churn, tier distribution. Callers must have the
@@ -322,6 +326,16 @@ func (c *billingServiceClient) GetUserUsage(ctx context.Context, in *GetUserUsag
 	return out, nil
 }
 
+func (c *billingServiceClient) GetMonthlyUsage(ctx context.Context, in *GetMonthlyUsageRequest, opts ...grpc.CallOption) (*GetMonthlyUsageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMonthlyUsageResponse)
+	err := c.cc.Invoke(ctx, BillingService_GetMonthlyUsage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *billingServiceClient) ProcessWebhook(ctx context.Context, in *ProcessWebhookRequest, opts ...grpc.CallOption) (*ProcessWebhookResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ProcessWebhookResponse)
@@ -391,6 +405,9 @@ type BillingServiceServer interface {
 	// Usage tracking
 	TrackUsage(context.Context, *TrackUsageRequest) (*TrackUsageResponse, error)
 	GetUserUsage(context.Context, *GetUserUsageRequest) (*GetUserUsageResponse, error)
+	// GetMonthlyUsage returns a user's usage for a metric in the current calendar
+	// month — used to enforce managed-AI monthly allowances.
+	GetMonthlyUsage(context.Context, *GetMonthlyUsageRequest) (*GetMonthlyUsageResponse, error)
 	// Webhook processing
 	ProcessWebhook(context.Context, *ProcessWebhookRequest) (*ProcessWebhookResponse, error)
 	// Admin analytics — MRR, ARR, churn, tier distribution. Callers must have the
@@ -473,6 +490,9 @@ func (UnimplementedBillingServiceServer) TrackUsage(context.Context, *TrackUsage
 }
 func (UnimplementedBillingServiceServer) GetUserUsage(context.Context, *GetUserUsageRequest) (*GetUserUsageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserUsage not implemented")
+}
+func (UnimplementedBillingServiceServer) GetMonthlyUsage(context.Context, *GetMonthlyUsageRequest) (*GetMonthlyUsageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMonthlyUsage not implemented")
 }
 func (UnimplementedBillingServiceServer) ProcessWebhook(context.Context, *ProcessWebhookRequest) (*ProcessWebhookResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ProcessWebhook not implemented")
@@ -900,6 +920,24 @@ func _BillingService_GetUserUsage_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BillingService_GetMonthlyUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMonthlyUsageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).GetMonthlyUsage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_GetMonthlyUsage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).GetMonthlyUsage(ctx, req.(*GetMonthlyUsageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _BillingService_ProcessWebhook_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ProcessWebhookRequest)
 	if err := dec(in); err != nil {
@@ -1048,6 +1086,10 @@ var BillingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUserUsage",
 			Handler:    _BillingService_GetUserUsage_Handler,
+		},
+		{
+			MethodName: "GetMonthlyUsage",
+			Handler:    _BillingService_GetMonthlyUsage_Handler,
 		},
 		{
 			MethodName: "ProcessWebhook",

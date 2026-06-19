@@ -386,6 +386,21 @@ func (r *postgresRepository) ListSubscriptions(ctx context.Context, offset, limi
 // TrackUsage appends a row to usage_events and upserts the running total in
 // user_usage_totals, both inside a single transaction so the log and aggregate
 // never drift out of sync.
+// GetMonthlyUsage sums a user's usage events for a metric within the current
+// calendar month (server timezone). Used to enforce managed-AI allowances.
+func (r *postgresRepository) GetMonthlyUsage(ctx context.Context, userID uuid.UUID, metric string) (int64, error) {
+	var total int64
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(quantity), 0) FROM usage_events
+		WHERE user_id = $1 AND metric_name = $2 AND occurred_at >= date_trunc('month', now())`,
+		userID, metric,
+	).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("get monthly usage: %w", err)
+	}
+	return total, nil
+}
+
 func (r *postgresRepository) TrackUsage(ctx context.Context, userID uuid.UUID, metric string, quantity int64) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {

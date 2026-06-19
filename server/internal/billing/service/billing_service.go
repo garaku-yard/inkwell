@@ -73,6 +73,9 @@ type BillingService interface {
 	TrackUsage(ctx context.Context, userID uuid.UUID, metric string, quantity int64) error
 	// GetUserUsage returns the aggregate usage totals for a user, keyed by metric.
 	GetUserUsage(ctx context.Context, userID uuid.UUID) (map[string]int64, error)
+	// GetMonthlyUsage returns a user's usage for a metric in the current calendar
+	// month, for managed-AI allowance enforcement.
+	GetMonthlyUsage(ctx context.Context, userID uuid.UUID, metric string) (int64, error)
 
 	// GetAnalytics returns admin-facing KPIs (MRR, ARR, churn, tier distribution).
 	GetAnalytics(ctx context.Context) (*domain.BillingAnalytics, error)
@@ -406,6 +409,11 @@ func (s *billingService) CancelSubscription(ctx context.Context, subscriptionID 
 // table update together — so downstream quota reads are always consistent.
 func (s *billingService) TrackUsage(ctx context.Context, userID uuid.UUID, metric string, quantity int64) error {
 	return s.repo.TrackUsage(ctx, userID, metric, quantity)
+}
+
+// GetMonthlyUsage returns a user's current-calendar-month usage for a metric.
+func (s *billingService) GetMonthlyUsage(ctx context.Context, userID uuid.UUID, metric string) (int64, error) {
+	return s.repo.GetMonthlyUsage(ctx, userID, metric)
 }
 
 // GetUserUsage returns a map of metric-name → aggregate total for the user.

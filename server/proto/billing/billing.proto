@@ -19,6 +19,7 @@ message Plan {
   bool ai_features_enabled = 9;
   bool priority_support = 10;
   bool business_workspaces = 11; // tier may create org (business) workspaces
+  int32 ai_requests_per_month = 12; // managed-AI monthly request allowance; 0 ⇒ unlimited
 }
 
 // SubscriptionTier is the full, admin-editable tier shape (round-trips every
@@ -250,6 +251,14 @@ message GetUserUsageResponse {
   repeated Usage usage = 1;
 }
 
+message GetMonthlyUsageRequest {
+  string user_id = 1;
+  string metric = 2;
+}
+message GetMonthlyUsageResponse {
+  int64 used = 1;
+}
+
 // Checkout
 message CreateCheckoutRequest {
   string user_id = 1;
@@ -373,6 +382,9 @@ service BillingService {
   // Usage tracking
   rpc TrackUsage(TrackUsageRequest) returns (TrackUsageResponse);
   rpc GetUserUsage(GetUserUsageRequest) returns (GetUserUsageResponse);
+  // GetMonthlyUsage returns a user's usage for a metric in the current calendar
+  // month — used to enforce managed-AI monthly allowances.
+  rpc GetMonthlyUsage(GetMonthlyUsageRequest) returns (GetMonthlyUsageResponse);
   
   // Webhook processing
   rpc ProcessWebhook(ProcessWebhookRequest) returns (ProcessWebhookResponse);
