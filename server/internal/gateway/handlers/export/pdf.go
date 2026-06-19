@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/jung-kurt/gofpdf"
+	"github.com/go-pdf/fpdf"
 )
 
 // PDFExporter renders a project as a screenplay-formatted PDF using the
@@ -23,7 +23,7 @@ func (PDFExporter) ContentType() string { return "application/pdf" }
 // FileExtension returns "pdf".
 func (PDFExporter) FileExtension() string { return "pdf" }
 
-// Screenplay formatting constants (inches converted to mm by gofpdf's unit).
+// Screenplay formatting constants (inches converted to mm by fpdf's unit).
 // Values match Writer Duet / Final Draft defaults.
 const (
 	pdfMarginLeft   = 38.1 // 1.5" — wider left for binding
@@ -44,7 +44,7 @@ const (
 
 // Render produces a PDF document for the project.
 func (PDFExporter) Render(project *ExportProject) ([]byte, error) {
-	pdf := gofpdf.New("P", "mm", "Letter", "")
+	pdf := fpdf.New("P", "mm", "Letter", "")
 	pdf.SetMargins(pdfMarginLeft, pdfMarginTop, pdfMarginRight)
 	pdf.SetAutoPageBreak(true, pdfMarginBottom)
 	pdf.SetFont("Courier", "", pdfCourierPt)
@@ -109,7 +109,7 @@ func (PDFExporter) Render(project *ExportProject) ([]byte, error) {
 
 // writeBlock writes text at a given indent from the left margin. bold=true
 // renders the block in a bold Courier face; caller restores after if needed.
-func writeBlock(pdf *gofpdf.Fpdf, indent float64, text string, bold bool) {
+func writeBlock(pdf *fpdf.Fpdf, indent float64, text string, bold bool) {
 	if bold {
 		pdf.SetFont("Courier", "B", pdfCourierPt)
 	} else {
