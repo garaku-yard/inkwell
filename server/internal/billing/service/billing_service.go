@@ -28,6 +28,9 @@ type BillingService interface {
 	ListAllTiers(ctx context.Context) ([]*domain.SubscriptionTier, error)
 	// GetDefaultTier returns the tier applied to users with no subscription.
 	GetDefaultTier(ctx context.Context) (*domain.SubscriptionTier, error)
+	// GetEffectiveTier returns the tier whose limits apply to a user: their
+	// active subscription's tier, or the default tier otherwise.
+	GetEffectiveTier(ctx context.Context, userID uuid.UUID) (*domain.SubscriptionTier, error)
 	// CreateTier / UpdateTier / DeleteTier / ReorderTiers back the admin tier editor.
 	CreateTier(ctx context.Context, t *domain.SubscriptionTier) (*domain.SubscriptionTier, error)
 	UpdateTier(ctx context.Context, t *domain.SubscriptionTier) (*domain.SubscriptionTier, error)
@@ -94,6 +97,19 @@ func (s *billingService) ListAllTiers(ctx context.Context) ([]*domain.Subscripti
 }
 
 func (s *billingService) GetDefaultTier(ctx context.Context) (*domain.SubscriptionTier, error) {
+	return s.repo.GetDefaultTier(ctx)
+}
+
+// GetEffectiveTier returns the tier whose limits govern a user: their active or
+// trialing subscription's tier, or the default tier when there's no usable
+// subscription (the paywall's "free by default").
+func (s *billingService) GetEffectiveTier(ctx context.Context, userID uuid.UUID) (*domain.SubscriptionTier, error) {
+	sub, err := s.repo.GetSubscriptionByUserID(ctx, userID)
+	if err == nil && sub != nil && (sub.Status == "active" || sub.Status == "trialing") {
+		if tier, terr := s.repo.GetTierByID(ctx, sub.TierID); terr == nil {
+			return tier, nil
+		}
+	}
 	return s.repo.GetDefaultTier(ctx)
 }
 

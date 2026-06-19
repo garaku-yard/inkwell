@@ -53,6 +53,20 @@ func (h *BillingHandler) GetPlan(ctx context.Context, req *billingpb.GetPlanRequ
 	return &billingpb.GetPlanResponse{Plan: tierToPlan(tier)}, nil
 }
 
+// GetEffectiveTier returns the tier whose limits apply to a user (their
+// subscription's tier, or the default), as the public Plan projection.
+func (h *BillingHandler) GetEffectiveTier(ctx context.Context, req *billingpb.GetEffectiveTierRequest) (*billingpb.GetEffectiveTierResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
+	}
+	tier, err := h.svc.GetEffectiveTier(ctx, userID)
+	if err != nil {
+		return nil, handleError(err)
+	}
+	return &billingpb.GetEffectiveTierResponse{Plan: tierToPlan(tier)}, nil
+}
+
 // ListAllTiers returns every tier (incl. inactive/non-public) for the admin editor.
 func (h *BillingHandler) ListAllTiers(ctx context.Context, _ *billingpb.ListAllTiersRequest) (*billingpb.ListAllTiersResponse, error) {
 	tiers, err := h.svc.ListAllTiers(ctx)

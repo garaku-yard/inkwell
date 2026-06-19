@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	BillingService_GetPlans_FullMethodName              = "/billing.BillingService/GetPlans"
 	BillingService_GetPlan_FullMethodName               = "/billing.BillingService/GetPlan"
+	BillingService_GetEffectiveTier_FullMethodName      = "/billing.BillingService/GetEffectiveTier"
 	BillingService_ListAllTiers_FullMethodName          = "/billing.BillingService/ListAllTiers"
 	BillingService_CreateTier_FullMethodName            = "/billing.BillingService/CreateTier"
 	BillingService_UpdateTier_FullMethodName            = "/billing.BillingService/UpdateTier"
@@ -51,6 +52,9 @@ type BillingServiceClient interface {
 	// Plan management
 	GetPlans(ctx context.Context, in *GetPlansRequest, opts ...grpc.CallOption) (*GetPlansResponse, error)
 	GetPlan(ctx context.Context, in *GetPlanRequest, opts ...grpc.CallOption) (*GetPlanResponse, error)
+	// GetEffectiveTier returns the tier whose limits apply to a user (their
+	// subscription's tier, or the default tier). Used by quota enforcement.
+	GetEffectiveTier(ctx context.Context, in *GetEffectiveTierRequest, opts ...grpc.CallOption) (*GetEffectiveTierResponse, error)
 	// Admin tier management (Settings → Admin → Billing tier editor).
 	ListAllTiers(ctx context.Context, in *ListAllTiersRequest, opts ...grpc.CallOption) (*ListAllTiersResponse, error)
 	CreateTier(ctx context.Context, in *CreateTierRequest, opts ...grpc.CallOption) (*CreateTierResponse, error)
@@ -103,6 +107,16 @@ func (c *billingServiceClient) GetPlan(ctx context.Context, in *GetPlanRequest, 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetPlanResponse)
 	err := c.cc.Invoke(ctx, BillingService_GetPlan_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *billingServiceClient) GetEffectiveTier(ctx context.Context, in *GetEffectiveTierRequest, opts ...grpc.CallOption) (*GetEffectiveTierResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetEffectiveTierResponse)
+	err := c.cc.Invoke(ctx, BillingService_GetEffectiveTier_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -308,6 +322,9 @@ type BillingServiceServer interface {
 	// Plan management
 	GetPlans(context.Context, *GetPlansRequest) (*GetPlansResponse, error)
 	GetPlan(context.Context, *GetPlanRequest) (*GetPlanResponse, error)
+	// GetEffectiveTier returns the tier whose limits apply to a user (their
+	// subscription's tier, or the default tier). Used by quota enforcement.
+	GetEffectiveTier(context.Context, *GetEffectiveTierRequest) (*GetEffectiveTierResponse, error)
 	// Admin tier management (Settings → Admin → Billing tier editor).
 	ListAllTiers(context.Context, *ListAllTiersRequest) (*ListAllTiersResponse, error)
 	CreateTier(context.Context, *CreateTierRequest) (*CreateTierResponse, error)
@@ -351,6 +368,9 @@ func (UnimplementedBillingServiceServer) GetPlans(context.Context, *GetPlansRequ
 }
 func (UnimplementedBillingServiceServer) GetPlan(context.Context, *GetPlanRequest) (*GetPlanResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPlan not implemented")
+}
+func (UnimplementedBillingServiceServer) GetEffectiveTier(context.Context, *GetEffectiveTierRequest) (*GetEffectiveTierResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEffectiveTier not implemented")
 }
 func (UnimplementedBillingServiceServer) ListAllTiers(context.Context, *ListAllTiersRequest) (*ListAllTiersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAllTiers not implemented")
@@ -462,6 +482,24 @@ func _BillingService_GetPlan_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(BillingServiceServer).GetPlan(ctx, req.(*GetPlanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BillingService_GetEffectiveTier_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEffectiveTierRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).GetEffectiveTier(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_GetEffectiveTier_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).GetEffectiveTier(ctx, req.(*GetEffectiveTierRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -822,6 +860,10 @@ var BillingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPlan",
 			Handler:    _BillingService_GetPlan_Handler,
+		},
+		{
+			MethodName: "GetEffectiveTier",
+			Handler:    _BillingService_GetEffectiveTier_Handler,
 		},
 		{
 			MethodName: "ListAllTiers",

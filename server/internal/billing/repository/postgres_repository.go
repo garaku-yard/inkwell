@@ -524,14 +524,20 @@ func scanGateway(s scanner) (*domain.PaymentGateway, error) {
 
 func scanSubscription(s scanner) (*domain.UserSubscription, error) {
 	sub := &domain.UserSubscription{}
+	// The external id columns are nullable (set only once a payment gateway
+	// issues them); scan through NullString so a pre-gateway/manual row with
+	// NULLs doesn't fail the whole query.
+	var extSub, extCust sql.NullString
 	err := s.Scan(
 		&sub.ID, &sub.UserID, &sub.TierID, &sub.GatewayID,
-		&sub.ExternalSubscriptionID, &sub.ExternalCustomerID,
+		&extSub, &extCust,
 		&sub.Status, &sub.BillingCycle,
 		&sub.CurrentPeriodStart, &sub.CurrentPeriodEnd,
 		&sub.CancelAtPeriodEnd, &sub.CanceledAt,
 		&sub.TrialStart, &sub.TrialEnd,
 		&sub.CreatedAt, &sub.UpdatedAt,
 	)
+	sub.ExternalSubscriptionID = extSub.String
+	sub.ExternalCustomerID = extCust.String
 	return sub, err
 }

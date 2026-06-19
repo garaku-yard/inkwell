@@ -25,22 +25,21 @@ func New(billing billingpb.BillingServiceClient) *Client {
 }
 
 // Check reads the user's current usage for metric and the matching tier limit.
-// Limit is resolved in two hops: GetUserSubscription → GetPlan(plan_id), then
-// reads the matching field on the Plan. -1 signals unlimited.
-// Users without an active subscription are treated as unlimited so dev/free
-// environments without billing configured continue to function.
+// The limit comes from the user's EFFECTIVE tier — their subscription's tier,
+// or the default (Free) tier when they have no subscription — so unsubscribed
+// users are capped at the free limits, not treated as unlimited. -1 signals
+// unlimited. If billing can't resolve a tier at all (e.g. no default
+// configured / billing down), the limit stays -1 so the system fails open
+// rather than locking everyone out.
 func (c *Client) Check(ctx context.Context, userID string, metric quota.Metric) (used int64, limit int64, err error) {
 	if _, err := uuid.Parse(userID); err != nil {
 		return 0, 0, fmt.Errorf("quota: invalid user_id: %w", err)
 	}
 
 	limit = -1
-	subResp, err := c.billing.GetUserSubscription(ctx, &billingpb.GetUserSubscriptionRequest{UserId: userID})
-	if err == nil && subResp.GetSubscription() != nil && subResp.GetSubscription().GetPlanId() != "" {
-		planResp, planErr := c.billing.GetPlan(ctx, &billingpb.GetPlanRequest{PlanId: subResp.GetSubscription().GetPlanId()})
-		if planErr == nil {
-			limit = planLimit(planResp.GetPlan(), metric)
-		}
+	tierResp, tierErr := c.billing.GetEffectiveTier(ctx, &billingpb.GetEffectiveTierRequest{UserId: userID})
+	if tierErr == nil && tierResp.GetPlan() != nil {
+		limit = planLimit(tierResp.GetPlan(), metric)
 	}
 
 	usageResp, err := c.billing.GetUserUsage(ctx, &billingpb.GetUserUsageRequest{

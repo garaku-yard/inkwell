@@ -55,6 +55,13 @@ message DeleteTierResponse { bool success = 1; }
 message ReorderTiersRequest { repeated string tier_ids = 1; } // new display order
 message ReorderTiersResponse { bool success = 1; }
 
+// GetEffectiveTier resolves the tier whose limits apply to a user: their
+// subscription's tier, or the default (Free) tier when they have no
+// subscription. Returned as the public Plan projection (carries the typed
+// limit fields the quota adapter reads).
+message GetEffectiveTierRequest { string user_id = 1; }
+message GetEffectiveTierResponse { Plan plan = 1; }
+
 // User subscription
 message Subscription {
   string id = 1;
@@ -298,6 +305,9 @@ service BillingService {
   // Plan management
   rpc GetPlans(GetPlansRequest) returns (GetPlansResponse);
   rpc GetPlan(GetPlanRequest) returns (GetPlanResponse);
+  // GetEffectiveTier returns the tier whose limits apply to a user (their
+  // subscription's tier, or the default tier). Used by quota enforcement.
+  rpc GetEffectiveTier(GetEffectiveTierRequest) returns (GetEffectiveTierResponse);
 
   // Admin tier management (Settings → Admin → Billing tier editor).
   rpc ListAllTiers(ListAllTiersRequest) returns (ListAllTiersResponse);
