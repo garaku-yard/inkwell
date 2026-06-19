@@ -404,22 +404,41 @@ func (h *BillingHandler) GetAnalytics(w http.ResponseWriter, r *http.Request) {
 
 // GetGateways returns the list of configured payment gateways. Currently returns
 // a single hardcoded Stripe entry in test mode until Stripe keys are configured.
+// gatewayDTO is the admin gateways-list shape. provider is the stable gateway
+// key the front-end switches on; id is the internal UUID.
+type gatewayDTO struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
+	Active   bool   `json:"active"`
+	TestMode bool   `json:"testMode"`
+}
+
 func (h *BillingHandler) GetGateways(w http.ResponseWriter, r *http.Request) {
-	handlers.Endpoint[struct{}, []map[string]interface{}]{
+	handlers.Endpoint[struct{}, []gatewayDTO]{
 		Method: http.MethodGet,
 		Auth:   true,
 		Decode: handlers.NoBody[struct{}],
-		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]map[string]interface{}, error) {
-			gateways := []map[string]interface{}{
-				{
-					"id":       "stripe",
-					"name":     "Stripe",
-					"provider": "stripe",
-					"active":   false,
-					"testMode": true,
-				},
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]gatewayDTO, error) {
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+			resp, err := h.client.ListGateways(ctx, &billingpb.ListGatewaysRequest{})
+			if err != nil {
+				log.Printf("GetGateways: billing service error: %v", err)
+				empty := make([]gatewayDTO, 0)
+				return &empty, nil
 			}
-			return &gateways, nil
+			out := make([]gatewayDTO, 0, len(resp.Gateways))
+			for _, g := range resp.Gateways {
+				out = append(out, gatewayDTO{
+					ID:       g.Id,
+					Name:     g.Name,
+					Provider: g.GatewayId,
+					Active:   g.Active,
+					TestMode: g.TestMode,
+				})
+			}
+			return &out, nil
 		},
 	}.ServeHTTP(w, r)
 }

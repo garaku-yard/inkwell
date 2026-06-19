@@ -3056,6 +3056,172 @@ func (x *ListAllSubscriptionsResponse) GetTotal() int32 {
 	return 0
 }
 
+// PaymentGateway is a configured payment provider row. Secrets live in the
+// service environment, never in this message.
+type PaymentGateway struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                // internal UUID (FK target for user_subscriptions.gateway_id)
+	GatewayId     string                 `protobuf:"bytes,2,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"` // stable provider key: "stripe" | "paddle" | "lemonsqueezy"
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	Active        bool                   `protobuf:"varint,5,opt,name=active,proto3" json:"active,omitempty"`
+	TestMode      bool                   `protobuf:"varint,6,opt,name=test_mode,json=testMode,proto3" json:"test_mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PaymentGateway) Reset() {
+	*x = PaymentGateway{}
+	mi := &file_billing_billing_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PaymentGateway) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PaymentGateway) ProtoMessage() {}
+
+func (x *PaymentGateway) ProtoReflect() protoreflect.Message {
+	mi := &file_billing_billing_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PaymentGateway.ProtoReflect.Descriptor instead.
+func (*PaymentGateway) Descriptor() ([]byte, []int) {
+	return file_billing_billing_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *PaymentGateway) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PaymentGateway) GetGatewayId() string {
+	if x != nil {
+		return x.GatewayId
+	}
+	return ""
+}
+
+func (x *PaymentGateway) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PaymentGateway) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *PaymentGateway) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+func (x *PaymentGateway) GetTestMode() bool {
+	if x != nil {
+		return x.TestMode
+	}
+	return false
+}
+
+type ListGatewaysRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListGatewaysRequest) Reset() {
+	*x = ListGatewaysRequest{}
+	mi := &file_billing_billing_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListGatewaysRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListGatewaysRequest) ProtoMessage() {}
+
+func (x *ListGatewaysRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_billing_billing_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListGatewaysRequest.ProtoReflect.Descriptor instead.
+func (*ListGatewaysRequest) Descriptor() ([]byte, []int) {
+	return file_billing_billing_proto_rawDescGZIP(), []int{53}
+}
+
+type ListGatewaysResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Gateways      []*PaymentGateway      `protobuf:"bytes,1,rep,name=gateways,proto3" json:"gateways,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListGatewaysResponse) Reset() {
+	*x = ListGatewaysResponse{}
+	mi := &file_billing_billing_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListGatewaysResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListGatewaysResponse) ProtoMessage() {}
+
+func (x *ListGatewaysResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_billing_billing_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListGatewaysResponse.ProtoReflect.Descriptor instead.
+func (*ListGatewaysResponse) Descriptor() ([]byte, []int) {
+	return file_billing_billing_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *ListGatewaysResponse) GetGateways() []*PaymentGateway {
+	if x != nil {
+		return x.Gateways
+	}
+	return nil
+}
+
 var File_billing_billing_proto protoreflect.FileDescriptor
 
 const file_billing_billing_proto_rawDesc = "" +
@@ -3287,7 +3453,18 @@ const file_billing_billing_proto_rawDesc = "" +
 	"\rstatus_filter\x18\x03 \x01(\tR\fstatusFilter\"q\n" +
 	"\x1cListAllSubscriptionsResponse\x12;\n" +
 	"\rsubscriptions\x18\x01 \x03(\v2\x15.billing.SubscriptionR\rsubscriptions\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total2\xc4\x0e\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\xaa\x01\n" +
+	"\x0ePaymentGateway\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"gateway_id\x18\x02 \x01(\tR\tgatewayId\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x16\n" +
+	"\x06active\x18\x05 \x01(\bR\x06active\x12\x1b\n" +
+	"\ttest_mode\x18\x06 \x01(\bR\btestMode\"\x15\n" +
+	"\x13ListGatewaysRequest\"K\n" +
+	"\x14ListGatewaysResponse\x123\n" +
+	"\bgateways\x18\x01 \x03(\v2\x17.billing.PaymentGatewayR\bgateways2\x91\x0f\n" +
 	"\x0eBillingService\x12?\n" +
 	"\bGetPlans\x12\x18.billing.GetPlansRequest\x1a\x19.billing.GetPlansResponse\x12<\n" +
 	"\aGetPlan\x12\x17.billing.GetPlanRequest\x1a\x18.billing.GetPlanResponse\x12W\n" +
@@ -3299,7 +3476,8 @@ const file_billing_billing_proto_rawDesc = "" +
 	"UpdateTier\x12\x1a.billing.UpdateTierRequest\x1a\x1b.billing.UpdateTierResponse\x12E\n" +
 	"\n" +
 	"DeleteTier\x12\x1a.billing.DeleteTierRequest\x1a\x1b.billing.DeleteTierResponse\x12K\n" +
-	"\fReorderTiers\x12\x1c.billing.ReorderTiersRequest\x1a\x1d.billing.ReorderTiersResponse\x12]\n" +
+	"\fReorderTiers\x12\x1c.billing.ReorderTiersRequest\x1a\x1d.billing.ReorderTiersResponse\x12K\n" +
+	"\fListGateways\x12\x1c.billing.ListGatewaysRequest\x1a\x1d.billing.ListGatewaysResponse\x12]\n" +
 	"\x12CreateSubscription\x12\".billing.CreateSubscriptionRequest\x1a#.billing.CreateSubscriptionResponse\x12`\n" +
 	"\x13GetUserSubscription\x12#.billing.GetUserSubscriptionRequest\x1a$.billing.GetUserSubscriptionResponse\x12]\n" +
 	"\x12UpdateSubscription\x12\".billing.UpdateSubscriptionRequest\x1a#.billing.UpdateSubscriptionResponse\x12]\n" +
@@ -3329,7 +3507,7 @@ func file_billing_billing_proto_rawDescGZIP() []byte {
 	return file_billing_billing_proto_rawDescData
 }
 
-var file_billing_billing_proto_msgTypes = make([]protoimpl.MessageInfo, 53)
+var file_billing_billing_proto_msgTypes = make([]protoimpl.MessageInfo, 56)
 var file_billing_billing_proto_goTypes = []any{
 	(*Plan)(nil),                          // 0: billing.Plan
 	(*SubscriptionTier)(nil),              // 1: billing.SubscriptionTier
@@ -3383,33 +3561,36 @@ var file_billing_billing_proto_goTypes = []any{
 	(*GetBillingAnalyticsResponse)(nil),   // 49: billing.GetBillingAnalyticsResponse
 	(*ListAllSubscriptionsRequest)(nil),   // 50: billing.ListAllSubscriptionsRequest
 	(*ListAllSubscriptionsResponse)(nil),  // 51: billing.ListAllSubscriptionsResponse
-	nil,                                   // 52: billing.SubscriptionTier.LimitsEntry
-	(*common.Timestamp)(nil),              // 53: common.Timestamp
-	(*common.PaginationRequest)(nil),      // 54: common.PaginationRequest
-	(*common.PaginationResponse)(nil),     // 55: common.PaginationResponse
+	(*PaymentGateway)(nil),                // 52: billing.PaymentGateway
+	(*ListGatewaysRequest)(nil),           // 53: billing.ListGatewaysRequest
+	(*ListGatewaysResponse)(nil),          // 54: billing.ListGatewaysResponse
+	nil,                                   // 55: billing.SubscriptionTier.LimitsEntry
+	(*common.Timestamp)(nil),              // 56: common.Timestamp
+	(*common.PaginationRequest)(nil),      // 57: common.PaginationRequest
+	(*common.PaginationResponse)(nil),     // 58: common.PaginationResponse
 }
 var file_billing_billing_proto_depIdxs = []int32{
-	52, // 0: billing.SubscriptionTier.limits:type_name -> billing.SubscriptionTier.LimitsEntry
+	55, // 0: billing.SubscriptionTier.limits:type_name -> billing.SubscriptionTier.LimitsEntry
 	1,  // 1: billing.ListAllTiersResponse.tiers:type_name -> billing.SubscriptionTier
 	1,  // 2: billing.CreateTierRequest.tier:type_name -> billing.SubscriptionTier
 	1,  // 3: billing.CreateTierResponse.tier:type_name -> billing.SubscriptionTier
 	1,  // 4: billing.UpdateTierRequest.tier:type_name -> billing.SubscriptionTier
 	1,  // 5: billing.UpdateTierResponse.tier:type_name -> billing.SubscriptionTier
 	0,  // 6: billing.GetEffectiveTierResponse.plan:type_name -> billing.Plan
-	53, // 7: billing.Subscription.current_period_start:type_name -> common.Timestamp
-	53, // 8: billing.Subscription.current_period_end:type_name -> common.Timestamp
-	53, // 9: billing.Subscription.trial_end:type_name -> common.Timestamp
-	53, // 10: billing.Subscription.cancelled_at:type_name -> common.Timestamp
-	53, // 11: billing.Subscription.created_at:type_name -> common.Timestamp
-	53, // 12: billing.Subscription.updated_at:type_name -> common.Timestamp
-	53, // 13: billing.PaymentMethod.created_at:type_name -> common.Timestamp
-	53, // 14: billing.Invoice.invoice_date:type_name -> common.Timestamp
-	53, // 15: billing.Invoice.due_date:type_name -> common.Timestamp
-	53, // 16: billing.Invoice.paid_at:type_name -> common.Timestamp
-	53, // 17: billing.Invoice.created_at:type_name -> common.Timestamp
-	53, // 18: billing.Usage.period_start:type_name -> common.Timestamp
-	53, // 19: billing.Usage.period_end:type_name -> common.Timestamp
-	53, // 20: billing.Usage.created_at:type_name -> common.Timestamp
+	56, // 7: billing.Subscription.current_period_start:type_name -> common.Timestamp
+	56, // 8: billing.Subscription.current_period_end:type_name -> common.Timestamp
+	56, // 9: billing.Subscription.trial_end:type_name -> common.Timestamp
+	56, // 10: billing.Subscription.cancelled_at:type_name -> common.Timestamp
+	56, // 11: billing.Subscription.created_at:type_name -> common.Timestamp
+	56, // 12: billing.Subscription.updated_at:type_name -> common.Timestamp
+	56, // 13: billing.PaymentMethod.created_at:type_name -> common.Timestamp
+	56, // 14: billing.Invoice.invoice_date:type_name -> common.Timestamp
+	56, // 15: billing.Invoice.due_date:type_name -> common.Timestamp
+	56, // 16: billing.Invoice.paid_at:type_name -> common.Timestamp
+	56, // 17: billing.Invoice.created_at:type_name -> common.Timestamp
+	56, // 18: billing.Usage.period_start:type_name -> common.Timestamp
+	56, // 19: billing.Usage.period_end:type_name -> common.Timestamp
+	56, // 20: billing.Usage.created_at:type_name -> common.Timestamp
 	0,  // 21: billing.GetPlansResponse.plans:type_name -> billing.Plan
 	0,  // 22: billing.GetPlanResponse.plan:type_name -> billing.Plan
 	14, // 23: billing.CreateSubscriptionResponse.subscription:type_name -> billing.Subscription
@@ -3419,66 +3600,69 @@ var file_billing_billing_proto_depIdxs = []int32{
 	14, // 27: billing.CancelSubscriptionResponse.subscription:type_name -> billing.Subscription
 	15, // 28: billing.AddPaymentMethodResponse.payment_method:type_name -> billing.PaymentMethod
 	15, // 29: billing.GetUserPaymentMethodsResponse.payment_methods:type_name -> billing.PaymentMethod
-	54, // 30: billing.GetUserInvoicesRequest.pagination:type_name -> common.PaginationRequest
+	57, // 30: billing.GetUserInvoicesRequest.pagination:type_name -> common.PaginationRequest
 	16, // 31: billing.GetUserInvoicesResponse.invoices:type_name -> billing.Invoice
-	55, // 32: billing.GetUserInvoicesResponse.pagination:type_name -> common.PaginationResponse
+	58, // 32: billing.GetUserInvoicesResponse.pagination:type_name -> common.PaginationResponse
 	16, // 33: billing.GetInvoiceResponse.invoice:type_name -> billing.Invoice
-	53, // 34: billing.TrackUsageRequest.timestamp:type_name -> common.Timestamp
-	53, // 35: billing.GetUserUsageRequest.period_start:type_name -> common.Timestamp
-	53, // 36: billing.GetUserUsageRequest.period_end:type_name -> common.Timestamp
+	56, // 34: billing.TrackUsageRequest.timestamp:type_name -> common.Timestamp
+	56, // 35: billing.GetUserUsageRequest.period_start:type_name -> common.Timestamp
+	56, // 36: billing.GetUserUsageRequest.period_end:type_name -> common.Timestamp
 	17, // 37: billing.GetUserUsageResponse.usage:type_name -> billing.Usage
 	47, // 38: billing.GetBillingAnalyticsResponse.tier_distribution:type_name -> billing.TierDistributionEntry
 	48, // 39: billing.GetBillingAnalyticsResponse.revenue_by_tier:type_name -> billing.RevenueByTierEntry
 	14, // 40: billing.ListAllSubscriptionsResponse.subscriptions:type_name -> billing.Subscription
-	18, // 41: billing.BillingService.GetPlans:input_type -> billing.GetPlansRequest
-	20, // 42: billing.BillingService.GetPlan:input_type -> billing.GetPlanRequest
-	12, // 43: billing.BillingService.GetEffectiveTier:input_type -> billing.GetEffectiveTierRequest
-	2,  // 44: billing.BillingService.ListAllTiers:input_type -> billing.ListAllTiersRequest
-	4,  // 45: billing.BillingService.CreateTier:input_type -> billing.CreateTierRequest
-	6,  // 46: billing.BillingService.UpdateTier:input_type -> billing.UpdateTierRequest
-	8,  // 47: billing.BillingService.DeleteTier:input_type -> billing.DeleteTierRequest
-	10, // 48: billing.BillingService.ReorderTiers:input_type -> billing.ReorderTiersRequest
-	22, // 49: billing.BillingService.CreateSubscription:input_type -> billing.CreateSubscriptionRequest
-	24, // 50: billing.BillingService.GetUserSubscription:input_type -> billing.GetUserSubscriptionRequest
-	26, // 51: billing.BillingService.UpdateSubscription:input_type -> billing.UpdateSubscriptionRequest
-	28, // 52: billing.BillingService.CancelSubscription:input_type -> billing.CancelSubscriptionRequest
-	30, // 53: billing.BillingService.AddPaymentMethod:input_type -> billing.AddPaymentMethodRequest
-	32, // 54: billing.BillingService.GetUserPaymentMethods:input_type -> billing.GetUserPaymentMethodsRequest
-	34, // 55: billing.BillingService.DeletePaymentMethod:input_type -> billing.DeletePaymentMethodRequest
-	36, // 56: billing.BillingService.GetUserInvoices:input_type -> billing.GetUserInvoicesRequest
-	38, // 57: billing.BillingService.GetInvoice:input_type -> billing.GetInvoiceRequest
-	40, // 58: billing.BillingService.TrackUsage:input_type -> billing.TrackUsageRequest
-	42, // 59: billing.BillingService.GetUserUsage:input_type -> billing.GetUserUsageRequest
-	44, // 60: billing.BillingService.ProcessWebhook:input_type -> billing.ProcessWebhookRequest
-	46, // 61: billing.BillingService.GetBillingAnalytics:input_type -> billing.GetBillingAnalyticsRequest
-	50, // 62: billing.BillingService.ListAllSubscriptions:input_type -> billing.ListAllSubscriptionsRequest
-	19, // 63: billing.BillingService.GetPlans:output_type -> billing.GetPlansResponse
-	21, // 64: billing.BillingService.GetPlan:output_type -> billing.GetPlanResponse
-	13, // 65: billing.BillingService.GetEffectiveTier:output_type -> billing.GetEffectiveTierResponse
-	3,  // 66: billing.BillingService.ListAllTiers:output_type -> billing.ListAllTiersResponse
-	5,  // 67: billing.BillingService.CreateTier:output_type -> billing.CreateTierResponse
-	7,  // 68: billing.BillingService.UpdateTier:output_type -> billing.UpdateTierResponse
-	9,  // 69: billing.BillingService.DeleteTier:output_type -> billing.DeleteTierResponse
-	11, // 70: billing.BillingService.ReorderTiers:output_type -> billing.ReorderTiersResponse
-	23, // 71: billing.BillingService.CreateSubscription:output_type -> billing.CreateSubscriptionResponse
-	25, // 72: billing.BillingService.GetUserSubscription:output_type -> billing.GetUserSubscriptionResponse
-	27, // 73: billing.BillingService.UpdateSubscription:output_type -> billing.UpdateSubscriptionResponse
-	29, // 74: billing.BillingService.CancelSubscription:output_type -> billing.CancelSubscriptionResponse
-	31, // 75: billing.BillingService.AddPaymentMethod:output_type -> billing.AddPaymentMethodResponse
-	33, // 76: billing.BillingService.GetUserPaymentMethods:output_type -> billing.GetUserPaymentMethodsResponse
-	35, // 77: billing.BillingService.DeletePaymentMethod:output_type -> billing.DeletePaymentMethodResponse
-	37, // 78: billing.BillingService.GetUserInvoices:output_type -> billing.GetUserInvoicesResponse
-	39, // 79: billing.BillingService.GetInvoice:output_type -> billing.GetInvoiceResponse
-	41, // 80: billing.BillingService.TrackUsage:output_type -> billing.TrackUsageResponse
-	43, // 81: billing.BillingService.GetUserUsage:output_type -> billing.GetUserUsageResponse
-	45, // 82: billing.BillingService.ProcessWebhook:output_type -> billing.ProcessWebhookResponse
-	49, // 83: billing.BillingService.GetBillingAnalytics:output_type -> billing.GetBillingAnalyticsResponse
-	51, // 84: billing.BillingService.ListAllSubscriptions:output_type -> billing.ListAllSubscriptionsResponse
-	63, // [63:85] is the sub-list for method output_type
-	41, // [41:63] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	52, // 41: billing.ListGatewaysResponse.gateways:type_name -> billing.PaymentGateway
+	18, // 42: billing.BillingService.GetPlans:input_type -> billing.GetPlansRequest
+	20, // 43: billing.BillingService.GetPlan:input_type -> billing.GetPlanRequest
+	12, // 44: billing.BillingService.GetEffectiveTier:input_type -> billing.GetEffectiveTierRequest
+	2,  // 45: billing.BillingService.ListAllTiers:input_type -> billing.ListAllTiersRequest
+	4,  // 46: billing.BillingService.CreateTier:input_type -> billing.CreateTierRequest
+	6,  // 47: billing.BillingService.UpdateTier:input_type -> billing.UpdateTierRequest
+	8,  // 48: billing.BillingService.DeleteTier:input_type -> billing.DeleteTierRequest
+	10, // 49: billing.BillingService.ReorderTiers:input_type -> billing.ReorderTiersRequest
+	53, // 50: billing.BillingService.ListGateways:input_type -> billing.ListGatewaysRequest
+	22, // 51: billing.BillingService.CreateSubscription:input_type -> billing.CreateSubscriptionRequest
+	24, // 52: billing.BillingService.GetUserSubscription:input_type -> billing.GetUserSubscriptionRequest
+	26, // 53: billing.BillingService.UpdateSubscription:input_type -> billing.UpdateSubscriptionRequest
+	28, // 54: billing.BillingService.CancelSubscription:input_type -> billing.CancelSubscriptionRequest
+	30, // 55: billing.BillingService.AddPaymentMethod:input_type -> billing.AddPaymentMethodRequest
+	32, // 56: billing.BillingService.GetUserPaymentMethods:input_type -> billing.GetUserPaymentMethodsRequest
+	34, // 57: billing.BillingService.DeletePaymentMethod:input_type -> billing.DeletePaymentMethodRequest
+	36, // 58: billing.BillingService.GetUserInvoices:input_type -> billing.GetUserInvoicesRequest
+	38, // 59: billing.BillingService.GetInvoice:input_type -> billing.GetInvoiceRequest
+	40, // 60: billing.BillingService.TrackUsage:input_type -> billing.TrackUsageRequest
+	42, // 61: billing.BillingService.GetUserUsage:input_type -> billing.GetUserUsageRequest
+	44, // 62: billing.BillingService.ProcessWebhook:input_type -> billing.ProcessWebhookRequest
+	46, // 63: billing.BillingService.GetBillingAnalytics:input_type -> billing.GetBillingAnalyticsRequest
+	50, // 64: billing.BillingService.ListAllSubscriptions:input_type -> billing.ListAllSubscriptionsRequest
+	19, // 65: billing.BillingService.GetPlans:output_type -> billing.GetPlansResponse
+	21, // 66: billing.BillingService.GetPlan:output_type -> billing.GetPlanResponse
+	13, // 67: billing.BillingService.GetEffectiveTier:output_type -> billing.GetEffectiveTierResponse
+	3,  // 68: billing.BillingService.ListAllTiers:output_type -> billing.ListAllTiersResponse
+	5,  // 69: billing.BillingService.CreateTier:output_type -> billing.CreateTierResponse
+	7,  // 70: billing.BillingService.UpdateTier:output_type -> billing.UpdateTierResponse
+	9,  // 71: billing.BillingService.DeleteTier:output_type -> billing.DeleteTierResponse
+	11, // 72: billing.BillingService.ReorderTiers:output_type -> billing.ReorderTiersResponse
+	54, // 73: billing.BillingService.ListGateways:output_type -> billing.ListGatewaysResponse
+	23, // 74: billing.BillingService.CreateSubscription:output_type -> billing.CreateSubscriptionResponse
+	25, // 75: billing.BillingService.GetUserSubscription:output_type -> billing.GetUserSubscriptionResponse
+	27, // 76: billing.BillingService.UpdateSubscription:output_type -> billing.UpdateSubscriptionResponse
+	29, // 77: billing.BillingService.CancelSubscription:output_type -> billing.CancelSubscriptionResponse
+	31, // 78: billing.BillingService.AddPaymentMethod:output_type -> billing.AddPaymentMethodResponse
+	33, // 79: billing.BillingService.GetUserPaymentMethods:output_type -> billing.GetUserPaymentMethodsResponse
+	35, // 80: billing.BillingService.DeletePaymentMethod:output_type -> billing.DeletePaymentMethodResponse
+	37, // 81: billing.BillingService.GetUserInvoices:output_type -> billing.GetUserInvoicesResponse
+	39, // 82: billing.BillingService.GetInvoice:output_type -> billing.GetInvoiceResponse
+	41, // 83: billing.BillingService.TrackUsage:output_type -> billing.TrackUsageResponse
+	43, // 84: billing.BillingService.GetUserUsage:output_type -> billing.GetUserUsageResponse
+	45, // 85: billing.BillingService.ProcessWebhook:output_type -> billing.ProcessWebhookResponse
+	49, // 86: billing.BillingService.GetBillingAnalytics:output_type -> billing.GetBillingAnalyticsResponse
+	51, // 87: billing.BillingService.ListAllSubscriptions:output_type -> billing.ListAllSubscriptionsResponse
+	65, // [65:88] is the sub-list for method output_type
+	42, // [42:65] is the sub-list for method input_type
+	42, // [42:42] is the sub-list for extension type_name
+	42, // [42:42] is the sub-list for extension extendee
+	0,  // [0:42] is the sub-list for field type_name
 }
 
 func init() { file_billing_billing_proto_init() }
@@ -3494,7 +3678,7 @@ func file_billing_billing_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_billing_billing_proto_rawDesc), len(file_billing_billing_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   53,
+			NumMessages:   56,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

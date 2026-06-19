@@ -300,6 +300,19 @@ message ListAllSubscriptionsResponse {
   int32 total = 2;
 }
 
+// PaymentGateway is a configured payment provider row. Secrets live in the
+// service environment, never in this message.
+message PaymentGateway {
+  string id = 1;          // internal UUID (FK target for user_subscriptions.gateway_id)
+  string gateway_id = 2;  // stable provider key: "stripe" | "paddle" | "lemonsqueezy"
+  string name = 3;
+  string description = 4;
+  bool active = 5;
+  bool test_mode = 6;
+}
+message ListGatewaysRequest {}
+message ListGatewaysResponse { repeated PaymentGateway gateways = 1; }
+
 // Billing service definition
 service BillingService {
   // Plan management
@@ -315,7 +328,10 @@ service BillingService {
   rpc UpdateTier(UpdateTierRequest) returns (UpdateTierResponse);
   rpc DeleteTier(DeleteTierRequest) returns (DeleteTierResponse);
   rpc ReorderTiers(ReorderTiersRequest) returns (ReorderTiersResponse);
-  
+
+  // Payment gateways (admin)
+  rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysResponse);
+
   // Subscription management
   rpc CreateSubscription(CreateSubscriptionRequest) returns (CreateSubscriptionResponse);
   rpc GetUserSubscription(GetUserSubscriptionRequest) returns (GetUserSubscriptionResponse);

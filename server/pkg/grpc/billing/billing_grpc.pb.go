@@ -27,6 +27,7 @@ const (
 	BillingService_UpdateTier_FullMethodName            = "/billing.BillingService/UpdateTier"
 	BillingService_DeleteTier_FullMethodName            = "/billing.BillingService/DeleteTier"
 	BillingService_ReorderTiers_FullMethodName          = "/billing.BillingService/ReorderTiers"
+	BillingService_ListGateways_FullMethodName          = "/billing.BillingService/ListGateways"
 	BillingService_CreateSubscription_FullMethodName    = "/billing.BillingService/CreateSubscription"
 	BillingService_GetUserSubscription_FullMethodName   = "/billing.BillingService/GetUserSubscription"
 	BillingService_UpdateSubscription_FullMethodName    = "/billing.BillingService/UpdateSubscription"
@@ -61,6 +62,8 @@ type BillingServiceClient interface {
 	UpdateTier(ctx context.Context, in *UpdateTierRequest, opts ...grpc.CallOption) (*UpdateTierResponse, error)
 	DeleteTier(ctx context.Context, in *DeleteTierRequest, opts ...grpc.CallOption) (*DeleteTierResponse, error)
 	ReorderTiers(ctx context.Context, in *ReorderTiersRequest, opts ...grpc.CallOption) (*ReorderTiersResponse, error)
+	// Payment gateways (admin)
+	ListGateways(ctx context.Context, in *ListGatewaysRequest, opts ...grpc.CallOption) (*ListGatewaysResponse, error)
 	// Subscription management
 	CreateSubscription(ctx context.Context, in *CreateSubscriptionRequest, opts ...grpc.CallOption) (*CreateSubscriptionResponse, error)
 	GetUserSubscription(ctx context.Context, in *GetUserSubscriptionRequest, opts ...grpc.CallOption) (*GetUserSubscriptionResponse, error)
@@ -167,6 +170,16 @@ func (c *billingServiceClient) ReorderTiers(ctx context.Context, in *ReorderTier
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReorderTiersResponse)
 	err := c.cc.Invoke(ctx, BillingService_ReorderTiers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *billingServiceClient) ListGateways(ctx context.Context, in *ListGatewaysRequest, opts ...grpc.CallOption) (*ListGatewaysResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGatewaysResponse)
+	err := c.cc.Invoke(ctx, BillingService_ListGateways_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -331,6 +344,8 @@ type BillingServiceServer interface {
 	UpdateTier(context.Context, *UpdateTierRequest) (*UpdateTierResponse, error)
 	DeleteTier(context.Context, *DeleteTierRequest) (*DeleteTierResponse, error)
 	ReorderTiers(context.Context, *ReorderTiersRequest) (*ReorderTiersResponse, error)
+	// Payment gateways (admin)
+	ListGateways(context.Context, *ListGatewaysRequest) (*ListGatewaysResponse, error)
 	// Subscription management
 	CreateSubscription(context.Context, *CreateSubscriptionRequest) (*CreateSubscriptionResponse, error)
 	GetUserSubscription(context.Context, *GetUserSubscriptionRequest) (*GetUserSubscriptionResponse, error)
@@ -386,6 +401,9 @@ func (UnimplementedBillingServiceServer) DeleteTier(context.Context, *DeleteTier
 }
 func (UnimplementedBillingServiceServer) ReorderTiers(context.Context, *ReorderTiersRequest) (*ReorderTiersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReorderTiers not implemented")
+}
+func (UnimplementedBillingServiceServer) ListGateways(context.Context, *ListGatewaysRequest) (*ListGatewaysResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListGateways not implemented")
 }
 func (UnimplementedBillingServiceServer) CreateSubscription(context.Context, *CreateSubscriptionRequest) (*CreateSubscriptionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateSubscription not implemented")
@@ -590,6 +608,24 @@ func _BillingService_ReorderTiers_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(BillingServiceServer).ReorderTiers(ctx, req.(*ReorderTiersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BillingService_ListGateways_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGatewaysRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).ListGateways(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_ListGateways_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).ListGateways(ctx, req.(*ListGatewaysRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -884,6 +920,10 @@ var BillingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReorderTiers",
 			Handler:    _BillingService_ReorderTiers_Handler,
+		},
+		{
+			MethodName: "ListGateways",
+			Handler:    _BillingService_ListGateways_Handler,
 		},
 		{
 			MethodName: "CreateSubscription",

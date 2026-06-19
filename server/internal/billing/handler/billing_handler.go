@@ -138,6 +138,33 @@ func (h *BillingHandler) ReorderTiers(ctx context.Context, req *billingpb.Reorde
 	return &billingpb.ReorderTiersResponse{Success: true}, nil
 }
 
+// ListGateways returns every configured payment gateway for the admin gateways view.
+func (h *BillingHandler) ListGateways(ctx context.Context, _ *billingpb.ListGatewaysRequest) (*billingpb.ListGatewaysResponse, error) {
+	gws, err := h.svc.ListGateways(ctx)
+	if err != nil {
+		return nil, handleError(err)
+	}
+	out := make([]*billingpb.PaymentGateway, 0, len(gws))
+	for _, g := range gws {
+		out = append(out, gatewayToProto(g))
+	}
+	return &billingpb.ListGatewaysResponse{Gateways: out}, nil
+}
+
+// gatewayToProto maps a domain gateway to the proto. test_mode is read from the
+// gateway's config blob (operators set it per gateway); absent means live mode.
+func gatewayToProto(g *domain.PaymentGateway) *billingpb.PaymentGateway {
+	testMode, _ := g.Config["test_mode"].(bool)
+	return &billingpb.PaymentGateway{
+		Id:          g.ID.String(),
+		GatewayId:   g.GatewayID,
+		Name:        g.Name,
+		Description: g.Description,
+		Active:      g.Active,
+		TestMode:    testMode,
+	}
+}
+
 // GetUserSubscription returns the active subscription for a user.
 func (h *BillingHandler) GetUserSubscription(ctx context.Context, req *billingpb.GetUserSubscriptionRequest) (*billingpb.GetUserSubscriptionResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
