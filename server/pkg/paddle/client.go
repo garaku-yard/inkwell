@@ -111,3 +111,40 @@ func (c *Client) CreateCheckout(ctx context.Context, priceID string, quantity in
 	}
 	return parsed.Data.Checkout.URL, nil
 }
+
+// UpdateSubscriptionQuantity changes the seat quantity on an existing Paddle
+// subscription. Paddle requires the full item list (price_id + new quantity) and
+// a proration mode; prorated_immediately charges or credits the difference for
+// the remainder of the current period right away.
+func (c *Client) UpdateSubscriptionQuantity(ctx context.Context, subscriptionID, priceID string, quantity int) error {
+	if quantity < 1 {
+		quantity = 1
+	}
+	reqBody, err := json.Marshal(map[string]any{
+		"items":                  []map[string]any{{"price_id": priceID, "quantity": quantity}},
+		"proration_billing_mode": "prorated_immediately",
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, c.baseURL+"/subscriptions/"+subscriptionID, bytes.NewReader(reqBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Paddle-Version", "1")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("paddle: update subscription: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("paddle: update subscription returned %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}

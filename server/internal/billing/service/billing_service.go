@@ -51,6 +51,10 @@ type BillingService interface {
 	// subscription event to user_subscriptions. Returns ErrGatewayNotConfigured
 	// when the gateway is disabled, or a signature error on a bad payload.
 	ProcessWebhook(ctx context.Context, signature string, payload []byte) error
+	// SyncSeats updates a per-seat subscriber's seat quantity to match actual
+	// usage, pushing the new quantity to the payment gateway when configured. A
+	// no-op when the user has no active subscription or the count is unchanged.
+	SyncSeats(ctx context.Context, userID uuid.UUID, seats int) error
 
 	// GetUserSubscription returns the active subscription for a user.
 	GetUserSubscription(ctx context.Context, userID uuid.UUID) (*domain.UserSubscription, error)
@@ -84,12 +88,20 @@ type CheckoutCreator interface {
 	CreateCheckout(ctx context.Context, priceID string, quantity int, customData map[string]string) (string, error)
 }
 
+// SubscriptionUpdater changes the seat quantity on an existing gateway
+// subscription. *paddle.Client satisfies it; nil disables seat auto-sync.
+type SubscriptionUpdater interface {
+	UpdateSubscriptionQuantity(ctx context.Context, subscriptionID, priceID string, quantity int) error
+}
+
 // PaymentConfig wires the payment gateway into the billing service. The whole
-// feature is inert until it is populated: Checkout nil disables checkout and
-// WebhookSecret empty disables webhook processing (build-now-plug-later).
-// PriceMap maps a tier slug to its gateway price id.
+// feature is inert until it is populated: Checkout nil disables checkout,
+// Updater nil disables seat auto-sync, and WebhookSecret empty disables webhook
+// processing (build-now-plug-later). PriceMap maps a tier slug to its gateway
+// price id.
 type PaymentConfig struct {
 	Checkout      CheckoutCreator
+	Updater       SubscriptionUpdater
 	WebhookSecret string
 	PriceMap      map[string]string
 }
@@ -283,6 +295,47 @@ func (s *billingService) applySubscriptionEvent(ctx context.Context, sub *paddle
 		CancelAtPeriodEnd:      sub.CanceledAt != nil,
 		CanceledAt:             sub.CanceledAt,
 	})
+}
+
+// SyncSeats reconciles a user's per-seat subscription quantity with their actual
+// seat usage. It no-ops when the user has no active subscription (nothing to
+// bill) or the quantity is already correct. When a payment gateway is configured
+// and the subscription has an external id, the new quantity is pushed to the
+// gateway (which prorates the charge) before the local quantity is updated; if
+// the gateway rejects it, the local quantity is left unchanged so the two stay
+// consistent.
+func (s *billingService) SyncSeats(ctx context.Context, userID uuid.UUID, seats int) error {
+	if seats < 1 {
+		seats = 1
+	}
+	sub, err := s.repo.GetSubscriptionByUserID(ctx, userID)
+	if errors.Is(err, domain.ErrSubscriptionNotFound) {
+		return nil // not a paying customer — nothing to sync
+	}
+	if err != nil {
+		return err
+	}
+	if sub.Status != "active" && sub.Status != "trialing" {
+		return nil // only live subscriptions are billed
+	}
+	if sub.Quantity == seats {
+		return nil // already in sync
+	}
+
+	if s.payment.Updater != nil && sub.ExternalSubscriptionID != "" {
+		tier, err := s.repo.GetTierByID(ctx, sub.TierID)
+		if err != nil {
+			return err
+		}
+		if priceID := s.payment.PriceMap[tier.Slug]; priceID != "" {
+			if err := s.payment.Updater.UpdateSubscriptionQuantity(ctx, sub.ExternalSubscriptionID, priceID, seats); err != nil {
+				return err // gateway rejected — keep local unchanged
+			}
+		}
+	}
+
+	sub.Quantity = seats
+	return s.UpdateSubscription(ctx, sub)
 }
 
 // mapPaddleStatus maps a Paddle subscription status to the user_subscriptions

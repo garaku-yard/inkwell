@@ -32,6 +32,7 @@ const (
 	WorkspaceService_RemoveMember_FullMethodName             = "/workspace.WorkspaceService/RemoveMember"
 	WorkspaceService_UpdateMemberRole_FullMethodName         = "/workspace.WorkspaceService/UpdateMemberRole"
 	WorkspaceService_ListMembers_FullMethodName              = "/workspace.WorkspaceService/ListMembers"
+	WorkspaceService_CountOwnerSeats_FullMethodName          = "/workspace.WorkspaceService/CountOwnerSeats"
 	WorkspaceService_InviteMember_FullMethodName             = "/workspace.WorkspaceService/InviteMember"
 	WorkspaceService_AcceptInvite_FullMethodName             = "/workspace.WorkspaceService/AcceptInvite"
 	WorkspaceService_DeclineInvite_FullMethodName            = "/workspace.WorkspaceService/DeclineInvite"
@@ -58,6 +59,7 @@ type WorkspaceServiceClient interface {
 	RemoveMember(ctx context.Context, in *RemoveMemberRequest, opts ...grpc.CallOption) (*RemoveMemberResponse, error)
 	UpdateMemberRole(ctx context.Context, in *UpdateMemberRoleRequest, opts ...grpc.CallOption) (*UpdateMemberRoleResponse, error)
 	ListMembers(ctx context.Context, in *ListMembersRequest, opts ...grpc.CallOption) (*ListMembersResponse, error)
+	CountOwnerSeats(ctx context.Context, in *CountOwnerSeatsRequest, opts ...grpc.CallOption) (*CountOwnerSeatsResponse, error)
 	// Invites
 	InviteMember(ctx context.Context, in *InviteMemberRequest, opts ...grpc.CallOption) (*InviteMemberResponse, error)
 	AcceptInvite(ctx context.Context, in *AcceptInviteRequest, opts ...grpc.CallOption) (*AcceptInviteResponse, error)
@@ -202,6 +204,16 @@ func (c *workspaceServiceClient) ListMembers(ctx context.Context, in *ListMember
 	return out, nil
 }
 
+func (c *workspaceServiceClient) CountOwnerSeats(ctx context.Context, in *CountOwnerSeatsRequest, opts ...grpc.CallOption) (*CountOwnerSeatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CountOwnerSeatsResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_CountOwnerSeats_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *workspaceServiceClient) InviteMember(ctx context.Context, in *InviteMemberRequest, opts ...grpc.CallOption) (*InviteMemberResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(InviteMemberResponse)
@@ -253,6 +265,7 @@ type WorkspaceServiceServer interface {
 	RemoveMember(context.Context, *RemoveMemberRequest) (*RemoveMemberResponse, error)
 	UpdateMemberRole(context.Context, *UpdateMemberRoleRequest) (*UpdateMemberRoleResponse, error)
 	ListMembers(context.Context, *ListMembersRequest) (*ListMembersResponse, error)
+	CountOwnerSeats(context.Context, *CountOwnerSeatsRequest) (*CountOwnerSeatsResponse, error)
 	// Invites
 	InviteMember(context.Context, *InviteMemberRequest) (*InviteMemberResponse, error)
 	AcceptInvite(context.Context, *AcceptInviteRequest) (*AcceptInviteResponse, error)
@@ -305,6 +318,9 @@ func (UnimplementedWorkspaceServiceServer) UpdateMemberRole(context.Context, *Up
 }
 func (UnimplementedWorkspaceServiceServer) ListMembers(context.Context, *ListMembersRequest) (*ListMembersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListMembers not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) CountOwnerSeats(context.Context, *CountOwnerSeatsRequest) (*CountOwnerSeatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CountOwnerSeats not implemented")
 }
 func (UnimplementedWorkspaceServiceServer) InviteMember(context.Context, *InviteMemberRequest) (*InviteMemberResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method InviteMember not implemented")
@@ -570,6 +586,24 @@ func _WorkspaceService_ListMembers_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkspaceService_CountOwnerSeats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CountOwnerSeatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).CountOwnerSeats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_CountOwnerSeats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).CountOwnerSeats(ctx, req.(*CountOwnerSeatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _WorkspaceService_InviteMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(InviteMemberRequest)
 	if err := dec(in); err != nil {
@@ -682,6 +716,10 @@ var WorkspaceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListMembers",
 			Handler:    _WorkspaceService_ListMembers_Handler,
+		},
+		{
+			MethodName: "CountOwnerSeats",
+			Handler:    _WorkspaceService_CountOwnerSeats_Handler,
 		},
 		{
 			MethodName: "InviteMember",

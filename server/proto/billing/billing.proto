@@ -260,6 +260,12 @@ message CreateCheckoutResponse {
   string checkout_url = 1;
 }
 
+message SyncSeatsRequest {
+  string user_id = 1;
+  int32 seats = 2;
+}
+message SyncSeatsResponse {}
+
 // Webhook handling — the gateway forwards the raw request body and signature
 // header so the billing service can verify the gateway's HMAC over exact bytes.
 message ProcessWebhookRequest {
@@ -349,6 +355,8 @@ service BillingService {
   rpc CreateSubscription(CreateSubscriptionRequest) returns (CreateSubscriptionResponse);
   // CreateCheckout returns a hosted payment-gateway checkout link for a tier.
   rpc CreateCheckout(CreateCheckoutRequest) returns (CreateCheckoutResponse);
+  // SyncSeats reconciles a per-seat subscription's quantity with actual usage.
+  rpc SyncSeats(SyncSeatsRequest) returns (SyncSeatsResponse);
   rpc GetUserSubscription(GetUserSubscriptionRequest) returns (GetUserSubscriptionResponse);
   rpc UpdateSubscription(UpdateSubscriptionRequest) returns (UpdateSubscriptionResponse);
   rpc CancelSubscription(CancelSubscriptionRequest) returns (CancelSubscriptionResponse);

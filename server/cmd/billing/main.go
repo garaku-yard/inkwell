@@ -81,7 +81,9 @@ func main() {
 		PriceMap:      cfg.PaddleConfig.PriceMap,
 	}
 	if cfg.PaddleConfig.Configured() {
-		payment.Checkout = paddle.New(cfg.PaddleConfig.APIKey, cfg.PaddleConfig.Environment)
+		paddleClient := paddle.New(cfg.PaddleConfig.APIKey, cfg.PaddleConfig.Environment)
+		payment.Checkout = paddleClient
+		payment.Updater = paddleClient
 		slog.Info("paddle payment gateway enabled", "environment", cfg.PaddleConfig.Environment)
 	} else {
 		slog.Warn("paddle not configured (PADDLE_API_KEY unset) — checkout disabled")

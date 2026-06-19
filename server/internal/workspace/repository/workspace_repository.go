@@ -38,6 +38,10 @@ type WorkspaceRepository interface {
 	UpdateMemberRole(ctx context.Context, workspaceID, userID uuid.UUID, role domain.MemberRole) error
 	RemoveMember(ctx context.Context, workspaceID, userID uuid.UUID) error
 	ListMembers(ctx context.Context, workspaceID uuid.UUID) ([]domain.WorkspaceMember, error)
+	// CountOwnerOrgSeats returns the number of distinct members across all org
+	// workspaces owned by ownerID. Used to keep the owner's per-seat subscription
+	// quantity in sync with actual membership.
+	CountOwnerOrgSeats(ctx context.Context, ownerID uuid.UUID) (int, error)
 
 	// Invites
 	CreateInvite(ctx context.Context, inv *domain.WorkspaceInvite) error
@@ -269,6 +273,21 @@ func (r *postgresWorkspaceRepository) ListMembers(ctx context.Context, workspace
 		members = append(members, m)
 	}
 	return members, rows.Err()
+}
+
+func (r *postgresWorkspaceRepository) CountOwnerOrgSeats(ctx context.Context, ownerID uuid.UUID) (int, error) {
+	var seats int
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(DISTINCT wm.user_id)
+		FROM workspace_members wm
+		JOIN workspaces w ON w.id = wm.workspace_id
+		WHERE w.owner_id = $1 AND w.type = 'org'`,
+		ownerID,
+	).Scan(&seats)
+	if err != nil {
+		return 0, fmt.Errorf("count owner org seats: %w", err)
+	}
+	return seats, nil
 }
 
 // ─── Invites ─────────────────────────────────────────────────────────────────

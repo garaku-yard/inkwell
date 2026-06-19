@@ -133,6 +133,43 @@ func TestCreateCheckout(t *testing.T) {
 	}
 }
 
+func TestUpdateSubscriptionQuantity(t *testing.T) {
+	var gotMethod, gotPath, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		_, _ = w.Write([]byte(`{"data":{"id":"sub_1"}}`))
+	}))
+	defer srv.Close()
+
+	c := New("k", "sandbox").WithBaseURL(srv.URL)
+	if err := c.UpdateSubscriptionQuantity(context.Background(), "sub_1", "pri_biz", 7); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if gotMethod != http.MethodPatch {
+		t.Errorf("method = %s, want PATCH", gotMethod)
+	}
+	if gotPath != "/subscriptions/sub_1" {
+		t.Errorf("path = %s", gotPath)
+	}
+	if !contains(gotBody, `"quantity":7`) || !contains(gotBody, "pri_biz") || !contains(gotBody, "proration_billing_mode") {
+		t.Errorf("body missing quantity/price/proration: %s", gotBody)
+	}
+}
+
+func TestUpdateSubscriptionQuantityError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"detail":"bad"}}`))
+	}))
+	defer srv.Close()
+	c := New("k", "sandbox").WithBaseURL(srv.URL)
+	if err := c.UpdateSubscriptionQuantity(context.Background(), "sub_1", "pri_x", 2); err == nil {
+		t.Fatal("expected error on non-2xx")
+	}
+}
+
 func TestCreateCheckoutNoURL(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"data":{"id":"txn_1","checkout":{"url":""}}}`))

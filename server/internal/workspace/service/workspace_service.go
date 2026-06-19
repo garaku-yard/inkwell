@@ -33,6 +33,9 @@ type WorkspaceService interface {
 	RemoveMember(ctx context.Context, workspaceID, userID uuid.UUID) error
 	UpdateMemberRole(ctx context.Context, workspaceID, userID uuid.UUID, role domain.MemberRole) (*domain.WorkspaceMember, error)
 	ListMembers(ctx context.Context, workspaceID uuid.UUID) ([]domain.WorkspaceMember, error)
+	// CountOwnerSeats returns the distinct member count across all org workspaces
+	// owned by ownerID — the billable seat count for their per-seat subscription.
+	CountOwnerSeats(ctx context.Context, ownerID uuid.UUID) (int, error)
 
 	// Invites
 	InviteMember(ctx context.Context, workspaceID uuid.UUID, email string, role domain.InviteRole, invitedBy uuid.UUID) (string, error)
@@ -293,6 +296,10 @@ func (s *workspaceService) UpdateMemberRole(ctx context.Context, workspaceID, us
 
 func (s *workspaceService) ListMembers(ctx context.Context, workspaceID uuid.UUID) ([]domain.WorkspaceMember, error) {
 	return s.repo.ListMembers(ctx, workspaceID)
+}
+
+func (s *workspaceService) CountOwnerSeats(ctx context.Context, ownerID uuid.UUID) (int, error) {
+	return s.repo.CountOwnerOrgSeats(ctx, ownerID)
 }
 
 // ─── Invites ─────────────────────────────────────────────────────────────────

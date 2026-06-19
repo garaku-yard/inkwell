@@ -161,6 +161,12 @@ message UpdateMemberRoleResponse {
 message ListMembersRequest {
   string workspace_id = 1;
 }
+message CountOwnerSeatsRequest {
+  string owner_id = 1;
+}
+message CountOwnerSeatsResponse {
+  int32 seats = 1;
+}
 
 message ListMembersResponse {
   repeated WorkspaceMember members = 1;
@@ -219,6 +225,7 @@ service WorkspaceService {
   rpc RemoveMember(RemoveMemberRequest) returns (RemoveMemberResponse);
   rpc UpdateMemberRole(UpdateMemberRoleRequest) returns (UpdateMemberRoleResponse);
   rpc ListMembers(ListMembersRequest) returns (ListMembersResponse);
+  rpc CountOwnerSeats(CountOwnerSeatsRequest) returns (CountOwnerSeatsResponse);
 
   // Invites
   rpc InviteMember(InviteMemberRequest) returns (InviteMemberResponse);

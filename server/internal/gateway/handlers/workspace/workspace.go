@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -73,6 +74,30 @@ func (h *WorkspaceHandler) checkBusinessWorkspaceEntitlement(ctx context.Context
 		)
 	}
 	return nil
+}
+
+// syncOrgSeats keeps the org owner's per-seat subscription quantity in step with
+// actual membership after a member joins or leaves. Best-effort: it runs for org
+// workspaces only and never surfaces an error to the caller — a failed sync is
+// logged and corrected by the next membership change or webhook.
+func (h *WorkspaceHandler) syncOrgSeats(ctx context.Context, ws *workspacepb.Workspace) {
+	if ws == nil || ws.GetType() != "org" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	seatResp, err := h.client.CountOwnerSeats(ctx, &workspacepb.CountOwnerSeatsRequest{OwnerId: ws.GetOwnerId()})
+	if err != nil {
+		log.Printf("syncOrgSeats: count seats for owner %s: %v", ws.GetOwnerId(), err)
+		return
+	}
+	if _, err := h.billingClient.SyncSeats(ctx, &billingpb.SyncSeatsRequest{
+		UserId: ws.GetOwnerId(),
+		Seats:  seatResp.GetSeats(),
+	}); err != nil {
+		log.Printf("syncOrgSeats: billing sync for owner %s: %v", ws.GetOwnerId(), err)
+	}
 }
 
 // ListCategories returns all available workspace content categories (e.g. "screenplay",
@@ -175,6 +200,8 @@ func (h *WorkspaceHandler) CreateOrgWorkspace(w http.ResponseWriter, r *http.Req
 			if err != nil {
 				return nil, err
 			}
+			// The owner is the workspace's first seat → reconcile per-seat billing.
+			h.syncOrgSeats(r.Context(), resp.Workspace)
 			return resp.Workspace, nil
 		},
 	}.ServeHTTP(w, r)
@@ -383,6 +410,8 @@ func (h *WorkspaceHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) 
 			if err != nil {
 				return nil, err
 			}
+			// A new member joined → reconcile the owner's per-seat billing.
+			h.syncOrgSeats(r.Context(), resp.Workspace)
 			return resp.Workspace, nil
 		},
 	}.ServeHTTP(w, r)
@@ -443,6 +472,10 @@ func (h *WorkspaceHandler) RemoveMember(w http.ResponseWriter, r *http.Request) 
 				UserId:      targetUserID,
 			}); err != nil {
 				return nil, err
+			}
+			// A member left → reconcile the owner's per-seat billing.
+			if wsResp, err := h.client.GetWorkspace(r.Context(), &workspacepb.GetWorkspaceRequest{WorkspaceId: workspaceID}); err == nil {
+				h.syncOrgSeats(r.Context(), wsResp.Workspace)
 			}
 			return nil, nil
 		},

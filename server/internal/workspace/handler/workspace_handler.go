@@ -205,6 +205,20 @@ func (h *WorkspaceHandler) ListMembers(ctx context.Context, req *workspacepb.Lis
 	return &workspacepb.ListMembersResponse{Members: pbMembers}, nil
 }
 
+// CountOwnerSeats returns how many distinct members the owner has across their
+// org workspaces — the billable seat count for per-seat subscriptions.
+func (h *WorkspaceHandler) CountOwnerSeats(ctx context.Context, req *workspacepb.CountOwnerSeatsRequest) (*workspacepb.CountOwnerSeatsResponse, error) {
+	ownerID, err := uuid.Parse(req.OwnerId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid owner_id")
+	}
+	seats, err := h.svc.CountOwnerSeats(ctx, ownerID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &workspacepb.CountOwnerSeatsResponse{Seats: int32(seats)}, nil
+}
+
 // InviteMember generates a time-limited invitation token for the given email
 // address. The token is returned to the caller and should be delivered to the
 // invitee out-of-band (e.g. by email).

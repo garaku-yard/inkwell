@@ -184,6 +184,19 @@ func (h *BillingHandler) CreateCheckout(ctx context.Context, req *billingpb.Crea
 	return &billingpb.CreateCheckoutResponse{CheckoutUrl: url}, nil
 }
 
+// SyncSeats reconciles a per-seat subscriber's seat quantity with their actual
+// usage, pushing the change to the payment gateway when configured.
+func (h *BillingHandler) SyncSeats(ctx context.Context, req *billingpb.SyncSeatsRequest) (*billingpb.SyncSeatsResponse, error) {
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
+	}
+	if err := h.svc.SyncSeats(ctx, userID, int(req.Seats)); err != nil {
+		return nil, handleError(err)
+	}
+	return &billingpb.SyncSeatsResponse{}, nil
+}
+
 // ProcessWebhook verifies and applies a payment-gateway webhook forwarded by the
 // gateway. The raw payload and signature header are passed through untouched so
 // the HMAC can be checked over the exact bytes the provider signed.

@@ -13,15 +13,37 @@ import (
 )
 
 // fakeRepo embeds the repository interface so unused methods panic if reached;
-// the checkout path only needs GetTierByID.
+// the checkout/sync paths need GetTierByID and GetSubscriptionByUserID.
 type fakeRepo struct {
 	repository.BillingRepository
 	tier    *domain.SubscriptionTier
 	tierErr error
+	sub     *domain.UserSubscription
+	subErr  error
 }
 
 func (f *fakeRepo) GetTierByID(_ context.Context, _ uuid.UUID) (*domain.SubscriptionTier, error) {
 	return f.tier, f.tierErr
+}
+
+func (f *fakeRepo) GetSubscriptionByUserID(_ context.Context, _ uuid.UUID) (*domain.UserSubscription, error) {
+	if f.subErr != nil {
+		return nil, f.subErr
+	}
+	return f.sub, nil
+}
+
+// fakeUpdater records the gateway seat-update call.
+type fakeUpdater struct {
+	gotSub   string
+	gotPrice string
+	gotQty   int
+	err      error
+}
+
+func (f *fakeUpdater) UpdateSubscriptionQuantity(_ context.Context, subID, priceID string, qty int) error {
+	f.gotSub, f.gotPrice, f.gotQty = subID, priceID, qty
+	return f.err
 }
 
 // fakeCheckout records what CreateCheckout was called with.
@@ -112,6 +134,55 @@ func TestProcessWebhookGuards(t *testing.T) {
 		err := s.ProcessWebhook(context.Background(), "garbage", []byte("{}"))
 		if !errors.Is(err, paddle.ErrInvalidSignature) {
 			t.Fatalf("err = %v, want ErrInvalidSignature", err)
+		}
+	})
+}
+
+func TestSyncSeats(t *testing.T) {
+	userID := uuid.New()
+
+	t.Run("no subscription is a no-op", func(t *testing.T) {
+		s := newSvc(&fakeRepo{subErr: domain.ErrSubscriptionNotFound}, PaymentConfig{Updater: &fakeUpdater{}})
+		if err := s.SyncSeats(context.Background(), userID, 5); err != nil {
+			t.Fatalf("err = %v, want nil", err)
+		}
+	})
+
+	t.Run("inactive subscription is a no-op", func(t *testing.T) {
+		up := &fakeUpdater{}
+		s := newSvc(&fakeRepo{sub: &domain.UserSubscription{Status: "canceled", Quantity: 2}}, PaymentConfig{Updater: up})
+		if err := s.SyncSeats(context.Background(), userID, 5); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		if up.gotSub != "" {
+			t.Error("gateway should not be called for an inactive subscription")
+		}
+	})
+
+	t.Run("unchanged quantity is a no-op", func(t *testing.T) {
+		up := &fakeUpdater{}
+		s := newSvc(&fakeRepo{sub: &domain.UserSubscription{Status: "active", Quantity: 5}}, PaymentConfig{Updater: up})
+		if err := s.SyncSeats(context.Background(), userID, 5); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		if up.gotSub != "" {
+			t.Error("gateway should not be called when the seat count is unchanged")
+		}
+	})
+
+	t.Run("change pushes new quantity to the gateway", func(t *testing.T) {
+		up := &fakeUpdater{err: errors.New("gateway down")} // error stops before the DB write
+		s := newSvc(&fakeRepo{
+			sub:  &domain.UserSubscription{Status: "active", Quantity: 2, ExternalSubscriptionID: "sub_x", TierID: uuid.New()},
+			tier: &domain.SubscriptionTier{Slug: "business"},
+		}, PaymentConfig{Updater: up, PriceMap: map[string]string{"business": "pri_biz"}})
+
+		err := s.SyncSeats(context.Background(), userID, 7)
+		if err == nil {
+			t.Fatal("expected the gateway error to surface")
+		}
+		if up.gotSub != "sub_x" || up.gotPrice != "pri_biz" || up.gotQty != 7 {
+			t.Errorf("gateway called with (%q,%q,%d), want (sub_x,pri_biz,7)", up.gotSub, up.gotPrice, up.gotQty)
 		}
 	})
 }

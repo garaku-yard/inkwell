@@ -30,6 +30,7 @@ const (
 	BillingService_ListGateways_FullMethodName          = "/billing.BillingService/ListGateways"
 	BillingService_CreateSubscription_FullMethodName    = "/billing.BillingService/CreateSubscription"
 	BillingService_CreateCheckout_FullMethodName        = "/billing.BillingService/CreateCheckout"
+	BillingService_SyncSeats_FullMethodName             = "/billing.BillingService/SyncSeats"
 	BillingService_GetUserSubscription_FullMethodName   = "/billing.BillingService/GetUserSubscription"
 	BillingService_UpdateSubscription_FullMethodName    = "/billing.BillingService/UpdateSubscription"
 	BillingService_CancelSubscription_FullMethodName    = "/billing.BillingService/CancelSubscription"
@@ -69,6 +70,8 @@ type BillingServiceClient interface {
 	CreateSubscription(ctx context.Context, in *CreateSubscriptionRequest, opts ...grpc.CallOption) (*CreateSubscriptionResponse, error)
 	// CreateCheckout returns a hosted payment-gateway checkout link for a tier.
 	CreateCheckout(ctx context.Context, in *CreateCheckoutRequest, opts ...grpc.CallOption) (*CreateCheckoutResponse, error)
+	// SyncSeats reconciles a per-seat subscription's quantity with actual usage.
+	SyncSeats(ctx context.Context, in *SyncSeatsRequest, opts ...grpc.CallOption) (*SyncSeatsResponse, error)
 	GetUserSubscription(ctx context.Context, in *GetUserSubscriptionRequest, opts ...grpc.CallOption) (*GetUserSubscriptionResponse, error)
 	UpdateSubscription(ctx context.Context, in *UpdateSubscriptionRequest, opts ...grpc.CallOption) (*UpdateSubscriptionResponse, error)
 	CancelSubscription(ctx context.Context, in *CancelSubscriptionRequest, opts ...grpc.CallOption) (*CancelSubscriptionResponse, error)
@@ -203,6 +206,16 @@ func (c *billingServiceClient) CreateCheckout(ctx context.Context, in *CreateChe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateCheckoutResponse)
 	err := c.cc.Invoke(ctx, BillingService_CreateCheckout_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *billingServiceClient) SyncSeats(ctx context.Context, in *SyncSeatsRequest, opts ...grpc.CallOption) (*SyncSeatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SyncSeatsResponse)
+	err := c.cc.Invoke(ctx, BillingService_SyncSeats_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -363,6 +376,8 @@ type BillingServiceServer interface {
 	CreateSubscription(context.Context, *CreateSubscriptionRequest) (*CreateSubscriptionResponse, error)
 	// CreateCheckout returns a hosted payment-gateway checkout link for a tier.
 	CreateCheckout(context.Context, *CreateCheckoutRequest) (*CreateCheckoutResponse, error)
+	// SyncSeats reconciles a per-seat subscription's quantity with actual usage.
+	SyncSeats(context.Context, *SyncSeatsRequest) (*SyncSeatsResponse, error)
 	GetUserSubscription(context.Context, *GetUserSubscriptionRequest) (*GetUserSubscriptionResponse, error)
 	UpdateSubscription(context.Context, *UpdateSubscriptionRequest) (*UpdateSubscriptionResponse, error)
 	CancelSubscription(context.Context, *CancelSubscriptionRequest) (*CancelSubscriptionResponse, error)
@@ -425,6 +440,9 @@ func (UnimplementedBillingServiceServer) CreateSubscription(context.Context, *Cr
 }
 func (UnimplementedBillingServiceServer) CreateCheckout(context.Context, *CreateCheckoutRequest) (*CreateCheckoutResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateCheckout not implemented")
+}
+func (UnimplementedBillingServiceServer) SyncSeats(context.Context, *SyncSeatsRequest) (*SyncSeatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SyncSeats not implemented")
 }
 func (UnimplementedBillingServiceServer) GetUserSubscription(context.Context, *GetUserSubscriptionRequest) (*GetUserSubscriptionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserSubscription not implemented")
@@ -680,6 +698,24 @@ func _BillingService_CreateCheckout_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(BillingServiceServer).CreateCheckout(ctx, req.(*CreateCheckoutRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BillingService_SyncSeats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncSeatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).SyncSeats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_SyncSeats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).SyncSeats(ctx, req.(*SyncSeatsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -968,6 +1004,10 @@ var BillingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateCheckout",
 			Handler:    _BillingService_CreateCheckout_Handler,
+		},
+		{
+			MethodName: "SyncSeats",
+			Handler:    _BillingService_SyncSeats_Handler,
 		},
 		{
 			MethodName: "GetUserSubscription",
