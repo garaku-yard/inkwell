@@ -193,6 +193,45 @@ func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Reques
 	}.ServeHTTP(w, r)
 }
 
+// updateProjectBody is the PUT /projects/{projectId} request. Fields are
+// pointers so an omitted field forwards as a nil optional (leave-unchanged)
+// rather than clobbering with the zero value. A client-supplied user_id is
+// ignored — the authenticated caller is the authorization subject.
+type updateProjectBody struct {
+	Title       *string `json:"title"`
+	Description *string `json:"description"`
+	Status      *string `json:"status"`
+}
+
+// UpdateProject handles PUT /projects/{projectId}: rename/description edits and
+// archive/restore (status). Authorization is enforced by the scripts service
+// against the authenticated caller, matching DeleteProject.
+func (h *ScriptsHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[updateProjectBody, projectResponse]{
+		Method: http.MethodPut,
+		Auth:   true,
+		Decode: handlers.JSONBody[updateProjectBody],
+		Handle: func(r *http.Request, userID string, body *updateProjectBody) (*projectResponse, error) {
+			projectID := chi.URLParam(r, "projectId")
+			if projectID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project ID is required")
+			}
+
+			resp, err := h.scriptsClient.UpdateProject(r.Context(), &scriptspb.UpdateProjectRequest{
+				ProjectId:   projectID,
+				UserId:      userID,
+				Title:       body.Title,
+				Description: body.Description,
+				Status:      body.Status,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &projectResponse{Project: convertProjectFromProto(resp.Project)}, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
 // GetUserProjects returns a paginated list of projects owned by the authenticated
 // user. Accepts optional ?page and ?limit query parameters (defaults: page=1,
 // limit=20). For each project it issues a parallel gRPC call to the collab service

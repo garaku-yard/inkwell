@@ -144,6 +144,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 
 				r.Route("/{projectId}", func(r chi.Router) {
 					r.Get("/", scriptsHandler.GetProject)
+					r.Put("/", scriptsHandler.UpdateProject)
 					r.Delete("/", scriptsHandler.DeleteProject)
 					r.Patch("/star", scriptsHandler.ToggleProjectStar)
 					r.Get("/export", scriptsHandler.ExportProject)
@@ -185,6 +186,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 
 			// Beats
 			r.Route("/beats", func(r chi.Router) {
+				r.Post("/upload-image", scriptsHandler.UploadBeatImage)
 				r.Get("/{beatId}", scriptsHandler.GetBeat)
 				r.Patch("/{beatId}", scriptsHandler.UpdateBeat)
 				r.Delete("/{beatId}", scriptsHandler.DeleteBeat)

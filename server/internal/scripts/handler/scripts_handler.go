@@ -104,8 +104,32 @@ func (h *ScriptsHandler) GetProject(ctx context.Context, req *scriptspb.GetProje
 }
 
 // UpdateProject is not yet implemented and always returns codes.Unimplemented.
+// UpdateProject applies title/description/status edits (rename, archive/restore)
+// to a project. Both ids are required; the service enforces that only the owner
+// may update. Optional fields left nil are unchanged.
 func (h *ScriptsHandler) UpdateProject(ctx context.Context, req *scriptspb.UpdateProjectRequest) (*scriptspb.UpdateProjectResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateProject not implemented")
+	if req.ProjectId == "" || req.UserId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "project_id and user_id are required")
+	}
+
+	projectID, err := uuid.Parse(req.ProjectId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
+	}
+
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+
+	project, err := h.service.UpdateProject(ctx, projectID, userID, req.Title, req.Description, req.Status)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	return &scriptspb.UpdateProjectResponse{
+		Project: convertProjectToProto(project),
+	}, nil
 }
 
 // ToggleProjectStar flips the starred state on a project for the given user.
