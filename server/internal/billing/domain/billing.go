@@ -33,15 +33,20 @@ type SubscriptionTier struct {
 	Description  string    `db:"description"`
 	MonthlyPrice float64   `db:"monthly_price"`
 	YearlyPrice  float64   `db:"yearly_price"`
-	// Features is a free-form JSON map of feature flags.
-	Features map[string]interface{} `db:"features"`
-	// Limits is a free-form JSON map of usage limits (e.g. max_projects, ai_tokens).
-	Limits       map[string]interface{} `db:"limits"`
-	DisplayOrder int                    `db:"display_order"`
-	IsActive     bool                   `db:"is_active"`
-	IsPublic     bool                   `db:"is_public"`
-	CreatedAt    time.Time              `db:"created_at"`
-	UpdatedAt    time.Time              `db:"updated_at"`
+	// Features is the marketing bullet list shown on the pricing page (display
+	// only — never enforced; the enforced caps live in Limits).
+	Features []string `db:"features"`
+	// Limits is the enforced usage-limit map: max_projects,
+	// max_collaborators_per_project, business_workspaces (-1 = unlimited).
+	Limits       map[string]int64 `db:"limits"`
+	DisplayOrder int              `db:"display_order"`
+	IsActive     bool             `db:"is_active"`
+	IsPublic     bool             `db:"is_public"`
+	// IsDefault marks the tier applied to users with no subscription.
+	IsDefault bool      `db:"is_default"`
+	PerSeat   bool      `db:"per_seat"`
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
 }
 
 // PaymentGateway represents a configured payment provider (Stripe, Paddle, …).

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +24,15 @@ type BillingService interface {
 	ListTiers(ctx context.Context) ([]*domain.SubscriptionTier, error)
 	// GetTierByID returns a single tier by its UUID.
 	GetTierByID(ctx context.Context, id uuid.UUID) (*domain.SubscriptionTier, error)
+	// ListAllTiers returns every tier (incl. inactive/non-public) for the admin editor.
+	ListAllTiers(ctx context.Context) ([]*domain.SubscriptionTier, error)
+	// GetDefaultTier returns the tier applied to users with no subscription.
+	GetDefaultTier(ctx context.Context) (*domain.SubscriptionTier, error)
+	// CreateTier / UpdateTier / DeleteTier / ReorderTiers back the admin tier editor.
+	CreateTier(ctx context.Context, t *domain.SubscriptionTier) (*domain.SubscriptionTier, error)
+	UpdateTier(ctx context.Context, t *domain.SubscriptionTier) (*domain.SubscriptionTier, error)
+	DeleteTier(ctx context.Context, id uuid.UUID) error
+	ReorderTiers(ctx context.Context, ids []uuid.UUID) error
 
 	// ListGateways returns all configured payment gateways.
 	ListGateways(ctx context.Context) ([]*domain.PaymentGateway, error)
@@ -77,6 +87,57 @@ func (s *billingService) ListTiers(ctx context.Context) ([]*domain.SubscriptionT
 
 func (s *billingService) GetTierByID(ctx context.Context, id uuid.UUID) (*domain.SubscriptionTier, error) {
 	return s.repo.GetTierByID(ctx, id)
+}
+
+func (s *billingService) ListAllTiers(ctx context.Context) ([]*domain.SubscriptionTier, error) {
+	return s.repo.ListAllTiers(ctx)
+}
+
+func (s *billingService) GetDefaultTier(ctx context.Context) (*domain.SubscriptionTier, error) {
+	return s.repo.GetDefaultTier(ctx)
+}
+
+func (s *billingService) CreateTier(ctx context.Context, t *domain.SubscriptionTier) (*domain.SubscriptionTier, error) {
+	t.ID = uuid.New()
+	if t.Slug == "" {
+		t.Slug = slugify(t.Name)
+	}
+	if err := s.repo.CreateTier(ctx, t); err != nil {
+		return nil, err
+	}
+	return s.repo.GetTierByID(ctx, t.ID)
+}
+
+func (s *billingService) UpdateTier(ctx context.Context, t *domain.SubscriptionTier) (*domain.SubscriptionTier, error) {
+	if err := s.repo.UpdateTier(ctx, t); err != nil {
+		return nil, err
+	}
+	return s.repo.GetTierByID(ctx, t.ID)
+}
+
+func (s *billingService) DeleteTier(ctx context.Context, id uuid.UUID) error {
+	return s.repo.DeleteTier(ctx, id)
+}
+
+func (s *billingService) ReorderTiers(ctx context.Context, ids []uuid.UUID) error {
+	return s.repo.ReorderTiers(ctx, ids)
+}
+
+// slugify turns a tier name into a URL-safe slug (lowercase, dashes).
+func slugify(name string) string {
+	var b strings.Builder
+	prevDash := false
+	for _, r := range strings.ToLower(strings.TrimSpace(name)) {
+		switch {
+		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+			b.WriteRune(r)
+			prevDash = false
+		case !prevDash:
+			b.WriteRune('-')
+			prevDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }
 
 func (s *billingService) ListGateways(ctx context.Context) ([]*domain.PaymentGateway, error) {

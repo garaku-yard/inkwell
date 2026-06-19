@@ -53,6 +53,75 @@ func (h *BillingHandler) GetPlan(ctx context.Context, req *billingpb.GetPlanRequ
 	return &billingpb.GetPlanResponse{Plan: tierToPlan(tier)}, nil
 }
 
+// ListAllTiers returns every tier (incl. inactive/non-public) for the admin editor.
+func (h *BillingHandler) ListAllTiers(ctx context.Context, _ *billingpb.ListAllTiersRequest) (*billingpb.ListAllTiersResponse, error) {
+	tiers, err := h.svc.ListAllTiers(ctx)
+	if err != nil {
+		return nil, handleError(err)
+	}
+	out := make([]*billingpb.SubscriptionTier, 0, len(tiers))
+	for _, t := range tiers {
+		out = append(out, tierToProto(t))
+	}
+	return &billingpb.ListAllTiersResponse{Tiers: out}, nil
+}
+
+// CreateTier creates a new subscription tier.
+func (h *BillingHandler) CreateTier(ctx context.Context, req *billingpb.CreateTierRequest) (*billingpb.CreateTierResponse, error) {
+	if req.Tier == nil || req.Tier.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "tier name is required")
+	}
+	t, err := h.svc.CreateTier(ctx, protoToTier(req.Tier))
+	if err != nil {
+		return nil, handleError(err)
+	}
+	return &billingpb.CreateTierResponse{Tier: tierToProto(t)}, nil
+}
+
+// UpdateTier updates an existing tier.
+func (h *BillingHandler) UpdateTier(ctx context.Context, req *billingpb.UpdateTierRequest) (*billingpb.UpdateTierResponse, error) {
+	if req.Tier == nil {
+		return nil, status.Error(codes.InvalidArgument, "tier is required")
+	}
+	dt := protoToTier(req.Tier)
+	if dt.ID == uuid.Nil {
+		return nil, status.Error(codes.InvalidArgument, "valid tier id is required")
+	}
+	t, err := h.svc.UpdateTier(ctx, dt)
+	if err != nil {
+		return nil, handleError(err)
+	}
+	return &billingpb.UpdateTierResponse{Tier: tierToProto(t)}, nil
+}
+
+// DeleteTier soft-deletes a tier (the default tier can't be deleted).
+func (h *BillingHandler) DeleteTier(ctx context.Context, req *billingpb.DeleteTierRequest) (*billingpb.DeleteTierResponse, error) {
+	id, err := uuid.Parse(req.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid tier id")
+	}
+	if err := h.svc.DeleteTier(ctx, id); err != nil {
+		return nil, handleError(err)
+	}
+	return &billingpb.DeleteTierResponse{Success: true}, nil
+}
+
+// ReorderTiers sets display_order to each tier id's position in the list.
+func (h *BillingHandler) ReorderTiers(ctx context.Context, req *billingpb.ReorderTiersRequest) (*billingpb.ReorderTiersResponse, error) {
+	ids := make([]uuid.UUID, 0, len(req.TierIds))
+	for _, s := range req.TierIds {
+		id, err := uuid.Parse(s)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid tier id: "+s)
+		}
+		ids = append(ids, id)
+	}
+	if err := h.svc.ReorderTiers(ctx, ids); err != nil {
+		return nil, handleError(err)
+	}
+	return &billingpb.ReorderTiersResponse{Success: true}, nil
+}
+
 // GetUserSubscription returns the active subscription for a user.
 func (h *BillingHandler) GetUserSubscription(ctx context.Context, req *billingpb.GetUserSubscriptionRequest) (*billingpb.GetUserSubscriptionResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
@@ -212,19 +281,63 @@ func tierToPlan(t *domain.SubscriptionTier) *billingpb.Plan {
 		PriceCents:  int64(t.MonthlyPrice * 100),
 		Currency:    "USD",
 	}
-	if v, ok := t.Limits["max_projects"].(float64); ok {
+	// Only positive limits map to the proto's typed caps; 0/-1 stay at the proto
+	// zero value, which the quota adapter reads as unlimited.
+	if v := t.Limits["max_projects"]; v > 0 {
 		p.MaxProjects = int32(v)
 	}
-	if v, ok := t.Limits["max_collaborators"].(float64); ok {
+	if v := t.Limits["max_collaborators_per_project"]; v > 0 {
 		p.MaxCollaboratorsPerProject = int32(v)
 	}
-	if v, ok := t.Features["ai_features"].(bool); ok {
-		p.AiFeaturesEnabled = v
-	}
-	if v, ok := t.Features["priority_support"].(bool); ok {
-		p.PrioritySupport = v
-	}
 	return p
+}
+
+// tierToProto converts a domain tier to the admin-facing SubscriptionTier proto
+// (round-trips every field, unlike the lossy Plan projection).
+func tierToProto(t *domain.SubscriptionTier) *billingpb.SubscriptionTier {
+	return &billingpb.SubscriptionTier{
+		Id:                t.ID.String(),
+		Name:              t.Name,
+		Slug:              t.Slug,
+		Description:       t.Description,
+		MonthlyPriceCents: int64(t.MonthlyPrice * 100),
+		YearlyPriceCents:  int64(t.YearlyPrice * 100),
+		DisplayOrder:      int32(t.DisplayOrder),
+		IsActive:          t.IsActive,
+		IsPublic:          t.IsPublic,
+		IsDefault:         t.IsDefault,
+		PerSeat:           t.PerSeat,
+		Limits:            t.Limits,
+		FeatureBullets:    t.Features,
+	}
+}
+
+// protoToTier converts an admin SubscriptionTier proto into a domain tier.
+// is_default is intentionally NOT writable here — the default tier is managed
+// separately to preserve the one-default invariant.
+func protoToTier(p *billingpb.SubscriptionTier) *domain.SubscriptionTier {
+	t := &domain.SubscriptionTier{
+		Name:         p.Name,
+		Slug:         p.Slug,
+		Description:  p.Description,
+		MonthlyPrice: float64(p.MonthlyPriceCents) / 100,
+		YearlyPrice:  float64(p.YearlyPriceCents) / 100,
+		DisplayOrder: int(p.DisplayOrder),
+		IsActive:     p.IsActive,
+		IsPublic:     p.IsPublic,
+		PerSeat:      p.PerSeat,
+		Limits:       p.Limits,
+		Features:     p.FeatureBullets,
+	}
+	if p.Id != "" {
+		if id, err := uuid.Parse(p.Id); err == nil {
+			t.ID = id
+		}
+	}
+	if t.Limits == nil {
+		t.Limits = map[string]int64{}
+	}
+	return t
 }
 
 // subscriptionToProto converts a domain UserSubscription to the billing proto

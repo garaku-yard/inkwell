@@ -20,6 +20,16 @@ type BillingRepository interface {
 	ListTiers(ctx context.Context) ([]*domain.SubscriptionTier, error)
 	// GetTierByID retrieves a single tier. Returns ErrTierNotFound when absent.
 	GetTierByID(ctx context.Context, id uuid.UUID) (*domain.SubscriptionTier, error)
+	// ListAllTiers returns every non-deleted tier (incl. inactive/non-public) for
+	// the admin editor.
+	ListAllTiers(ctx context.Context) ([]*domain.SubscriptionTier, error)
+	// GetDefaultTier returns the tier applied to users with no subscription.
+	GetDefaultTier(ctx context.Context) (*domain.SubscriptionTier, error)
+	// CreateTier / UpdateTier / DeleteTier (soft) / ReorderTiers back the admin editor.
+	CreateTier(ctx context.Context, t *domain.SubscriptionTier) error
+	UpdateTier(ctx context.Context, t *domain.SubscriptionTier) error
+	DeleteTier(ctx context.Context, id uuid.UUID) error
+	ReorderTiers(ctx context.Context, ids []uuid.UUID) error
 
 	// ── Gateways ───────────────────────────────────────────────────────────────
 

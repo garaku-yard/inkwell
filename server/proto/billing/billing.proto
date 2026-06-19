@@ -20,6 +20,41 @@ message Plan {
   bool priority_support = 10;
 }
 
+// SubscriptionTier is the full, admin-editable tier shape (round-trips every
+// DB field, unlike the lossy public `Plan` projection above). limits is the
+// enforced map (max_projects, max_collaborators_per_project, business_workspaces;
+// -1 = unlimited); feature_bullets is marketing copy for the pricing page.
+message SubscriptionTier {
+  string id = 1;
+  string name = 2;
+  string slug = 3;
+  string description = 4;
+  int64 monthly_price_cents = 5;
+  int64 yearly_price_cents = 6;
+  int32 display_order = 7;
+  bool is_active = 8;
+  bool is_public = 9;
+  bool is_default = 10; // applied to users with no subscription
+  bool per_seat = 11;   // billed per member (Business)
+  map<string, int64> limits = 12;
+  repeated string feature_bullets = 13;
+}
+
+message ListAllTiersRequest {}
+message ListAllTiersResponse { repeated SubscriptionTier tiers = 1; }
+
+message CreateTierRequest { SubscriptionTier tier = 1; }
+message CreateTierResponse { SubscriptionTier tier = 1; }
+
+message UpdateTierRequest { SubscriptionTier tier = 1; }
+message UpdateTierResponse { SubscriptionTier tier = 1; }
+
+message DeleteTierRequest { string id = 1; }
+message DeleteTierResponse { bool success = 1; }
+
+message ReorderTiersRequest { repeated string tier_ids = 1; } // new display order
+message ReorderTiersResponse { bool success = 1; }
+
 // User subscription
 message Subscription {
   string id = 1;
@@ -263,6 +298,13 @@ service BillingService {
   // Plan management
   rpc GetPlans(GetPlansRequest) returns (GetPlansResponse);
   rpc GetPlan(GetPlanRequest) returns (GetPlanResponse);
+
+  // Admin tier management (Settings → Admin → Billing tier editor).
+  rpc ListAllTiers(ListAllTiersRequest) returns (ListAllTiersResponse);
+  rpc CreateTier(CreateTierRequest) returns (CreateTierResponse);
+  rpc UpdateTier(UpdateTierRequest) returns (UpdateTierResponse);
+  rpc DeleteTier(DeleteTierRequest) returns (DeleteTierResponse);
+  rpc ReorderTiers(ReorderTiersRequest) returns (ReorderTiersResponse);
   
   // Subscription management
   rpc CreateSubscription(CreateSubscriptionRequest) returns (CreateSubscriptionResponse);

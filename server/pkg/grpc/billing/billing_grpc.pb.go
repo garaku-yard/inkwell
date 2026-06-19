@@ -21,6 +21,11 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	BillingService_GetPlans_FullMethodName              = "/billing.BillingService/GetPlans"
 	BillingService_GetPlan_FullMethodName               = "/billing.BillingService/GetPlan"
+	BillingService_ListAllTiers_FullMethodName          = "/billing.BillingService/ListAllTiers"
+	BillingService_CreateTier_FullMethodName            = "/billing.BillingService/CreateTier"
+	BillingService_UpdateTier_FullMethodName            = "/billing.BillingService/UpdateTier"
+	BillingService_DeleteTier_FullMethodName            = "/billing.BillingService/DeleteTier"
+	BillingService_ReorderTiers_FullMethodName          = "/billing.BillingService/ReorderTiers"
 	BillingService_CreateSubscription_FullMethodName    = "/billing.BillingService/CreateSubscription"
 	BillingService_GetUserSubscription_FullMethodName   = "/billing.BillingService/GetUserSubscription"
 	BillingService_UpdateSubscription_FullMethodName    = "/billing.BillingService/UpdateSubscription"
@@ -46,6 +51,12 @@ type BillingServiceClient interface {
 	// Plan management
 	GetPlans(ctx context.Context, in *GetPlansRequest, opts ...grpc.CallOption) (*GetPlansResponse, error)
 	GetPlan(ctx context.Context, in *GetPlanRequest, opts ...grpc.CallOption) (*GetPlanResponse, error)
+	// Admin tier management (Settings → Admin → Billing tier editor).
+	ListAllTiers(ctx context.Context, in *ListAllTiersRequest, opts ...grpc.CallOption) (*ListAllTiersResponse, error)
+	CreateTier(ctx context.Context, in *CreateTierRequest, opts ...grpc.CallOption) (*CreateTierResponse, error)
+	UpdateTier(ctx context.Context, in *UpdateTierRequest, opts ...grpc.CallOption) (*UpdateTierResponse, error)
+	DeleteTier(ctx context.Context, in *DeleteTierRequest, opts ...grpc.CallOption) (*DeleteTierResponse, error)
+	ReorderTiers(ctx context.Context, in *ReorderTiersRequest, opts ...grpc.CallOption) (*ReorderTiersResponse, error)
 	// Subscription management
 	CreateSubscription(ctx context.Context, in *CreateSubscriptionRequest, opts ...grpc.CallOption) (*CreateSubscriptionResponse, error)
 	GetUserSubscription(ctx context.Context, in *GetUserSubscriptionRequest, opts ...grpc.CallOption) (*GetUserSubscriptionResponse, error)
@@ -92,6 +103,56 @@ func (c *billingServiceClient) GetPlan(ctx context.Context, in *GetPlanRequest, 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetPlanResponse)
 	err := c.cc.Invoke(ctx, BillingService_GetPlan_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *billingServiceClient) ListAllTiers(ctx context.Context, in *ListAllTiersRequest, opts ...grpc.CallOption) (*ListAllTiersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAllTiersResponse)
+	err := c.cc.Invoke(ctx, BillingService_ListAllTiers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *billingServiceClient) CreateTier(ctx context.Context, in *CreateTierRequest, opts ...grpc.CallOption) (*CreateTierResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateTierResponse)
+	err := c.cc.Invoke(ctx, BillingService_CreateTier_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *billingServiceClient) UpdateTier(ctx context.Context, in *UpdateTierRequest, opts ...grpc.CallOption) (*UpdateTierResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateTierResponse)
+	err := c.cc.Invoke(ctx, BillingService_UpdateTier_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *billingServiceClient) DeleteTier(ctx context.Context, in *DeleteTierRequest, opts ...grpc.CallOption) (*DeleteTierResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteTierResponse)
+	err := c.cc.Invoke(ctx, BillingService_DeleteTier_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *billingServiceClient) ReorderTiers(ctx context.Context, in *ReorderTiersRequest, opts ...grpc.CallOption) (*ReorderTiersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReorderTiersResponse)
+	err := c.cc.Invoke(ctx, BillingService_ReorderTiers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -247,6 +308,12 @@ type BillingServiceServer interface {
 	// Plan management
 	GetPlans(context.Context, *GetPlansRequest) (*GetPlansResponse, error)
 	GetPlan(context.Context, *GetPlanRequest) (*GetPlanResponse, error)
+	// Admin tier management (Settings → Admin → Billing tier editor).
+	ListAllTiers(context.Context, *ListAllTiersRequest) (*ListAllTiersResponse, error)
+	CreateTier(context.Context, *CreateTierRequest) (*CreateTierResponse, error)
+	UpdateTier(context.Context, *UpdateTierRequest) (*UpdateTierResponse, error)
+	DeleteTier(context.Context, *DeleteTierRequest) (*DeleteTierResponse, error)
+	ReorderTiers(context.Context, *ReorderTiersRequest) (*ReorderTiersResponse, error)
 	// Subscription management
 	CreateSubscription(context.Context, *CreateSubscriptionRequest) (*CreateSubscriptionResponse, error)
 	GetUserSubscription(context.Context, *GetUserSubscriptionRequest) (*GetUserSubscriptionResponse, error)
@@ -284,6 +351,21 @@ func (UnimplementedBillingServiceServer) GetPlans(context.Context, *GetPlansRequ
 }
 func (UnimplementedBillingServiceServer) GetPlan(context.Context, *GetPlanRequest) (*GetPlanResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPlan not implemented")
+}
+func (UnimplementedBillingServiceServer) ListAllTiers(context.Context, *ListAllTiersRequest) (*ListAllTiersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAllTiers not implemented")
+}
+func (UnimplementedBillingServiceServer) CreateTier(context.Context, *CreateTierRequest) (*CreateTierResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateTier not implemented")
+}
+func (UnimplementedBillingServiceServer) UpdateTier(context.Context, *UpdateTierRequest) (*UpdateTierResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateTier not implemented")
+}
+func (UnimplementedBillingServiceServer) DeleteTier(context.Context, *DeleteTierRequest) (*DeleteTierResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteTier not implemented")
+}
+func (UnimplementedBillingServiceServer) ReorderTiers(context.Context, *ReorderTiersRequest) (*ReorderTiersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReorderTiers not implemented")
 }
 func (UnimplementedBillingServiceServer) CreateSubscription(context.Context, *CreateSubscriptionRequest) (*CreateSubscriptionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateSubscription not implemented")
@@ -380,6 +462,96 @@ func _BillingService_GetPlan_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(BillingServiceServer).GetPlan(ctx, req.(*GetPlanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BillingService_ListAllTiers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAllTiersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).ListAllTiers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_ListAllTiers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).ListAllTiers(ctx, req.(*ListAllTiersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BillingService_CreateTier_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateTierRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).CreateTier(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_CreateTier_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).CreateTier(ctx, req.(*CreateTierRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BillingService_UpdateTier_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateTierRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).UpdateTier(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_UpdateTier_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).UpdateTier(ctx, req.(*UpdateTierRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BillingService_DeleteTier_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteTierRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).DeleteTier(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_DeleteTier_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).DeleteTier(ctx, req.(*DeleteTierRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BillingService_ReorderTiers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReorderTiersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).ReorderTiers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_ReorderTiers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).ReorderTiers(ctx, req.(*ReorderTiersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -650,6 +822,26 @@ var BillingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPlan",
 			Handler:    _BillingService_GetPlan_Handler,
+		},
+		{
+			MethodName: "ListAllTiers",
+			Handler:    _BillingService_ListAllTiers_Handler,
+		},
+		{
+			MethodName: "CreateTier",
+			Handler:    _BillingService_CreateTier_Handler,
+		},
+		{
+			MethodName: "UpdateTier",
+			Handler:    _BillingService_UpdateTier_Handler,
+		},
+		{
+			MethodName: "DeleteTier",
+			Handler:    _BillingService_DeleteTier_Handler,
+		},
+		{
+			MethodName: "ReorderTiers",
+			Handler:    _BillingService_ReorderTiers_Handler,
 		},
 		{
 			MethodName: "CreateSubscription",

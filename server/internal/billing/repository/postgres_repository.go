@@ -26,7 +26,7 @@ func NewPostgresRepository(db *sql.DB) BillingRepository {
 func (r *postgresRepository) ListTiers(ctx context.Context) ([]*domain.SubscriptionTier, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, name, slug, description, monthly_price, yearly_price,
-		       features, limits, display_order, is_active, is_public, created_at, updated_at
+		       features, limits, display_order, is_active, is_public, is_default, per_seat, created_at, updated_at
 		FROM subscription_tiers
 		WHERE deleted_at IS NULL AND is_active = true AND is_public = true
 		ORDER BY display_order ASC`)
@@ -49,7 +49,7 @@ func (r *postgresRepository) ListTiers(ctx context.Context) ([]*domain.Subscript
 func (r *postgresRepository) GetTierByID(ctx context.Context, id uuid.UUID) (*domain.SubscriptionTier, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT id, name, slug, description, monthly_price, yearly_price,
-		       features, limits, display_order, is_active, is_public, created_at, updated_at
+		       features, limits, display_order, is_active, is_public, is_default, per_seat, created_at, updated_at
 		FROM subscription_tiers
 		WHERE id = $1 AND deleted_at IS NULL`, id)
 	t, err := scanTier(row)
@@ -57,6 +57,116 @@ func (r *postgresRepository) GetTierByID(ctx context.Context, id uuid.UUID) (*do
 		return nil, domain.ErrTierNotFound
 	}
 	return t, err
+}
+
+// ListAllTiers returns every non-deleted tier (incl. inactive/non-public) for
+// the admin editor, ordered by display_order.
+func (r *postgresRepository) ListAllTiers(ctx context.Context) ([]*domain.SubscriptionTier, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, name, slug, description, monthly_price, yearly_price,
+		       features, limits, display_order, is_active, is_public, is_default, per_seat, created_at, updated_at
+		FROM subscription_tiers
+		WHERE deleted_at IS NULL
+		ORDER BY display_order ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("list all tiers: %w", err)
+	}
+	defer rows.Close()
+	var tiers []*domain.SubscriptionTier
+	for rows.Next() {
+		t, err := scanTier(rows)
+		if err != nil {
+			return nil, err
+		}
+		tiers = append(tiers, t)
+	}
+	return tiers, rows.Err()
+}
+
+// GetDefaultTier returns the tier applied to users with no subscription.
+// Returns ErrTierNotFound when none is marked default.
+func (r *postgresRepository) GetDefaultTier(ctx context.Context) (*domain.SubscriptionTier, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, name, slug, description, monthly_price, yearly_price,
+		       features, limits, display_order, is_active, is_public, is_default, per_seat, created_at, updated_at
+		FROM subscription_tiers
+		WHERE is_default = true AND deleted_at IS NULL
+		LIMIT 1`)
+	t, err := scanTier(row)
+	if err == sql.ErrNoRows {
+		return nil, domain.ErrTierNotFound
+	}
+	return t, err
+}
+
+func (r *postgresRepository) CreateTier(ctx context.Context, t *domain.SubscriptionTier) error {
+	features, _ := json.Marshal(t.Features)
+	limits, _ := json.Marshal(t.Limits)
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO subscription_tiers
+		  (id, name, slug, description, monthly_price, yearly_price, features, limits,
+		   display_order, is_active, is_public, per_seat)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		t.ID, t.Name, t.Slug, t.Description, t.MonthlyPrice, t.YearlyPrice,
+		features, limits, t.DisplayOrder, t.IsActive, t.IsPublic, t.PerSeat,
+	)
+	if err != nil {
+		return fmt.Errorf("create tier: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) UpdateTier(ctx context.Context, t *domain.SubscriptionTier) error {
+	features, _ := json.Marshal(t.Features)
+	limits, _ := json.Marshal(t.Limits)
+	res, err := r.db.ExecContext(ctx, `
+		UPDATE subscription_tiers SET
+		  name=$2, slug=$3, description=$4, monthly_price=$5, yearly_price=$6,
+		  features=$7, limits=$8, display_order=$9, is_active=$10, is_public=$11,
+		  per_seat=$12, updated_at=NOW()
+		WHERE id=$1 AND deleted_at IS NULL`,
+		t.ID, t.Name, t.Slug, t.Description, t.MonthlyPrice, t.YearlyPrice,
+		features, limits, t.DisplayOrder, t.IsActive, t.IsPublic, t.PerSeat,
+	)
+	if err != nil {
+		return fmt.Errorf("update tier: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return domain.ErrTierNotFound
+	}
+	return nil
+}
+
+// DeleteTier soft-deletes a tier. The default tier can't be deleted (it must
+// always exist for the "no subscription = free" resolution).
+func (r *postgresRepository) DeleteTier(ctx context.Context, id uuid.UUID) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE subscription_tiers SET deleted_at = NOW(), updated_at = NOW()
+		 WHERE id = $1 AND deleted_at IS NULL AND is_default = false`, id)
+	if err != nil {
+		return fmt.Errorf("delete tier: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return domain.ErrTierNotFound
+	}
+	return nil
+}
+
+// ReorderTiers sets display_order to each id's position in the slice, in one tx.
+func (r *postgresRepository) ReorderTiers(ctx context.Context, ids []uuid.UUID) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("reorder tiers: begin: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+	for i, id := range ids {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE subscription_tiers SET display_order=$2, updated_at=NOW() WHERE id=$1`, id, i,
+		); err != nil {
+			return fmt.Errorf("reorder tiers: %w", err)
+		}
+	}
+	return tx.Commit()
 }
 
 // ─── Gateways ─────────────────────────────────────────────────────────────────
@@ -387,7 +497,7 @@ func scanTier(s scanner) (*domain.SubscriptionTier, error) {
 		&t.ID, &t.Name, &t.Slug, &t.Description,
 		&t.MonthlyPrice, &t.YearlyPrice,
 		&featuresJSON, &limitsJSON,
-		&t.DisplayOrder, &t.IsActive, &t.IsPublic,
+		&t.DisplayOrder, &t.IsActive, &t.IsPublic, &t.IsDefault, &t.PerSeat,
 		&t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
