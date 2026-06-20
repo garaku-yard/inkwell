@@ -3,9 +3,12 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   apiClient,
   getApiBaseUrl,
+  getAuthToken,
+  getRefreshToken,
   setApiBaseUrl,
   setAuthToken,
   setNativeClient,
+  setRefreshToken,
 } from "@/lib/api"
 
 /** Captures the most recent fetch call so assertions can inspect URL + init. */
@@ -32,6 +35,7 @@ afterEach(() => {
   // Reset module state between cases so they don't leak into each other.
   setNativeClient(false)
   setAuthToken(null)
+  setRefreshToken(null)
   setApiBaseUrl(null)
   vi.unstubAllGlobals()
 })
@@ -81,5 +85,57 @@ describe("api auth transport", () => {
 
     setApiBaseUrl(null)
     expect(getApiBaseUrl()).not.toBe("https://gw.example.com")
+  })
+})
+
+describe("api token refresh on 401", () => {
+  it("native client refreshes the token and retries once, rotating both tokens", async () => {
+    setNativeClient(true)
+    setAuthToken("expired")
+    setRefreshToken("refresh-1")
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith("/auth/refresh")) {
+        return new Response(JSON.stringify({ accessToken: "new-token", refreshToken: "refresh-2" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      }
+      // First call carries the expired token → 401; the retry carries the new one.
+      const auth = new Headers(init?.headers).get("Authorization")
+      if (auth === "Bearer expired") return new Response("", { status: 401 })
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    const result = await apiClient<{ ok: boolean }>("projects")
+    expect(result).toEqual({ ok: true })
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).endsWith("/auth/refresh"))).toBe(true)
+    expect(getAuthToken()).toBe("new-token")
+    expect(getRefreshToken()).toBe("refresh-2")
+  })
+
+  it("gives up (throws 401) when the refresh itself fails", async () => {
+    setNativeClient(true)
+    setAuthToken("expired")
+    setRefreshToken("bad")
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 401 })),
+    )
+    await expect(apiClient("projects")).rejects.toMatchObject({ status: 401 })
+  })
+
+  it("does not attempt refresh for a web (cookie) client", async () => {
+    setNativeClient(false)
+    const fetchMock = vi.fn(async () => new Response("", { status: 401 }))
+    vi.stubGlobal("fetch", fetchMock)
+    await expect(apiClient("projects")).rejects.toMatchObject({ status: 401 })
+    // Only the original request — no /auth/refresh.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

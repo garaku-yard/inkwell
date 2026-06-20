@@ -27,8 +27,14 @@ const CLIENT_DESKTOP = "desktop";
 let apiBaseUrl = DEFAULT_API_BASE_URL;
 /** Bearer token for native (cookie-less) auth; null on web and when signed out. */
 let authToken: string | null = null;
+/** Long-lived refresh token (native only); used to mint a new access token on a
+ *  401 so the desktop session doesn't expire after the 24h access-token life. */
+let refreshToken: string | null = null;
 /** Whether this is the native desktop client (token auth, no cookies). */
 let nativeClient = false;
+/** Called with the rotated tokens after a successful refresh, so the desktop
+ *  layer can persist them to the OS keychain. */
+let onTokensRefreshed: ((accessToken: string, refreshToken: string) => void) | null = null;
 
 /**
  * Repoints the gateway origin at runtime. Pass a falsy/blank value to reset to
@@ -57,6 +63,24 @@ export function setAuthToken(token: string | null): void {
 /** Returns the bearer token currently in effect, or null. */
 export function getAuthToken(): string | null {
   return authToken;
+}
+
+/** Sets (or clears) the refresh token used to renew an expired access token. */
+export function setRefreshToken(token: string | null): void {
+  refreshToken = token;
+}
+
+/** Returns the refresh token currently in effect, or null. */
+export function getRefreshToken(): string | null {
+  return refreshToken;
+}
+
+/** Registers a callback invoked with the rotated (access, refresh) tokens after
+ *  a successful auto-refresh, so they can be persisted to the keychain. */
+export function setTokensRefreshedHandler(
+  fn: ((accessToken: string, refreshToken: string) => void) | null,
+): void {
+  onTokensRefreshed = fn;
 }
 
 /**
@@ -106,6 +130,46 @@ function applyAuthTransport(headers: Headers): RequestCredentials {
     return "omit";
   }
   return "include";
+}
+
+/** In-flight refresh, so a burst of concurrent 401s triggers exactly one. */
+let refreshInFlight: Promise<boolean> | null = null;
+
+/**
+ * Attempts to renew the access token from the stored refresh token (native
+ * only). Updates the in-memory tokens and notifies the persistence handler on
+ * success. Returns false (signed out) when there's no refresh token or the
+ * refresh is rejected. Deduplicated across concurrent callers.
+ */
+function tryRefresh(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = doRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function doRefresh(): Promise<boolean> {
+  if (!nativeClient || !refreshToken) return false;
+  try {
+    const headers = new Headers({ "Content-Type": "application/json", [CLIENT_HEADER]: CLIENT_DESKTOP });
+    const resp = await fetch(buildUrl("auth/refresh"), {
+      method: "POST",
+      credentials: "omit",
+      headers,
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!resp.ok) return false;
+    const data = (await resp.json()) as { accessToken?: string; refreshToken?: string };
+    if (!data.accessToken) return false;
+    authToken = data.accessToken;
+    refreshToken = data.refreshToken ?? refreshToken;
+    onTokensRefreshed?.(authToken, refreshToken ?? "");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Extends the standard `RequestInit` with a typed `body` field that is
@@ -249,7 +313,22 @@ export async function apiClient<T>(
     config.body = JSON.stringify(body);
   }
 
-  const response = await fetch(buildUrl(endpoint), config);
+  let response = await fetch(buildUrl(endpoint), config);
+
+  // On a 401, a native client renews its access token from the refresh token
+  // and retries the request once before treating the session as expired.
+  if (
+    response.status === 401 &&
+    nativeClient &&
+    refreshToken &&
+    endpoint.replace(/^\/+/, "") !== "auth/refresh" &&
+    (await tryRefresh())
+  ) {
+    const retryHeaders = new Headers(customHeaders);
+    retryHeaders.set("Content-Type", "application/json");
+    const retryCredentials = applyAuthTransport(retryHeaders); // picks up the new bearer
+    response = await fetch(buildUrl(endpoint), { ...config, credentials: retryCredentials, headers: retryHeaders });
+  }
 
   if (response.status === 401) {
     notifySessionExpired();

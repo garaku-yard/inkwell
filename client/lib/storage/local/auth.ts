@@ -1,5 +1,5 @@
 import { apiClient, ApiError, getAuthToken } from "@/lib/api"
-import { persistAuthToken } from "@/lib/desktop-auth"
+import { persistTokens } from "@/lib/desktop-auth"
 
 import type { AuthResponse, AuthStorage, CurrentUser, Session, TwoFactorEnrollment } from "@/lib/storage"
 import { ensureUserProfile } from "./shared"
@@ -48,22 +48,24 @@ function toCurrentUser(u: GatewayUser): CurrentUser {
 
 export const auth: AuthStorage = {
   login: async (credentials): Promise<AuthResponse> => {
-    const res = await apiClient<{ user?: GatewayUser; totpRequired?: boolean; accessToken?: string }>(
-      "login",
-      { method: "POST", body: credentials },
-    )
+    const res = await apiClient<{
+      user?: GatewayUser
+      totpRequired?: boolean
+      accessToken?: string
+      refreshToken?: string
+    }>("login", { method: "POST", body: credentials })
     // 2FA second step — no token yet; the caller prompts for the code.
     if (res.totpRequired) return { totpRequired: true }
-    if (res.accessToken) await persistAuthToken(res.accessToken)
+    if (res.accessToken) await persistTokens(res.accessToken, res.refreshToken ?? null)
     return { user: res.user }
   },
 
   register: async (payload): Promise<AuthResponse> => {
-    const res = await apiClient<{ user?: GatewayUser; accessToken?: string }>("register", {
-      method: "POST",
-      body: payload,
-    })
-    if (res.accessToken) await persistAuthToken(res.accessToken)
+    const res = await apiClient<{ user?: GatewayUser; accessToken?: string; refreshToken?: string }>(
+      "register",
+      { method: "POST", body: payload },
+    )
+    if (res.accessToken) await persistTokens(res.accessToken, res.refreshToken ?? null)
     return { user: res.user }
   },
 
@@ -75,7 +77,7 @@ export const auth: AuthStorage = {
     } catch {
       // offline / already-expired — clearing the token below is what matters.
     }
-    await persistAuthToken(null)
+    await persistTokens(null, null)
   },
 
   me: async (): Promise<CurrentUser | null> => {
@@ -88,7 +90,7 @@ export const auth: AuthStorage = {
         // error (offline, 5xx) is transient: keep the token so we re-link when
         // connectivity returns, and fall back to the local profile for now.
         if (err instanceof ApiError && err.status === 401) {
-          await persistAuthToken(null)
+          await persistTokens(null, null)
         }
       }
     }

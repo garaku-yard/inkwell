@@ -42,16 +42,16 @@ vi.mock("@/lib/api", () => {
   }
   return { apiClient: vi.fn(), getAuthToken: vi.fn(), ApiError }
 })
-vi.mock("@/lib/desktop-auth", () => ({ persistAuthToken: vi.fn() }))
+vi.mock("@/lib/desktop-auth", () => ({ persistTokens: vi.fn() }))
 vi.mock("@/lib/storage/local/shared", () => ({ ensureUserProfile: vi.fn(async () => LOCAL_PROFILE) }))
 
 import { ApiError, apiClient, getAuthToken } from "@/lib/api"
-import { persistAuthToken } from "@/lib/desktop-auth"
+import { persistTokens } from "@/lib/desktop-auth"
 import { auth } from "@/lib/storage/local/auth"
 
 const mockApiClient = vi.mocked(apiClient)
 const mockGetToken = vi.mocked(getAuthToken)
-const mockPersist = vi.mocked(persistAuthToken)
+const mockPersist = vi.mocked(persistTokens)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -62,7 +62,7 @@ describe("desktop auth domain", () => {
     mockApiClient.mockResolvedValueOnce({ user: REMOTE_USER, accessToken: "jwt-1" })
     const res = await auth.login({ email: "me@example.com", password: "x" })
 
-    expect(mockPersist).toHaveBeenCalledWith("jwt-1")
+    expect(mockPersist).toHaveBeenCalledWith("jwt-1", null)
     expect(res.user?.id).toBe("remote-1")
   })
 
@@ -89,7 +89,7 @@ describe("desktop auth domain", () => {
     mockApiClient.mockRejectedValueOnce(new ApiError(401, "UNAUTHENTICATED", "unauthorized"))
 
     const me = await auth.me()
-    expect(mockPersist).toHaveBeenCalledWith(null) // unlinked
+    expect(mockPersist).toHaveBeenCalledWith(null, null) // unlinked
     expect(me?.id).toBe(LOCAL_PROFILE.id) // local-first fallback
   })
 
@@ -113,7 +113,7 @@ describe("desktop auth domain", () => {
   it("logout clears the token even if the server revoke fails", async () => {
     mockApiClient.mockRejectedValueOnce(new Error("offline"))
     await auth.logout()
-    expect(mockPersist).toHaveBeenCalledWith(null)
+    expect(mockPersist).toHaveBeenCalledWith(null, null)
   })
 
   it("listSessions short-circuits to empty when not linked", async () => {
