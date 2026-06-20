@@ -43,7 +43,7 @@ func (r *beatRepository) GetBeat(ctx context.Context, beatID uuid.UUID) (*domain
 		SELECT beat_id, project_id, title, description, scene_numbers, color,
 			position_x, position_y, width, height, act_number, beat_order,
 			start_page, end_page, image_url, created_at, updated_at
-		FROM beats WHERE beat_id = $1`
+		FROM beats WHERE beat_id = $1 AND deleted_at IS NULL`
 
 	beat := &domain.Beat{}
 	err := r.db.QueryRowContext(ctx, query, beatID).Scan(
@@ -67,8 +67,8 @@ func (r *beatRepository) GetProjectBeats(ctx context.Context, projectID uuid.UUI
 		SELECT beat_id, project_id, title, description, scene_numbers, color,
 			position_x, position_y, width, height, act_number, beat_order,
 			start_page, end_page, image_url, created_at, updated_at
-		FROM beats 
-		WHERE project_id = $1
+		FROM beats
+		WHERE project_id = $1 AND deleted_at IS NULL
 		ORDER BY beat_order, created_at`
 
 	rows, err := r.db.QueryContext(ctx, query, projectID)
@@ -124,7 +124,10 @@ func (r *beatRepository) UpdateBeat(ctx context.Context, beat *domain.Beat) erro
 }
 
 func (r *beatRepository) DeleteBeat(ctx context.Context, beatID uuid.UUID) error {
-	query := `DELETE FROM beats WHERE beat_id = $1`
+	// Soft-delete: tombstone the row so the deletion propagates on sync. The
+	// beat row stays, so the connections/outline_items FKs that reference it
+	// remain valid (matching the desktop, which doesn't cascade beat deletes).
+	query := `UPDATE beats SET deleted_at = NOW(), updated_at = NOW() WHERE beat_id = $1 AND deleted_at IS NULL`
 
 	result, err := r.db.ExecContext(ctx, query, beatID)
 	if err != nil {
@@ -169,7 +172,7 @@ func (r *connectionRepository) CreateConnection(ctx context.Context, conn *domai
 func (r *connectionRepository) GetConnection(ctx context.Context, connID uuid.UUID) (*domain.Connection, error) {
 	query := `
 		SELECT connection_id, project_id, from_beat_id, to_beat_id, from_side, to_side, created_at
-		FROM beat_connections WHERE connection_id = $1`
+		FROM beat_connections WHERE connection_id = $1 AND deleted_at IS NULL`
 
 	conn := &domain.Connection{}
 	err := r.db.QueryRowContext(ctx, query, connID).Scan(
@@ -189,8 +192,8 @@ func (r *connectionRepository) GetConnection(ctx context.Context, connID uuid.UU
 func (r *connectionRepository) GetProjectConnections(ctx context.Context, projectID uuid.UUID) ([]*domain.Connection, error) {
 	query := `
 		SELECT connection_id, project_id, from_beat_id, to_beat_id, from_side, to_side, created_at
-		FROM beat_connections 
-		WHERE project_id = $1`
+		FROM beat_connections
+		WHERE project_id = $1 AND deleted_at IS NULL`
 
 	rows, err := r.db.QueryContext(ctx, query, projectID)
 	if err != nil {
@@ -214,7 +217,7 @@ func (r *connectionRepository) GetProjectConnections(ctx context.Context, projec
 }
 
 func (r *connectionRepository) DeleteConnection(ctx context.Context, connID uuid.UUID) error {
-	query := `DELETE FROM beat_connections WHERE connection_id = $1`
+	query := `UPDATE beat_connections SET deleted_at = NOW(), updated_at = NOW() WHERE connection_id = $1 AND deleted_at IS NULL`
 
 	result, err := r.db.ExecContext(ctx, query, connID)
 	if err != nil {
@@ -259,7 +262,7 @@ func (r *laneRepository) CreateLane(ctx context.Context, lane *domain.Lane) erro
 func (r *laneRepository) GetLane(ctx context.Context, laneID uuid.UUID) (*domain.Lane, error) {
 	query := `
 		SELECT lane_id, project_id, name, color, lane_order, created_at, updated_at
-		FROM lanes WHERE lane_id = $1`
+		FROM lanes WHERE lane_id = $1 AND deleted_at IS NULL`
 
 	lane := &domain.Lane{}
 	err := r.db.QueryRowContext(ctx, query, laneID).Scan(
@@ -279,8 +282,8 @@ func (r *laneRepository) GetLane(ctx context.Context, laneID uuid.UUID) (*domain
 func (r *laneRepository) GetProjectLanes(ctx context.Context, projectID uuid.UUID) ([]*domain.Lane, error) {
 	query := `
 		SELECT lane_id, project_id, name, color, lane_order, created_at, updated_at
-		FROM lanes 
-		WHERE project_id = $1
+		FROM lanes
+		WHERE project_id = $1 AND deleted_at IS NULL
 		ORDER BY lane_order, created_at`
 
 	rows, err := r.db.QueryContext(ctx, query, projectID)
@@ -351,7 +354,7 @@ func (r *laneRepository) UpdateLaneOrder(ctx context.Context, projectID uuid.UUI
 }
 
 func (r *laneRepository) DeleteLane(ctx context.Context, laneID uuid.UUID) error {
-	query := `DELETE FROM lanes WHERE lane_id = $1`
+	query := `UPDATE lanes SET deleted_at = NOW(), updated_at = NOW() WHERE lane_id = $1 AND deleted_at IS NULL`
 
 	result, err := r.db.ExecContext(ctx, query, laneID)
 	if err != nil {
@@ -398,7 +401,7 @@ func (r *outlineItemRepository) GetOutlineItem(ctx context.Context, itemID uuid.
 	query := `
 		SELECT outline_item_id, project_id, beat_id, lane_id, item_order, 
 			timeline_position, width, created_at, updated_at
-		FROM outline_items WHERE outline_item_id = $1`
+		FROM outline_items WHERE outline_item_id = $1 AND deleted_at IS NULL`
 
 	item := &domain.OutlineItem{}
 	err := r.db.QueryRowContext(ctx, query, itemID).Scan(
@@ -420,8 +423,8 @@ func (r *outlineItemRepository) GetProjectOutlineItems(ctx context.Context, proj
 	query := `
 		SELECT outline_item_id, project_id, beat_id, lane_id, item_order,
 			timeline_position, width, created_at, updated_at
-		FROM outline_items 
-		WHERE project_id = $1
+		FROM outline_items
+		WHERE project_id = $1 AND deleted_at IS NULL
 		ORDER BY lane_id, item_order`
 
 	rows, err := r.db.QueryContext(ctx, query, projectID)
@@ -473,7 +476,7 @@ func (r *outlineItemRepository) UpdateOutlineItem(ctx context.Context, item *dom
 }
 
 func (r *outlineItemRepository) DeleteOutlineItem(ctx context.Context, itemID uuid.UUID) error {
-	query := `DELETE FROM outline_items WHERE outline_item_id = $1`
+	query := `UPDATE outline_items SET deleted_at = NOW(), updated_at = NOW() WHERE outline_item_id = $1 AND deleted_at IS NULL`
 
 	result, err := r.db.ExecContext(ctx, query, itemID)
 	if err != nil {

@@ -434,7 +434,7 @@ func (r *scriptElementRepository) GetScriptElement(ctx context.Context, elementI
 	query := `
 		SELECT element_id, project_id, scene_id, element_type, content, line_number, formatting, created_at, updated_at
 		FROM script_elements
-		WHERE element_id = $1
+		WHERE element_id = $1 AND deleted_at IS NULL
 	`
 
 	element := &domain.ProjectElement{}
@@ -477,7 +477,7 @@ func (r *scriptElementRepository) GetSceneElements(ctx context.Context, sceneID 
 	query := `
 		SELECT element_id, project_id, scene_id, element_type, content, line_number, formatting, created_at, updated_at
 		FROM script_elements
-		WHERE scene_id = $1
+		WHERE scene_id = $1 AND deleted_at IS NULL
 		ORDER BY line_number
 	`
 
@@ -545,27 +545,33 @@ func (r *scriptElementRepository) DeleteScriptElement(ctx context.Context, eleme
 	}
 	defer tx.Rollback()
 
-	// Get scene_id and line_number before deletion
+	// Get scene_id and line_number before deletion. Scoped to live rows so a
+	// repeat delete of an already-tombstoned element no-ops instead of
+	// reordering its siblings twice.
 	var sceneID uuid.UUID
 	var lineNumber int32
 	err = tx.QueryRowContext(ctx,
-		"SELECT scene_id, line_number FROM script_elements WHERE element_id = $1",
+		"SELECT scene_id, line_number FROM script_elements WHERE element_id = $1 AND deleted_at IS NULL",
 		elementID,
 	).Scan(&sceneID, &lineNumber)
 	if err != nil {
 		return fmt.Errorf("failed to get element info: %w", err)
 	}
 
-	// Delete the element
-	_, err = tx.ExecContext(ctx, "DELETE FROM script_elements WHERE element_id = $1", elementID)
+	// Soft-delete the element (tombstone) so the deletion propagates on sync.
+	_, err = tx.ExecContext(ctx,
+		"UPDATE script_elements SET deleted_at = NOW(), updated_at = NOW() WHERE element_id = $1",
+		elementID,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to delete element: %w", err)
 	}
 
-	// Reorder remaining elements in the scene
+	// Reorder the remaining LIVE elements in the scene (the just-tombstoned row
+	// is excluded by deleted_at IS NULL).
 	// Step 1: Set all elements with higher line_number to negative values
 	_, err = tx.ExecContext(ctx,
-		"UPDATE script_elements SET line_number = -line_number WHERE scene_id = $1 AND line_number > $2",
+		"UPDATE script_elements SET line_number = -line_number WHERE scene_id = $1 AND line_number > $2 AND deleted_at IS NULL",
 		sceneID, lineNumber,
 	)
 	if err != nil {
@@ -574,7 +580,7 @@ func (r *scriptElementRepository) DeleteScriptElement(ctx context.Context, eleme
 
 	// Step 2: Convert negative values to correct positive values (shift down by 1)
 	_, err = tx.ExecContext(ctx,
-		"UPDATE script_elements SET line_number = -line_number - 1 WHERE scene_id = $1 AND line_number < 0",
+		"UPDATE script_elements SET line_number = -line_number - 1 WHERE scene_id = $1 AND line_number < 0 AND deleted_at IS NULL",
 		sceneID,
 	)
 	if err != nil {
@@ -614,8 +620,8 @@ func (r *sceneRepository) CreateScene(ctx context.Context, scene *domain.Scene) 
 func (r *sceneRepository) GetScene(ctx context.Context, sceneID uuid.UUID) (*domain.Scene, error) {
 	query := `
 		SELECT scene_id, project_id, outline_unit_id, scene_heading, content, order_index, created_at, updated_at
-		FROM scenes 
-		WHERE scene_id = $1
+		FROM scenes
+		WHERE scene_id = $1 AND deleted_at IS NULL
 	`
 
 	scene := &domain.Scene{}
@@ -644,8 +650,8 @@ func (r *sceneRepository) GetScene(ctx context.Context, sceneID uuid.UUID) (*dom
 func (r *sceneRepository) GetProjectScenes(ctx context.Context, projectID uuid.UUID) ([]*domain.Scene, error) {
 	query := `
 		SELECT scene_id, project_id, outline_unit_id, scene_heading, content, order_index, created_at, updated_at
-		FROM scenes 
-		WHERE project_id = $1
+		FROM scenes
+		WHERE project_id = $1 AND deleted_at IS NULL
 		ORDER BY order_index ASC
 	`
 
@@ -698,13 +704,20 @@ func (r *sceneRepository) UpdateScene(ctx context.Context, scene *domain.Scene) 
 	return err
 }
 func (r *sceneRepository) DeleteScene(ctx context.Context, sceneID uuid.UUID) error {
-	// Delete all elements in the scene first, then delete the scene
-	_, err := r.db.ExecContext(ctx, `DELETE FROM script_elements WHERE scene_id = $1`, sceneID)
+	// Soft-delete: tombstone the scene's elements first, then the scene itself,
+	// so both propagate on sync (the FK CASCADE only fires for a hard DELETE).
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE script_elements SET deleted_at = NOW(), updated_at = NOW() WHERE scene_id = $1 AND deleted_at IS NULL`,
+		sceneID,
+	)
 	if err != nil {
 		return err
 	}
 
-	_, err = r.db.ExecContext(ctx, `DELETE FROM scenes WHERE scene_id = $1`, sceneID)
+	_, err = r.db.ExecContext(ctx,
+		`UPDATE scenes SET deleted_at = NOW(), updated_at = NOW() WHERE scene_id = $1`,
+		sceneID,
+	)
 	return err
 }
 
