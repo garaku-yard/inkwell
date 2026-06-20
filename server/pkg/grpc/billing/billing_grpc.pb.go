@@ -42,6 +42,7 @@ const (
 	BillingService_TrackUsage_FullMethodName            = "/billing.BillingService/TrackUsage"
 	BillingService_GetUserUsage_FullMethodName          = "/billing.BillingService/GetUserUsage"
 	BillingService_GetMonthlyUsage_FullMethodName       = "/billing.BillingService/GetMonthlyUsage"
+	BillingService_GetBatchUsage_FullMethodName         = "/billing.BillingService/GetBatchUsage"
 	BillingService_ProcessWebhook_FullMethodName        = "/billing.BillingService/ProcessWebhook"
 	BillingService_GetBillingAnalytics_FullMethodName   = "/billing.BillingService/GetBillingAnalytics"
 	BillingService_ListAllSubscriptions_FullMethodName  = "/billing.BillingService/ListAllSubscriptions"
@@ -89,6 +90,10 @@ type BillingServiceClient interface {
 	// GetMonthlyUsage returns a user's usage for a metric in the current calendar
 	// month — used to enforce managed-AI monthly allowances.
 	GetMonthlyUsage(ctx context.Context, in *GetMonthlyUsageRequest, opts ...grpc.CallOption) (*GetMonthlyUsageResponse, error)
+	// GetBatchUsage returns lifetime totals (and current-month sums for the
+	// requested monthly metrics) for many users at once — backs the admin
+	// subscriptions table without a per-row usage fan-out.
+	GetBatchUsage(ctx context.Context, in *GetBatchUsageRequest, opts ...grpc.CallOption) (*GetBatchUsageResponse, error)
 	// Webhook processing
 	ProcessWebhook(ctx context.Context, in *ProcessWebhookRequest, opts ...grpc.CallOption) (*ProcessWebhookResponse, error)
 	// Admin analytics — MRR, ARR, churn, tier distribution. Callers must have the
@@ -336,6 +341,16 @@ func (c *billingServiceClient) GetMonthlyUsage(ctx context.Context, in *GetMonth
 	return out, nil
 }
 
+func (c *billingServiceClient) GetBatchUsage(ctx context.Context, in *GetBatchUsageRequest, opts ...grpc.CallOption) (*GetBatchUsageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBatchUsageResponse)
+	err := c.cc.Invoke(ctx, BillingService_GetBatchUsage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *billingServiceClient) ProcessWebhook(ctx context.Context, in *ProcessWebhookRequest, opts ...grpc.CallOption) (*ProcessWebhookResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ProcessWebhookResponse)
@@ -408,6 +423,10 @@ type BillingServiceServer interface {
 	// GetMonthlyUsage returns a user's usage for a metric in the current calendar
 	// month — used to enforce managed-AI monthly allowances.
 	GetMonthlyUsage(context.Context, *GetMonthlyUsageRequest) (*GetMonthlyUsageResponse, error)
+	// GetBatchUsage returns lifetime totals (and current-month sums for the
+	// requested monthly metrics) for many users at once — backs the admin
+	// subscriptions table without a per-row usage fan-out.
+	GetBatchUsage(context.Context, *GetBatchUsageRequest) (*GetBatchUsageResponse, error)
 	// Webhook processing
 	ProcessWebhook(context.Context, *ProcessWebhookRequest) (*ProcessWebhookResponse, error)
 	// Admin analytics — MRR, ARR, churn, tier distribution. Callers must have the
@@ -493,6 +512,9 @@ func (UnimplementedBillingServiceServer) GetUserUsage(context.Context, *GetUserU
 }
 func (UnimplementedBillingServiceServer) GetMonthlyUsage(context.Context, *GetMonthlyUsageRequest) (*GetMonthlyUsageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetMonthlyUsage not implemented")
+}
+func (UnimplementedBillingServiceServer) GetBatchUsage(context.Context, *GetBatchUsageRequest) (*GetBatchUsageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetBatchUsage not implemented")
 }
 func (UnimplementedBillingServiceServer) ProcessWebhook(context.Context, *ProcessWebhookRequest) (*ProcessWebhookResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ProcessWebhook not implemented")
@@ -938,6 +960,24 @@ func _BillingService_GetMonthlyUsage_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BillingService_GetBatchUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBatchUsageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).GetBatchUsage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_GetBatchUsage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).GetBatchUsage(ctx, req.(*GetBatchUsageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _BillingService_ProcessWebhook_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ProcessWebhookRequest)
 	if err := dec(in); err != nil {
@@ -1090,6 +1130,10 @@ var BillingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetMonthlyUsage",
 			Handler:    _BillingService_GetMonthlyUsage_Handler,
+		},
+		{
+			MethodName: "GetBatchUsage",
+			Handler:    _BillingService_GetBatchUsage_Handler,
 		},
 		{
 			MethodName: "ProcessWebhook",

@@ -93,6 +93,10 @@ type BillingService interface {
 	// GetMonthlyUsage returns a user's usage for a metric in the current calendar
 	// month, for managed-AI allowance enforcement.
 	GetMonthlyUsage(ctx context.Context, userID uuid.UUID, metric string) (int64, error)
+	// GetBatchUsage returns lifetime totals plus current-month sums (for the given
+	// monthly metrics) for many users in one pass, keyed by user id. Backs the
+	// admin subscriptions table without a per-row usage fan-out.
+	GetBatchUsage(ctx context.Context, userIDs []uuid.UUID, monthlyMetrics []string) (map[uuid.UUID]domain.UsageSnapshot, error)
 	// RunUsageFlusher batch-persists buffered usage events until ctx is done. Run
 	// once in a background goroutine; a no-op when Redis is not configured.
 	RunUsageFlusher(ctx context.Context)
@@ -530,6 +534,64 @@ func (s *billingService) RunUsageFlusher(ctx context.Context) {
 // GetUserUsage returns a map of metric-name → aggregate total for the user.
 func (s *billingService) GetUserUsage(ctx context.Context, userID uuid.UUID) (map[string]int64, error) {
 	return s.repo.ListUserUsage(ctx, userID)
+}
+
+// GetBatchUsage returns lifetime totals plus current-month sums for many users
+// in two batched queries (one for totals, one for monthly), avoiding the N×RTT
+// fan-out of calling GetUserUsage / GetMonthlyUsage per user. For monthly
+// metrics, the Redis counter is authoritative when present — it's overlaid onto
+// the DB sum exactly as the per-user GetMonthlyUsage path does, so the admin
+// view and the enforcement path never disagree.
+func (s *billingService) GetBatchUsage(ctx context.Context, userIDs []uuid.UUID, requestedMonthly []string) (map[uuid.UUID]domain.UsageSnapshot, error) {
+	out := map[uuid.UUID]domain.UsageSnapshot{}
+	if len(userIDs) == 0 {
+		return out, nil
+	}
+
+	totals, err := s.repo.ListUsageTotalsBatch(ctx, userIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only metrics actually tracked monthly need the usage_events sum; the rest
+	// would just return zero and waste a scan.
+	wantMonthly := make([]string, 0, len(requestedMonthly))
+	for _, m := range requestedMonthly {
+		if monthlyMetrics[m] {
+			wantMonthly = append(wantMonthly, m)
+		}
+	}
+
+	var monthly map[uuid.UUID]map[string]int64
+	if len(wantMonthly) > 0 {
+		if monthly, err = s.repo.GetMonthlyUsageBatch(ctx, userIDs, wantMonthly); err != nil {
+			return nil, err
+		}
+	}
+
+	now := time.Now()
+	for _, uid := range userIDs {
+		snap := domain.UsageSnapshot{
+			Totals:  totals[uid],
+			Monthly: map[string]int64{},
+		}
+		if snap.Totals == nil {
+			snap.Totals = map[string]int64{}
+		}
+		for _, m := range wantMonthly {
+			snap.Monthly[m] = monthly[uid][m]
+			// Redis is the authoritative monthly counter; overlay it when present.
+			if s.redis != nil {
+				if val, found, gerr := s.redis.Get(ctx, monthlyUsageKey(uid, m, now)); gerr == nil && found {
+					if n, perr := strconv.ParseInt(val, 10, 64); perr == nil {
+						snap.Monthly[m] = n
+					}
+				}
+			}
+		}
+		out[uid] = snap
+	}
+	return out, nil
 }
 
 // GetAnalytics computes the admin KPIs from the current subscription + tier state.

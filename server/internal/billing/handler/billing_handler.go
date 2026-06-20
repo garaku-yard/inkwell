@@ -197,6 +197,33 @@ func (h *BillingHandler) GetMonthlyUsage(ctx context.Context, req *billingpb.Get
 	return &billingpb.GetMonthlyUsageResponse{Used: used}, nil
 }
 
+// GetBatchUsage returns lifetime totals (and current-month sums for the requested
+// monthly metrics) for many users at once. Invalid user ids are skipped rather
+// than failing the whole batch, so one bad row can't blank the admin table.
+func (h *BillingHandler) GetBatchUsage(ctx context.Context, req *billingpb.GetBatchUsageRequest) (*billingpb.GetBatchUsageResponse, error) {
+	ids := make([]uuid.UUID, 0, len(req.UserIds))
+	for _, raw := range req.UserIds {
+		if id, err := uuid.Parse(raw); err == nil {
+			ids = append(ids, id)
+		}
+	}
+
+	snapshots, err := h.svc.GetBatchUsage(ctx, ids, req.MonthlyMetrics)
+	if err != nil {
+		return nil, handleError(err)
+	}
+
+	entries := make([]*billingpb.BatchUsageEntry, 0, len(snapshots))
+	for id, snap := range snapshots {
+		entries = append(entries, &billingpb.BatchUsageEntry{
+			UserId:  id.String(),
+			Totals:  snap.Totals,
+			Monthly: snap.Monthly,
+		})
+	}
+	return &billingpb.GetBatchUsageResponse{Entries: entries}, nil
+}
+
 // SyncSeats reconciles a per-seat subscriber's seat quantity with their actual
 // usage, pushing the change to the payment gateway when configured.
 func (h *BillingHandler) SyncSeats(ctx context.Context, req *billingpb.SyncSeatsRequest) (*billingpb.SyncSeatsResponse, error) {

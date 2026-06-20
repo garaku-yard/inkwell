@@ -9,9 +9,20 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"inkwell/server/internal/billing/domain"
 )
+
+// uuidStrings renders a slice of UUIDs as their canonical string forms for
+// binding into a Postgres `uuid[]` array parameter via pq.Array.
+func uuidStrings(ids []uuid.UUID) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = id.String()
+	}
+	return out
+}
 
 type postgresRepository struct {
 	db *sql.DB
@@ -483,6 +494,72 @@ func (r *postgresRepository) ListUserUsage(ctx context.Context, userID uuid.UUID
 			return nil, err
 		}
 		out[metric] = total
+	}
+	return out, rows.Err()
+}
+
+// ListUsageTotalsBatch returns lifetime per-metric totals for many users in one
+// query, keyed by user id then metric. Users with no usage rows are absent from
+// the result. An empty input yields an empty map with no query.
+func (r *postgresRepository) ListUsageTotalsBatch(ctx context.Context, userIDs []uuid.UUID) (map[uuid.UUID]map[string]int64, error) {
+	out := map[uuid.UUID]map[string]int64{}
+	if len(userIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT user_id, metric_name, total FROM user_usage_totals WHERE user_id = ANY($1::uuid[])`,
+		pq.Array(uuidStrings(userIDs)))
+	if err != nil {
+		return nil, fmt.Errorf("list usage_totals batch: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var uid uuid.UUID
+		var metric string
+		var total int64
+		if err := rows.Scan(&uid, &metric, &total); err != nil {
+			return nil, err
+		}
+		if out[uid] == nil {
+			out[uid] = map[string]int64{}
+		}
+		out[uid][metric] = total
+	}
+	return out, rows.Err()
+}
+
+// GetMonthlyUsageBatch sums current-calendar-month usage_events for many users
+// across the given metrics in one grouped query, keyed by user id then metric.
+// Empty user or metric input yields an empty map with no query.
+func (r *postgresRepository) GetMonthlyUsageBatch(ctx context.Context, userIDs []uuid.UUID, metrics []string) (map[uuid.UUID]map[string]int64, error) {
+	out := map[uuid.UUID]map[string]int64{}
+	if len(userIDs) == 0 || len(metrics) == 0 {
+		return out, nil
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT user_id, metric_name, COALESCE(SUM(quantity), 0)
+		FROM usage_events
+		WHERE user_id = ANY($1::uuid[]) AND metric_name = ANY($2)
+		  AND occurred_at >= date_trunc('month', now())
+		GROUP BY user_id, metric_name`,
+		pq.Array(uuidStrings(userIDs)), pq.Array(metrics))
+	if err != nil {
+		return nil, fmt.Errorf("get monthly usage batch: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var uid uuid.UUID
+		var metric string
+		var total int64
+		if err := rows.Scan(&uid, &metric, &total); err != nil {
+			return nil, err
+		}
+		if out[uid] == nil {
+			out[uid] = map[string]int64{}
+		}
+		out[uid][metric] = total
 	}
 	return out, rows.Err()
 }

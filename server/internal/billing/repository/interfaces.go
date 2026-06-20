@@ -86,6 +86,13 @@ type BillingRepository interface {
 	// ListUserUsage returns all metrics for a user (used by the admin overview and
 	// by the GetUserUsage gRPC endpoint).
 	ListUserUsage(ctx context.Context, userID uuid.UUID) (map[string]int64, error)
+	// ListUsageTotalsBatch returns lifetime per-metric totals for many users in a
+	// single query, keyed by user id. Users with no usage are simply absent from
+	// the map. Powers the admin subscriptions table without a per-row fan-out.
+	ListUsageTotalsBatch(ctx context.Context, userIDs []uuid.UUID) (map[uuid.UUID]map[string]int64, error)
+	// GetMonthlyUsageBatch sums current-calendar-month usage_events for many users
+	// across the given metrics in one query, keyed by user id then metric.
+	GetMonthlyUsageBatch(ctx context.Context, userIDs []uuid.UUID, metrics []string) (map[uuid.UUID]map[string]int64, error)
 
 	// ── Analytics ──────────────────────────────────────────────────────────────
 

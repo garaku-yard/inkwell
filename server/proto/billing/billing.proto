@@ -260,6 +260,25 @@ message GetMonthlyUsageResponse {
   int64 used = 1;
 }
 
+// GetBatchUsageRequest asks for usage across many users in one round trip, so the
+// admin subscriptions table doesn't fan out one usage call per row.
+message GetBatchUsageRequest {
+  repeated string user_ids = 1;
+  // monthly_metrics are reported as current-calendar-month sums (e.g. ai_tokens)
+  // rather than lifetime totals. Metrics not listed here come back only in `totals`.
+  repeated string monthly_metrics = 2;
+}
+message BatchUsageEntry {
+  string user_id = 1;
+  // totals holds lifetime aggregate per metric (from user_usage_totals).
+  map<string, int64> totals = 2;
+  // monthly holds current-month sums for the requested monthly_metrics.
+  map<string, int64> monthly = 3;
+}
+message GetBatchUsageResponse {
+  repeated BatchUsageEntry entries = 1;
+}
+
 // Checkout
 message CreateCheckoutRequest {
   string user_id = 1;
@@ -386,6 +405,10 @@ service BillingService {
   // GetMonthlyUsage returns a user's usage for a metric in the current calendar
   // month — used to enforce managed-AI monthly allowances.
   rpc GetMonthlyUsage(GetMonthlyUsageRequest) returns (GetMonthlyUsageResponse);
+  // GetBatchUsage returns lifetime totals (and current-month sums for the
+  // requested monthly metrics) for many users at once — backs the admin
+  // subscriptions table without a per-row usage fan-out.
+  rpc GetBatchUsage(GetBatchUsageRequest) returns (GetBatchUsageResponse);
   
   // Webhook processing
   rpc ProcessWebhook(ProcessWebhookRequest) returns (ProcessWebhookResponse);

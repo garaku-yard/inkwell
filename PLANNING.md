@@ -57,7 +57,7 @@ Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
 - **Real-time co-editing** — `edit_sessions` table exists; no live CRDT/WebSocket sync yet.
 - **Packaging** — macOS builds (unsigned ad-hoc path agreed), auto-updater (needs signing keys + `tauri-plugin-updater`), Windows code signing — deferred to public launch. Helm charts for the hosted stack.
 - **`.iw` custom file format** — per-category on-disk files so non-vault projects also live on disk (depends on stable vault UX, which exists now).
-- **Server hygiene** — the gateway is now a single `/api/v1` tree (no legacy duplicate) and all collab/billing/workspace handlers are on `Endpoint[]` except the intentionally-manual `PaddleWebhook` (raw body for signature checks). Remaining: a billing batch-usage RPC would remove the admin `GetSubscriptions` per-row usage fan-out (currently bounded-concurrent).
+- **Server hygiene** — the gateway is now a single `/api/v1` tree (no legacy duplicate) and all collab/billing/workspace handlers are on `Endpoint[]` except the intentionally-manual `PaddleWebhook` (raw body for signature checks). The admin `GetSubscriptions` per-row usage fan-out is gone: a `GetBatchUsage` billing RPC now returns lifetime totals + current-month sums for the whole page in two grouped queries (Redis stays authoritative for monthly metrics via overlay). No remaining known hygiene items.
 - **Client** — eslint flat-config migration (required to bump `eslint-config-next` to 16); element-domain physical rename (`script_elements` table) left as plumbing.
 
 See `CLAUDE.md` for full architecture, the storage abstraction, and the complete deferred-work list.

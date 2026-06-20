@@ -16,14 +16,25 @@ import (
 // the checkout/sync paths need GetTierByID and GetSubscriptionByUserID.
 type fakeRepo struct {
 	repository.BillingRepository
-	tier    *domain.SubscriptionTier
-	tierErr error
-	sub     *domain.UserSubscription
-	subErr  error
+	tier      *domain.SubscriptionTier
+	tierErr   error
+	sub       *domain.UserSubscription
+	subErr    error
+	totals    map[uuid.UUID]map[string]int64
+	totalsErr error
+	monthly   map[uuid.UUID]map[string]int64
 }
 
 func (f *fakeRepo) GetTierByID(_ context.Context, _ uuid.UUID) (*domain.SubscriptionTier, error) {
 	return f.tier, f.tierErr
+}
+
+func (f *fakeRepo) ListUsageTotalsBatch(_ context.Context, _ []uuid.UUID) (map[uuid.UUID]map[string]int64, error) {
+	return f.totals, f.totalsErr
+}
+
+func (f *fakeRepo) GetMonthlyUsageBatch(_ context.Context, _ []uuid.UUID, _ []string) (map[uuid.UUID]map[string]int64, error) {
+	return f.monthly, nil
 }
 
 func (f *fakeRepo) GetSubscriptionByUserID(_ context.Context, _ uuid.UUID) (*domain.UserSubscription, error) {
@@ -185,6 +196,62 @@ func TestSyncSeats(t *testing.T) {
 			t.Errorf("gateway called with (%q,%q,%d), want (sub_x,pri_biz,7)", up.gotSub, up.gotPrice, up.gotQty)
 		}
 	})
+}
+
+func TestGetBatchUsage(t *testing.T) {
+	u1, u2 := uuid.New(), uuid.New()
+	repo := &fakeRepo{
+		totals: map[uuid.UUID]map[string]int64{
+			u1: {"projects": 3, "collaborators": 2},
+		},
+		monthly: map[uuid.UUID]map[string]int64{
+			u1: {"ai_tokens": 1500},
+		},
+	}
+	// redis is nil on newSvc, so this exercises the DB-baseline path.
+	s := newSvc(repo, PaymentConfig{})
+
+	got, err := s.GetBatchUsage(context.Background(), []uuid.UUID{u1, u2}, []string{"ai_tokens", "projects"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// u1: totals and monthly assembled from the batch maps.
+	if got[u1].Totals["projects"] != 3 || got[u1].Totals["collaborators"] != 2 {
+		t.Errorf("u1 totals = %+v, want projects=3 collaborators=2", got[u1].Totals)
+	}
+	if got[u1].Monthly["ai_tokens"] != 1500 {
+		t.Errorf("u1 ai_tokens = %d, want 1500", got[u1].Monthly["ai_tokens"])
+	}
+	// "projects" is not a monthly metric — it must be filtered out of the
+	// monthly query and absent from the monthly map.
+	if _, ok := got[u1].Monthly["projects"]; ok {
+		t.Errorf("non-monthly metric leaked into Monthly: %+v", got[u1].Monthly)
+	}
+
+	// u2 has no rows in either map but must still appear with non-nil maps and
+	// zero-filled monthly metrics, so the admin row renders instead of panicking.
+	snap, ok := got[u2]
+	if !ok {
+		t.Fatal("u2 missing from result; every requested user must be present")
+	}
+	if snap.Totals == nil || snap.Monthly == nil {
+		t.Errorf("u2 maps must be non-nil, got %+v", snap)
+	}
+	if snap.Monthly["ai_tokens"] != 0 {
+		t.Errorf("u2 ai_tokens = %d, want 0", snap.Monthly["ai_tokens"])
+	}
+}
+
+func TestGetBatchUsageEmptyInput(t *testing.T) {
+	s := newSvc(&fakeRepo{}, PaymentConfig{})
+	got, err := s.GetBatchUsage(context.Background(), nil, []string{"ai_tokens"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("empty input should yield empty map, got %+v", got)
+	}
 }
 
 func TestMapPaddleStatus(t *testing.T) {

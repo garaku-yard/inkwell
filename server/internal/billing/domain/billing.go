@@ -129,3 +129,13 @@ type UsageEvent struct {
 	Metric   string
 	Quantity int64
 }
+
+// UsageSnapshot bundles a user's lifetime per-metric totals with the
+// current-calendar-month sums for the metrics the caller flagged as monthly.
+// Returned by the batch usage path that powers the admin subscriptions table.
+type UsageSnapshot struct {
+	// Totals holds lifetime aggregates from user_usage_totals, keyed by metric.
+	Totals map[string]int64
+	// Monthly holds current-month sums for the requested monthly metrics.
+	Monthly map[string]int64
+}

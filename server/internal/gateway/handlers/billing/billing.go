@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -606,45 +605,42 @@ func (h *BillingHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request
 				CurrentPeriodEnd string   `json:"currentPeriodEnd,omitempty"`
 				Usage            usageOut `json:"usage"`
 			}
-			// Usage is fetched per subscription, but concurrently (bounded) rather
-			// than serially so the admin page doesn't pay a full N×RTT latency.
-			subs := make([]subOut, len(resp.Subscriptions))
-			var wg sync.WaitGroup
-			sem := make(chan struct{}, 8) // cap concurrent billing calls
-			for i, s := range resp.Subscriptions {
-				wg.Add(1)
-				go func(i int, s *billingpb.Subscription) {
-					defer wg.Done()
-					sem <- struct{}{}
-					defer func() { <-sem }()
-
-					u := usageOut{}
-					if ur, uerr := h.client.GetUserUsage(ctx, &billingpb.GetUserUsageRequest{UserId: s.UserId}); uerr == nil {
-						for _, m := range ur.Usage {
-							switch m.MetricName {
-							case "projects":
-								u.ProjectsCreated = m.Quantity
-							case "collaborators":
-								u.CollaboratorsAdded = m.Quantity
-							}
-						}
-					}
-					if mu, merr := h.client.GetMonthlyUsage(ctx, &billingpb.GetMonthlyUsageRequest{UserId: s.UserId, Metric: "ai_tokens"}); merr == nil {
-						u.AITokensUsed = mu.Used
-					}
-					subs[i] = subOut{
-						ID:               s.Id,
-						UserID:           s.UserId,
-						TierID:           s.PlanId,
-						TierName:         tierNames[s.PlanId],
-						Status:           s.Status,
-						Seats:            s.Quantity,
-						CurrentPeriodEnd: handlers.TimestampToString(s.CurrentPeriodEnd),
-						Usage:            u,
-					}
-				}(i, s)
+			// One batched usage call for the whole page instead of two RPCs per
+			// row — the billing service collapses it into a couple of grouped
+			// queries (lifetime totals + current-month ai_tokens).
+			userIDs := make([]string, 0, len(resp.Subscriptions))
+			for _, s := range resp.Subscriptions {
+				userIDs = append(userIDs, s.UserId)
 			}
-			wg.Wait()
+			usageByUser := map[string]usageOut{}
+			if bu, berr := h.client.GetBatchUsage(ctx, &billingpb.GetBatchUsageRequest{
+				UserIds:        userIDs,
+				MonthlyMetrics: []string{"ai_tokens"},
+			}); berr == nil {
+				for _, e := range bu.Entries {
+					usageByUser[e.UserId] = usageOut{
+						AITokensUsed:       e.Monthly["ai_tokens"],
+						ProjectsCreated:    e.Totals["projects"],
+						CollaboratorsAdded: e.Totals["collaborators"],
+					}
+				}
+			} else {
+				log.Printf("GetSubscriptions: batch usage error: %v", berr)
+			}
+
+			subs := make([]subOut, len(resp.Subscriptions))
+			for i, s := range resp.Subscriptions {
+				subs[i] = subOut{
+					ID:               s.Id,
+					UserID:           s.UserId,
+					TierID:           s.PlanId,
+					TierName:         tierNames[s.PlanId],
+					Status:           s.Status,
+					Seats:            s.Quantity,
+					CurrentPeriodEnd: handlers.TimestampToString(s.CurrentPeriodEnd),
+					Usage:            usageByUser[s.UserId],
+				}
+			}
 			pages := int(resp.Total) / limit
 			if int(resp.Total)%limit != 0 {
 				pages++
