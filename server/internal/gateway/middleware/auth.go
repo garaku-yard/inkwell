@@ -89,7 +89,7 @@ func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 
 // isPublicEndpoint reports whether the path requires no authentication.
 func isPublicEndpoint(path string) bool {
-	publicPaths := []string{"/health", "/api/v1/login", "/api/v1/register"}
+	publicPaths := []string{"/health", "/api/v1/login", "/api/v1/register", "/api/v1/auth/refresh"}
 	for _, p := range publicPaths {
 		if path == p {
 			return true

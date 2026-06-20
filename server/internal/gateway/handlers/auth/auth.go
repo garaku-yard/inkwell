@@ -66,10 +66,14 @@ type LoginRequest struct {
 // Native clients (the desktop app) can't use the cross-origin cookie, so they
 // send the X-Inkwell-Client: desktop header and receive the token in the body
 // instead — to be stored in the OS keychain and replayed as a Bearer header.
-// AccessToken is omitted for browser clients, preserving the cookie-only path.
+// AccessToken / RefreshToken are omitted for browser clients, preserving the
+// cookie-only path. RefreshToken lets a native client mint a fresh access token
+// (via POST /auth/refresh) without re-prompting for credentials when the 24h
+// access token expires.
 type AuthResponse struct {
-	User        UserResponse `json:"user"`
-	AccessToken string       `json:"accessToken,omitempty"`
+	User         UserResponse `json:"user"`
+	AccessToken  string       `json:"accessToken,omitempty"`
+	RefreshToken string       `json:"refreshToken,omitempty"`
 }
 
 // ClientHeader names the request header a native client sets to identify itself.
@@ -177,9 +181,48 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	resp := AuthResponse{User: userFromProto(grpcResp.User)}
 	if isDesktopClient(r) {
 		resp.AccessToken = grpcResp.AccessToken
+		resp.RefreshToken = grpcResp.RefreshToken
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// RefreshToken exchanges a valid refresh token for a fresh access/refresh token
+// pair. It's a public endpoint (no auth middleware) because the caller's access
+// token has typically expired — that's the whole point. The desktop client
+// stores the refresh token in the OS keychain and calls this on a 401 so the
+// 24h access-token lifetime doesn't force a daily re-login.
+func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		handlers.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		RefreshToken string `json:"refreshToken"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
+		handlers.WriteError(w, "Missing refresh token", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	grpcResp, err := h.identityClient.RefreshToken(ctx, &identitypb.RefreshTokenRequest{
+		RefreshToken: req.RefreshToken,
+	})
+	if err != nil {
+		handlers.WriteError(w, "Invalid or expired refresh token", http.StatusUnauthorized)
+		return
+	}
+
+	// Rotate the browser cookie too (harmless for native callers).
+	SetAuthCookie(w, grpcResp.AccessToken, h.environment)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"accessToken":  grpcResp.AccessToken,
+		"refreshToken": grpcResp.RefreshToken,
+	})
 }
 
 // UpdateProfileRequest carries the profile fields to update for the authenticated user.
@@ -445,6 +488,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	resp := AuthResponse{User: userFromProto(grpcResp.User)}
 	if isDesktopClient(r) {
 		resp.AccessToken = grpcResp.AccessToken
+		resp.RefreshToken = grpcResp.RefreshToken
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

@@ -103,6 +103,34 @@ func main() {
 		WithLogger(slog.Default().With("component", "scripts_outbox"))
 	go poller.Run(pollerCtx)
 
+	// Tombstone GC — periodically hard-delete soft-deleted rows past the
+	// retention horizon (time-based, no device tracking; mirrors the client's
+	// per-sync purge). Runs once at startup, then daily.
+	syncRepo := repository.NewSyncRepository(db)
+	go func() {
+		const retention = 90 * 24 * time.Hour
+		runGC := func() {
+			ctx, cancel := context.WithTimeout(pollerCtx, 2*time.Minute)
+			defer cancel()
+			if n, err := syncRepo.PurgeTombstones(ctx, retention); err != nil {
+				slog.Warn("tombstone GC failed", "error", err)
+			} else if n > 0 {
+				slog.Info("tombstone GC purged rows", "count", n)
+			}
+		}
+		runGC()
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-pollerCtx.Done():
+				return
+			case <-ticker.C:
+				runGC()
+			}
+		}
+	}()
+
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),
 	)

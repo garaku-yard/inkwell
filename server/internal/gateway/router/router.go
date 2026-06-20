@@ -118,6 +118,9 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 		// Public
 		r.Post("/login", authLimit(authHandler.Login))
 		r.Post("/register", authLimit(authHandler.Register))
+		// Refresh is public: the access token has usually expired by the time
+		// it's called (auth is by the refresh token in the body, not a session).
+		r.Post("/auth/refresh", authLimit(authHandler.RefreshToken))
 
 		// Payment-gateway webhooks are public: the provider authenticates by
 		// signing the body, not with a session cookie. Verification happens in
