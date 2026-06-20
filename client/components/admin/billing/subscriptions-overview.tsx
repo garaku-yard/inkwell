@@ -132,39 +132,39 @@ export function SubscriptionsOverview() {
                         <Badge variant="outline">Canceling</Badge>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                       <div>
                         <span className="text-gray-500">Tier:</span>{" "}
-                        <span className="font-medium">{subscription.tierId}</span>
+                        <span className="font-medium">{subscription.tierName ?? subscription.tierId}</span>
                       </div>
-                      <div>
-                        <span className="text-gray-500">Cycle:</span>{" "}
-                        <span className="font-medium capitalize">{subscription.billingCycle}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Period End:</span>{" "}
-                        <span className="font-medium">
-                          {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Gateway:</span>{" "}
-                        <span className="font-medium capitalize">{subscription.gatewayId}</span>
-                      </div>
+                      {(subscription.seats ?? 0) > 0 && (
+                        <div>
+                          <span className="text-gray-500">Seats:</span>{" "}
+                          <span className="font-medium">{subscription.seats}</span>
+                        </div>
+                      )}
+                      {subscription.currentPeriodEnd && (
+                        <div>
+                          <span className="text-gray-500">Period End:</span>{" "}
+                          <span className="font-medium">
+                            {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-3 flex gap-4 text-xs">
                       <div>
-                        <span className="text-gray-500">AI Tokens:</span>{" "}
-                        <span className="font-medium">{subscription.usage.aiTokensUsed.toLocaleString()}</span>
+                        <span className="text-gray-500">AI Tokens (mo):</span>{" "}
+                        <span className="font-medium">{(subscription.usage?.aiTokensUsed ?? 0).toLocaleString()}</span>
                       </div>
                       <div>
                         <span className="text-gray-500">Projects:</span>{" "}
-                        <span className="font-medium">{subscription.usage.projectsCreated}</span>
+                        <span className="font-medium">{subscription.usage?.projectsCreated ?? 0}</span>
                       </div>
                       <div>
                         <span className="text-gray-500">Collaborators:</span>{" "}
-                        <span className="font-medium">{subscription.usage.collaboratorsAdded}</span>
+                        <span className="font-medium">{subscription.usage?.collaboratorsAdded ?? 0}</span>
                       </div>
                     </div>
                   </div>

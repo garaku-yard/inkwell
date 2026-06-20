@@ -94,6 +94,10 @@ export interface UserSubscription {
   id: string
   userId: string
   tierId: string
+  /** Resolved tier display name (admin list enrichment). */
+  tierName?: string
+  /** Purchased seats for per-seat subscriptions (admin list enrichment). */
+  seats?: number
   gatewayId: string
   status: "active" | "trialing" | "past_due" | "canceled" | "incomplete"
   

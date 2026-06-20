@@ -550,7 +550,7 @@ func (h *BillingHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request
 		Auth:   true,
 		Decode: handlers.NoBody[struct{}],
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]interface{}, error) {
-			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 
 			q := r.URL.Query()
@@ -582,15 +582,57 @@ func (h *BillingHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request
 				}, nil
 			}
 
-			type subOut struct {
-				ID     string `json:"id"`
-				UserID string `json:"userId"`
-				PlanID string `json:"planId"`
-				Status string `json:"status"`
+			// Resolve tier ids to names once for the whole page.
+			tierNames := map[string]string{}
+			if tr, terr := h.client.ListAllTiers(ctx, &billingpb.ListAllTiersRequest{}); terr == nil {
+				for _, t := range tr.Tiers {
+					tierNames[t.Id] = t.Name
+				}
 			}
+
+			type usageOut struct {
+				AITokensUsed       int64 `json:"aiTokensUsed"`
+				ProjectsCreated    int64 `json:"projectsCreated"`
+				CollaboratorsAdded int64 `json:"collaboratorsAdded"`
+			}
+			type subOut struct {
+				ID               string   `json:"id"`
+				UserID           string   `json:"userId"`
+				TierID           string   `json:"tierId"`
+				TierName         string   `json:"tierName"`
+				Status           string   `json:"status"`
+				Seats            int32    `json:"seats"`
+				CurrentPeriodEnd string   `json:"currentPeriodEnd,omitempty"`
+				Usage            usageOut `json:"usage"`
+			}
+			// Note: usage is fetched per subscription (N+1). Acceptable for the
+			// admin page (paginated, low frequency); revisit if it grows.
 			subs := make([]subOut, 0, len(resp.Subscriptions))
 			for _, s := range resp.Subscriptions {
-				subs = append(subs, subOut{ID: s.Id, UserID: s.UserId, PlanID: s.PlanId, Status: s.Status})
+				u := usageOut{}
+				if ur, uerr := h.client.GetUserUsage(ctx, &billingpb.GetUserUsageRequest{UserId: s.UserId}); uerr == nil {
+					for _, m := range ur.Usage {
+						switch m.MetricName {
+						case "projects":
+							u.ProjectsCreated = m.Quantity
+						case "collaborators":
+							u.CollaboratorsAdded = m.Quantity
+						}
+					}
+				}
+				if mu, merr := h.client.GetMonthlyUsage(ctx, &billingpb.GetMonthlyUsageRequest{UserId: s.UserId, Metric: "ai_tokens"}); merr == nil {
+					u.AITokensUsed = mu.Used
+				}
+				subs = append(subs, subOut{
+					ID:               s.Id,
+					UserID:           s.UserId,
+					TierID:           s.PlanId,
+					TierName:         tierNames[s.PlanId],
+					Status:           s.Status,
+					Seats:            s.Quantity,
+					CurrentPeriodEnd: handlers.TimestampToString(s.CurrentPeriodEnd),
+					Usage:            u,
+				})
 			}
 			pages := int(resp.Total) / limit
 			if int(resp.Total)%limit != 0 {
