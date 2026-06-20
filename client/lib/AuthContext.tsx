@@ -64,9 +64,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch {
       // Network or 401 here is harmless — we're going to clear state anyway.
     }
-    setUser(null)
+    // Re-resolve the working identity. On the web this is null (signed out →
+    // bounce to /login). On the local-first desktop build the local profile
+    // remains, so we stay in the app rather than forcing a login gate it
+    // doesn't need — signing out just unlinks the optional cloud account.
+    let next: AuthUser | null = null
+    try {
+      next = await getStorage().auth.me()
+    } catch {
+      // treat as fully signed out
+    }
+    setUser(next)
     setSessionExpired(false)
-    router.push("/login")
+    if (next === null) router.push("/login")
   }, [router])
 
   const showSessionExpired = useCallback(() => {

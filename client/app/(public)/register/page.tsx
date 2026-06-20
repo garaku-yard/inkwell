@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react"
 
 import { BrandLogo } from "@/components/brand-logo"
@@ -32,6 +32,10 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Honour an explicit ?next (e.g. the desktop "Create account" flow returns to
+  // Settings); a brand-new web signup falls through to first-run onboarding.
+  const nextPath = searchParams.get("next")
   const { login } = useAuth()
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,7 +84,7 @@ export default function RegisterPage() {
       setSuccess("Registration successful! Let's set up your workspace...")
 
       setTimeout(() => {
-        router.push("/onboarding")
+        router.push(nextPath || "/onboarding")
       }, 1000)
 
     } catch (err: unknown) {

@@ -7,7 +7,6 @@
 import Database from "@tauri-apps/plugin-sql"
 
 import type {
-  AuthResponse,
   Beat,
   Category,
   Character,
@@ -374,22 +373,6 @@ export async function ensureUserProfile(): Promise<CurrentUser> {
     role: "user",
     name: "",
     lastName: "",
-  }
-}
-
-export function toAuthResponse(me: CurrentUser): AuthResponse {
-  return {
-    user: {
-      id: me.id,
-      email: me.email,
-      username: me.username,
-      usernameTag: me.tag,
-      name: me.name,
-      lastName: me.lastName,
-      role: me.role,
-      createdAt: now(),
-      updatedAt: now(),
-    },
   }
 }
 

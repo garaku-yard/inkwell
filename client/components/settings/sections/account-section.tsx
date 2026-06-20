@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/AuthContext"
 import { updateUserProfile, uploadAvatar } from "@/services/settings"
 import { getMyBilling } from "@/services/billing"
 import type { MyBilling } from "@/types/billing"
+import { CloudAccountCard } from "./cloud-account-card"
 
 interface AccountSectionProps {
   user: {
@@ -124,6 +125,9 @@ export function AccountSection({ user }: AccountSectionProps) {
 
   return (
     <div className="space-y-6">
+      {/* Desktop-only: optional cloud-account link. Renders nothing on web. */}
+      <CloudAccountCard />
+
       <Card>
         <CardHeader>
           <CardTitle>Profile Information</CardTitle>
