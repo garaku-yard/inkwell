@@ -124,10 +124,13 @@ surfaced on the project card + a Settings → Sync section.
 
 ## Implementation stages (all part of v1)
 
-1. **Schema foundations (both sides).** Add `deleted_at` everywhere + missing
-   `updated_at`; convert every delete path to soft-delete; filter all reads.
-   Mechanical but wide — touches every synced table and delete in `local/*.ts`
-   and the scripts repo/service. Finalise the change-log/trigger mechanism here.
+1. **Schema foundations (both sides). ✅ DONE** (local `7dc6be0`, cloud
+   `c833a5c`). `deleted_at` on every synced table both sides + `updated_at` on
+   the beat-board tables that lacked it; all deletes are soft-deletes (project/
+   scene deletes cascade child tombstones); every list/get read filters
+   `deleted_at IS NULL`; delta-scan indexes added. Verified on the live stack.
+   The change-log/`sync_outbox` mechanism is deferred to Stage 3 (its own
+   migration), co-located with the runner that drains it.
 2. **Server: upsert + sync endpoint.** Client-id upsert-by-id (LWW) for every
    entity; `POST /sync/projects/{id}` push+pull service + handler; per-project
    delta query + indexes; the periodic time-based tombstone purge.
