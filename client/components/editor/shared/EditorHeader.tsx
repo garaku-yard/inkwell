@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, Bot, ChevronDown, Download } from "lucide-react"
 
 import { AppHeaderActions } from "@/components/AppHeaderActions"
+import { SyncControl } from "@/components/sync/SyncControl"
 import { Button } from "@/components/ui/button"
 import { ProjectKnowledgeButton } from "../ProjectKnowledgeButton"
 import { ProjectNavMenu } from "./ProjectNavMenu"
@@ -124,6 +125,7 @@ export function EditorHeader({
           </DropdownMenu>
         )}
         <ProjectKnowledgeButton projectId={projectId} category={category} />
+        <SyncControl projectId={projectId} />
         <Button
           variant="ghost"
           size="icon"

@@ -162,11 +162,17 @@ surfaced on the project card + a Settings → Sync section.
    account's id would hide every project). `services/sync.ts` exposes the API
    for the UI. Mappers unit-tested; tsc/lint/build green. The actual two-device
    round-trip is exercised once Stage 4's UI drives it.
-4. **Client: opt-in UX + status.** "Sync this project" toggle, per-project
-   status indicator, manual "Sync now", Settings → Sync.
-5. **Verification.** Two local DBs ↔ cloud: create/edit/delete propagation,
-   conflict (same row both sides), offline→reconnect, fresh-device pull. Run
-   against the live docker stack.
+4. **Client: opt-in UX + status. ✅ DONE.** `SyncControl` in the editor header
+   (status icon + dropdown: opt-in Switch, "Sync now", last-synced, "sign in to
+   sync" when unlinked); `SyncRunner` in the private layout (syncs enabled
+   projects on focus + a 45s tick); `useProjectSync` hook. Renders nothing on
+   the web build (no `sync` capability). Smoke-tested. The dashboard project-card
+   toggle was deferred (editor header covers per-project opt-in); a Settings →
+   Sync overview is optional polish.
+5. **Verification.** Server side verified live (Stage 2). Client mappers +
+   UI states unit/smoke-tested. **Remaining: the two-device app-level round-trip
+   — needs the running desktop app** (create/edit/delete propagation, fresh
+   device pull, offline→reconnect). Manual check against the live docker stack.
 
 ## Tombstone retention (GC) — in v1, time-based
 
