@@ -59,6 +59,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0008_drop_element_character_id.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 9,
+      description: "sync foundation: deleted_at tombstones + updated_at on beat-board tables",
+      sql: include_str!("../migrations/0009_sync.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 

@@ -48,6 +48,37 @@ export function newId(): string {
   return crypto.randomUUID()
 }
 
+/** Synced child tables of a project (every per-project entity that participates
+ *  in cloud sync). Used to cascade a tombstone when a project is soft-deleted so
+ *  the children propagate as deleted instead of lingering. Workspaces are not
+ *  here — they don't sync in v1. */
+export const SYNCED_PROJECT_CHILD_TABLES = [
+  "scenes",
+  "script_elements",
+  "characters",
+  "locations",
+  "beats",
+  "connections",
+  "lanes",
+  "outline_items",
+] as const
+
+/** Soft-deletes every live child row of a project across the synced child
+ *  tables, stamping deleted_at + updated_at = ts. Table names come from a fixed
+ *  constant list (never user input), so the interpolation is safe. */
+export async function softDeleteProjectChildren(
+  db: Database,
+  projectId: string,
+  ts: string,
+): Promise<void> {
+  for (const table of SYNCED_PROJECT_CHILD_TABLES) {
+    await db.execute(
+      `UPDATE ${table} SET deleted_at = ?, updated_at = ? WHERE project_id = ? AND deleted_at IS NULL`,
+      [ts, ts, projectId],
+    )
+  }
+}
+
 export interface ProjectRow {
   id: string
   workspace_id: string | null

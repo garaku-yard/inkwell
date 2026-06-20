@@ -20,7 +20,7 @@ export const locations: LocationStorage = {
   listForProject: async (projectId) => {
     const db = await getDb()
     const rows = await db.select<LocationRow[]>(
-      "SELECT * FROM locations WHERE project_id = ? ORDER BY name",
+      "SELECT * FROM locations WHERE project_id = ? AND deleted_at IS NULL ORDER BY name",
       [projectId],
     )
     return rows.map(toLocation)

@@ -29,7 +29,7 @@ export const characters: CharacterStorage = {
   listForProject: async (projectId) => {
     const db = await getDb()
     const rows = await db.select<CharacterRow[]>(
-      "SELECT * FROM characters WHERE project_id = ? ORDER BY name",
+      "SELECT * FROM characters WHERE project_id = ? AND deleted_at IS NULL ORDER BY name",
       [projectId],
     )
     return rows.map(toCharacter)

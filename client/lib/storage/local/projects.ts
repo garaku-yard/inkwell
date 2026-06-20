@@ -3,6 +3,7 @@ import {
   getDb,
   newId,
   now,
+  softDeleteProjectChildren,
   toElement,
   toProject,
   toScene,
@@ -37,7 +38,10 @@ export const projects: ProjectStorage = {
 
   getById: async (projectId) => {
     const db = await getDb()
-    const rows = await db.select<ProjectRow[]>("SELECT * FROM projects WHERE id = ?", [projectId])
+    const rows = await db.select<ProjectRow[]>(
+      "SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL",
+      [projectId],
+    )
     if (rows.length === 0) throw new Error(`Project not found: ${projectId}`)
     return toProject(rows[0])
   },
@@ -45,13 +49,13 @@ export const projects: ProjectStorage = {
   getFull: async (projectId, userId) => {
     const project = await projects.getById(projectId, userId)
     const sceneRows = await (await getDb()).select<SceneRow[]>(
-      "SELECT * FROM scenes WHERE project_id = ? ORDER BY order_index",
+      "SELECT * FROM scenes WHERE project_id = ? AND deleted_at IS NULL ORDER BY order_index",
       [projectId],
     )
     const scenes = await Promise.all(
       sceneRows.map(async (s) => {
         const elementRows = await (await getDb()).select<ElementRow[]>(
-          "SELECT * FROM script_elements WHERE scene_id = ? ORDER BY line_number",
+          "SELECT * FROM script_elements WHERE scene_id = ? AND deleted_at IS NULL ORDER BY line_number",
           [s.id],
         )
         return {
@@ -68,7 +72,7 @@ export const projects: ProjectStorage = {
   listOwned: async (userId) => {
     const db = await getDb()
     const rows = await db.select<ProjectRow[]>(
-      "SELECT * FROM projects WHERE owner_id = ? ORDER BY updated_at DESC",
+      "SELECT * FROM projects WHERE owner_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC",
       [userId],
     )
     const list = rows.map(toProject)
@@ -115,11 +119,12 @@ export const projects: ProjectStorage = {
 
   delete: async (projectId) => {
     const db = await getDb()
+    const ts = now()
     // The vault + knowledge index tables key on project_id without a foreign
-    // key (notes live on disk, so they can't cascade from the projects row),
-    // so clean them up by hand here or they orphan forever. project_knowledge
-    // is wiped whether this project was the consumer (project_id) or the vault
-    // supplying notes to others (vault_project_id).
+    // key (notes live on disk, so they can't cascade from the projects row).
+    // They're derived, device-local, and never synced, so hard-delete them.
+    // project_knowledge is wiped whether this project was the consumer
+    // (project_id) or the vault supplying notes to others (vault_project_id).
     await db.execute(
       "DELETE FROM project_knowledge WHERE project_id = ? OR vault_project_id = ?",
       [projectId, projectId],
@@ -127,6 +132,13 @@ export const projects: ProjectStorage = {
     await db.execute("DELETE FROM note_embeddings WHERE project_id = ?", [projectId])
     await db.execute("DELETE FROM note_links WHERE project_id = ?", [projectId])
     await db.execute("DELETE FROM note_tags WHERE project_id = ?", [projectId])
-    await db.execute("DELETE FROM projects WHERE id = ?", [projectId])
+    // Soft-delete the project and cascade tombstones to its synced children, so
+    // the deletion propagates on sync instead of vanishing without a trace.
+    // (Hard DELETE's FK CASCADE doesn't fire for a soft-delete UPDATE.)
+    await db.execute(
+      "UPDATE projects SET deleted_at = ?, updated_at = ? WHERE id = ?",
+      [ts, ts, projectId],
+    )
+    await softDeleteProjectChildren(db, projectId, ts)
   },
 }

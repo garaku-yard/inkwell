@@ -39,7 +39,7 @@ export const elements: ElementStorage = {
   listForScene: async (sceneId) => {
     const db = await getDb()
     const rows = await db.select<ElementRow[]>(
-      "SELECT * FROM script_elements WHERE scene_id = ? ORDER BY line_number",
+      "SELECT * FROM script_elements WHERE scene_id = ? AND deleted_at IS NULL ORDER BY line_number",
       [sceneId],
     )
     return rows.map(toElement)
@@ -71,12 +71,16 @@ export const elements: ElementStorage = {
 
   delete: async (elementId) => {
     const db = await getDb()
-    await db.execute("DELETE FROM script_elements WHERE id = ?", [elementId])
+    const ts = now()
+    await db.execute(
+      "UPDATE script_elements SET deleted_at = ?, updated_at = ? WHERE id = ?",
+      [ts, ts, elementId],
+    )
   },
 
   listForProject: async (projectId, _userId, startLine, endLine) => {
     const db = await getDb()
-    let sql = "SELECT * FROM script_elements WHERE project_id = ?"
+    let sql = "SELECT * FROM script_elements WHERE project_id = ? AND deleted_at IS NULL"
     const args: (string | number)[] = [projectId]
     if (startLine !== undefined) {
       sql += " AND line_number >= ?"
