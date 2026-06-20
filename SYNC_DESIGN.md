@@ -130,20 +130,33 @@ surfaced on the project card + a Settings → Sync section.
    and the scripts repo/service. Finalise the change-log/trigger mechanism here.
 2. **Server: upsert + sync endpoint.** Client-id upsert-by-id (LWW) for every
    entity; `POST /sync/projects/{id}` push+pull service + handler; per-project
-   delta query + indexes.
+   delta query + indexes; the periodic time-based tombstone purge.
 3. **Client: sync engine.** `sync_state` + `sync_outbox`, the runner, the
-   round-trip via a new `storage.sync` domain, LWW apply, owner remap on link.
+   round-trip via a new `storage.sync` domain, LWW apply, owner remap on link,
+   the local tombstone purge.
 4. **Client: opt-in UX + status.** "Sync this project" toggle, per-project
    status indicator, manual "Sync now", Settings → Sync.
 5. **Verification.** Two local DBs ↔ cloud: create/edit/delete propagation,
    conflict (same row both sides), offline→reconnect, fresh-device pull. Run
    against the live docker stack.
 
+## Tombstone retention (GC) — in v1, time-based
+
+Soft-deleted rows are kept so deletes propagate, then purged by age: a periodic
+`DELETE … WHERE deleted_at < now - <retention>` on both server and client
+(retention ≈ 90 days, a knob). No device registry, no watermarks — trivial to
+implement and the permanent solution at this scale. Tradeoff: a device offline
+longer than the retention window won't learn about deletes purged in the
+meantime and would resurrect a few rows on return; acceptable for
+single-user-few-devices (worst case: re-delete a couple of items).
+
+The **exact / watermark GC** (purge only once *every* device has synced past a
+row) is explicitly **not** built — it requires device identity + per-device
+cursors + an offline-retention policy, and buys nothing over time-based
+retention for this product.
+
 ## Open risks
 
-- **Tombstone GC** — soft-deleted rows accumulate; needs a periodic purge
-  (server + local) once all devices are past a horizon. Defer the GC job;
-  tombstones are cheap short-term.
 - **Large initial push** — first sync of a big project sends every row; bounded
   by per-project size (a screenplay is hundreds of rows / low-MB). Acceptable;
   chunk if needed.
