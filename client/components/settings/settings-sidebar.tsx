@@ -12,9 +12,11 @@ import {
   Plug,
   Sparkles,
   Accessibility,
-  Info
+  Info,
+  RefreshCw
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getStorage } from "@/lib/storage"
 import type { SettingsSection } from "@/app/(private)/settings/page"
 
 interface SettingsSidebarProps {
@@ -33,16 +35,25 @@ const sections = [
   { id: "collaboration" as const, label: "Collaboration", icon: Users },
   { id: "integrations" as const, label: "Integrations", icon: Plug },
   { id: "ai" as const, label: "AI Providers", icon: Sparkles },
+  // "sync" is inserted here at render only on builds with the capability (desktop).
   { id: "accessibility" as const, label: "Accessibility", icon: Accessibility },
   { id: "about" as const, label: "About & Legal", icon: Info },
 ]
 
+const SYNC_ITEM = { id: "sync" as const, label: "Sync", icon: RefreshCw }
+
 export function SettingsSidebar({ activeSection, onSectionChange }: SettingsSidebarProps) {
+  // Show the Sync section only on builds that support it (desktop). capabilities
+  // is a stable Set bound at boot, safe to read at render.
+  const visibleSections = getStorage().capabilities.has("sync")
+    ? [...sections.slice(0, 10), SYNC_ITEM, ...sections.slice(10)]
+    : sections
+
   return (
     <nav className="w-full lg:w-64 flex-shrink-0">
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-2">
         <div className="space-y-1">
-          {sections.map((section) => {
+          {visibleSections.map((section) => {
             const Icon = section.icon
             const isActive = activeSection === section.id
             

@@ -18,6 +18,7 @@ import { IntegrationsSection } from "@/components/settings/sections/integrations
 import { AccessibilitySection } from "@/components/settings/sections/accessibility-section"
 import { AboutSection } from "@/components/settings/sections/about-section"
 import { AISection } from "@/components/settings/sections/ai-section"
+import { SyncSection } from "@/components/settings/sections/sync-section"
 
 export type SettingsSection =
   | "account"
@@ -30,6 +31,7 @@ export type SettingsSection =
   | "collaboration"
   | "integrations"
   | "ai"
+  | "sync"
   | "accessibility"
   | "about"
 
@@ -59,6 +61,8 @@ export default function SettingsPage() {
         return <IntegrationsSection />
       case "ai":
         return <AISection />
+      case "sync":
+        return <SyncSection />
       case "accessibility":
         return <AccessibilitySection />
       case "about":

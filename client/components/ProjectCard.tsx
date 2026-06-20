@@ -4,6 +4,7 @@ import { Clock, MoreHorizontal, Star, UserPlus, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { CardSyncToggle } from "@/components/sync/CardSyncToggle"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -171,6 +172,8 @@ export function ProjectCard({
               <UserPlus className="h-3.5 w-3.5 text-muted-foreground hover:text-primary transition-colors" />
             </Button>
           )}
+
+          <CardSyncToggle projectId={project.id} />
 
           <Button
             variant="ghost"
