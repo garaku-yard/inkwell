@@ -68,8 +68,8 @@ func VerifySignature(secret, header string, rawBody []byte, now time.Time, toler
 // for subscription.* events; other event types parse with a nil Subscription so
 // the caller can ignore them.
 type Event struct {
-	EventID   string
-	EventType string
+	EventID      string
+	EventType    string
 	Subscription *Subscription
 }
 
