@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "@/hooks/use-toast"
 import {
@@ -61,7 +61,7 @@ export function useProjects({
   const [error, setError] = useState<string | null>(null)
   const [inviteCount, setInviteCount] = useState(0)
 
-  useEffect(() => {
+  const refetch = useCallback(async () => {
     if (authLoading) return
 
     if (isAuthenticated && userId) {
@@ -98,11 +98,15 @@ export function useProjects({
           setIsLoading(false)
         }
       }
-      fetchDashboardData()
+      await fetchDashboardData()
     } else {
       setIsLoading(false)
     }
   }, [isAuthenticated, userId, authLoading])
+
+  useEffect(() => {
+    void refetch()
+  }, [refetch])
 
   const filteredProjects = useMemo(() => {
     const workspaceSlugs = activeWorkspace?.categories?.map((c) => c.slug) ?? []
@@ -265,5 +269,6 @@ export function useProjects({
     handleRenameProject,
     handleArchiveProject,
     handleProjectClick,
+    refetch,
   }
 }

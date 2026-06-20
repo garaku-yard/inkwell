@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { NewProjectDialog } from "./new-project-dialog"
+import { CloudProjectsButton } from "@/components/sync/CloudProjectsButton"
 import { CollaboratorsDialog } from "./collaborators-dialog"
 import { FdxImportDialog } from "./fdx-import-dialog"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
@@ -100,6 +101,7 @@ function DashboardPageContent() {
     handleRenameProject,
     handleArchiveProject,
     handleProjectClick,
+    refetch,
   } = useProjects({ userId, isAuthenticated, authLoading, activeFilter, searchQuery, activeWorkspace })
 
   useEffect(() => {
@@ -212,6 +214,7 @@ function DashboardPageContent() {
                   <FilePlus2Icon className="h-4 w-4 mr-2" />
                   Import
                 </Button>
+                <CloudProjectsButton onPulled={refetch} />
               </div>
             </div>
 

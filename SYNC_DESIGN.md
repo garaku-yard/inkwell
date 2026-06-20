@@ -169,6 +169,12 @@ surfaced on the project card + a Settings → Sync section.
    the web build (no `sync` capability). Smoke-tested. The dashboard project-card
    toggle was deferred (editor header covers per-project opt-in); a Settings →
    Sync overview is optional polish.
+   - **4.1 — "From cloud" pull (closes the fresh-device gap).**
+     `CloudProjectsButton` on the dashboard lists the user's cloud projects
+     (flagging which are already local) and pulls a chosen one onto this device
+     (`sync.listCloudProjects` + `pullProject` = enable sync ⇒ empty push + full
+     pull writes its rows locally). This is how a browser-/other-device-made
+     project reaches a machine. Smoke-tested.
 5. **Verification.** Server side verified live (Stage 2). Client mappers +
    UI states unit/smoke-tested. **Remaining: the two-device app-level round-trip
    — needs the running desktop app** (create/edit/delete propagation, fresh

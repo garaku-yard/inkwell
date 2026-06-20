@@ -16,6 +16,8 @@ function fakeSync(state: Partial<SyncProjectState>, available = true): SyncStora
     setEnabled: vi.fn(async () => {}),
     syncProject: vi.fn(async () => full),
     syncAll: vi.fn(async () => []),
+    listCloudProjects: vi.fn(async () => []),
+    pullProject: vi.fn(async () => {}),
   }
 }
 

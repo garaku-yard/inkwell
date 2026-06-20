@@ -309,6 +309,32 @@ export const sync: SyncStorage = {
     for (const s of enabled) out.push(await sync.syncProject(s.projectId))
     return out
   },
+
+  listCloudProjects: async () => {
+    if (getAuthToken() === null) return []
+    const resp = await apiClient<{
+      projects: Array<{ id: string; title: string; category: string; status: string; updated_at: string }>
+    }>("projects", { method: "GET" })
+    const db = await getDb()
+    const localRows = await db.select<{ id: string }[]>(
+      "SELECT id FROM projects WHERE deleted_at IS NULL",
+    )
+    const localIds = new Set(localRows.map((x) => x.id))
+    return (resp.projects ?? []).map((p) => ({
+      id: p.id,
+      title: p.title,
+      category: p.category,
+      status: p.status,
+      updatedAt: p.updated_at,
+      onThisDevice: localIds.has(p.id),
+    }))
+  },
+
+  pullProject: async (projectId) => {
+    // Enabling sync on a not-yet-local project does an empty push + full pull,
+    // writing the project + its children into the local store.
+    await sync.setEnabled(projectId, true)
+  },
 }
 
 async function purgeLocalTombstones(projectId: string): Promise<void> {

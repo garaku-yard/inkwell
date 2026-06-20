@@ -3,9 +3,9 @@
  *  capability). See lib/storage/contracts/sync.ts. */
 
 import { getStorage } from "@/lib/storage"
-import type { SyncProjectState } from "@/lib/storage"
+import type { CloudProject, SyncProjectState } from "@/lib/storage"
 
-export type { SyncProjectState }
+export type { CloudProject, SyncProjectState }
 
 /** Whether sync can run right now (desktop + a linked cloud account). */
 export const isSyncAvailable = (): Promise<boolean> => getStorage().sync.isAvailable()
@@ -29,3 +29,11 @@ export const syncProject = (projectId: string): Promise<SyncProjectState> =>
 /** Sync every enabled project. */
 export const syncAllProjects = (): Promise<SyncProjectState[]> =>
   getStorage().sync.syncAll()
+
+/** List the user's cloud projects (flagging which are already on this device). */
+export const listCloudProjects = (): Promise<CloudProject[]> =>
+  getStorage().sync.listCloudProjects()
+
+/** Pull a cloud project onto this device. */
+export const pullCloudProject = (projectId: string): Promise<void> =>
+  getStorage().sync.pullProject(projectId)

@@ -1,5 +1,16 @@
 // ─── Sync (desktop only) ─────────────────────────────────────────────────────
 
+/** A project in the user's cloud account, for the "pull onto this device" UI. */
+export interface CloudProject {
+  id: string
+  title: string
+  category: string
+  status: string
+  updatedAt: string
+  /** Already present in the local store on this device. */
+  onThisDevice: boolean
+}
+
 /** Per-project sync status for the UI. */
 export interface SyncProjectState {
   projectId: string
@@ -33,4 +44,10 @@ export interface SyncStorage {
   syncProject(projectId: string): Promise<SyncProjectState>
   /** Sync every enabled project, returning each one's resulting state. */
   syncAll(): Promise<SyncProjectState[]>
+  /** List the user's cloud projects, flagging which are already on this device.
+   *  Empty when not linked. */
+  listCloudProjects(): Promise<CloudProject[]>
+  /** Pull a cloud project onto this device (enables sync + an initial pull, so
+   *  its rows are written into the local store). */
+  pullProject(projectId: string): Promise<void>
 }

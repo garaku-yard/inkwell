@@ -15,4 +15,8 @@ export const sync: SyncStorage = {
     throw new NotSupportedError("sync")
   },
   syncAll: async () => [],
+  listCloudProjects: async () => [],
+  pullProject: async () => {
+    throw new NotSupportedError("sync")
+  },
 }
