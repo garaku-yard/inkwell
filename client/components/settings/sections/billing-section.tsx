@@ -35,6 +35,34 @@ function formatDate(iso?: string): string | null {
     : d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
 }
 
+/** Managed-AI monthly token usage with a progress bar. Unlimited tiers (-1)
+ *  show the running total without a bar. */
+function ManagedAIUsage({ billing }: { billing: MyBilling }) {
+  const used = billing.aiTokensUsed
+  const cap = billing.aiTokensPerMonth
+  const unlimited = cap < 0
+  const pct = unlimited || cap === 0 ? 0 : Math.min(100, Math.round((used / cap) * 100))
+  return (
+    <div className="mt-4 border-t pt-3">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted-foreground">Managed AI this month</span>
+        <span className="font-medium">
+          {used.toLocaleString()}
+          {unlimited ? "" : ` / ${cap.toLocaleString()}`} tokens
+        </span>
+      </div>
+      {!unlimited && (
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className={pct >= 100 ? "h-full bg-destructive" : "h-full bg-primary"}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function BillingSection() {
   const [billing, setBilling] = useState<MyBilling | null>(null)
   const [tiers, setTiers] = useState<SubscriptionTier[]>([])
@@ -123,6 +151,7 @@ export function BillingSection() {
               Paid plans with checkout are coming soon.
             </p>
           )}
+          {billing && <ManagedAIUsage billing={billing} />}
         </CardContent>
       </Card>
 

@@ -15,6 +15,8 @@ const FREE_TIER: MyBilling = {
   priceCents: 0,
   status: "none",
   seats: 0,
+  aiTokensPerMonth: -1,
+  aiTokensUsed: 0,
   maxProjects: -1,
   maxCollaboratorsPerProject: -1,
   aiFeaturesEnabled: false,

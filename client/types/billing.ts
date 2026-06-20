@@ -77,6 +77,10 @@ export interface MyBilling {
   currentPeriodEnd?: string
   /** Purchased seats on a per-seat subscription; 0 when there is no subscription. */
   seats: number
+  /** Managed-AI monthly token allowance for the tier; -1 means unlimited. */
+  aiTokensPerMonth: number
+  /** Managed-AI tokens used in the current calendar month. */
+  aiTokensUsed: number
   /** Enforced caps on the effective tier. -1 means unlimited. */
   maxProjects: number
   maxCollaboratorsPerProject: number

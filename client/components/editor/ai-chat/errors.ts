@@ -14,6 +14,9 @@ export function friendlyChatError(err: unknown): string {
       case 404:
         return "Model not found. Pick a different one in Settings → AI Providers."
       case 429:
+        // A managed-AI allowance hit carries a specific, actionable message;
+        // a provider rate-limit doesn't. Distinguish by the error code.
+        if (err.code === "RESOURCE_EXHAUSTED") return err.message
         return "Rate-limited by the provider. Wait a moment and try again."
       case 502:
       case 503:

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/config"
 	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
@@ -126,9 +127,10 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Enforce the tier's monthly managed-AI allowance before dispatching on
-		// Inkwell's key.
+		// Inkwell's key. RESOURCE_EXHAUSTED lets the client tell an allowance hit
+		// apart from a provider rate-limit and show the specific message.
 		if msg, over := h.overManagedQuota(r.Context(), userID); over {
-			handlers.WriteError(w, msg, http.StatusTooManyRequests)
+			apierror.WriteStatus(w, http.StatusTooManyRequests, apierror.CodeResourceExhausted, msg)
 			return
 		}
 		kind, apiKey = mkind, mp.APIKey
