@@ -50,6 +50,7 @@ import type {
   ProjectStorage,
   SceneStorage,
   SettingsStorage,
+  SyncStorage,
   VaultStorage,
   WorkspaceStorage,
 } from "./contracts"
@@ -70,6 +71,7 @@ export type Capability =
   | "ai.byo" // BYO-key AI providers configurable in settings.
   | "ai.knowledge" // Vault-as-knowledge RAG for the AI chat (desktop only).
   | "notifications" // Server-side notification prefs + delivery (remote only).
+  | "sync" // Local↔cloud project sync (desktop only; needs a linked account).
 
 // ─── Root Storage ────────────────────────────────────────────────────────
 
@@ -93,6 +95,7 @@ export interface Storage {
   ai: AiStorage
   billing: BillingStorage
   admin: { billing: AdminBillingStorage }
+  sync: SyncStorage
 }
 
 // ─── Factory ──────────────────────────────────────────────────────────────

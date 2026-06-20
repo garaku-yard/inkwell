@@ -24,6 +24,7 @@ import { knowledge } from "./knowledge"
 import { ai } from "./ai"
 import { billing } from "./billing"
 import { adminBilling } from "./admin-billing"
+import { sync } from "./sync"
 
 // The remote build exposes every capability the gateway supports. Hosted
 // BYO providers (OpenAI / Anthropic / Gemini) are served by the
@@ -60,5 +61,6 @@ export function createRemoteStorage(): Storage {
     ai,
     billing,
     admin: { billing: adminBilling },
+    sync,
   }
 }

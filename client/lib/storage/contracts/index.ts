@@ -63,6 +63,7 @@ export * from "./knowledge"
 export * from "./ai"
 export * from "./billing"
 export * from "./admin-billing"
+export * from "./sync"
 
 export type {
   Act,

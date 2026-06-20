@@ -65,6 +65,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0009_sync.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 10,
+      description: "sync_state: per-project desktop sync engine state",
+      sql: include_str!("../migrations/0010_sync_state.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 

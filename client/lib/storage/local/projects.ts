@@ -69,11 +69,15 @@ export const projects: ProjectStorage = {
     return full
   },
 
-  listOwned: async (userId) => {
+  listOwned: async () => {
     const db = await getDb()
+    // The local DB is single-user, so every project is "yours" regardless of the
+    // owner_id stored on the row. Filtering by the auth user's id would hide all
+    // projects once a cloud account is linked (the working identity's id differs
+    // from the seeded LOCAL_USER_ID the rows were created under). owner_id is a
+    // sync artifact only — the server overrides it on push.
     const rows = await db.select<ProjectRow[]>(
-      "SELECT * FROM projects WHERE owner_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC",
-      [userId],
+      "SELECT * FROM projects WHERE deleted_at IS NULL ORDER BY updated_at DESC",
     )
     const list = rows.map(toProject)
     return { projects: list, total: list.length }

@@ -45,16 +45,19 @@ import { knowledge } from "./knowledge"
 import { ai } from "./ai"
 import { billing } from "./billing"
 import { adminBilling } from "./admin-billing"
+import { sync } from "./sync"
 
 // ─── Root Storage ─────────────────────────────────────────────────────────
 
 /** Capabilities honoured by the local build. Notable omissions: `auth`
  *  (no real login), `collaboration`, `realtime`, `admin`. BYO AI
  *  providers are supported because we have the OS keychain and a direct
- *  client-side adapter library. */
+ *  client-side adapter library. `sync` is desktop-only and gated further on a
+ *  linked account at runtime (see SyncStorage.isAvailable). */
 const LOCAL_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   "ai.byo",
   "ai.knowledge",
+  "sync",
 ])
 
 /** Returns a Storage backed by local SQLite via `tauri-plugin-sql`. */
@@ -77,5 +80,6 @@ export function createLocalStorage(): Storage {
     ai,
     billing,
     admin: { billing: adminBilling },
+    sync,
   }
 }

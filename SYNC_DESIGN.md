@@ -40,15 +40,21 @@ therefore **"last sync wins"** for the rare case of the same row edited offline
 on two devices — acceptable for single-user-multi-device; CRDT-grade merge is
 the separate "real-time co-editing" item, not this.
 
-## Change tracking — client change-log (outbox)
+## Change tracking — full-snapshot push (v1), outbox later
 
-Every local mutation (create/update/delete) records the affected
-`(project_id, entity_type, row_id, op)` in a **`sync_outbox`** table. Push
-drains the outbox (reads the current row by id, sends it). Applying a *pulled*
-server change writes the row **without** touching the outbox, so server changes
-don't echo back. Recommended population mechanism: SQLite `AFTER` triggers on
-each synced table (zero touch to the TS mutation code), with sync-apply writes
-marked so the trigger skips them — to be finalised in stage 1.
+**v1 (Stage 3): full-snapshot push.** Each sync reads *all* of the project's
+local rows (including tombstones), sends them as the push, and applies the
+pulled delta. No change-log, no echo handling, no interleaving races — simple
+and correct for single-user-multi-device. The server's apply-then-pull-
+excluding-pushed keeps the pusher convergent; the cost is re-uploading the
+project each sync (tens of KB for a screenplay) and a more aggressive
+"last-full-push-wins" for genuinely concurrent multi-device edits. Mitigated by
+a sensible cadence (not every keystroke-save).
+
+**Future optimization: incremental push via a `sync_outbox`.** A change-log
+(`(project_id, entity_type, row_id)` appended at each local mutation, drained at
+push; the apply path doesn't append, avoiding echo) would push only changed
+rows. Deferred — full-snapshot is correct without it.
 
 ## Protocol — one round-trip per project
 
@@ -147,9 +153,15 @@ surfaced on the project card + a Settings → Sync section.
    `PurgeTombstones` for the time-based GC (cron wiring deferred to ops).
    Verified live: client-UUID create, fresh-device full pull, delta edit,
    tombstone propagation, cross-user 403, cursor narrowing.
-3. **Client: sync engine.** `sync_state` + `sync_outbox`, the runner, the
-   round-trip via a new `storage.sync` domain, LWW apply, owner remap on link,
-   the local tombstone purge.
+3. **Client: sync engine. ✅ DONE.** `sync_state` (migration 0010); a
+   `storage.sync` domain (`local/sync.ts` + pure mappers in `sync-mappers.ts`,
+   remote stub) gated by the `sync` capability + a linked account;
+   full-snapshot push → apply pulled delta → advance cursor; local time-based
+   tombstone purge. Owner-remap-on-link was replaced by a simpler fix: local
+   `listOwned` ignores `owner_id` (single-user DB — filtering by the linked
+   account's id would hide every project). `services/sync.ts` exposes the API
+   for the UI. Mappers unit-tested; tsc/lint/build green. The actual two-device
+   round-trip is exercised once Stage 4's UI drives it.
 4. **Client: opt-in UX + status.** "Sync this project" toggle, per-project
    status indicator, manual "Sync now", Settings → Sync.
 5. **Verification.** Two local DBs ↔ cloud: create/edit/delete propagation,
