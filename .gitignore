@@ -62,3 +62,6 @@ __pycache__/
 /server/collab
 /server/billing
 /server/workspace
+
+# Playwright MCP screenshots/snapshots (local UI verification)
+.playwright-mcp/
