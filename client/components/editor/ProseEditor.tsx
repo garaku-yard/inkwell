@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useRef } from "react"
 import { Plus, BookOpen, Pilcrow, Quote, Heading, Clock, Asterisk } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { InsertMenu, type InsertItem } from "./shared/insert-menu"
+import { EditorToolRail, type RailItem } from "./shared/EditorToolRail"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
@@ -33,40 +33,29 @@ type ProseElementType =
   | "scene_break"
   | "scene_heading_stinger"
 
-/** Prose's element vocabulary for the shared insert menu (gutter + / "/"). */
-const PROSE_INSERT_ITEMS: InsertItem[] = [
-  { type: "paragraph", command: "p", label: "Paragraph", description: "Body text", icon: Pilcrow },
-  { type: "dialogue", command: "d", label: "Dialogue", description: "A spoken line", icon: Quote },
-  { type: "chapter_heading", command: "h", label: "Section heading", description: "A titled break", icon: Heading },
-  { type: "scene_heading_stinger", command: "s", label: "Stinger", description: "A time or place jump", icon: Clock },
-  { type: "scene_break", command: "b", label: "Scene break", description: "* * *", icon: Asterisk },
+/** Prose's element vocabulary for the right-edge tool rail. */
+const PROSE_RAIL_ITEMS: RailItem[] = [
+  { type: "paragraph", label: "Paragraph", icon: Pilcrow },
+  { type: "dialogue", label: "Dialogue", icon: Quote },
+  { type: "chapter_heading", label: "Section heading", icon: Heading },
+  { type: "scene_heading_stinger", label: "Stinger", icon: Clock },
+  { type: "scene_break", label: "Scene break", icon: Asterisk },
 ]
-
-/** Wraps a block so a quiet "+" handle appears in the left gutter on
- *  hover/focus — the mouse way to open the insert menu. */
-function ProseBlock({ children, onInsert }: { children: React.ReactNode; onInsert: (rect: DOMRect) => void }) {
-  return (
-    <div className="group relative">
-      <button
-        type="button"
-        tabIndex={-1}
-        aria-label="Insert element"
-        onClick={(e) => {
-          e.stopPropagation()
-          onInsert(e.currentTarget.getBoundingClientRect())
-        }}
-        className="absolute -left-9 top-0.5 flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
-      >
-        <Plus className="h-4 w-4" />
-      </button>
-      {children}
-    </div>
-  )
-}
 
 interface ProseEditorProps {
   projectData: FullProject
 }
+
+type ProseScene = NonNullable<FullProject["scenes"]>[number]
+
+/**
+ * A single renderable unit on a page: a chapter's heading, the empty-chapter
+ * placeholder, or one body element. Pagination packs these onto A4 sheets.
+ */
+type ProseBlock =
+  | { key: string; kind: "chapterHead"; scene: ProseScene; chapterIdx: number }
+  | { key: string; kind: "emptyChapter"; scene: ProseScene }
+  | { key: string; kind: "element"; scene: ProseScene; el: ProjectElement; elIdx: number }
 
 function wordCount(text: string | null | undefined): number {
   if (!text) return 0
@@ -87,20 +76,11 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     orderedIds: scenes.map((s) => s.id),
   })
 
-  // The shared insert menu — opened by the gutter "+" (insert after a block) or
-  // by "/" on an empty line (transform that block). One menu, two triggers.
-  type InsertMenuState =
-    | { mode: "insert"; sceneId: string; afterIdx?: number; position: { top: number; left: number } }
-    | { mode: "transform"; sceneId: string; elementId: string; position: { top: number; left: number } }
-  const [insertMenu, setInsertMenu] = useState<InsertMenuState | null>(null)
-
-  const openInsertAfter = useCallback((sceneId: string, afterIdx: number | undefined, rect: DOMRect) => {
-    setInsertMenu({ mode: "insert", sceneId, afterIdx, position: { top: rect.bottom + 6, left: rect.left } })
-  }, [])
-
-  const openTransform = useCallback((sceneId: string, elementId: string, rect: DOMRect) => {
-    setInsertMenu({ mode: "transform", sceneId, elementId, position: { top: rect.bottom + 6, left: rect.left } })
-  }, [])
+  // Track the last-focused block so the right-edge tool rail knows where to act:
+  // an empty focused line is transformed into the chosen type, otherwise a new
+  // block of that type is inserted after it (screenplay-style). With nothing
+  // focused, the rail appends to the chapter currently in view.
+  const [activeElement, setActiveElement] = useState<{ sceneId: string; elementId: string | null } | null>(null)
 
   const totalWords = scenes.reduce((acc, scene) => {
     return acc + (scene.elements ?? []).reduce((s, el) => s + wordCount(el.content), 0)
@@ -174,6 +154,28 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     setTimeout(() => document.getElementById(`el-${elementId}`)?.focus(), 50)
   }
 
+  // Rail click: transform a focused empty line, else insert after the focused
+  // block, else append to the chapter in view.
+  const handleRailSelect = (type: string) => {
+    const t = type as ProseElementType
+    const a = activeElement
+    if (a?.elementId) {
+      const scene = scenes.find((s) => s.id === a.sceneId)
+      const idx = scene?.elements?.findIndex((e) => e.id === a.elementId) ?? -1
+      const el = idx >= 0 ? scene!.elements![idx] : null
+      if (el && (el.content ?? "") === "") {
+        void handleTransformElement(a.sceneId, a.elementId, t)
+        return
+      }
+      if (idx >= 0) {
+        void handleAddElement(a.sceneId, t, idx)
+        return
+      }
+    }
+    const sceneId = a?.sceneId ?? activeChapterId ?? scenes[0]?.id
+    if (sceneId) void handleAddElement(sceneId, t)
+  }
+
   const handleDeleteElement = useCallback(
     async (sceneId: string, elementId: string) => {
       // Find the previous editable element id so we can land focus
@@ -241,16 +243,188 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
       el: ProjectElement,
       elIdx: number,
     ) => {
-      // "/" on an empty line opens the insert menu to turn the line into an element.
-      if (e.key === "/" && (el.content ?? "") === "") {
-        e.preventDefault()
-        openTransform(sceneId, el.id, e.currentTarget.getBoundingClientRect())
-        return
-      }
       dispatchKey(e, keyMap, { sceneId, elementId: el.id, elementIndex: elIdx })
     },
-    [keyMap, openTransform],
+    [keyMap],
   )
+
+  // Pack chapter heads + elements onto A4 sheets the way the screenplay packs
+  // its US-Letter pages: estimate each block's height and start a fresh sheet
+  // when the running total would overflow. Each chapter also opens a new sheet
+  // (book convention) — which keeps a focused paragraph from reparenting across
+  // a chapter boundary while typing. The estimate is deliberately coarse and a
+  // touch generous; sheets use min-height so an off-by-a-line never clips text.
+  const pages = useMemo<ProseBlock[][]>(() => {
+    const CHARS_PER_LINE = 78
+    const LINE_PX = 30 // text-base at leading-loose
+    const A4_CONTENT_PX = 940 // ~297mm less the top/bottom page padding
+
+    const estimate = (b: ProseBlock): number => {
+      if (b.kind === "chapterHead") return 150
+      if (b.kind === "emptyChapter") return 40
+      const { el } = b
+      if (el.element_type === "scene_break") return 80
+      const len = (el.content ?? "").length
+      if (el.element_type === "chapter_heading") {
+        return 56 + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * 34
+      }
+      if (el.element_type === "scene_heading_stinger") {
+        return 96 + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * LINE_PX
+      }
+      const perLine = el.element_type === "dialogue" ? 70 : CHARS_PER_LINE
+      return 12 + Math.max(1, Math.ceil(len / perLine)) * LINE_PX
+    }
+
+    const result: ProseBlock[][] = []
+    let cur: ProseBlock[] = []
+    let curH = 0
+
+    scenes.forEach((scene, chapterIdx) => {
+      if (cur.length) { result.push(cur); cur = []; curH = 0 } // new chapter → new sheet
+      const head: ProseBlock = { key: `head-${scene.id}`, kind: "chapterHead", scene, chapterIdx }
+      cur.push(head)
+      curH += estimate(head)
+
+      const els = scene.elements ?? []
+      if (els.length === 0) {
+        const empty: ProseBlock = { key: `empty-${scene.id}`, kind: "emptyChapter", scene }
+        cur.push(empty)
+        curH += estimate(empty)
+        return
+      }
+      els.forEach((el, elIdx) => {
+        const block: ProseBlock = { key: el.id, kind: "element", scene, el, elIdx }
+        const h = estimate(block)
+        if (curH + h > A4_CONTENT_PX && cur.length > 0) {
+          result.push(cur)
+          cur = []
+          curH = 0
+        }
+        cur.push(block)
+        curH += h
+      })
+    })
+    if (cur.length) result.push(cur)
+    return result
+  }, [scenes])
+
+  /** Render one body element with its per-type prose styling. */
+  const renderElement = (scene: ProseScene, el: ProjectElement, elIdx: number) => {
+    const onFocus = () => setActiveElement({ sceneId: scene.id, elementId: el.id })
+    if (el.element_type === "scene_break") {
+      return (
+        <div key={el.id} className="text-center text-muted-foreground my-8 tracking-widest select-none">
+          * * *
+        </div>
+      )
+    }
+    if (el.element_type === "chapter_heading") {
+      return (
+        <StableContentEditable
+          key={el.id}
+          id={`el-${el.id}`}
+          value={el.content}
+          onValueChange={(next) => handleContentChange(el.id, next, false)}
+          onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+          onFocus={onFocus}
+          className="text-xl font-semibold mt-10 mb-3 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
+          data-placeholder="Section heading"
+        />
+      )
+    }
+    if (el.element_type === "scene_heading_stinger") {
+      // Stage-direction-style opener: small caps, italic, hairline rule.
+      return (
+        <StableContentEditable
+          key={el.id}
+          id={`el-${el.id}`}
+          value={el.content}
+          onValueChange={(next) => handleContentChange(el.id, next, false)}
+          onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+          onFocus={onFocus}
+          className="mt-12 mb-6 italic text-base tracking-wider uppercase text-foreground/80 border-b border-border/40 pb-2 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:not-italic empty:before:normal-case empty:before:tracking-normal"
+          data-placeholder="Stinger…"
+        />
+      )
+    }
+    if (el.element_type === "dialogue") {
+      // Hanging indent + opening curly quote, set apart from prose.
+      return (
+        <StableContentEditable
+          key={el.id}
+          id={`el-${el.id}`}
+          value={el.content}
+          onValueChange={(next) => handleContentChange(el.id, next, false)}
+          onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+          onFocus={onFocus}
+          className="outline-none min-h-[1.75rem] pl-10 -indent-6 leading-relaxed before:content-['“'] before:mr-1 before:text-muted-foreground/60 empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0 empty:before:mr-0"
+          data-placeholder="Dialogue…"
+        />
+      )
+    }
+    // paragraph — first-line indent except right after a break/heading
+    return (
+      <StableContentEditable
+        key={el.id}
+        id={`el-${el.id}`}
+        value={el.content}
+        onValueChange={(next) => handleContentChange(el.id, next, false)}
+        onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+        onFocus={onFocus}
+        className={cn(
+          "outline-none min-h-[1.75rem]",
+          elIdx === 0 ||
+            ["chapter_heading", "scene_heading_stinger", "dialogue", "scene_break"].includes(
+              (scene.elements ?? [])[elIdx - 1]?.element_type ?? "",
+            )
+            ? ""
+            : "pl-10",
+          "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0",
+        )}
+        data-placeholder={elIdx === 0 ? "Start writing…" : ""}
+      />
+    )
+  }
+
+  /** Render any block — chapter head, empty-chapter placeholder, or element. */
+  const renderBlock = (b: ProseBlock) => {
+    if (b.kind === "chapterHead") {
+      return (
+        <div
+          key={b.key}
+          ref={(el) => { chapterRefs.current.set(b.scene.id, el) }}
+        >
+          <p className="text-center text-xs tracking-[0.2em] uppercase text-muted-foreground mb-2 select-none">
+            Chapter {b.chapterIdx + 1}
+          </p>
+          <StableContentEditable
+            value={b.scene.scene_heading ?? ""}
+            onValueChange={(next) => handleContentChange(b.scene.id, next, true)}
+            className="text-center text-2xl font-semibold leading-tight outline-none mb-12 min-h-[2rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
+            data-placeholder="Untitled"
+          />
+        </div>
+      )
+    }
+    if (b.kind === "emptyChapter") {
+      return (
+        <StableContentEditable
+          key={b.key}
+          value=""
+          onValueChange={() => { /* placeholder; real input arrives once the first paragraph exists */ }}
+          onFocus={() => setActiveElement({ sceneId: b.scene.id, elementId: null })}
+          className="outline-none min-h-[1.75rem] empty:before:content-['Start\00a0writing…'] empty:before:text-muted-foreground/50"
+          onKeyDown={async (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault()
+              await handleAddElement(b.scene.id, "paragraph")
+            }
+          }}
+        />
+      )
+    }
+    return renderElement(b.scene, b.el, b.elIdx)
+  }
 
   return (
     <div className="flex h-screen bg-background">
@@ -344,160 +518,52 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         />
 
         <div className="flex flex-1 overflow-hidden">
-        {/* Manuscript scroll area */}
-        <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
-          <div
-            className="inkwell-editor-content max-w-[680px] mx-auto px-10 py-16"
-            style={{ fontFamily: editorFontStack("prose") }}
-          >
-            {scenes.length === 0 ? (
-              <EmptyEditorState
-                message="No chapters yet."
-                actionLabel="Add first chapter"
-                onAction={handleAddChapter}
-              />
-            ) : (
-              scenes.map((scene, chapterIdx) => (
+        {/* Manuscript desk — A4 pages stacked on a neutral ground. */}
+        <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background flex flex-col items-center py-10">
+          {/* Page column + rail wrapper. */}
+          <div className="relative w-[210mm] max-w-[calc(100%-7rem)]">
+            <div className="inkwell-editor-content space-y-8" style={{ fontFamily: editorFontStack("prose") }}>
+              {scenes.length === 0 ? (
                 <div
-                  key={scene.id}
-                  ref={(el) => { chapterRefs.current.set(scene.id, el) }}
-                  className={cn("mb-24", chapterIdx > 0 && "pt-16 border-t border-border/40")}
+                  className="relative w-full rounded-sm bg-card px-16 py-20 text-foreground shadow-lg ring-1 ring-border/60"
+                  style={{ minHeight: "297mm" }}
                 >
-                  {/* Chapter label — centered, small caps feel */}
-                  <p className="text-center text-xs tracking-[0.2em] uppercase text-muted-foreground mb-2 select-none">
-                    Chapter {chapterIdx + 1}
-                  </p>
-
-                  {/* Chapter title — centered, editable */}
-                  <StableContentEditable
-                    value={scene.scene_heading ?? ""}
-                    onValueChange={(next) => handleContentChange(scene.id, next, true)}
-                    className="text-center text-2xl font-semibold outline-none mb-14 min-h-[2rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
-                    data-placeholder="Untitled"
+                  <EmptyEditorState
+                    message="No chapters yet."
+                    actionLabel="Add first chapter"
+                    onAction={handleAddChapter}
                   />
-
-                  {/* Body elements */}
-                  <div className="text-base leading-loose">
-                    {(scene.elements ?? []).length === 0 ? (
-                      <ProseBlock onInsert={(rect) => openInsertAfter(scene.id, undefined, rect)}>
-                        <StableContentEditable
-                          value=""
-                          onValueChange={() => { /* empty-state placeholder; real input arrives once the first paragraph is created */ }}
-                          className="outline-none pl-10 min-h-[1.75rem] empty:before:content-['Start\00a0writing…'] empty:before:text-muted-foreground/50 empty:before:pl-0"
-                          onKeyDown={async (e) => {
-                            if (e.key === "/") {
-                              e.preventDefault()
-                              openInsertAfter(scene.id, undefined, e.currentTarget.getBoundingClientRect())
-                              return
-                            }
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault()
-                              await handleAddElement(scene.id, "paragraph")
-                            }
-                          }}
-                        />
-                      </ProseBlock>
-                    ) : (
-                      (scene.elements ?? []).map((el, elIdx) => (
-                        <ProseBlock key={el.id} onInsert={(rect) => openInsertAfter(scene.id, elIdx, rect)}>
-                          {el.element_type === "scene_break" ? (
-                            <div className="text-center text-muted-foreground my-8 tracking-widest select-none">
-                              * * *
-                            </div>
-                          ) : el.element_type === "chapter_heading" ? (
-                            <StableContentEditable
-                              id={`el-${el.id}`}
-                              value={el.content}
-                              onValueChange={(next) => handleContentChange(el.id, next, false)}
-                              onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-                              className="text-xl font-semibold mt-10 mb-3 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
-                              data-placeholder="Section heading"
-                            />
-                          ) : el.element_type === "scene_heading_stinger" ? (
-                            // Stage-direction-style opener: small caps, italic,
-                            // hairline rule. "Three weeks later." etc.
-                            <StableContentEditable
-                              id={`el-${el.id}`}
-                              value={el.content}
-                              onValueChange={(next) => handleContentChange(el.id, next, false)}
-                              onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-                              className="mt-12 mb-6 italic text-base tracking-wider uppercase text-foreground/80 border-b border-border/40 pb-2 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:not-italic empty:before:normal-case empty:before:tracking-normal"
-                              data-placeholder="Stinger…"
-                            />
-                          ) : el.element_type === "dialogue" ? (
-                            // Hanging indent + opening curly quote, set apart from prose.
-                            <StableContentEditable
-                              id={`el-${el.id}`}
-                              value={el.content}
-                              onValueChange={(next) => handleContentChange(el.id, next, false)}
-                              onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-                              className="outline-none min-h-[1.75rem] pl-10 -indent-6 leading-relaxed before:content-['“'] before:mr-1 before:text-muted-foreground/60 empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0 empty:before:mr-0"
-                              data-placeholder="Dialogue…"
-                            />
-                          ) : (
-                            // paragraph — first-line indent except right after a break
-                            <StableContentEditable
-                              id={`el-${el.id}`}
-                              value={el.content}
-                              onValueChange={(next) => handleContentChange(el.id, next, false)}
-                              onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-                              className={cn(
-                                "outline-none min-h-[1.75rem]",
-                                elIdx === 0 ||
-                                  ["chapter_heading", "scene_heading_stinger", "dialogue", "scene_break"].includes(
-                                    (scene.elements ?? [])[elIdx - 1]?.element_type ?? "",
-                                  )
-                                  ? ""
-                                  : "pl-10",
-                                "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0",
-                              )}
-                              data-placeholder={elIdx === 0 ? "Start writing…" : ""}
-                            />
-                          )}
-                        </ProseBlock>
-                      ))
-                    )}
-                  </div>
-
-                  {/* One quiet end-of-chapter affordance — replaces the old button
-                      row. Teaches the slash shortcut; the per-block gutter "+"
-                      handles inserting between existing blocks. */}
-                  {(scene.elements ?? []).length > 0 && (
-                    <button
-                      type="button"
-                      onClick={(e) =>
-                        openInsertAfter(scene.id, (scene.elements ?? []).length - 1, e.currentTarget.getBoundingClientRect())
-                      }
-                      className="mt-6 flex w-full items-center gap-2 rounded px-1 py-1.5 text-xs text-muted-foreground/40 transition-colors hover:bg-muted/40 hover:text-muted-foreground"
-                    >
-                      <Plus className="h-3.5 w-3.5 shrink-0" />
-                      <span>Insert a block — or press &ldquo;/&rdquo; on an empty line</span>
-                    </button>
-                  )}
                 </div>
-              ))
-            )}
+              ) : (
+                pages.map((page, pageIdx) => (
+                  <div
+                    key={pageIdx}
+                    id={`prose-page-${pageIdx}`}
+                    className="relative w-full rounded-sm bg-card px-16 py-20 text-foreground shadow-lg ring-1 ring-border/60"
+                    style={{ minHeight: "297mm" }}
+                  >
+                    <div className="text-base leading-loose">
+                      {page.map(renderBlock)}
+                    </div>
+                    <div className="pointer-events-none absolute bottom-6 right-8 text-[11px] text-muted-foreground/50 select-none">
+                      {pageIdx + 1}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            {/* Element rail — attached to the page column's right edge, out in the margin. */}
+            <EditorToolRail
+              items={PROSE_RAIL_ITEMS}
+              onSelect={handleRailSelect}
+              storageKey="editor.rail.prose"
+              className="absolute left-full top-0 h-full pl-3"
+            />
           </div>
         </div>
         <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
       </div>
-
-      {insertMenu && (
-        <InsertMenu
-          items={PROSE_INSERT_ITEMS}
-          position={insertMenu.position}
-          onSelect={(type) => {
-            if (insertMenu.mode === "insert") {
-              void handleAddElement(insertMenu.sceneId, type as ProseElementType, insertMenu.afterIdx)
-            } else {
-              void handleTransformElement(insertMenu.sceneId, insertMenu.elementId, type as ProseElementType)
-            }
-            setInsertMenu(null)
-          }}
-          onDismiss={() => setInsertMenu(null)}
-        />
-      )}
     </div>
   )
 }
