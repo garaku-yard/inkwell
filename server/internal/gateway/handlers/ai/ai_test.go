@@ -14,7 +14,7 @@ import (
 // fakeBilling stubs the billing client for the managed-AI quota check.
 type fakeBilling struct {
 	billingpb.BillingServiceClient
-	cap     int32
+	cap     int64
 	used    int64
 	tierErr error
 	useErr  error
@@ -28,7 +28,7 @@ func (f *fakeBilling) GetEffectiveTier(_ context.Context, _ *billingpb.GetEffect
 	if f.noPlan {
 		return &billingpb.GetEffectiveTierResponse{}, nil
 	}
-	return &billingpb.GetEffectiveTierResponse{Plan: &billingpb.Plan{AiRequestsPerMonth: f.cap}}, nil
+	return &billingpb.GetEffectiveTierResponse{Plan: &billingpb.Plan{AiTokensPerMonth: f.cap}}, nil
 }
 
 func (f *fakeBilling) GetMonthlyUsage(_ context.Context, _ *billingpb.GetMonthlyUsageRequest, _ ...grpc.CallOption) (*billingpb.GetMonthlyUsageResponse, error) {

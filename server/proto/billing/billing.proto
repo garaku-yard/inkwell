@@ -20,6 +20,7 @@ message Plan {
   bool priority_support = 10;
   bool business_workspaces = 11; // tier may create org (business) workspaces
   int32 ai_requests_per_month = 12; // managed-AI monthly request allowance; 0 ⇒ unlimited
+  int64 ai_tokens_per_month = 13;   // managed-AI monthly token allowance; 0 ⇒ unlimited
 }
 
 // SubscriptionTier is the full, admin-editable tier shape (round-trips every

@@ -46,6 +46,9 @@ func streamOpenAIShape(ctx context.Context, in Input, kind ProviderKind, default
 		"model":    in.Model,
 		"messages": in.Messages,
 		"stream":   true,
+		// Ask for a final usage chunk so the gateway can meter tokens. Ignored
+		// by endpoints that don't support it (openai_compatible / Ollama).
+		"stream_options": map[string]any{"include_usage": true},
 	})
 	if err != nil {
 		return nil, &ErrProvider{Kind: kind, Message: err.Error()}
@@ -94,6 +97,7 @@ type openAIStream struct {
 	kind    ProviderKind
 	scanner *sseScanner
 	done    bool
+	usage   *Usage // captured from the trailing usage chunk, emitted on [DONE]
 }
 
 type openAIChunk struct {
@@ -103,6 +107,11 @@ type openAIChunk struct {
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
+	Usage *struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
@@ -123,7 +132,7 @@ func (s *openAIStream) Next(ctx context.Context) (Chunk, error) {
 		}
 		if data == "[DONE]" {
 			s.done = true
-			return Chunk{Done: true}, nil
+			return Chunk{Done: true, Usage: s.usage}, nil
 		}
 		var c openAIChunk
 		if err := json.Unmarshal([]byte(data), &c); err != nil {
@@ -131,6 +140,14 @@ func (s *openAIStream) Next(ctx context.Context) (Chunk, error) {
 		}
 		if c.Error != nil {
 			return Chunk{}, &ErrProvider{Kind: s.kind, Message: redact(c.Error.Message)}
+		}
+		// The usage chunk arrives with an empty choices array just before [DONE].
+		if c.Usage != nil {
+			s.usage = &Usage{
+				InputTokens:  c.Usage.PromptTokens,
+				OutputTokens: c.Usage.CompletionTokens,
+				TotalTokens:  c.Usage.TotalTokens,
+			}
 		}
 		if len(c.Choices) == 0 {
 			continue

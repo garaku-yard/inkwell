@@ -91,6 +91,17 @@ func splitSystemMessages(msgs []Message) (system string, conversation []Message)
 type anthropicStream struct {
 	scanner *sseScanner
 	done    bool
+	inTok   int // input_tokens from message_start
+	outTok  int // output_tokens, updated by each message_delta (cumulative)
+}
+
+// anthropicUsage builds a Usage from the accumulated token counts, or nil when
+// the stream reported none.
+func (s *anthropicStream) anthropicUsage() *Usage {
+	if s.inTok == 0 && s.outTok == 0 {
+		return nil
+	}
+	return &Usage{InputTokens: s.inTok, OutputTokens: s.outTok, TotalTokens: s.inTok + s.outTok}
 }
 
 type anthropicDelta struct {
@@ -98,6 +109,23 @@ type anthropicDelta struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"delta"`
+}
+
+// anthropicMessageStart carries input token usage at the start of a message.
+type anthropicMessageStart struct {
+	Message struct {
+		Usage struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+		} `json:"usage"`
+	} `json:"message"`
+}
+
+// anthropicMessageDelta carries the running output_tokens count.
+type anthropicMessageDelta struct {
+	Usage struct {
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
 }
 
 type anthropicError struct {
@@ -126,9 +154,22 @@ func (s *anthropicStream) Next(ctx context.Context) (Chunk, error) {
 				continue
 			}
 			return Chunk{Delta: d.Delta.Text}, nil
+		case "message_start":
+			var ms anthropicMessageStart
+			if err := json.Unmarshal([]byte(ev.data), &ms); err == nil {
+				s.inTok = ms.Message.Usage.InputTokens
+				s.outTok = ms.Message.Usage.OutputTokens
+			}
+			continue
+		case "message_delta":
+			var md anthropicMessageDelta
+			if err := json.Unmarshal([]byte(ev.data), &md); err == nil && md.Usage.OutputTokens > 0 {
+				s.outTok = md.Usage.OutputTokens // cumulative — last one wins
+			}
+			continue
 		case "message_stop":
 			s.done = true
-			return Chunk{Done: true}, nil
+			return Chunk{Done: true, Usage: s.anthropicUsage()}, nil
 		case "error":
 			var e anthropicError
 			_ = json.Unmarshal([]byte(ev.data), &e)

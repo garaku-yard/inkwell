@@ -116,6 +116,7 @@ func buildGeminiContents(msgs []Message) (*geminiSystemInstruction, []geminiCont
 type geminiStream struct {
 	scanner *sseScanner
 	done    bool
+	usage   *Usage // captured from usageMetadata, emitted on the final chunk
 }
 
 type geminiChunk struct {
@@ -125,6 +126,11 @@ type geminiChunk struct {
 		} `json:"content"`
 		FinishReason string `json:"finishReason"`
 	} `json:"candidates"`
+	UsageMetadata *struct {
+		PromptTokenCount     int `json:"promptTokenCount"`
+		CandidatesTokenCount int `json:"candidatesTokenCount"`
+		TotalTokenCount      int `json:"totalTokenCount"`
+	} `json:"usageMetadata"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
@@ -150,6 +156,14 @@ func (s *geminiStream) Next(ctx context.Context) (Chunk, error) {
 		if c.Error != nil {
 			return Chunk{}, &ErrProvider{Kind: KindGemini, Message: redact(c.Error.Message)}
 		}
+		// usageMetadata accompanies the final chunk(s); keep the latest.
+		if c.UsageMetadata != nil {
+			s.usage = &Usage{
+				InputTokens:  c.UsageMetadata.PromptTokenCount,
+				OutputTokens: c.UsageMetadata.CandidatesTokenCount,
+				TotalTokens:  c.UsageMetadata.TotalTokenCount,
+			}
+		}
 		if len(c.Candidates) == 0 {
 			continue
 		}
@@ -159,7 +173,7 @@ func (s *geminiStream) Next(ctx context.Context) (Chunk, error) {
 		}
 		if c.Candidates[0].FinishReason != "" {
 			s.done = true
-			return Chunk{Delta: delta.String(), Done: true}, nil
+			return Chunk{Delta: delta.String(), Done: true, Usage: s.usage}, nil
 		}
 		if delta.Len() == 0 {
 			continue

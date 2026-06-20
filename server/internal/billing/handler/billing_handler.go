@@ -397,6 +397,9 @@ func tierToPlan(t *domain.SubscriptionTier) *billingpb.Plan {
 	if v := t.Limits["max_ai_requests_per_month"]; v > 0 {
 		p.AiRequestsPerMonth = int32(v)
 	}
+	if v := t.Limits["max_ai_tokens_per_month"]; v > 0 {
+		p.AiTokensPerMonth = v
+	}
 	return p
 }
 

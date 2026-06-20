@@ -37,6 +37,7 @@ type Plan struct {
 	PrioritySupport            bool                   `protobuf:"varint,10,opt,name=priority_support,json=prioritySupport,proto3" json:"priority_support,omitempty"`
 	BusinessWorkspaces         bool                   `protobuf:"varint,11,opt,name=business_workspaces,json=businessWorkspaces,proto3" json:"business_workspaces,omitempty"`     // tier may create org (business) workspaces
 	AiRequestsPerMonth         int32                  `protobuf:"varint,12,opt,name=ai_requests_per_month,json=aiRequestsPerMonth,proto3" json:"ai_requests_per_month,omitempty"` // managed-AI monthly request allowance; 0 ⇒ unlimited
+	AiTokensPerMonth           int64                  `protobuf:"varint,13,opt,name=ai_tokens_per_month,json=aiTokensPerMonth,proto3" json:"ai_tokens_per_month,omitempty"`       // managed-AI monthly token allowance; 0 ⇒ unlimited
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -151,6 +152,13 @@ func (x *Plan) GetBusinessWorkspaces() bool {
 func (x *Plan) GetAiRequestsPerMonth() int32 {
 	if x != nil {
 		return x.AiRequestsPerMonth
+	}
+	return 0
+}
+
+func (x *Plan) GetAiTokensPerMonth() int64 {
+	if x != nil {
+		return x.AiTokensPerMonth
 	}
 	return 0
 }
@@ -3540,7 +3548,7 @@ var File_billing_billing_proto protoreflect.FileDescriptor
 
 const file_billing_billing_proto_rawDesc = "" +
 	"\n" +
-	"\x15billing/billing.proto\x12\abilling\x1a\x12common/types.proto\"\xd9\x03\n" +
+	"\x15billing/billing.proto\x12\abilling\x1a\x12common/types.proto\"\x88\x04\n" +
 	"\x04Plan\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -3555,7 +3563,8 @@ const file_billing_billing_proto_rawDesc = "" +
 	"\x10priority_support\x18\n" +
 	" \x01(\bR\x0fprioritySupport\x12/\n" +
 	"\x13business_workspaces\x18\v \x01(\bR\x12businessWorkspaces\x121\n" +
-	"\x15ai_requests_per_month\x18\f \x01(\x05R\x12aiRequestsPerMonth\"\x86\x04\n" +
+	"\x15ai_requests_per_month\x18\f \x01(\x05R\x12aiRequestsPerMonth\x12-\n" +
+	"\x13ai_tokens_per_month\x18\r \x01(\x03R\x10aiTokensPerMonth\"\x86\x04\n" +
 	"\x10SubscriptionTier\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +

@@ -58,10 +58,22 @@ type Input struct {
 
 // Chunk is one normalized piece of a streaming response. Delta is the
 // newly-arrived text since the previous chunk. Done is true on the final
-// chunk (which may still carry a trailing Delta from some providers).
+// chunk (which may still carry a trailing Delta from some providers). Usage,
+// when non-nil, carries the provider-reported token counts — typically attached
+// to the final (Done) chunk.
 type Chunk struct {
 	Delta string
 	Done  bool
+	Usage *Usage
+}
+
+// Usage reports the token counts a provider attributes to a completion.
+// Providers report these at the end of a stream; some openai_compatible
+// endpoints omit them, in which case Usage is left nil.
+type Usage struct {
+	InputTokens  int
+	OutputTokens int
+	TotalTokens  int
 }
 
 // Stream is a forward-only iterator over completion chunks. Callers read

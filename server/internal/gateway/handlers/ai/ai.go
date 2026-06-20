@@ -24,8 +24,9 @@ import (
 // than a BYO ai-settings row, e.g. "managed:openai".
 const managedPrefix = "managed:"
 
-// metricAIRequests is the usage metric incremented per managed-AI dispatch.
-const metricAIRequests = "ai_requests"
+// metricAITokens is the usage metric accumulated per managed-AI dispatch — the
+// provider-reported total token count, the basis for managed allowance caps.
+const metricAITokens = "ai_tokens"
 
 // AIHandler serves the AI chat endpoint. A request either names a BYO
 // `providerId` that resolves to a row in the ai-settings service, or a
@@ -193,12 +194,6 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	}
 	defer stream.Close()
 
-	// A managed dispatch was accepted by the provider (it will incur cost) — meter
-	// it. Best-effort: a tracking failure must not break the user's chat.
-	if managed {
-		h.trackManagedUsage(userID)
-	}
-
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		handlers.WriteError(w, "Streaming unsupported", http.StatusInternalServerError)
@@ -233,6 +228,11 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 		if chunk.Done {
+			// Meter managed usage by the provider-reported token total. Best-effort
+			// and only when the provider supplied usage (some endpoints omit it).
+			if managed && chunk.Usage != nil && chunk.Usage.TotalTokens > 0 {
+				h.trackManagedTokens(userID, chunk.Usage.TotalTokens)
+			}
 			_ = encoder.Encode(map[string]bool{"done": true})
 			flusher.Flush()
 			return
@@ -252,31 +252,32 @@ func (h *AIHandler) overManagedQuota(ctx context.Context, userID string) (string
 	if err != nil || tierResp.GetPlan() == nil {
 		return "", false
 	}
-	cap := int64(tierResp.GetPlan().GetAiRequestsPerMonth())
+	cap := tierResp.GetPlan().GetAiTokensPerMonth()
 	if cap <= 0 {
 		return "", false // unlimited
 	}
-	usage, err := h.billing.GetMonthlyUsage(ctx, &billingpb.GetMonthlyUsageRequest{UserId: userID, Metric: metricAIRequests})
+	usage, err := h.billing.GetMonthlyUsage(ctx, &billingpb.GetMonthlyUsageRequest{UserId: userID, Metric: metricAITokens})
 	if err != nil {
 		return "", false
 	}
 	if usage.GetUsed() >= cap {
-		return fmt.Sprintf("You've used your %d managed AI requests this month. Upgrade your plan or use your own provider key.", cap), true
+		return fmt.Sprintf("You've used your monthly managed AI allowance (%d tokens). Upgrade your plan or use your own provider key.", cap), true
 	}
 	return "", false
 }
 
-// trackManagedUsage records one managed-AI request against the user's monthly
-// usage. Best-effort with its own timeout so it survives the request ending.
-func (h *AIHandler) trackManagedUsage(userID string) {
+// trackManagedTokens records a managed-AI dispatch's token total against the
+// user's monthly usage. Best-effort with its own timeout so it survives the
+// request ending.
+func (h *AIHandler) trackManagedTokens(userID string, tokens int) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if _, err := h.billing.TrackUsage(ctx, &billingpb.TrackUsageRequest{
 		UserId:     userID,
-		MetricName: metricAIRequests,
-		Quantity:   1,
+		MetricName: metricAITokens,
+		Quantity:   int64(tokens),
 	}); err != nil {
-		log.Printf("ai: track managed usage for %s: %v", userID, err)
+		log.Printf("ai: track managed tokens for %s: %v", userID, err)
 	}
 }
 
