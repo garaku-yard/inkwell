@@ -32,6 +32,7 @@ type ProjectElement struct {
 	Formatting map[string]string `json:"formatting" db:"formatting"` // JSON field for formatting attributes
 	CreatedAt  time.Time         `json:"created_at" db:"created_at"`
 	UpdatedAt  time.Time         `json:"updated_at" db:"updated_at"`
+	DeletedAt  *time.Time        `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
 // Scene represents a scene in the screenplay
@@ -44,6 +45,7 @@ type Scene struct {
 	OrderIndex    int32      `json:"order_index" db:"order_index"`
 	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
+	DeletedAt     *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
 // OutlineUnit represents story structure elements (acts, sequences, beats, sub-beats)
@@ -73,17 +75,19 @@ type Character struct {
 	Attributes  map[string]string `json:"attributes" db:"attributes"` // JSON field
 	CreatedAt   time.Time         `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at" db:"updated_at"`
+	DeletedAt   *time.Time        `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
 // Location represents a location in the screenplay
 type Location struct {
-	ID          uuid.UUID `json:"id" db:"location_id"`
-	ProjectID   uuid.UUID `json:"project_id" db:"project_id"`
-	Name        string    `json:"name" db:"name"`
-	Description string    `json:"description" db:"description"`
-	Type        string    `json:"type" db:"location_type"` // "interior", "exterior"
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	ID          uuid.UUID  `json:"id" db:"location_id"`
+	ProjectID   uuid.UUID  `json:"project_id" db:"project_id"`
+	Name        string     `json:"name" db:"name"`
+	Description string     `json:"description" db:"description"`
+	Type        string     `json:"type" db:"location_type"` // "interior", "exterior"
+	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
 // Domain errors. Use errors.Is(err, domain.ErrXXX) at call sites — the

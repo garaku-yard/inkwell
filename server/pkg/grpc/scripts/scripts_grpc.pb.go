@@ -59,13 +59,12 @@ const (
 	ScriptsService_UpdateOutlineItem_FullMethodName    = "/scripts.ScriptsService/UpdateOutlineItem"
 	ScriptsService_DeleteOutlineItem_FullMethodName    = "/scripts.ScriptsService/DeleteOutlineItem"
 	ScriptsService_GetResourceProject_FullMethodName   = "/scripts.ScriptsService/GetResourceProject"
+	ScriptsService_SyncProject_FullMethodName          = "/scripts.ScriptsService/SyncProject"
 )
 
 // ScriptsServiceClient is the client API for ScriptsService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// Scripts service definition
 type ScriptsServiceClient interface {
 	// Project management (Project now represents the screenplay)
 	CreateProject(ctx context.Context, in *CreateProjectRequest, opts ...grpc.CallOption) (*CreateProjectResponse, error)
@@ -120,6 +119,10 @@ type ScriptsServiceClient interface {
 	// mutations against the resource's real project. It is an internal lookup —
 	// no ownership check — so the gateway must authorize the returned project.
 	GetResourceProject(ctx context.Context, in *GetResourceProjectRequest, opts ...grpc.CallOption) (*GetResourceProjectResponse, error)
+	// SyncProject reconciles one project bidirectionally: it applies the caller's
+	// pushed changes (upsert-by-id, server-stamped updated_at, last-sync-wins) and
+	// returns every row changed since the caller's cursor. See SYNC_DESIGN.md.
+	SyncProject(ctx context.Context, in *SyncProjectRequest, opts ...grpc.CallOption) (*SyncProjectResponse, error)
 }
 
 type scriptsServiceClient struct {
@@ -530,11 +533,19 @@ func (c *scriptsServiceClient) GetResourceProject(ctx context.Context, in *GetRe
 	return out, nil
 }
 
+func (c *scriptsServiceClient) SyncProject(ctx context.Context, in *SyncProjectRequest, opts ...grpc.CallOption) (*SyncProjectResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SyncProjectResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_SyncProject_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ScriptsServiceServer is the server API for ScriptsService service.
 // All implementations must embed UnimplementedScriptsServiceServer
 // for forward compatibility.
-//
-// Scripts service definition
 type ScriptsServiceServer interface {
 	// Project management (Project now represents the screenplay)
 	CreateProject(context.Context, *CreateProjectRequest) (*CreateProjectResponse, error)
@@ -589,6 +600,10 @@ type ScriptsServiceServer interface {
 	// mutations against the resource's real project. It is an internal lookup —
 	// no ownership check — so the gateway must authorize the returned project.
 	GetResourceProject(context.Context, *GetResourceProjectRequest) (*GetResourceProjectResponse, error)
+	// SyncProject reconciles one project bidirectionally: it applies the caller's
+	// pushed changes (upsert-by-id, server-stamped updated_at, last-sync-wins) and
+	// returns every row changed since the caller's cursor. See SYNC_DESIGN.md.
+	SyncProject(context.Context, *SyncProjectRequest) (*SyncProjectResponse, error)
 	mustEmbedUnimplementedScriptsServiceServer()
 }
 
@@ -718,6 +733,9 @@ func (UnimplementedScriptsServiceServer) DeleteOutlineItem(context.Context, *Del
 }
 func (UnimplementedScriptsServiceServer) GetResourceProject(context.Context, *GetResourceProjectRequest) (*GetResourceProjectResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetResourceProject not implemented")
+}
+func (UnimplementedScriptsServiceServer) SyncProject(context.Context, *SyncProjectRequest) (*SyncProjectResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SyncProject not implemented")
 }
 func (UnimplementedScriptsServiceServer) mustEmbedUnimplementedScriptsServiceServer() {}
 func (UnimplementedScriptsServiceServer) testEmbeddedByValue()                        {}
@@ -1460,6 +1478,24 @@ func _ScriptsService_GetResourceProject_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ScriptsService_SyncProject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncProjectRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).SyncProject(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_SyncProject_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).SyncProject(ctx, req.(*SyncProjectRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ScriptsService_ServiceDesc is the grpc.ServiceDesc for ScriptsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1626,6 +1662,10 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetResourceProject",
 			Handler:    _ScriptsService_GetResourceProject_Handler,
+		},
+		{
+			MethodName: "SyncProject",
+			Handler:    _ScriptsService_SyncProject_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -63,16 +63,25 @@ marked so the trigger skips them — to be finalised in stage 1.
 // each row carries its id + fields + deletedAt (tombstone) when deleted
 ```
 
-Server, in one transaction:
-1. **Apply** client changes: upsert-by-id, LWW (keep the row whose
-   server-stamped `updated_at` is later; a tombstone competes by its own time).
-2. **Collect** all rows for this project with `updated_at > cursor`
-   (incl. tombstones).
-3. **Return** `{ changes: {...}, cursor: "<new high-water>" }`.
+Server, in one transaction (**apply-then-pull**, which is convergent where
+pull-then-apply is not — see below):
+1. **Apply** the client's changes: upsert-by-id, stamping `updated_at = NOW()`
+   (server clock). Unconditional "last-sync-wins" — the pusher always wins.
+   Collect the set of pushed ids.
+2. **Pull**: all rows for this project with `updated_at > cursor`, **excluding
+   the ids just pushed** (incl. tombstones).
+3. **Return** `{ changes: <pull>, cursor: NOW() }`.
 
-Client applies the returned changes locally (LWW), advances the stored cursor.
-First sync of a freshly-toggled project: `cursor=null`, client sends the full
-project; a fresh linked device pulls the whole project the same way.
+Excluding just-pushed ids is the key: the pusher keeps its own version (which
+now equals the server's), so pusher and server never diverge; other devices
+converge on their next pull. The naive pull-then-apply order diverges — the
+client would apply the *old* pulled row while its push writes the *new* one,
+leaving local ≠ server until the row is touched again.
+
+Client applies the returned changes locally, advances the stored cursor. First
+sync of a freshly-toggled project: `cursor=null`, client sends the full project;
+a fresh linked device pulls the whole project the same way (empty push ⇒ no
+exclusion ⇒ full pull).
 
 ## Schema changes
 
@@ -131,9 +140,13 @@ surfaced on the project card + a Settings → Sync section.
    `deleted_at IS NULL`; delta-scan indexes added. Verified on the live stack.
    The change-log/`sync_outbox` mechanism is deferred to Stage 3 (its own
    migration), co-located with the runner that drains it.
-2. **Server: upsert + sync endpoint.** Client-id upsert-by-id (LWW) for every
-   entity; `POST /sync/projects/{id}` push+pull service + handler; per-project
-   delta query + indexes; the periodic time-based tombstone purge.
+2. **Server: upsert + sync endpoint. ✅ DONE.** Client-id upsert-by-id
+   (last-sync-wins, server-stamped `updated_at`) for every entity; the
+   `POST /api/v1/sync/projects/{id}` gRPC `SyncProject` (apply-then-pull,
+   exclude-just-pushed) + a protojson gateway bridge; per-project delta query;
+   `PurgeTombstones` for the time-based GC (cron wiring deferred to ops).
+   Verified live: client-UUID create, fresh-device full pull, delta edit,
+   tombstone propagation, cross-user 403, cursor narrowing.
 3. **Client: sync engine.** `sync_state` + `sync_outbox`, the runner, the
    round-trip via a new `storage.sync` domain, LWW apply, owner remap on link,
    the local tombstone purge.

@@ -17,6 +17,7 @@ message Project {
   string status = 7; // "draft", "active", "completed", "archived"
   bool is_starred = 8;
   string category = 9; // "screenplay", "novel", "comic_script", "poetry", "interactive_fiction", "tabletop_rpg", "memoir", "lyrics"
+  common.Timestamp deleted_at = 10; // tombstone for sync (nil = live)
 }
 
 // Note: Screenplay is now represented by Project entity
@@ -32,6 +33,7 @@ message Scene {
   int32 order_index = 6;
   common.Timestamp created_at = 7;
   common.Timestamp updated_at = 8;
+  common.Timestamp deleted_at = 9; // tombstone for sync (nil = live)
 }
 
 // ProjectElement is a single content element (paragraph, line, panel, stat block, passage body, etc.) within a scene/container — interpreted per format.
@@ -47,6 +49,7 @@ message ProjectElement {
   map<string, string> formatting = 8; // Additional formatting attributes
   common.Timestamp created_at = 9;
   common.Timestamp updated_at = 10;
+  common.Timestamp deleted_at = 11; // tombstone for sync (nil = live)
 }
 
 // Unified outline unit entity (acts, sequences, beats, sub-beats)
@@ -76,6 +79,7 @@ message Character {
   map<string, string> attributes = 6; // Key-value pairs for character traits
   common.Timestamp created_at = 7;
   common.Timestamp updated_at = 8;
+  common.Timestamp deleted_at = 9; // tombstone for sync (nil = live)
 }
 
 // Location entity
@@ -87,6 +91,7 @@ message Location {
   string type = 5; // "interior", "exterior"
   common.Timestamp created_at = 6;
   common.Timestamp updated_at = 7;
+  common.Timestamp deleted_at = 8; // tombstone for sync (nil = live)
 }
 
 // Beat Board entities
@@ -108,6 +113,7 @@ message Beat {
   int32 start_page = 15;
   int32 end_page = 16;
   optional string image_url = 17;
+  common.Timestamp deleted_at = 18; // tombstone for sync (nil = live)
 }
 
 message Connection {
@@ -118,6 +124,8 @@ message Connection {
   string from_side = 5; // "top", "right", "bottom", "left"
   string to_side = 6;
   common.Timestamp created_at = 7;
+  common.Timestamp updated_at = 8; // added for sync delta ordering
+  common.Timestamp deleted_at = 9; // tombstone for sync (nil = live)
 }
 
 message Lane {
@@ -128,6 +136,7 @@ message Lane {
   int32 order = 5;
   common.Timestamp created_at = 6;
   common.Timestamp updated_at = 7;
+  common.Timestamp deleted_at = 8; // tombstone for sync (nil = live)
 }
 
 message OutlineItem {
@@ -140,6 +149,7 @@ message OutlineItem {
   double width = 7;
   common.Timestamp created_at = 8;
   common.Timestamp updated_at = 9;
+  common.Timestamp deleted_at = 10; // tombstone for sync (nil = live)
 }
 
 message BeatBoardData {
@@ -638,6 +648,36 @@ message GetProjectLocationsResponse {
 }
 
 // Scripts service definition
+// ─── Sync ───────────────────────────────────────────────────────────────────
+
+// SyncChanges bundles rows for one project, used in both directions of a sync
+// round-trip. Each row carries its own deleted_at (a tombstone when set). The
+// project field is the project row itself — optional on push (only set when the
+// project row changed), always set by the server on a full pull.
+message SyncChanges {
+  Project project = 1;
+  repeated Scene scenes = 2;
+  repeated ProjectElement elements = 3;
+  repeated Character characters = 4;
+  repeated Location locations = 5;
+  repeated Beat beats = 6;
+  repeated Connection connections = 7;
+  repeated Lane lanes = 8;
+  repeated OutlineItem outline_items = 9;
+}
+
+message SyncProjectRequest {
+  string project_id = 1;
+  string owner_id = 2;         // the authenticated caller (gateway-supplied)
+  common.Timestamp cursor = 3; // unset/zero ⇒ full pull (first sync / fresh device)
+  SyncChanges changes = 4;     // the caller's local changes since its cursor
+}
+
+message SyncProjectResponse {
+  SyncChanges changes = 1;     // server rows changed since the request cursor
+  common.Timestamp cursor = 2; // new high-water for the caller to store
+}
+
 service ScriptsService {
   // Project management (Project now represents the screenplay)
   rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
@@ -702,4 +742,9 @@ service ScriptsService {
   // mutations against the resource's real project. It is an internal lookup —
   // no ownership check — so the gateway must authorize the returned project.
   rpc GetResourceProject(GetResourceProjectRequest) returns (GetResourceProjectResponse);
+
+  // SyncProject reconciles one project bidirectionally: it applies the caller's
+  // pushed changes (upsert-by-id, server-stamped updated_at, last-sync-wins) and
+  // returns every row changed since the caller's cursor. See SYNC_DESIGN.md.
+  rpc SyncProject(SyncProjectRequest) returns (SyncProjectResponse);
 }

@@ -147,6 +147,9 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			r.Post("/users/data-deletion-request", authHandler.RequestDataDeletion)
 			r.Get("/users/data-deletion-request/status", authHandler.GetDataDeletionStatus)
 
+			// Sync — bidirectional per-project reconcile for the desktop client.
+			r.Post("/sync/projects/{projectId}", scriptsHandler.SyncProject)
+
 			// Projects
 			r.Route("/projects", func(r chi.Router) {
 				r.Get("/", scriptsHandler.GetUserProjects)

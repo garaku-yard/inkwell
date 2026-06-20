@@ -37,6 +37,10 @@ type ScriptsService interface {
 	// against the returned project before performing the mutation.
 	GetResourceProject(ctx context.Context, kind domain.ResourceKind, resourceID uuid.UUID) (uuid.UUID, error)
 
+	// SyncProject reconciles one project bidirectionally: applies the caller's
+	// pushed changes and returns rows changed since cursor. See SYNC_DESIGN.md.
+	SyncProject(ctx context.Context, projectID, ownerID uuid.UUID, cursor time.Time, in *domain.SyncChanges) (*domain.SyncChanges, time.Time, error)
+
 	// Scene operations
 	CreateScene(ctx context.Context, projectID, userID uuid.UUID, scene *domain.Scene) (*domain.Scene, error)
 	GetProjectScenes(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Scene, error)
@@ -69,6 +73,7 @@ type ScriptsService interface {
 type scriptsService struct {
 	db        *sql.DB
 	repo      *repository.Repository
+	sync      *repository.SyncRepository
 	outbox    outbox.Store
 	config    *config.Config
 	publisher events.Publisher
@@ -89,6 +94,7 @@ func NewScriptsService(db *sql.DB, repo *repository.Repository, store outbox.Sto
 	return &scriptsService{
 		db:        db,
 		repo:      repo,
+		sync:      repository.NewSyncRepository(db),
 		outbox:    store,
 		config:    cfg,
 		publisher: publisher,
@@ -357,6 +363,59 @@ func (s *scriptsService) GetResourceProject(ctx context.Context, kind domain.Res
 	default:
 		return uuid.Nil, fmt.Errorf("unknown resource kind: %d", kind)
 	}
+}
+
+// SyncProject reconciles one project bidirectionally in a single transaction:
+// it applies the caller's pushed changes (upsert-by-id, server-stamped
+// updated_at, last-sync-wins) and returns every row changed since cursor,
+// excluding the ids just pushed so the pusher never diverges from the server.
+// See SYNC_DESIGN.md.
+//
+// Authorization: a project already on the server must be owned by ownerID; a
+// project not yet on the server is created from the push (owner forced to
+// ownerID). A caller cannot sync a project owned by someone else.
+func (s *scriptsService) SyncProject(ctx context.Context, projectID, ownerID uuid.UUID, cursor time.Time, in *domain.SyncChanges) (*domain.SyncChanges, time.Time, error) {
+	if in == nil {
+		in = &domain.SyncChanges{}
+	}
+	var (
+		out       *domain.SyncChanges
+		newCursor time.Time
+	)
+	err := outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
+		owner, oerr := s.sync.ProjectOwner(ctx, tx, projectID)
+		switch {
+		case oerr == sql.ErrNoRows:
+			// Not on the server yet. The push must carry the project row to
+			// create it; otherwise there's nothing to sync.
+			if in.Project == nil {
+				out = &domain.SyncChanges{}
+				var nerr error
+				newCursor, nerr = s.sync.ServerNow(ctx, tx)
+				return nerr
+			}
+		case oerr != nil:
+			return oerr
+		case owner != ownerID:
+			return domain.ErrUnauthorizedAccess
+		}
+
+		// Apply the push first, then pull the delta excluding the just-pushed
+		// ids — apply-then-pull keeps the pusher convergent with the server.
+		if err := s.sync.ApplyChanges(ctx, tx, projectID, ownerID, in); err != nil {
+			return err
+		}
+		var perr error
+		if out, perr = s.sync.PullChanges(ctx, tx, projectID, cursor, in); perr != nil {
+			return perr
+		}
+		newCursor, perr = s.sync.ServerNow(ctx, tx)
+		return perr
+	})
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	return out, newCursor, nil
 }
 
 // Scene operations
