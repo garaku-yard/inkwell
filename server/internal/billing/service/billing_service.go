@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,7 +19,23 @@ import (
 	"inkwell/server/pkg/events"
 	"inkwell/server/pkg/outbox"
 	"inkwell/server/pkg/paddle"
+	redisclient "inkwell/server/pkg/redis"
 )
+
+// monthlyMetrics are usage metrics enforced over a calendar-month window. They
+// are counted in Redis (hot path) and persisted to usage_events asynchronously;
+// all other metrics use the synchronous cumulative DB path.
+var monthlyMetrics = map[string]bool{"ai_tokens": true}
+
+// usageKeyTTL keeps a monthly counter alive comfortably past its month so a
+// late reseed or a slow billing read still finds it; old months expire on their own.
+const usageKeyTTL = 45 * 24 * time.Hour
+
+// monthlyUsageKey is the Redis key holding a user's running total for a metric in
+// a given month, e.g. "usage:<uuid>:ai_tokens:202606".
+func monthlyUsageKey(userID uuid.UUID, metric string, now time.Time) string {
+	return fmt.Sprintf("usage:%s:%s:%s", userID, metric, now.Format("200601"))
+}
 
 // BillingService defines the billing business-logic interface.
 // The handler layer depends on this interface; tests can supply a fake.
@@ -76,6 +93,9 @@ type BillingService interface {
 	// GetMonthlyUsage returns a user's usage for a metric in the current calendar
 	// month, for managed-AI allowance enforcement.
 	GetMonthlyUsage(ctx context.Context, userID uuid.UUID, metric string) (int64, error)
+	// RunUsageFlusher batch-persists buffered usage events until ctx is done. Run
+	// once in a background goroutine; a no-op when Redis is not configured.
+	RunUsageFlusher(ctx context.Context)
 
 	// GetAnalytics returns admin-facing KPIs (MRR, ARR, churn, tier distribution).
 	GetAnalytics(ctx context.Context) (*domain.BillingAnalytics, error)
@@ -115,6 +135,11 @@ type billingService struct {
 	outbox    outbox.Store
 	publisher events.Publisher
 	payment   PaymentConfig
+	// redis backs the live monthly usage counters; nil falls back to summing
+	// usage_events directly (correct, heavier). usageCh buffers durable usage
+	// writes for the async flusher and is non-nil only when redis is set.
+	redis   *redisclient.Client
+	usageCh chan domain.UsageEvent
 }
 
 // NewBillingService creates a BillingService.
@@ -125,9 +150,15 @@ type billingService struct {
 // publisher is retained for fire-and-forget best-effort emission alongside the
 // durable outbox write; the background poller in cmd/billing handles reliability.
 // payment carries the Paddle integration, left zero-valued to run without a
-// payment gateway. In tests, pass &events.NoopPublisher{} and an in-memory Store.
-func NewBillingService(db *sql.DB, repo repository.BillingRepository, outbox outbox.Store, publisher events.Publisher, payment PaymentConfig) BillingService {
-	return &billingService{db: db, repo: repo, outbox: outbox, publisher: publisher, payment: payment}
+// payment gateway. rdb backs the live monthly usage counters; pass nil to run
+// without Redis (usage falls back to direct DB sums). In tests, pass
+// &events.NoopPublisher{}, an in-memory Store, and a nil rdb.
+func NewBillingService(db *sql.DB, repo repository.BillingRepository, outbox outbox.Store, publisher events.Publisher, payment PaymentConfig, rdb *redisclient.Client) BillingService {
+	s := &billingService{db: db, repo: repo, outbox: outbox, publisher: publisher, payment: payment, redis: rdb}
+	if rdb != nil {
+		s.usageCh = make(chan domain.UsageEvent, 4096)
+	}
+	return s
 }
 
 func (s *billingService) ListTiers(ctx context.Context) ([]*domain.SubscriptionTier, error) {
@@ -404,16 +435,96 @@ func (s *billingService) CancelSubscription(ctx context.Context, subscriptionID 
 	return nil
 }
 
-// TrackUsage records a usage increment against the user's running totals.
-// The write is atomic at the repository layer — the event log and aggregate
-// table update together — so downstream quota reads are always consistent.
+// TrackUsage records a usage increment. Monthly metrics (e.g. ai_tokens) bump a
+// Redis counter on the hot path and persist to usage_events asynchronously via
+// the flusher; everything else uses the synchronous cumulative DB write so
+// project-style quotas stay read-after-write consistent.
 func (s *billingService) TrackUsage(ctx context.Context, userID uuid.UUID, metric string, quantity int64) error {
-	return s.repo.TrackUsage(ctx, userID, metric, quantity)
+	if s.redis == nil || !monthlyMetrics[metric] {
+		return s.repo.TrackUsage(ctx, userID, metric, quantity)
+	}
+
+	key := monthlyUsageKey(userID, metric, time.Now())
+	if _, err := s.redis.IncrBy(ctx, key, quantity, usageKeyTTL); err != nil {
+		// Redis is the authoritative counter; if it's down, don't lose the
+		// increment — fall back to the durable+summed DB path for this call.
+		return s.repo.TrackUsage(ctx, userID, metric, quantity)
+	}
+
+	// Persist the durable audit row off the hot path. If the buffer is full,
+	// write it synchronously rather than drop it (keeps the DB sum a correct
+	// reseed source after a Redis eviction).
+	ev := domain.UsageEvent{UserID: userID, Metric: metric, Quantity: quantity}
+	select {
+	case s.usageCh <- ev:
+	default:
+		_ = s.repo.InsertUsageEvents(ctx, []domain.UsageEvent{ev})
+	}
+	return nil
 }
 
 // GetMonthlyUsage returns a user's current-calendar-month usage for a metric.
+// For monthly metrics it reads the Redis counter, reseeding it from usage_events
+// on a cache miss so it self-heals after a Redis restart.
 func (s *billingService) GetMonthlyUsage(ctx context.Context, userID uuid.UUID, metric string) (int64, error) {
-	return s.repo.GetMonthlyUsage(ctx, userID, metric)
+	if s.redis == nil || !monthlyMetrics[metric] {
+		return s.repo.GetMonthlyUsage(ctx, userID, metric)
+	}
+
+	key := monthlyUsageKey(userID, metric, time.Now())
+	if val, found, err := s.redis.Get(ctx, key); err == nil && found {
+		if n, perr := strconv.ParseInt(val, 10, 64); perr == nil {
+			return n, nil
+		}
+	}
+	// Miss (or Redis down): sum the durable log and reseed the counter.
+	sum, err := s.repo.GetMonthlyUsage(ctx, userID, metric)
+	if err != nil {
+		return 0, err
+	}
+	_ = s.redis.Set(ctx, key, strconv.FormatInt(sum, 10), usageKeyTTL)
+	return sum, nil
+}
+
+// RunUsageFlusher drains buffered usage events and batch-inserts them into
+// usage_events, taking durable writes off the request path. It returns when ctx
+// is cancelled, flushing whatever remains. No-op when Redis (and thus the buffer)
+// is not configured.
+func (s *billingService) RunUsageFlusher(ctx context.Context) {
+	if s.usageCh == nil {
+		return
+	}
+	const maxBatch = 256
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	batch := make([]domain.UsageEvent, 0, maxBatch)
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+		fctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := s.repo.InsertUsageEvents(fctx, batch); err != nil {
+			slog.Warn("usage flush failed", "count", len(batch), "error", err)
+		}
+		cancel()
+		batch = batch[:0]
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			flush()
+			return
+		case ev := <-s.usageCh:
+			batch = append(batch, ev)
+			if len(batch) >= maxBatch {
+				flush()
+			}
+		case <-ticker.C:
+			flush()
+		}
+	}
 }
 
 // GetUserUsage returns a map of metric-name → aggregate total for the user.

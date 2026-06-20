@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -399,6 +400,25 @@ func (r *postgresRepository) GetMonthlyUsage(ctx context.Context, userID uuid.UU
 		return 0, fmt.Errorf("get monthly usage: %w", err)
 	}
 	return total, nil
+}
+
+// InsertUsageEvents writes a batch of usage events in one multi-row insert.
+func (r *postgresRepository) InsertUsageEvents(ctx context.Context, events []domain.UsageEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+	var (
+		placeholders = make([]string, 0, len(events))
+		args         = make([]any, 0, len(events)*3)
+	)
+	for i, e := range events {
+		n := i * 3
+		placeholders = append(placeholders, fmt.Sprintf("($%d,$%d,$%d)", n+1, n+2, n+3))
+		args = append(args, e.UserID, e.Metric, e.Quantity)
+	}
+	query := "INSERT INTO usage_events (user_id, metric_name, quantity) VALUES " + strings.Join(placeholders, ",")
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
 }
 
 func (r *postgresRepository) TrackUsage(ctx context.Context, userID uuid.UUID, metric string, quantity int64) error {

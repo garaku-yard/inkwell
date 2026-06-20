@@ -19,6 +19,7 @@ import (
 	billingpb "inkwell/server/pkg/grpc/billing"
 	"inkwell/server/pkg/outbox"
 	"inkwell/server/pkg/paddle"
+	redisclient "inkwell/server/pkg/redis"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -89,9 +90,28 @@ func main() {
 		slog.Warn("paddle not configured (PADDLE_API_KEY unset) — checkout disabled")
 	}
 
+	// Redis backs the live monthly usage counters (managed-AI metering) so the
+	// hot path stays off the database. Optional — without it, usage falls back to
+	// summing usage_events directly.
+	var rdb *redisclient.Client
+	if cfg.RedisConfig.Host != "" {
+		rdb, err = redisclient.New(redisclient.Config{
+			Host:     cfg.RedisConfig.Host,
+			Port:     cfg.RedisConfig.Port,
+			Password: cfg.RedisConfig.Password,
+		})
+		if err != nil {
+			slog.Warn("redis unavailable — usage metering falls back to direct DB sums", "error", err)
+			rdb = nil
+		} else {
+			slog.Info("redis usage counters enabled")
+			defer rdb.Close()
+		}
+	}
+
 	repo := repository.NewPostgresRepository(db)
 	outboxStore := outbox.NewPostgresStore(db, "billing_outbox")
-	svc := service.NewBillingService(db, repo, outboxStore, publisher, payment)
+	svc := service.NewBillingService(db, repo, outboxStore, publisher, payment, rdb)
 	billingHandler := handler.NewBillingHandler(svc)
 
 	// Outbox poller — flushes unpublished billing events to Kafka every 10 s.
@@ -101,6 +121,9 @@ func main() {
 		NewPoller(outboxStore, publisher, 10*time.Second, 50).
 		WithLogger(slog.Default().With("component", "billing_outbox"))
 	go poller.Run(pollerCtx)
+
+	// Drain buffered usage events to the durable log off the request path.
+	go svc.RunUsageFlusher(pollerCtx)
 
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),

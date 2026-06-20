@@ -75,8 +75,11 @@ type BillingRepository interface {
 	// Both writes happen in a single transaction so the log and aggregate agree.
 	TrackUsage(ctx context.Context, userID uuid.UUID, metric string, quantity int64) error
 	// GetMonthlyUsage sums a user's usage for a metric within the current
-	// calendar month (used for managed-AI monthly allowance enforcement).
+	// calendar month (used to reseed the Redis counter on a cache miss).
 	GetMonthlyUsage(ctx context.Context, userID uuid.UUID, metric string) (int64, error)
+	// InsertUsageEvents appends a batch of usage events to the durable log in a
+	// single multi-row insert. Used by the async usage flusher.
+	InsertUsageEvents(ctx context.Context, events []domain.UsageEvent) error
 	// GetUsageTotal returns the current aggregate usage for a user + metric.
 	// Returns 0 with no error when no events have been recorded yet.
 	GetUsageTotal(ctx context.Context, userID uuid.UUID, metric string) (int64, error)

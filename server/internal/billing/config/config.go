@@ -15,7 +15,21 @@ type Config struct {
 	DatabaseConfig DatabaseConfig
 	KafkaConfig    KafkaConfig
 	PaddleConfig   PaddleConfig
+	RedisConfig    RedisConfig
 }
+
+// RedisConfig holds the Redis connection used for the live usage counters that
+// keep managed-AI metering off the database hot path. Empty Host disables Redis;
+// the service then falls back to summing usage_events directly (correct but
+// heavier), so the feature degrades gracefully.
+type RedisConfig struct {
+	Host     string
+	Port     string
+	Password string
+}
+
+// Enabled reports whether Redis is configured.
+func (r RedisConfig) Enabled() bool { return r.Host != "" }
 
 // PaddleConfig holds the Paddle Billing integration settings. The whole feature
 // is inert until APIKey is set ("build now, plug credentials later") — Configured
@@ -78,6 +92,11 @@ func Load() (*Config, error) {
 			WebhookSecret: env.String("PADDLE_WEBHOOK_SECRET", ""),
 			Environment:   env.String("PADDLE_ENVIRONMENT", "sandbox"),
 			PriceMap:      priceMap,
+		},
+		RedisConfig: RedisConfig{
+			Host:     env.String("REDIS_HOST", ""),
+			Port:     env.String("REDIS_PORT", "6379"),
+			Password: env.String("REDIS_PASSWORD", ""),
 		},
 		DatabaseConfig: DatabaseConfig{
 			Host:            env.String("BILLING_DB_HOST", "localhost"),

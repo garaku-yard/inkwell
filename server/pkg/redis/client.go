@@ -82,6 +82,19 @@ func (c *Client) Incr(ctx context.Context, key string, ttl time.Duration) (int64
 	return incr.Val(), nil
 }
 
+// IncrBy atomically adds n to the counter at key and returns the new value,
+// setting ttl only when the key is newly created (ExpireNX) so the expiry
+// window isn't pushed back on every increment.
+func (c *Client) IncrBy(ctx context.Context, key string, n int64, ttl time.Duration) (int64, error) {
+	pipe := c.rdb.TxPipeline()
+	incr := pipe.IncrBy(ctx, key, n)
+	pipe.ExpireNX(ctx, key, ttl)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return 0, err
+	}
+	return incr.Val(), nil
+}
+
 // Close gracefully closes the connection.
 func (c *Client) Close() error {
 	return c.rdb.Close()

@@ -121,3 +121,11 @@ type TierRevenue struct {
 	TierName string
 	Revenue  float64
 }
+
+// UsageEvent is a single metered usage increment, persisted to usage_events.
+// Used by the batched durable writer that backs the Redis usage counters.
+type UsageEvent struct {
+	UserID   uuid.UUID
+	Metric   string
+	Quantity int64
+}

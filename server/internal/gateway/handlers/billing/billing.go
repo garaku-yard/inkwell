@@ -133,6 +133,8 @@ type myBillingDTO struct {
 	MaxCollaboratorsPerProject int64  `json:"maxCollaboratorsPerProject"` // -1 means unlimited
 	AIFeaturesEnabled          bool   `json:"aiFeaturesEnabled"`
 	PrioritySupport            bool   `json:"prioritySupport"`
+	AITokensPerMonth           int64  `json:"aiTokensPerMonth"` // managed-AI monthly token allowance; -1 unlimited
+	AITokensUsed               int64  `json:"aiTokensUsed"`     // managed-AI tokens used this calendar month
 }
 
 // unlimitedNeg normalises a Plan cap to the client's convention: the Plan proto
@@ -143,6 +145,14 @@ func unlimitedNeg(v int32) int64 {
 		return -1
 	}
 	return int64(v)
+}
+
+// unlimitedNeg64 is the int64 variant of unlimitedNeg (for token allowances).
+func unlimitedNeg64(v int64) int64 {
+	if v <= 0 {
+		return -1
+	}
+	return v
 }
 
 // GetMyBilling returns the authenticated user's effective tier and subscription
@@ -175,6 +185,7 @@ func (h *BillingHandler) GetMyBilling(w http.ResponseWriter, r *http.Request) {
 				MaxCollaboratorsPerProject: unlimitedNeg(plan.GetMaxCollaboratorsPerProject()),
 				AIFeaturesEnabled:          plan.GetAiFeaturesEnabled(),
 				PrioritySupport:            plan.GetPrioritySupport(),
+				AITokensPerMonth:           unlimitedNeg64(plan.GetAiTokensPerMonth()),
 			}
 
 			// Enrich with live subscription status/period when one exists. A
@@ -184,6 +195,11 @@ func (h *BillingHandler) GetMyBilling(w http.ResponseWriter, r *http.Request) {
 				out.Status = sub.GetStatus()
 				out.CurrentPeriodEnd = handlers.TimestampToString(sub.GetCurrentPeriodEnd())
 				out.Seats = sub.GetQuantity()
+			}
+
+			// Current-month managed-AI token usage (best-effort).
+			if usage, uErr := h.client.GetMonthlyUsage(ctx, &billingpb.GetMonthlyUsageRequest{UserId: userID, Metric: "ai_tokens"}); uErr == nil {
+				out.AITokensUsed = usage.GetUsed()
 			}
 			return &out, nil
 		},

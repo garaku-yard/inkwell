@@ -261,6 +261,10 @@ services:
       - BILLING_DB_SSLMODE=disable
       - KAFKA_BROKERS=kafka:29092
       - IDENTITY_SERVICE_URL=identity-service:50051
+      # Redis backs the live managed-AI usage counters (keeps metering off the DB).
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis}
       # Paddle billing — inert unless PADDLE_API_KEY is set (see .env.example).
       - PADDLE_API_KEY=${PADDLE_API_KEY:-}
       - PADDLE_WEBHOOK_SECRET=${PADDLE_WEBHOOK_SECRET:-}
