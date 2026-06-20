@@ -5,7 +5,68 @@
  * `code` and per-field validation `fields` instead of pattern-matching on text.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+/**
+ * Default gateway origin. A build-time `NEXT_PUBLIC_API_URL` wins (set for web
+ * and local dev); otherwise we fall back to the official hosted gateway, which
+ * is the right default for the desktop build. The desktop app can override this
+ * at runtime via {@link setApiBaseUrl} (e.g. a self-hoster pointing at their
+ * own stack), so the baked value is only a starting point.
+ */
+const DEFAULT_API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "https://inkwell.garakuyard.com";
+
+/**
+ * Header a native client sets to identify itself to the gateway. Its presence
+ * opts the request into token-in-body auth at login and the CSRF/CORS
+ * token-client exemptions (see gateway middleware). Mirrors the server const.
+ */
+const CLIENT_HEADER = "X-Inkwell-Client";
+const CLIENT_DESKTOP = "desktop";
+
+/** Current gateway origin; mutable so the desktop build can repoint at runtime. */
+let apiBaseUrl = DEFAULT_API_BASE_URL;
+/** Bearer token for native (cookie-less) auth; null on web and when signed out. */
+let authToken: string | null = null;
+/** Whether this is the native desktop client (token auth, no cookies). */
+let nativeClient = false;
+
+/**
+ * Repoints the gateway origin at runtime. Pass a falsy/blank value to reset to
+ * the default. A trailing slash is trimmed so `buildUrl` joins cleanly. Used by
+ * the desktop build to honour a user-configured gateway URL.
+ */
+export function setApiBaseUrl(url: string | null | undefined): void {
+  const trimmed = url?.trim().replace(/\/+$/, "");
+  apiBaseUrl = trimmed || DEFAULT_API_BASE_URL;
+}
+
+/** Returns the gateway origin currently in effect. */
+export function getApiBaseUrl(): string {
+  return apiBaseUrl;
+}
+
+/**
+ * Sets (or clears, with `null`) the bearer token used for native auth. When
+ * present it is sent as `Authorization: Bearer <token>` on every request. The
+ * desktop auth layer calls this after login and clears it on logout / 401.
+ */
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+
+/** Returns the bearer token currently in effect, or null. */
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
+/**
+ * Marks this runtime as the native desktop client. Native requests always carry
+ * the desktop header (so login returns the token in the body) and never send
+ * cookies — they authenticate purely by bearer token. Call once at desktop boot.
+ */
+export function setNativeClient(on: boolean): void {
+  nativeClient = on;
+}
 
 /**
  * API version prefix. Every gateway request is served under `/api/v1`; call
@@ -18,7 +79,8 @@ const API_VERSION_PREFIX = "api/v1";
 /**
  * Builds the absolute request URL from a bare endpoint path: strips any
  * leading slash, prepends the version prefix (idempotently — a path already
- * under the prefix is left as-is), then joins it to the base URL.
+ * under the prefix is left as-is), then joins it to the base URL currently in
+ * effect (see {@link setApiBaseUrl}).
  */
 function buildUrl(endpoint: string): string {
   const path = endpoint.replace(/^\/+/, "");
@@ -26,7 +88,24 @@ function buildUrl(endpoint: string): string {
     path === API_VERSION_PREFIX || path.startsWith(`${API_VERSION_PREFIX}/`)
       ? path
       : `${API_VERSION_PREFIX}/${path}`;
-  return `${API_BASE_URL}/${versioned}`;
+  return `${apiBaseUrl}/${versioned}`;
+}
+
+/**
+ * Applies the auth transport to a request's headers + fetch config. Native
+ * clients send the desktop identifier (and a bearer token once signed in) and
+ * omit cookies entirely; browser clients keep the httpOnly-cookie flow via
+ * `credentials: "include"`. Mutates `headers` and returns the credentials mode.
+ */
+function applyAuthTransport(headers: Headers): RequestCredentials {
+  if (nativeClient) {
+    headers.set(CLIENT_HEADER, CLIENT_DESKTOP);
+    if (authToken) {
+      headers.set("Authorization", `Bearer ${authToken}`);
+    }
+    return "omit";
+  }
+  return "include";
 }
 
 /** Extends the standard `RequestInit` with a typed `body` field that is
@@ -128,12 +207,13 @@ async function parseApiError(response: Response): Promise<ApiError> {
 }
 
 /**
- * Generic JSON API client for the Inkwell gateway. Authentication is carried
- * by the httpOnly `inkwell_token` cookie set at login; the browser attaches
- * it automatically when `credentials: "include"` is set, so no Authorization
- * header is needed. Treats HTTP 204 No Content as an empty object.
+ * Generic JSON API client for the Inkwell gateway. Authentication adapts to the
+ * runtime: browser clients carry the httpOnly `inkwell_token` cookie
+ * (`credentials: "include"`), while the native desktop client sends an
+ * `Authorization: Bearer` token and omits cookies (see {@link setNativeClient}
+ * / {@link setAuthToken}). Treats HTTP 204 No Content as an empty object.
  *
- * @param endpoint - Path relative to `NEXT_PUBLIC_API_URL` (e.g. `"projects"`).
+ * @param endpoint - Path relative to the gateway base URL (e.g. `"projects"`).
  * @param options - Optional fetch options including a typed `body` object.
  * @returns A promise that resolves to the parsed JSON response cast to `T`.
  * @throws {ApiError} For any non-OK response, with the gateway's structured
@@ -153,9 +233,10 @@ export async function apiClient<T>(
 
   const headers = new Headers(customHeaders);
   headers.set("Content-Type", "application/json");
+  const credentials = applyAuthTransport(headers);
 
   const config: RequestInit = {
-    credentials: "include",
+    credentials,
     ...customOptions,
     headers,
   };
@@ -192,13 +273,12 @@ export async function apiClient<T>(
 }
 
 /**
- * Streaming variant of `apiClient`. Uses the same cookie-based authentication
- * as `apiClient` (the browser attaches the httpOnly session cookie
- * automatically via `credentials: "include"`) and returns the raw
- * `ReadableStream<Uint8Array>` instead of parsing JSON. Used for
- * Server-Sent Events and NDJSON AI chat responses.
+ * Streaming variant of `apiClient`. Uses the same adaptive authentication as
+ * `apiClient` (httpOnly cookie on the web, bearer token on the native desktop
+ * client) and returns the raw `ReadableStream<Uint8Array>` instead of parsing
+ * JSON. Used for Server-Sent Events and NDJSON AI chat responses.
  *
- * @param endpoint - Path relative to `NEXT_PUBLIC_API_URL`.
+ * @param endpoint - Path relative to the gateway base URL.
  * @param options - Optional fetch options including a typed `body` object.
  * @returns A promise that resolves to the response `ReadableStream`.
  * @throws {ApiError} On HTTP 401 (also dispatches `"session-expired"`) or any
@@ -219,9 +299,10 @@ export async function apiStreamClient(
 
   const headers = new Headers(customHeaders);
   headers.set("Content-Type", "application/json");
+  const credentials = applyAuthTransport(headers);
 
   const config: RequestInit = {
-    credentials: "include",
+    credentials,
     ...customOptions,
     headers,
   };

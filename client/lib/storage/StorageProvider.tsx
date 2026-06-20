@@ -54,6 +54,13 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
     void (async () => {
       try {
+        // Wire native auth transport before anything renders: mark the HTTP
+        // client native, apply the stored gateway URL, and reload a persisted
+        // token, so the very first AuthContext.me() call carries the bearer
+        // token (or its absence) rather than racing the keychain read.
+        const { initDesktopAuth } = await import("../desktop-auth")
+        await initDesktopAuth()
+        if (cancelled) return
         const { createLocalStorage } = await import("./local")
         if (cancelled) return
         setStorage(createLocalStorage())
