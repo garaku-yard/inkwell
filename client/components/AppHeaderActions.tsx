@@ -10,7 +10,7 @@
  */
 
 import Link from "next/link"
-import { UserIcon, Inbox, Moon, Sun, Settings, Briefcase, LogOut } from "lucide-react"
+import { UserIcon, Inbox, Moon, Sun, Settings, Briefcase, LogOut, LogIn } from "lucide-react"
 
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
@@ -32,7 +32,7 @@ interface AppHeaderActionsProps {
 }
 
 export function AppHeaderActions({ inviteCount = 0 }: AppHeaderActionsProps) {
-  const { isAuthenticated, logout, user } = useAuth()
+  const { isAuthenticated, isCloudLinked, logout, user } = useAuth()
   const { theme, toggleTheme } = useTheme()
 
   if (!isAuthenticated) {
@@ -83,12 +83,23 @@ export function AppHeaderActions({ inviteCount = 0 }: AppHeaderActionsProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56" align="end" forceMount>
           <DropdownMenuLabel className="font-normal">
-            <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium leading-none">
-                {user?.username && user?.tag ? `${user.username}#${user.tag}` : user?.username || "User"}
-              </p>
-              <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
-            </div>
+            {isCloudLinked ? (
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">
+                  {user?.username && user?.tag ? `${user.username}#${user.tag}` : user?.username || "User"}
+                </p>
+                <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+              </div>
+            ) : (
+              // Local-first desktop, not linked: don't present the offline local
+              // profile as a cloud account — say so plainly and offer sign-in.
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">Not signed in</p>
+                <p className="text-xs leading-none text-muted-foreground">
+                  Your work is saved on this device
+                </p>
+              </div>
+            )}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
@@ -97,7 +108,7 @@ export function AppHeaderActions({ inviteCount = 0 }: AppHeaderActionsProps) {
               <span>Settings</span>
             </Link>
           </DropdownMenuItem>
-          {user?.role === "admin" && (
+          {isCloudLinked && user?.role === "admin" && (
             <DropdownMenuItem asChild>
               <Link href="/admin/billing" className="cursor-pointer">
                 <Briefcase className="mr-2 h-4 w-4" />
@@ -106,10 +117,19 @@ export function AppHeaderActions({ inviteCount = 0 }: AppHeaderActionsProps) {
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={logout}>
-            <LogOut className="mr-2 h-4 w-4" />
-            <span>Log out</span>
-          </DropdownMenuItem>
+          {isCloudLinked ? (
+            <DropdownMenuItem onClick={logout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem asChild>
+              <Link href="/login" className="cursor-pointer">
+                <LogIn className="mr-2 h-4 w-4" />
+                <span>Sign in</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

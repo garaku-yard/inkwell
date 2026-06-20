@@ -3,9 +3,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
+import { isTauri } from "@tauri-apps/api/core"
+
 import { SessionExpiryModal } from "@/components/session-expiry-modal"
 import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
-import { ApiError } from "@/lib/api"
+import { ApiError, getAuthToken } from "@/lib/api"
 import { getStorage } from "@/lib/storage"
 
 /**
@@ -28,6 +30,12 @@ export interface AuthUser {
 
 interface AuthContextType {
   isAuthenticated: boolean
+  /** Whether the user is signed into a real cloud account. On the web this
+   *  equals `isAuthenticated`. On the local-first desktop build the working
+   *  identity may be the offline local profile (authenticated but NOT linked);
+   *  this is true only when a cloud-account token is present. UI that offers
+   *  "sign in" vs "log out" should branch on this, not `isAuthenticated`. */
+  isCloudLinked: boolean
   isLoading: boolean
   user: AuthUser | null
   /** Store the user object returned by login/register. No token parameter —
@@ -129,6 +137,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const value = useMemo<AuthContextType>(
     () => ({
       isAuthenticated: user !== null,
+      // Web: an authenticated session is a cloud account. Desktop: only when a
+      // bearer token is present (else `user` is the offline local profile).
+      // Recomputed whenever `user` changes — the only thing that flips linkage.
+      isCloudLinked: user !== null && (!isTauri() || getAuthToken() !== null),
       isLoading,
       user,
       login,
