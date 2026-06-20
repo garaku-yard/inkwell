@@ -194,11 +194,11 @@ export function CollaborationSection() {
             <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
               <li className="flex items-start gap-2">
                 <Lock className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                <span>Use "View Only" permissions for stakeholders who need to review but not edit</span>
+                <span>Use &quot;View Only&quot; permissions for stakeholders who need to review but not edit</span>
               </li>
               <li className="flex items-start gap-2">
                 <Users className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                <span>Grant "Admin" access only to trusted team members who need full control</span>
+                <span>Grant &quot;Admin&quot; access only to trusted team members who need full control</span>
               </li>
               <li className="flex items-start gap-2">
                 <GitBranch className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />

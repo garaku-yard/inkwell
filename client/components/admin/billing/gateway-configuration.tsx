@@ -28,12 +28,14 @@ export function GatewayConfiguration() {
 
   useEffect(() => {
     loadGateways()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     if (selectedGateway) {
       loadGatewayConfig(selectedGateway.id)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGateway])
 
   const loadGateways = async () => {

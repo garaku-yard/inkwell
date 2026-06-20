@@ -116,6 +116,8 @@ export function StoryLanes({
       const clampedPosition = Math.max(leftBoundary, Math.min(newPosition, rightBoundary - itemWidth));
       onUpdateOutlineItem(slidingItem.itemId, { timelinePosition: snapToEighthOfPage(clampedPosition) });
     }
+    // snapToEighthOfPage depends only on totalPages, already a dep
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resizingItem, slidingItem, outlineItems, onUpdateOutlineItem, totalPages]);
 
   const handleMouseUp = useCallback(() => {

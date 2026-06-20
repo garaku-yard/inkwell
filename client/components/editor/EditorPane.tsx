@@ -8,6 +8,11 @@ import { useTheme } from "@/lib/ThemeContext"
 
 type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ProjectElement }
 
+// US Letter: 8.5in x 11in at 96 DPI
+// With margins: 1in top, 1in bottom = 9in content height
+// 9 inches × 96 DPI = 864px available for content
+const PAGE_CONTENT_HEIGHT = 9 * 96 // 864px
+
 interface EditorPaneProps {
   items: ScriptItem[]
   scenes: Scene[]
@@ -68,11 +73,6 @@ export const EditorPane = React.memo(
         }, 100)
       }
     }, [items.length])
-
-    // US Letter: 8.5in x 11in at 96 DPI
-    // With margins: 1in top, 1in bottom = 9in content height
-    // 9 inches × 96 DPI = 864px available for content
-    const PAGE_CONTENT_HEIGHT = 9 * 96 // 864px
 
     const pages = useMemo(() => {
       const result: { items: ScriptItem[], height: number }[] = []
@@ -156,7 +156,7 @@ export const EditorPane = React.memo(
               >
                 <div className="text-muted-foreground text-sm text-center">
                   <p className="mb-2">Press <kbd className="px-2 py-1 bg-muted rounded border">Enter</kbd> twice to create a new scene</p>
-                  <p>or use the "New Scene" button in the toolbar</p>
+                  <p>or use the &quot;New Scene&quot; button in the toolbar</p>
                 </div>
               </div>
             </div>

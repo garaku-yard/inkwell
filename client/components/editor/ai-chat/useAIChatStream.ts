@@ -214,7 +214,7 @@ export function useAIChatStream({
         abortRef.current = null
       }
     },
-    [selectedProvider, setMessages, setIsTyping, isTyping],
+    [selectedProvider, setMessages, setIsTyping, isTyping, projectId],
   )
 
   return { sendMessage, stop }

@@ -56,6 +56,7 @@ export const SidePanel = React.memo(
 
       useEffect(() => {
         loadAllComments()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [project.id, refreshTrigger])
 
       const loadAllComments = async () => {

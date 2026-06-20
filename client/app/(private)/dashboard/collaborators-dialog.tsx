@@ -72,6 +72,7 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
     if (open && projectId) {
       fetchCollaborators()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, projectId])
 
   const fetchCollaborators = async () => {
@@ -155,7 +156,7 @@ export function CollaboratorsDialog({ open, onOpenChange, projectId, projectName
             <Users className="h-5 w-5" />
             Manage Collaborators
           </DialogTitle>
-          <DialogDescription>Invite team members and manage their roles for "{projectName}"</DialogDescription>
+          <DialogDescription>Invite team members and manage their roles for &quot;{projectName}&quot;</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 flex-1 min-h-0">

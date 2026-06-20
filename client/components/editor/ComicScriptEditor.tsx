@@ -146,7 +146,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
         }, 50)
       }
     },
-    [pages],
+    [pages, toast],
   )
 
   const keyMap = useMemo(
@@ -157,6 +157,8 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
           void handleAddElement(pageId, type, afterIdx),
         deleteEmptyElement: (pageId, elementId) => void handleDeleteElement(pageId, elementId),
       }),
+    // handleAddElement intentionally omitted to avoid re-creating the keymap each render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [pages, handleDeleteElement],
   )
 

@@ -187,7 +187,7 @@ export function AppearanceSection() {
             <div>
               <Label>Editor Fonts</Label>
               <p className="text-sm text-muted-foreground mt-1">
-                One pick per writing format. Defaults follow each format's typographic conventions.
+                One pick per writing format. Defaults follow each format&apos;s typographic conventions.
               </p>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">

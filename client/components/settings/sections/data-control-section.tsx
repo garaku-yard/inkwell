@@ -38,7 +38,7 @@ export function DataControlSection({ userEmail }: DataControlSectionProps) {
             <div>
               <h4 className="font-medium mb-1">Clear Local Cache</h4>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Remove temporary files and cached data from your browser. This won't delete your projects.
+                Remove temporary files and cached data from your browser. This won&apos;t delete your projects.
               </p>
             </div>
             <Button variant="outline" onClick={() => setShowClearCache(true)}>
@@ -68,7 +68,7 @@ export function DataControlSection({ userEmail }: DataControlSectionProps) {
               <h4 className="font-medium mb-1">Request Data Deletion</h4>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Submit a request to delete your personal information from our servers.
-                We'll process your request within 30 days.
+                We&apos;ll process your request within 30 days.
               </p>
             </div>
             <Button variant="outline" onClick={() => setShowRequestDeletion(true)}>

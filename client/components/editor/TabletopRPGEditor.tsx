@@ -181,7 +181,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         }, 50)
       }
     },
-    [sections],
+    [sections, toast],
   )
 
   const keyMap = useMemo(
@@ -193,6 +193,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         deleteEmptyElement: (sectionId, elementId) =>
           void handleDeleteElement(sectionId, elementId),
       }),
+    // handleAddElement intentionally omitted to avoid re-creating the keymap each render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [sections, handleDeleteElement],
   )
 
@@ -273,11 +275,13 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       void handleAddElement(sectionId, type, elementIndex)
       setSlashMenu(null)
     },
+    // handleAddElement intentionally omitted; it's recreated each render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [slashMenu],
   )
 
   const toggleCollapse = (id: string) =>
-    setCollapsed(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+    setCollapsed(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
   const toggleTableMode = (id: string) =>
     setTableMode(prev => ({ ...prev, [id]: prev[id] === "preview" ? "edit" : "preview" }))

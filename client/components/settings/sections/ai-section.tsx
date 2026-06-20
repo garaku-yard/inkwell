@@ -306,7 +306,7 @@ export function AISection() {
             <AlertDialogTitle>Remove “{deleteTarget?.label}”?</AlertDialogTitle>
             <AlertDialogDescription>
               This deletes the provider row and clears its key from your OS
-              keychain. Your chat history isn't affected. You can re-add it at
+              keychain. Your chat history isn&apos;t affected. You can re-add it at
               any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -358,7 +358,7 @@ function UnsupportedPlaceholder() {
             <CardDescription className="mt-1">
               Bringing your own provider keys requires a secure on-device key
               store. On the desktop build (Windows, macOS, Linux) Inkwell
-              uses the OS keychain; the hosted web build doesn't yet have
+              uses the OS keychain; the hosted web build doesn&apos;t yet have
               the server-side encrypted store wired up. For now, configure
               your keys from the{" "}
               <a
@@ -639,7 +639,7 @@ function ProviderFormDialog({
                   Enabled
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Disabled providers don't appear in the chat panel picker.
+                  Disabled providers don&apos;t appear in the chat panel picker.
                 </p>
               </div>
               <Switch

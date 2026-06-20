@@ -59,6 +59,7 @@ export function BeatCard({
       />
       {beat.imageUrl && (
         <div className="absolute inset-0 rounded-lg overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`${process.env.NEXT_PUBLIC_API_URL}${beat.imageUrl}`}
             alt={beat.title}

@@ -130,7 +130,7 @@ export function FdxImportDialog({ filePath, onCancel }: FdxImportDialogProps) {
         {error && (
           <Alert variant="destructive" role="alert">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Couldn't import</AlertTitle>
+            <AlertTitle>Couldn&apos;t import</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}

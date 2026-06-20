@@ -166,7 +166,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
         }, 50)
       }
     },
-    [scenes],
+    [scenes, toast],
   )
 
   const keyMap = useMemo(
@@ -182,6 +182,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
         insertChordRowAfter: (sceneId, afterIdx) => void handleAddChordRow(sceneId, afterIdx),
         deleteEmptyElement: (sceneId, elementId) => void handleDeleteElement(sceneId, elementId),
       }),
+    // handleAdd* insert handlers intentionally omitted to avoid re-creating the keymap each render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [scenes, isLyrics, handleDeleteElement],
   )
 

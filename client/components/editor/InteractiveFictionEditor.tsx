@@ -197,7 +197,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
         }, 50)
       }
     },
-    [passages],
+    [passages, toast],
   )
 
   const keyMap = useMemo(
@@ -208,6 +208,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
         deleteEmptyElement: (passageId, elementId) =>
           void handleDeleteElement(passageId, elementId),
       }),
+    // handleAddElement intentionally omitted to avoid re-creating the keymap each render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [activePassage, handleDeleteElement],
   )
 
@@ -609,7 +611,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                         return (
                           <div key={el.id} className="my-3 px-3 py-2 rounded border border-dashed text-xs text-muted-foreground">
                             <span className="font-mono">{el.content}</span>
-                            <p className="mt-1 not-italic">Conditionals aren't evaluated in preview yet — both branches are reachable from the writer's view.</p>
+                            <p className="mt-1 not-italic">Conditionals aren&apos;t evaluated in preview yet — both branches are reachable from the writer&apos;s view.</p>
                           </div>
                         )
                       }

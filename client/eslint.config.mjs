@@ -39,18 +39,18 @@ const eslintConfig = [
       "@typescript-eslint/no-unused-expressions": "warn",
       "react/no-unescaped-entities": "warn",
 
-      // eslint-config-next 16 ships react-hooks v6, which enables the React
-      // Compiler diagnostics below as *errors* by default. They flag
-      // pre-existing patterns the team never opted into enforcing (the
-      // enforcement contract here is no-unused-vars + no-explicit-any). Keep
-      // them as warnings so the tooling bump stays enforcement-neutral and CI
-      // doesn't break on previously-clean code — they're a good target for an
-      // incremental cleanup pass later.
-      "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/immutability": "warn",
-      "react-hooks/refs": "warn",
-      "react-hooks/preserve-manual-memoization": "warn",
-      "react-hooks/purity": "warn",
+      // eslint-config-next 16 ships react-hooks v6, which turns on the React
+      // Compiler diagnostics below. They enforce React-Compiler compatibility,
+      // which this codebase has not adopted — they flag legitimate non-Compiler
+      // patterns (data-fetch-on-mount setState, deliberate ref reads), not bugs.
+      // Disabled to keep the lint signal on the rules we do enforce
+      // (no-unused-vars, no-explicit-any, exhaustive-deps, …). Re-enable if/when
+      // the team adopts the React Compiler.
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/preserve-manual-memoization": "off",
+      "react-hooks/purity": "off",
     },
   },
 ];

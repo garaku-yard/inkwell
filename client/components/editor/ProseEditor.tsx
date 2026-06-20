@@ -143,7 +143,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         }, 50)
       }
     },
-    [scenes],
+    [scenes, toast],
   )
 
   const keyMap = useMemo(
@@ -158,9 +158,10 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         deleteEmptyElement: (sceneId, elementId) =>
           void handleDeleteElement(sceneId, elementId),
       }),
-    // handleAddElement is closed over scenes/user via useState/useAuth;
+    // handleAddElement/handleAddChapter are closed over scenes/user via useState/useAuth;
     // recreating the keymap when scenes changes is cheap and keeps the
     // navigation lookup honest.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [scenes, handleDeleteElement],
   )
 

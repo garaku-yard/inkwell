@@ -214,11 +214,11 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     selectedFilenameRef,
   })
 
-  const onContentChange = (next: string) => {
+  const onContentChange = useCallback((next: string) => {
     setContent(next)
     setDirty(true)
     if (selectedFilenameRef.current) scheduleSave(selectedFilenameRef.current, next)
-  }
+  }, [scheduleSave, setContent, setDirty, selectedFilenameRef])
 
   const onSelectNote = async (note: VaultNote) => {
     if (note.filename === selectedFilenameRef.current) return
@@ -390,7 +390,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
         setError(`Could not open "${title}".`)
       }
     },
-    [flushPending, notes, openNote, projectId, refreshNotes, storage],
+    [flushPending, notes, openNote, projectId, refreshNotes, setError, storage],
   )
 
   // Resolve a vault-relative path against the active vault root.
@@ -503,7 +503,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
       console.error("Attach failed:", err)
       setError(err instanceof Error ? err.message : "Could not attach file.")
     }
-  }, [content, flushPending, onContentChange, selected, vaultPath])
+  }, [content, flushPending, onContentChange, selected, setError, vaultPath])
 
   const onPickFolder = async () => {
     if (!isTauri()) {

@@ -35,7 +35,7 @@ export function DeleteProjectDialog({
             Delete Project
           </DialogTitle>
           <DialogDescription className="text-left">
-            Are you sure you want to delete <span className="font-semibold">"{projectName}"</span>? This action cannot
+            Are you sure you want to delete <span className="font-semibold">&quot;{projectName}&quot;</span>? This action cannot
             be undone and will permanently remove all project data, including scripts, collaborators, and revision
             history.
           </DialogDescription>

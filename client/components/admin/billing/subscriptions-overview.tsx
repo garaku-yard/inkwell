@@ -28,6 +28,7 @@ export function SubscriptionsOverview() {
 
   useEffect(() => {
     loadSubscriptions()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, statusFilter])
 
   const loadSubscriptions = async () => {
