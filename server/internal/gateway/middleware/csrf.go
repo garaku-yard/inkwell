@@ -23,6 +23,15 @@ func OriginCheck(allowedOrigins []string, env string) func(http.Handler) http.Ha
 				return
 			}
 
+			// Bearer/desktop clients authenticate with a token, not the SameSite
+			// session cookie, so they carry no ambient credential a malicious site
+			// could ride — CSRF doesn't apply. Exempt them so the desktop webview's
+			// off-allowlist origin isn't rejected.
+			if isTokenClient(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			origin := r.Header.Get("Origin")
 			if origin == "" {
 				// Fall back to Referer. Some browsers strip Origin on same-origin

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,33 @@ import (
 
 // correlationIDKey is the context key for the request correlation ID.
 type correlationIDKey struct{}
+
+// clientHeader / clientDesktop mirror the constants in handlers/auth (duplicated
+// to avoid an import cycle). A request carrying X-Inkwell-Client: desktop is the
+// native app, which authenticates with a bearer token instead of the session
+// cookie.
+const (
+	clientHeader  = "X-Inkwell-Client"
+	clientDesktop = "desktop"
+)
+
+// isTokenClient reports whether a request authenticates with a bearer token
+// rather than the browser session cookie — either the native desktop client
+// (X-Inkwell-Client: desktop) or any caller presenting an Authorization header.
+// Such clients carry no ambient cookie, so they are immune to CSRF and need no
+// credentialed CORS: they may skip the Origin allowlist and have their origin
+// echoed without Access-Control-Allow-Credentials.
+//
+// CORS preflights carry neither header (the browser strips them), so intent is
+// inferred from the headers the real request advertises via
+// Access-Control-Request-Headers.
+func isTokenClient(r *http.Request) bool {
+	if r.Header.Get("Authorization") != "" || r.Header.Get(clientHeader) == clientDesktop {
+		return true
+	}
+	acrh := strings.ToLower(r.Header.Get("Access-Control-Request-Headers"))
+	return strings.Contains(acrh, "authorization") || strings.Contains(acrh, strings.ToLower(clientHeader))
+}
 
 // CORS sets cross-origin headers and handles preflight requests. Only origins
 // in allowedOrigins are echoed back; any localhost/127.0.0.1 port is additionally
@@ -25,19 +53,31 @@ func CORS(allowedOrigins []string, env string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 			allowed := isAllowedOrigin(origin, allowedOrigins, allowDevLocalhost)
+			tokenClient := isTokenClient(r)
 
-			// Echo the caller's origin only when it's on the allowlist. Non-CORS
-			// requests (no Origin header) pass through without any ACAO response.
-			if allowed && origin != "" {
+			switch {
+			case allowed && origin != "":
+				// Browser on the allowlist — credentialed CORS so the httpOnly
+				// session cookie flows.
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Add("Vary", "Origin")
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-User-ID")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-User-ID, X-Inkwell-Client")
+			case tokenClient && origin != "":
+				// Bearer-authenticated native client (e.g. the desktop webview's
+				// exotic tauri://localhost origin). Echo the origin so the webview
+				// can read the response, but WITHOUT Allow-Credentials — token auth
+				// carries no cookie, so reflecting an off-allowlist origin here is
+				// safe and grants no ambient-credential access.
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Add("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-User-ID, X-Inkwell-Client")
 			}
 
 			if r.Method == http.MethodOptions {
-				if allowed {
+				if (allowed || tokenClient) && origin != "" {
 					w.WriteHeader(http.StatusNoContent)
 				} else {
 					// Disallowed preflight — reply but withhold CORS headers so the

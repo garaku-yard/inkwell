@@ -58,12 +58,35 @@ type LoginRequest struct {
 	TOTPCode string `json:"totpCode"`
 }
 
-// AuthResponse is returned by Login, Register, and GetMe. The access token is
-// delivered as an httpOnly cookie rather than in the body, so JavaScript on
-// the page cannot exfiltrate it via XSS. Callers that need to know "am I
-// logged in" check for a successful response.
+// AuthResponse is returned by Login, Register, and GetMe. For browser clients
+// the access token is delivered as an httpOnly cookie rather than in the body,
+// so JavaScript on the page cannot exfiltrate it via XSS. Callers that need to
+// know "am I logged in" check for a successful response.
+//
+// Native clients (the desktop app) can't use the cross-origin cookie, so they
+// send the X-Inkwell-Client: desktop header and receive the token in the body
+// instead — to be stored in the OS keychain and replayed as a Bearer header.
+// AccessToken is omitted for browser clients, preserving the cookie-only path.
 type AuthResponse struct {
-	User UserResponse `json:"user"`
+	User        UserResponse `json:"user"`
+	AccessToken string       `json:"accessToken,omitempty"`
+}
+
+// ClientHeader names the request header a native client sets to identify itself.
+// Its value (ClientDesktop) opts the request into token-in-body auth and the
+// CSRF/CORS token-client exemptions. Duplicated as a const in the middleware
+// package to avoid an import cycle — keep the two in sync.
+const (
+	ClientHeader  = "X-Inkwell-Client"
+	ClientDesktop = "desktop"
+)
+
+// isDesktopClient reports whether the request came from the native desktop
+// build, which receives its access token in the response body rather than a
+// cookie. Browser requests never set this header, so they keep the cookie-only
+// contract and the token stays out of reach of page JavaScript.
+func isDesktopClient(r *http.Request) bool {
+	return r.Header.Get(ClientHeader) == ClientDesktop
 }
 
 // RegisterRequest holds the fields required to create a new user account.
@@ -151,8 +174,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	SetAuthCookie(w, grpcResp.AccessToken, h.environment)
 	SetSidCookie(w, grpcResp.SessionId, h.environment)
 
+	resp := AuthResponse{User: userFromProto(grpcResp.User)}
+	if isDesktopClient(r) {
+		resp.AccessToken = grpcResp.AccessToken
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(AuthResponse{User: userFromProto(grpcResp.User)})
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // UpdateProfileRequest carries the profile fields to update for the authenticated user.
@@ -415,9 +442,13 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	SetAuthCookie(w, grpcResp.AccessToken, h.environment)
 	SetSidCookie(w, grpcResp.SessionId, h.environment)
 
+	resp := AuthResponse{User: userFromProto(grpcResp.User)}
+	if isDesktopClient(r) {
+		resp.AccessToken = grpcResp.AccessToken
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(AuthResponse{User: userFromProto(grpcResp.User)})
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // Me returns the authenticated user's profile. The frontend calls this on
