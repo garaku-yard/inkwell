@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { Plus, BookOpen } from "lucide-react"
+import { Plus, BookOpen, Pilcrow, Quote, Heading, Clock, Asterisk } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { InsertMenu, type InsertItem } from "./shared/insert-menu"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
@@ -23,7 +24,7 @@ import {
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
-import { deleteScriptElement } from "@/services/editor"
+import { deleteScriptElement, updateScriptElement } from "@/services/editor"
 
 type ProseElementType =
   | "chapter_heading"
@@ -31,6 +32,37 @@ type ProseElementType =
   | "dialogue"
   | "scene_break"
   | "scene_heading_stinger"
+
+/** Prose's element vocabulary for the shared insert menu (gutter + / "/"). */
+const PROSE_INSERT_ITEMS: InsertItem[] = [
+  { type: "paragraph", command: "p", label: "Paragraph", description: "Body text", icon: Pilcrow },
+  { type: "dialogue", command: "d", label: "Dialogue", description: "A spoken line", icon: Quote },
+  { type: "chapter_heading", command: "h", label: "Section heading", description: "A titled break", icon: Heading },
+  { type: "scene_heading_stinger", command: "s", label: "Stinger", description: "A time or place jump", icon: Clock },
+  { type: "scene_break", command: "b", label: "Scene break", description: "* * *", icon: Asterisk },
+]
+
+/** Wraps a block so a quiet "+" handle appears in the left gutter on
+ *  hover/focus — the mouse way to open the insert menu. */
+function ProseBlock({ children, onInsert }: { children: React.ReactNode; onInsert: (rect: DOMRect) => void }) {
+  return (
+    <div className="group relative">
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label="Insert element"
+        onClick={(e) => {
+          e.stopPropagation()
+          onInsert(e.currentTarget.getBoundingClientRect())
+        }}
+        className="absolute -left-9 top-0.5 flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        <Plus className="h-4 w-4" />
+      </button>
+      {children}
+    </div>
+  )
+}
 
 interface ProseEditorProps {
   projectData: FullProject
@@ -54,6 +86,21 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     refs: chapterRefs,
     orderedIds: scenes.map((s) => s.id),
   })
+
+  // The shared insert menu — opened by the gutter "+" (insert after a block) or
+  // by "/" on an empty line (transform that block). One menu, two triggers.
+  type InsertMenuState =
+    | { mode: "insert"; sceneId: string; afterIdx?: number; position: { top: number; left: number } }
+    | { mode: "transform"; sceneId: string; elementId: string; position: { top: number; left: number } }
+  const [insertMenu, setInsertMenu] = useState<InsertMenuState | null>(null)
+
+  const openInsertAfter = useCallback((sceneId: string, afterIdx: number | undefined, rect: DOMRect) => {
+    setInsertMenu({ mode: "insert", sceneId, afterIdx, position: { top: rect.bottom + 6, left: rect.left } })
+  }, [])
+
+  const openTransform = useCallback((sceneId: string, elementId: string, rect: DOMRect) => {
+    setInsertMenu({ mode: "transform", sceneId, elementId, position: { top: rect.bottom + 6, left: rect.left } })
+  }, [])
 
   const totalWords = scenes.reduce((acc, scene) => {
     return acc + (scene.elements ?? []).reduce((s, el) => s + wordCount(el.content), 0)
@@ -103,6 +150,28 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     setTimeout(() => {
       document.getElementById(`el-${el.id}`)?.focus()
     }, 50)
+  }
+
+  // Change an element's type in place (slash on an empty line: "turn this into X").
+  const handleTransformElement = async (sceneId: string, elementId: string, type: ProseElementType) => {
+    setScenes(prev => prev.map(s => s.id !== sceneId ? s : {
+      ...s,
+      elements: (s.elements ?? []).map(el =>
+        el.id === elementId
+          ? { ...el, element_type: type, content: type === "scene_break" ? "* * *" : el.content }
+          : el,
+      ),
+    }))
+    try {
+      await updateScriptElement(elementId, { elementType: type })
+    } catch (err) {
+      toast({
+        title: "Couldn't change that element",
+        description: err instanceof Error ? err.message : "Try again.",
+        variant: "destructive",
+      })
+    }
+    setTimeout(() => document.getElementById(`el-${elementId}`)?.focus(), 50)
   }
 
   const handleDeleteElement = useCallback(
@@ -172,9 +241,15 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
       el: ProjectElement,
       elIdx: number,
     ) => {
+      // "/" on an empty line opens the insert menu to turn the line into an element.
+      if (e.key === "/" && (el.content ?? "") === "") {
+        e.preventDefault()
+        openTransform(sceneId, el.id, e.currentTarget.getBoundingClientRect())
+        return
+      }
       dispatchKey(e, keyMap, { sceneId, elementId: el.id, elementIndex: elIdx })
     },
-    [keyMap],
+    [keyMap, openTransform],
   )
 
   return (
@@ -304,31 +379,33 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                   {/* Body elements */}
                   <div className="text-base leading-loose">
                     {(scene.elements ?? []).length === 0 ? (
-                      <StableContentEditable
-                        value=""
-                        onValueChange={() => { /* empty-state placeholder; real input arrives once the first paragraph is created */ }}
-                        className="outline-none pl-10 min-h-[1.75rem] empty:before:content-['Start\00a0writing…'] empty:before:text-muted-foreground/50 empty:before:pl-0"
-                        onKeyDown={async (e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault()
-                            await handleAddElement(scene.id, "paragraph")
-                          }
-                        }}
-                      />
+                      <ProseBlock onInsert={(rect) => openInsertAfter(scene.id, undefined, rect)}>
+                        <StableContentEditable
+                          value=""
+                          onValueChange={() => { /* empty-state placeholder; real input arrives once the first paragraph is created */ }}
+                          className="outline-none pl-10 min-h-[1.75rem] empty:before:content-['Start\00a0writing…'] empty:before:text-muted-foreground/50 empty:before:pl-0"
+                          onKeyDown={async (e) => {
+                            if (e.key === "/") {
+                              e.preventDefault()
+                              openInsertAfter(scene.id, undefined, e.currentTarget.getBoundingClientRect())
+                              return
+                            }
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault()
+                              await handleAddElement(scene.id, "paragraph")
+                            }
+                          }}
+                        />
+                      </ProseBlock>
                     ) : (
-                      (scene.elements ?? []).map((el, elIdx) => {
-                        if (el.element_type === "scene_break") {
-                          return (
-                            <div key={el.id} className="text-center text-muted-foreground my-8 tracking-widest select-none">
+                      (scene.elements ?? []).map((el, elIdx) => (
+                        <ProseBlock key={el.id} onInsert={(rect) => openInsertAfter(scene.id, elIdx, rect)}>
+                          {el.element_type === "scene_break" ? (
+                            <div className="text-center text-muted-foreground my-8 tracking-widest select-none">
                               * * *
                             </div>
-                          )
-                        }
-
-                        if (el.element_type === "chapter_heading") {
-                          return (
+                          ) : el.element_type === "chapter_heading" ? (
                             <StableContentEditable
-                              key={el.id}
                               id={`el-${el.id}`}
                               value={el.content}
                               onValueChange={(next) => handleContentChange(el.id, next, false)}
@@ -336,17 +413,10 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                               className="text-xl font-semibold mt-10 mb-3 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
                               data-placeholder="Section heading"
                             />
-                          )
-                        }
-
-                        if (el.element_type === "scene_heading_stinger") {
-                          // Bolder stage-direction-style opener: small caps,
-                          // wider letter-spacing, italic, with a hairline rule
-                          // beneath. Used for "Three weeks later." or
-                          // "MEANWHILE, ACROSS TOWN" style transitions.
-                          return (
+                          ) : el.element_type === "scene_heading_stinger" ? (
+                            // Stage-direction-style opener: small caps, italic,
+                            // hairline rule. "Three weeks later." etc.
                             <StableContentEditable
-                              key={el.id}
                               id={`el-${el.id}`}
                               value={el.content}
                               onValueChange={(next) => handleContentChange(el.id, next, false)}
@@ -354,17 +424,9 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                               className="mt-12 mb-6 italic text-base tracking-wider uppercase text-foreground/80 border-b border-border/40 pb-2 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:not-italic empty:before:normal-case empty:before:tracking-normal"
                               data-placeholder="Stinger…"
                             />
-                          )
-                        }
-
-                        if (el.element_type === "dialogue") {
-                          // Distinct from a paragraph: hanging indent for
-                          // multi-line dialogue, opening curly quote in
-                          // place of the first-line indent, slightly
-                          // tighter line-height to set it apart visually.
-                          return (
+                          ) : el.element_type === "dialogue" ? (
+                            // Hanging indent + opening curly quote, set apart from prose.
                             <StableContentEditable
-                              key={el.id}
                               id={`el-${el.id}`}
                               value={el.content}
                               onValueChange={(next) => handleContentChange(el.id, next, false)}
@@ -372,59 +434,46 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                               className="outline-none min-h-[1.75rem] pl-10 -indent-6 leading-relaxed before:content-['“'] before:mr-1 before:text-muted-foreground/60 empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0 empty:before:mr-0"
                               data-placeholder="Dialogue…"
                             />
-                          )
-                        }
-
-                        // paragraph — standard first-line indent, no gap between consecutive paragraphs
-                        return (
-                          <StableContentEditable
-                            key={el.id}
-                            id={`el-${el.id}`}
-                            value={el.content}
-                            onValueChange={(next) => handleContentChange(el.id, next, false)}
-                            onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-                            className={cn(
-                              "outline-none min-h-[1.75rem]",
-                              // First paragraph after chapter title, section
-                              // heading, or stinger sits flush left — every
-                              // other paragraph gets the standard first-line
-                              // indent. Dialogue + scene_break above also
-                              // reset the indent because they break the
-                              // visual flow of consecutive prose.
-                              elIdx === 0 ||
-                                ["chapter_heading", "scene_heading_stinger", "dialogue", "scene_break"].includes(
-                                  (scene.elements ?? [])[elIdx - 1]?.element_type ?? "",
-                                )
-                                ? ""
-                                : "pl-10",
-                              "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0",
-                            )}
-                            data-placeholder={elIdx === 0 ? "Start writing…" : ""}
-                          />
-                        )
-                      })
+                          ) : (
+                            // paragraph — first-line indent except right after a break
+                            <StableContentEditable
+                              id={`el-${el.id}`}
+                              value={el.content}
+                              onValueChange={(next) => handleContentChange(el.id, next, false)}
+                              onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+                              className={cn(
+                                "outline-none min-h-[1.75rem]",
+                                elIdx === 0 ||
+                                  ["chapter_heading", "scene_heading_stinger", "dialogue", "scene_break"].includes(
+                                    (scene.elements ?? [])[elIdx - 1]?.element_type ?? "",
+                                  )
+                                  ? ""
+                                  : "pl-10",
+                                "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0",
+                              )}
+                              data-placeholder={elIdx === 0 ? "Start writing…" : ""}
+                            />
+                          )}
+                        </ProseBlock>
+                      ))
                     )}
                   </div>
 
-                  {/* Insert toolbar — shown faintly below each chapter body */}
-                  <div className="flex items-center gap-1 mt-8 opacity-60 hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                    <span className="text-xs text-muted-foreground/60 mr-1">Insert</span>
-                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(scene.id, "paragraph")}>
-                      Paragraph
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(scene.id, "dialogue")}>
-                      Dialogue
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(scene.id, "chapter_heading")}>
-                      Section
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(scene.id, "scene_heading_stinger")}>
-                      Stinger
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(scene.id, "scene_break")}>
-                      Scene break
-                    </Button>
-                  </div>
+                  {/* One quiet end-of-chapter affordance — replaces the old button
+                      row. Teaches the slash shortcut; the per-block gutter "+"
+                      handles inserting between existing blocks. */}
+                  {(scene.elements ?? []).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) =>
+                        openInsertAfter(scene.id, (scene.elements ?? []).length - 1, e.currentTarget.getBoundingClientRect())
+                      }
+                      className="mt-6 flex w-full items-center gap-2 rounded px-1 py-1.5 text-xs text-muted-foreground/40 transition-colors hover:bg-muted/40 hover:text-muted-foreground"
+                    >
+                      <Plus className="h-3.5 w-3.5 shrink-0" />
+                      <span>Insert a block — or press &ldquo;/&rdquo; on an empty line</span>
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -433,6 +482,22 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
       </div>
+
+      {insertMenu && (
+        <InsertMenu
+          items={PROSE_INSERT_ITEMS}
+          position={insertMenu.position}
+          onSelect={(type) => {
+            if (insertMenu.mode === "insert") {
+              void handleAddElement(insertMenu.sceneId, type as ProseElementType, insertMenu.afterIdx)
+            } else {
+              void handleTransformElement(insertMenu.sceneId, insertMenu.elementId, type as ProseElementType)
+            }
+            setInsertMenu(null)
+          }}
+          onDismiss={() => setInsertMenu(null)}
+        />
+      )}
     </div>
   )
 }
