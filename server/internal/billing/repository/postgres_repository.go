@@ -450,7 +450,7 @@ func (r *postgresRepository) TrackUsage(ctx context.Context, userID uuid.UUID, m
 		INSERT INTO user_usage_totals (user_id, metric_name, total, updated_at)
 		VALUES ($1, $2, $3, NOW())
 		ON CONFLICT (user_id, metric_name)
-		DO UPDATE SET total = user_usage_totals.total + EXCLUDED.total, updated_at = NOW()`,
+		DO UPDATE SET total = GREATEST(0, user_usage_totals.total + EXCLUDED.total), updated_at = NOW()`,
 		userID, metric, quantity,
 	); err != nil {
 		return fmt.Errorf("upsert usage_total: %w", err)

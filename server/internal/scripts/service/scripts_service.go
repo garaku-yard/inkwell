@@ -284,6 +284,17 @@ func (s *scriptsService) DeleteProject(ctx context.Context, projectID, userID uu
 
 	_ = s.publisher.Publish(ctx, events.EventTypeProjectDeleted, payload)
 
+	// Release the projects quota slot. This is the mirror of the +1 in
+	// CreateProject; without it the running total only ever climbs and a user
+	// who deletes projects stays locked out at their tier limit. Like the
+	// create-side Track, a failure here is logged but does not fail the delete —
+	// the project is already gone and the total can be reconciled out of band.
+	if s.quota != nil {
+		if err := s.quota.Track(ctx, userID.String(), quota.MetricProjects, -1); err != nil {
+			slog.Warn("quota: release projects failed", "user_id", userID, "error", err)
+		}
+	}
+
 	return nil
 }
 
