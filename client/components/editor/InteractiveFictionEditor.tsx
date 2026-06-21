@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo, useRef } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Play, RotateCcw, ChevronLeft } from "lucide-react"
 import { PassageGraph } from "./PassageGraph"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,12 @@ import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToTwee } from "@/lib/export/if-twee"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import {
+  EditorSidebar,
+  type EditorSidebarItem,
+  type EditorSidebarCommentTarget,
+} from "./shared/EditorSidebar"
+import { useEditorComments } from "./shared/useEditorComments"
 import {
   createScene,
   createSceneElement,
@@ -88,7 +94,6 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const [activePassageId, setActivePassageId] = useState<string | null>(
     () => (projectData.scenes ?? [])[0]?.id ?? null
   )
-  const [search, setSearch] = useState("")
   const [view, setView] = useState<"write" | "graph" | "play">("write")
   // Play-mode state: cursor passage + back-stack of previously visited
   // passage ids. Resets when the user re-enters play mode from the
@@ -96,14 +101,52 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const [playCursor, setPlayCursor] = useState<string | null>(null)
   const [playHistory, setPlayHistory] = useState<string[]>([])
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
-  const searchRef = useRef<HTMLInputElement>(null)
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
   const { toast } = useToast()
   const { editorFontStack } = useTheme()
+  const {
+    comments: projectComments,
+    onAddComment,
+    onUpdateComment,
+    onDeleteComment,
+    onToggleCommentResolved,
+  } = useEditorComments(projectData.id)
+  // Last-focused element in the active passage — what a new comment attaches to.
+  const [focusedElementId, setFocusedElementId] = useState<string | null>(null)
 
   const activePassage = passages.find(p => p.id === activePassageId) ?? null
   const activeElements = activePassage?.elements ?? []
+
+  const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
+    if (!focusedElementId) return null
+    for (const p of passages) {
+      const el = (p.elements ?? []).find((e) => e.id === focusedElementId)
+      if (el) return { item: el, isScene: false }
+    }
+    return null
+  }, [focusedElementId, passages])
+
+  const sidebarItems = useMemo<EditorSidebarItem[]>(
+    () =>
+      passages.map((passage, i) => {
+        const wc = (passage.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0)
+        const outLinks = (passage.elements ?? []).reduce((a, el) => a + parseLinks(el.content).length, 0)
+        const bits: string[] = []
+        if (i === 0) bits.push("Start")
+        if (wc > 0) bits.push(`${wc}w`)
+        if (outLinks > 0) bits.push(`${outLinks} link${outLinks !== 1 ? "s" : ""}`)
+        return {
+          id: passage.id,
+          title: passage.scene_heading || "Untitled",
+          index: i + 1,
+          meta: bits.length ? bits.join(" · ") : undefined,
+          searchText: `${passage.scene_heading} ${(passage.elements ?? []).map((e) => e.content).join(" ")}`,
+          commentTargetIds: [passage.id, ...(passage.elements ?? []).map((e) => e.id)],
+        }
+      }),
+    [passages],
+  )
 
   // Build a set of all passage names for link validation
   const passageNames = new Set(passages.map(p => p.scene_heading.toLowerCase().trim()))
@@ -370,82 +413,34 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     if (target) setActivePassageId(target.id)
   }
 
-  // Filter passages by name OR body content (full-text). Matching against
-  // each element's content lets writers find a line of dialogue / a
-  // specific link target without remembering which passage holds it.
-  const filteredPassages = (() => {
-    if (!search) return passages
-    const needle = search.toLowerCase()
-    return passages.filter((p) => {
-      if (p.scene_heading.toLowerCase().includes(needle)) return true
-      return (p.elements ?? []).some((el) =>
-        el.content.toLowerCase().includes(needle),
-      )
-    })
-  })()
-
   return (
     <div className="flex h-screen bg-background">
-      {/* Passage list sidebar */}
-      <aside className="w-56 border-r flex flex-col shrink-0 bg-sidebar">
-        <div className="p-3 border-b shrink-0">
-          <span className="text-sm font-medium">Passages</span>
-        </div>
-        <div className="px-2 pt-2 shrink-0">
-          <input
-            ref={searchRef}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search names + body…"
-            className="w-full text-xs rounded-md border border-border bg-muted/40 px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-muted-foreground/50"
-          />
-        </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5 mt-1">
-          {filteredPassages.map((passage, i) => {
-            const isStart = i === 0 && !search
-            const wc = (passage.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0)
-            const outLinks = (passage.elements ?? []).reduce((a, el) => a + parseLinks(el.content).length, 0)
-            const isActive = passage.id === activePassageId
-            return (
-              <button
-                key={passage.id}
-                onClick={() => { setActivePassageId(passage.id); setView("write") }}
-                className={cn(
-                  "w-full text-left px-3 py-2 rounded-md text-sm transition-colors group",
-                  isActive ? "bg-primary/10" : "hover:bg-accent"
-                )}
-              >
-                <div className="flex items-center gap-1.5 min-w-0">
-                  {isStart && (
-                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-1 rounded">
-                      Start
-                    </span>
-                  )}
-                  <span className={cn(
-                    "truncate",
-                    isActive ? "text-primary font-medium" : "text-muted-foreground group-hover:text-foreground transition-colors"
-                  )}>
-                    {passage.scene_heading || "Untitled"}
-                  </span>
-                </div>
-                {(wc > 0 || outLinks > 0) && (
-                  <p className="text-xs text-muted-foreground/60 mt-0.5 pl-0">
-                    {wc > 0 && `${wc}w`}{wc > 0 && outLinks > 0 && " · "}{outLinks > 0 && `${outLinks} link${outLinks !== 1 ? "s" : ""}`}
-                  </p>
-                )}
-              </button>
-            )
-          })}
-          {filteredPassages.length === 0 && search && (
-            <p className="text-xs text-muted-foreground/50 px-3 py-2">No passages match.</p>
-          )}
-        </div>
-        <div className="p-2 border-t shrink-0">
-          <Button variant="ghost" size="sm" className="w-full gap-2 justify-start text-xs" onClick={() => handleAddPassage()}>
-            <Plus className="h-3.5 w-3.5" /> Add passage
-          </Button>
-        </div>
-      </aside>
+      {/* Passage list sidebar — shared rail (searchable) + comments. */}
+      <EditorSidebar
+        headerIcon={GitBranch}
+        headerLabel="Passages"
+        stats={[
+          { icon: GitBranch, label: `${passages.length} ${passages.length === 1 ? "passage" : "passages"}` },
+          { icon: Link2, label: `${totalLinks} ${totalLinks === 1 ? "link" : "links"}` },
+        ]}
+        items={sidebarItems}
+        activeItemId={activePassageId}
+        onItemClick={(id) => {
+          setActivePassageId(id)
+          setView("write")
+        }}
+        addLabel="Add passage"
+        onAdd={() => handleAddPassage()}
+        emptyLabel="No passages yet."
+        searchable
+        searchPlaceholder="Search names + body…"
+        comments={projectComments}
+        activeCommentTarget={activeCommentTarget}
+        onAddComment={onAddComment}
+        onUpdateComment={onUpdateComment}
+        onDeleteComment={onDeleteComment}
+        onToggleCommentResolved={onToggleCommentResolved}
+      />
 
       {/* Main editor */}
       <div className="flex flex-col flex-1 min-w-0">
@@ -674,7 +669,13 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
 
         {/* Write view */}
         {view === "write" && (
-          <div className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background">
+          <div
+            className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background"
+            onFocus={(e) => {
+              const id = (e.target as HTMLElement)?.id
+              if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
+            }}
+          >
             {!activePassageId ? (
               <div className="flex flex-col items-center justify-center h-full gap-4">
                 <p className="text-muted-foreground text-sm">No passages yet.</p>

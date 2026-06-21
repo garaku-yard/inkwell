@@ -23,6 +23,14 @@ import { cn } from "@/lib/utils"
 import type { Comment, ProjectElement, Scene } from "@/services/project"
 import { CommentPanel } from "../CommentPanel"
 
+/** A nested nav entry shown indented under an item (e.g. TTRPG subheadings). */
+export interface EditorSidebarSubItem {
+  id: string
+  title: string
+  /** Run when the sub-entry is clicked (typically scroll-to-element). */
+  onSelect: () => void
+}
+
 /** One row in the list tab — a chapter, poem, page, section, or passage. */
 export interface EditorSidebarItem {
   id: string
@@ -34,6 +42,11 @@ export interface EditorSidebarItem {
   meta?: string
   /** Element / scene ids owned by this item, used to count its comments. */
   commentTargetIds?: string[]
+  /** Optional nested entries shown indented beneath the item. */
+  subItems?: EditorSidebarSubItem[]
+  /** Extra text the search box matches against (e.g. body content), so a
+   *  consumer can search more than the title. Falls back to the title. */
+  searchText?: string
 }
 
 /** A small stat badge shown under the header (e.g. count, word total). */
@@ -62,6 +75,10 @@ interface EditorSidebarProps {
   emptyLabel?: string
   /** Width utility for the aside; defaults to w-72. */
   widthClassName?: string
+  /** Show a search box above the list that filters items by title (or their
+   *  `searchText` when provided). */
+  searchable?: boolean
+  searchPlaceholder?: string
 
   comments: Comment[]
   /** What a new comment attaches to right now; null disables posting. */
@@ -83,6 +100,8 @@ export function EditorSidebar({
   onAdd,
   emptyLabel = "Nothing here yet.",
   widthClassName = "w-72",
+  searchable = false,
+  searchPlaceholder = "Search…",
   comments,
   activeCommentTarget,
   onAddComment,
@@ -91,6 +110,12 @@ export function EditorSidebar({
   onToggleCommentResolved,
 }: EditorSidebarProps) {
   const [tab, setTab] = useState("items")
+  const [query, setQuery] = useState("")
+
+  const q = query.trim().toLowerCase()
+  const shownItems = q
+    ? items.filter((it) => (it.searchText ?? it.title).toLowerCase().includes(q))
+    : items
 
   const unresolvedTotal = useMemo(
     () => comments.filter((c) => !c.isResolved).length,
@@ -151,51 +176,76 @@ export function EditorSidebar({
         </div>
 
         {/* List */}
-        <TabsContent value="items" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-2">
-          {items.length === 0 ? (
-            <p className="px-3 py-8 text-center text-xs text-muted-foreground">{emptyLabel}</p>
+        <TabsContent value="items" className="flex min-h-0 flex-1 flex-col">
+          {searchable && (
+            <div className="shrink-0 px-2 pt-2">
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={searchPlaceholder}
+                aria-label={searchPlaceholder}
+                className="w-full rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs outline-none placeholder:text-muted-foreground/50 focus:ring-1 focus:ring-primary/40"
+              />
+            </div>
+          )}
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-2">
+          {shownItems.length === 0 ? (
+            <p className="px-3 py-8 text-center text-xs text-muted-foreground">
+              {q ? "No matches." : emptyLabel}
+            </p>
           ) : (
-            items.map((item) => {
+            shownItems.map((item) => {
               const active = item.id === activeItemId
               const cc = commentCountFor(item)
               return (
-                <button
-                  key={item.id}
-                  onClick={() => onItemClick(item.id)}
-                  aria-current={active ? "true" : undefined}
-                  className={cn(
-                    "group w-full rounded-md px-3 py-2 text-left transition-colors",
-                    active ? "bg-muted" : "hover:bg-accent",
-                  )}
-                >
-                  <div className="flex min-w-0 items-baseline gap-1.5">
-                    <span className={cn("shrink-0 text-xs", active ? "text-muted-foreground" : "text-muted-foreground/50")}>
-                      {item.index}
-                    </span>
-                    <span
-                      className={cn(
-                        "truncate text-sm transition-colors",
-                        active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
-                      )}
-                    >
-                      {item.title}
-                    </span>
-                  </div>
-                  {(item.meta || cc > 0) && (
-                    <div className="mt-0.5 flex items-center gap-2 pl-4">
-                      {item.meta && <span className="text-xs text-muted-foreground/60">{item.meta}</span>}
-                      {cc > 0 && (
-                        <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground/60">
-                          <MessageCircle className="h-3 w-3" />
-                          {cc}
-                        </span>
-                      )}
+                <div key={item.id}>
+                  <button
+                    onClick={() => onItemClick(item.id)}
+                    aria-current={active ? "true" : undefined}
+                    className={cn(
+                      "group w-full rounded-md px-3 py-2 text-left transition-colors",
+                      active ? "bg-muted" : "hover:bg-accent",
+                    )}
+                  >
+                    <div className="flex min-w-0 items-baseline gap-1.5">
+                      <span className={cn("shrink-0 text-xs", active ? "text-muted-foreground" : "text-muted-foreground/50")}>
+                        {item.index}
+                      </span>
+                      <span
+                        className={cn(
+                          "truncate text-sm transition-colors",
+                          active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
+                        )}
+                      >
+                        {item.title}
+                      </span>
                     </div>
-                  )}
-                </button>
+                    {(item.meta || cc > 0) && (
+                      <div className="mt-0.5 flex items-center gap-2 pl-4">
+                        {item.meta && <span className="text-xs text-muted-foreground/60">{item.meta}</span>}
+                        {cc > 0 && (
+                          <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground/60">
+                            <MessageCircle className="h-3 w-3" />
+                            {cc}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                  {item.subItems?.map((sub) => (
+                    <button
+                      key={sub.id}
+                      onClick={sub.onSelect}
+                      className="w-full truncate rounded-md py-1 pl-7 pr-3 text-left text-xs text-muted-foreground/70 transition-colors hover:bg-accent hover:text-muted-foreground"
+                    >
+                      {sub.title}
+                    </button>
+                  ))}
+                </div>
               )
             })
           )}
+          </div>
         </TabsContent>
 
         {/* Comments */}

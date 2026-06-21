@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { Plus } from "lucide-react"
+import { Files, LayoutGrid, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
@@ -16,6 +16,13 @@ import { createComicKeymap, type ComicElementType as KeymapComicElementType } fr
 import { exportProjectToText } from "@/lib/export/text-export"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import { useScrollSpy } from "./shared/useScrollSpy"
+import {
+  EditorSidebar,
+  type EditorSidebarItem,
+  type EditorSidebarCommentTarget,
+} from "./shared/EditorSidebar"
+import { useEditorComments } from "./shared/useEditorComments"
 import {
   createScene,
   createSceneElement,
@@ -50,8 +57,43 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
   const runExport = useExportToast()
   const { toast } = useToast()
   const { editorFontStack } = useTheme()
+  const {
+    comments: projectComments,
+    onAddComment,
+    onUpdateComment,
+    onDeleteComment,
+    onToggleCommentResolved,
+  } = useEditorComments(projectData.id)
+  // Last-focused element — what a new comment attaches to (set by a single
+  // focus listener on the scroll container that reads the focused el-<id>).
+  const [focusedElementId, setFocusedElementId] = useState<string | null>(null)
+  const activePageId = useScrollSpy({ refs: pageRefs, orderedIds: pages.map((p) => p.id) })
 
   const totalPanels = pages.reduce((acc, p) => acc + panelCount(p.elements ?? []), 0)
+
+  const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
+    if (!focusedElementId) return null
+    for (const p of pages) {
+      const el = (p.elements ?? []).find((e) => e.id === focusedElementId)
+      if (el) return { item: el, isScene: false }
+    }
+    return null
+  }, [focusedElementId, pages])
+
+  const sidebarItems = useMemo<EditorSidebarItem[]>(
+    () =>
+      pages.map((page, i) => {
+        const pc = panelCount(page.elements ?? [])
+        return {
+          id: page.id,
+          title: page.scene_heading || `Page ${i + 1}`,
+          index: i + 1,
+          meta: pc > 0 ? `${pc} panel${pc !== 1 ? "s" : ""}` : undefined,
+          commentTargetIds: [page.id, ...(page.elements ?? []).map((e) => e.id)],
+        }
+      }),
+    [pages],
+  )
 
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
     if (isScene) {
@@ -181,40 +223,27 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Pages sidebar */}
-      <aside className="w-52 border-r flex flex-col shrink-0 bg-sidebar">
-        <div className="p-3 border-b">
-          <span className="text-sm font-medium">Pages</span>
-        </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-          {pages.map((page, i) => {
-            const pc = panelCount(page.elements ?? [])
-            return (
-              <button
-                key={page.id}
-                onClick={() => pageRefs.current.get(page.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                className="w-full text-left px-3 py-2 rounded-md text-sm transition-colors hover:bg-accent group"
-              >
-                <div className="flex items-baseline gap-1.5 min-w-0">
-                  <span className="text-xs text-muted-foreground/50 shrink-0">p{i + 1}</span>
-                  <span className="truncate text-muted-foreground group-hover:text-foreground transition-colors font-mono text-xs uppercase">
-                    {page.scene_heading || `Page ${i + 1}`}
-                  </span>
-                </div>
-                {pc > 0 && (
-                  <p className="text-xs text-muted-foreground/40 pl-5 mt-0.5">{pc} panel{pc !== 1 ? "s" : ""}</p>
-                )}
-              </button>
-            )
-          })}
-        </div>
-        <div className="p-2 border-t">
-          <Button variant="ghost" size="sm" className="w-full gap-2 justify-start text-xs" onClick={handleAddPage}>
-            <Plus className="h-3.5 w-3.5" />
-            Add page
-          </Button>
-        </div>
-      </aside>
+      {/* Pages sidebar — shared rail with list + comments. */}
+      <EditorSidebar
+        headerIcon={Files}
+        headerLabel="Pages"
+        stats={[
+          { icon: Files, label: `${pages.length} ${pages.length === 1 ? "page" : "pages"}` },
+          { icon: LayoutGrid, label: `${totalPanels} ${totalPanels === 1 ? "panel" : "panels"}` },
+        ]}
+        items={sidebarItems}
+        activeItemId={activePageId}
+        onItemClick={(id) => pageRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        addLabel="Add page"
+        onAdd={handleAddPage}
+        emptyLabel="No pages yet."
+        comments={projectComments}
+        activeCommentTarget={activeCommentTarget}
+        onAddComment={onAddComment}
+        onUpdateComment={onUpdateComment}
+        onDeleteComment={onDeleteComment}
+        onToggleCommentResolved={onToggleCommentResolved}
+      />
 
       {/* Main editor */}
       <div className="flex flex-col flex-1 min-w-0">
@@ -253,7 +282,13 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
 
         <div className="flex flex-1 overflow-hidden">
         {/* Script scroll area */}
-        <div className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background">
+        <div
+          className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background"
+          onFocus={(e) => {
+            const id = (e.target as HTMLElement)?.id
+            if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
+          }}
+        >
           <div
             className="inkwell-editor-content max-w-[680px] mx-auto px-10 py-12"
             style={{ fontFamily: editorFontStack("comic") }}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { Plus, ChevronRight, ChevronDown, Table, Pencil, Dice6, Library } from "lucide-react"
+import { ChevronRight, ChevronDown, Table, Pencil, Dice6, Library, Type } from "lucide-react"
 import { StatBlockTemplatePicker } from "./ttrpg/StatBlockTemplatePicker"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -19,6 +19,13 @@ import { deleteScriptElement } from "@/services/editor"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import { useScrollSpy } from "./shared/useScrollSpy"
+import {
+  EditorSidebar,
+  type EditorSidebarItem,
+  type EditorSidebarCommentTarget,
+} from "./shared/EditorSidebar"
+import { useEditorComments } from "./shared/useEditorComments"
 import {
   createScene,
   createSceneElement,
@@ -86,9 +93,48 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const runExport = useExportToast()
   const { toast } = useToast()
   const { editorFontStack } = useTheme()
+  const {
+    comments: projectComments,
+    onAddComment,
+    onUpdateComment,
+    onDeleteComment,
+    onToggleCommentResolved,
+  } = useEditorComments(projectData.id)
+  // Last-focused element — what a new comment attaches to (set by a single
+  // focus listener on the scroll container that reads the focused el-<id>).
+  const [focusedElementId, setFocusedElementId] = useState<string | null>(null)
+  const activeSectionId = useScrollSpy({ refs: sectionRefs, orderedIds: sections.map((s) => s.id) })
 
   const totalWords = sections.reduce((acc, s) =>
     acc + (s.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0), 0)
+
+  const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
+    if (!focusedElementId) return null
+    for (const s of sections) {
+      const el = (s.elements ?? []).find((e) => e.id === focusedElementId)
+      if (el) return { item: el, isScene: false }
+    }
+    return null
+  }, [focusedElementId, sections])
+
+  const sidebarItems = useMemo<EditorSidebarItem[]>(
+    () =>
+      sections.map((section, i) => ({
+        id: section.id,
+        title: section.scene_heading || "Untitled",
+        index: i + 1,
+        commentTargetIds: [section.id, ...(section.elements ?? []).map((e) => e.id)],
+        subItems: (section.elements ?? [])
+          .filter((el) => el.element_type === "h2")
+          .map((h) => ({
+            id: h.id,
+            title: h.content || "Subsection",
+            onSelect: () =>
+              document.getElementById(`el-${h.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }),
+          })),
+      })),
+    [sections],
+  )
 
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
     if (isScene) {
@@ -535,46 +581,27 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Sections sidebar — shows section titles + h2 headings */}
-      <aside className="w-56 border-r flex flex-col shrink-0 bg-sidebar overflow-hidden">
-        <div className="p-3 border-b shrink-0">
-          <span className="text-sm font-medium">Contents</span>
-        </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-          {sections.map((section, i) => {
-            const subheadings = (section.elements ?? []).filter(el => el.element_type === "h2")
-            return (
-              <div key={section.id}>
-                <button
-                  onClick={() => sectionRefs.current.get(section.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                  className="w-full text-left px-3 py-2 rounded-md text-sm transition-colors hover:bg-accent group"
-                >
-                  <div className="flex items-baseline gap-1.5 min-w-0">
-                    <span className="text-xs text-muted-foreground/50 shrink-0">{i + 1}</span>
-                    <span className="truncate text-muted-foreground group-hover:text-foreground transition-colors font-medium">
-                      {section.scene_heading || "Untitled"}
-                    </span>
-                  </div>
-                </button>
-                {subheadings.map(h => (
-                  <button
-                    key={h.id}
-                    onClick={() => document.getElementById(`el-${h.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
-                    className="w-full text-left pl-7 pr-3 py-1 rounded-md text-xs transition-colors hover:bg-accent text-muted-foreground/70 hover:text-muted-foreground truncate"
-                  >
-                    {h.content || "Subsection"}
-                  </button>
-                ))}
-              </div>
-            )
-          })}
-        </div>
-        <div className="p-2 border-t shrink-0">
-          <Button variant="ghost" size="sm" className="w-full gap-2 justify-start text-xs" onClick={handleAddSection}>
-            <Plus className="h-3.5 w-3.5" /> Add section
-          </Button>
-        </div>
-      </aside>
+      {/* Sections sidebar — shared rail (sections + h2 subheadings) + comments. */}
+      <EditorSidebar
+        headerIcon={Library}
+        headerLabel="Contents"
+        stats={[
+          { icon: Library, label: `${sections.length} ${sections.length === 1 ? "section" : "sections"}` },
+          { icon: Type, label: `${totalWords.toLocaleString()} words` },
+        ]}
+        items={sidebarItems}
+        activeItemId={activeSectionId}
+        onItemClick={(id) => sectionRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        addLabel="Add section"
+        onAdd={handleAddSection}
+        emptyLabel="No sections yet."
+        comments={projectComments}
+        activeCommentTarget={activeCommentTarget}
+        onAddComment={onAddComment}
+        onUpdateComment={onUpdateComment}
+        onDeleteComment={onDeleteComment}
+        onToggleCommentResolved={onToggleCommentResolved}
+      />
 
       {/* Editor */}
       <div className="flex flex-col flex-1 min-w-0">
@@ -608,7 +635,13 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         />
 
         <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background">
+        <div
+          className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background"
+          onFocus={(e) => {
+            const id = (e.target as HTMLElement)?.id
+            if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
+          }}
+        >
           <div
             className="inkwell-editor-content max-w-[720px] mx-auto px-10 py-12"
             style={{ fontFamily: editorFontStack("ttrpg") }}
