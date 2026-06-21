@@ -1,5 +1,5 @@
 import type { LocationStorage } from "@/lib/storage"
-import { getDb, newId, now, toLocation, type LocationRow } from "./shared"
+import { getDb, markDirty, newId, now, toLocation, type LocationRow } from "./shared"
 
 // ─── Locations ───────────────────────────────────────────────────────────
 
@@ -13,6 +13,7 @@ export const locations: LocationStorage = {
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [id, projectId, input.name, input.description ?? "", input.type ?? "", ts, ts],
     )
+    await markDirty(db, "location", projectId, id)
     const rows = await db.select<LocationRow[]>("SELECT * FROM locations WHERE id = ?", [id])
     return toLocation(rows[0])
   },

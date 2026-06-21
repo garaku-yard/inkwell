@@ -1,5 +1,5 @@
 import type { SceneStorage } from "@/lib/storage"
-import { getDb, newId, now, toScene, type SceneRow } from "./shared"
+import { enqueueTombstones, getDb, markDirty, newId, now, toScene, type SceneRow } from "./shared"
 
 // ─── Scenes ───────────────────────────────────────────────────────────────
 
@@ -22,6 +22,7 @@ export const scenes: SceneStorage = {
         ts,
       ],
     )
+    await markDirty(db, "scene", projectId, id)
     const rows = await db.select<SceneRow[]>("SELECT * FROM scenes WHERE id = ?", [id])
     return toScene(rows[0])
   },
@@ -43,21 +44,28 @@ export const scenes: SceneStorage = {
       [heading, ts, sceneId],
     )
     const rows = await db.select<SceneRow[]>("SELECT * FROM scenes WHERE id = ?", [sceneId])
+    if (rows[0]) await markDirty(db, "scene", rows[0].project_id, sceneId)
     return toScene(rows[0])
   },
 
   delete: async (sceneId) => {
     const db = await getDb()
     const ts = now()
+    const sceneRows = await db.select<Array<{ project_id: string }>>(
+      "SELECT project_id FROM scenes WHERE id = ?",
+      [sceneId],
+    )
     // Soft-delete the scene and cascade a tombstone to its elements (hard
     // DELETE's FK CASCADE doesn't fire for an UPDATE), so both propagate on sync.
     await db.execute(
       "UPDATE scenes SET deleted_at = ?, updated_at = ? WHERE id = ?",
       [ts, ts, sceneId],
     )
+    if (sceneRows[0]) await markDirty(db, "scene", sceneRows[0].project_id, sceneId, "delete")
     await db.execute(
       "UPDATE script_elements SET deleted_at = ?, updated_at = ? WHERE scene_id = ? AND deleted_at IS NULL",
       [ts, ts, sceneId],
     )
+    await enqueueTombstones(db, "element", "script_elements", "scene_id", sceneId, ts)
   },
 }

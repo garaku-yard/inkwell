@@ -1,5 +1,5 @@
 import type { ElementStorage } from "@/lib/storage"
-import { getDb, newId, now, toElement, type ElementRow } from "./shared"
+import { getDb, markDirty, newId, now, toElement, type ElementRow } from "./shared"
 
 // ─── Elements ─────────────────────────────────────────────────────────────
 
@@ -29,6 +29,7 @@ export const elements: ElementStorage = {
         ts,
       ],
     )
+    await markDirty(db, "element", projectId, id)
     const rows = await db.select<ElementRow[]>(
       "SELECT * FROM script_elements WHERE id = ?",
       [id],
@@ -66,16 +67,22 @@ export const elements: ElementStorage = {
       "SELECT * FROM script_elements WHERE id = ?",
       [elementId],
     )
+    if (rows[0]) await markDirty(db, "element", rows[0].project_id, elementId)
     return toElement(rows[0])
   },
 
   delete: async (elementId) => {
     const db = await getDb()
     const ts = now()
+    const owner = await db.select<Array<{ project_id: string }>>(
+      "SELECT project_id FROM script_elements WHERE id = ?",
+      [elementId],
+    )
     await db.execute(
       "UPDATE script_elements SET deleted_at = ?, updated_at = ? WHERE id = ?",
       [ts, ts, elementId],
     )
+    if (owner[0]) await markDirty(db, "element", owner[0].project_id, elementId, "delete")
   },
 
   listForProject: async (projectId, _userId, startLine, endLine) => {

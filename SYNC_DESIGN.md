@@ -40,21 +40,38 @@ therefore **"last sync wins"** for the rare case of the same row edited offline
 on two devices — acceptable for single-user-multi-device; CRDT-grade merge is
 the separate "real-time co-editing" item, not this.
 
-## Change tracking — full-snapshot push (v1), outbox later
+## Change tracking — incremental push via `sync_outbox` (shipped)
 
-**v1 (Stage 3): full-snapshot push.** Each sync reads *all* of the project's
-local rows (including tombstones), sends them as the push, and applies the
-pulled delta. No change-log, no echo handling, no interleaving races — simple
-and correct for single-user-multi-device. The server's apply-then-pull-
-excluding-pushed keeps the pusher convergent; the cost is re-uploading the
-project each sync (tens of KB for a screenplay) and a more aggressive
-"last-full-push-wins" for genuinely concurrent multi-device edits. Mitigated by
-a sensible cadence (not every keystroke-save).
+**The full-snapshot push (original v1) was NOT correct and is gone.** It
+silently lost cross-device edits: the server stamps every pushed row
+`updated_at = NOW()` and excludes it from the pull, so a device that re-pushes a
+row it never changed *both* clobbered the server's newer copy *and* excluded that
+row from its own pull (never learning the remote edit). Because the runner
+auto-syncs on focus/tick, just *opening* a stale device clobbered the other
+device's edits. Last device to sync won the whole project. Proven empirically at
+the sync API on 2026-06-21; this is the fix.
 
-**Future optimization: incremental push via a `sync_outbox`.** A change-log
-(`(project_id, entity_type, row_id)` appended at each local mutation, drained at
-push; the apply path doesn't append, avoiding echo) would push only changed
-rows. Deferred — full-snapshot is correct without it.
+**Shipped: incremental push.** Each local mutation appends
+`(project_id, entity_type, row_id)` to `sync_outbox` (`markDirty` in
+`local/shared.ts`, gated on the project being sync-enabled via
+`INSERT…SELECT…WHERE EXISTS` so non-synced projects accumulate nothing). A sync
+captures the outbox high-water `maxSeq`, reads the *current* state of each dirty
+row (`buildSnapshotFromOutbox`, joined to the outbox to dodge SQLite's
+bound-parameter limit), pushes only those, applies the pulled delta, then deletes
+the drained entries (`seq <= maxSeq`; rows enqueued mid-sync survive to the next
+round). The **apply path deliberately does NOT append** to the outbox — that's
+what stops a pulled row from echoing back as a local edit (echo would re-push the
+just-pulled value and re-introduce the clobber). An idle/stale device drains
+nothing ⇒ pushes nothing ⇒ neither clobbers nor mis-excludes, and pulls others'
+edits normally. The server side is unchanged — apply-then-pull-excluding-pushed
+was always correct *given a correct (incremental) push*.
+
+First sync after opting in still uploads the whole project: `setEnabled` seeds
+the outbox with every current row on the disabled→enabled transition
+(`seedOutbox`). A freshly-pulled device has no local rows, so it seeds nothing
+and its first sync is a pure pull. A per-project in-flight guard in `local/sync.ts`
+stops the focus/tick/after-save triggers from running two concurrent syncs of one
+project (which would race the high-water). Migration `0011_sync_outbox.sql`.
 
 ## Protocol — one round-trip per project
 
@@ -176,9 +193,17 @@ surfaced on the project card + a Settings → Sync section.
      pull writes its rows locally). This is how a browser-/other-device-made
      project reaches a machine. Smoke-tested.
 5. **Verification.** Server side verified live (Stage 2). Client mappers +
-   UI states unit/smoke-tested. **Remaining: the two-device app-level round-trip
-   — needs the running desktop app** (create/edit/delete propagation, fresh
-   device pull, offline→reconnect). Manual check against the live docker stack.
+   UI states unit/smoke-tested. Two-device round-trip simulated at the sync API
+   on 2026-06-21 — **found the full-snapshot data-loss bug** (above).
+6. **Incremental-push fix (shipped).** Replaced full-snapshot with the
+   `sync_outbox` drain (see "Change tracking"). Verified at the SQLite level
+   against the real migrations: the markDirty enabled-gate records nothing for
+   non-synced projects; `setEnabled` seeds the full project; an idle device
+   drains nothing (empty push — the data-loss fix); an editing device pushes only
+   the changed row; a soft-delete cascade enqueues the scene + element tombstones
+   and the pushed row carries `deleted_at`. **Remaining: the two-device
+   app-level round-trip on a running desktop build** (server verified live; the
+   client outbox logic is SQL-verified, not yet driven through two webviews).
 
 ## Tombstone retention (GC) — in v1, time-based
 
@@ -197,8 +222,15 @@ retention for this product.
 
 ## Open risks
 
-- **Large initial push** — first sync of a big project sends every row; bounded
-  by per-project size (a screenplay is hundreds of rows / low-MB). Acceptable;
-  chunk if needed.
+- **Large initial push** — the *first* sync (and a re-enable) seeds the whole
+  project into the outbox, so it sends every row; bounded by per-project size (a
+  screenplay is hundreds of rows / low-MB). Steady-state syncs push only changed
+  rows. Acceptable; chunk if needed.
+- **Re-enable re-uploads (residual clobber on a deliberate action).** Opting a
+  previously-synced project back in re-seeds the full project and pushes it
+  ("sync my version up"). If another device edited the same rows while this one
+  was disabled, the re-enable's full push clobbers those edits (last-sync-wins).
+  Narrow and deliberate; the *routine* auto-sync clobber — the actual bug — is
+  gone. A clean fix needs per-row version vectors (out of scope for v1).
 - **"Last sync wins"** — not "last edit wins" for true offline-concurrent edits
   to one row. Acceptable for single-user-multi-device; documented.

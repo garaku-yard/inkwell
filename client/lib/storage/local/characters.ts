@@ -1,5 +1,5 @@
 import type { CharacterStorage } from "@/lib/storage"
-import { getDb, newId, now, toCharacter, type CharacterRow } from "./shared"
+import { getDb, markDirty, newId, now, toCharacter, type CharacterRow } from "./shared"
 
 // ─── Characters ──────────────────────────────────────────────────────────
 
@@ -22,6 +22,7 @@ export const characters: CharacterStorage = {
         ts,
       ],
     )
+    await markDirty(db, "character", projectId, id)
     const rows = await db.select<CharacterRow[]>("SELECT * FROM characters WHERE id = ?", [id])
     return toCharacter(rows[0])
   },

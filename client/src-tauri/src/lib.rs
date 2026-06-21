@@ -71,6 +71,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0010_sync_state.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 11,
+      description: "sync_outbox: incremental-push change log (only changed rows sync)",
+      sql: include_str!("../migrations/0011_sync_outbox.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 

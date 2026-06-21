@@ -1,6 +1,8 @@
 import type { BeatBoardData, BeatBoardStorage } from "@/lib/storage"
+import Database from "@tauri-apps/plugin-sql"
 import {
   getDb,
+  markDirty,
   newId,
   now,
   toBeat,
@@ -11,7 +13,25 @@ import {
   type ConnectionRow,
   type LaneRow,
   type OutlineItemRow,
+  type SyncEntity,
 } from "./shared"
+
+/** Resolves the owning project of a beat-board row so the mutation can be
+ *  recorded for incremental sync (these handlers take only the row id). `table`
+ *  comes from a fixed constant, never user input. */
+async function markRowDirty(
+  db: Database,
+  entity: SyncEntity,
+  table: string,
+  rowId: string,
+  op: "upsert" | "delete" = "upsert",
+): Promise<void> {
+  const rows = await db.select<Array<{ project_id: string }>>(
+    `SELECT project_id FROM ${table} WHERE id = ?`,
+    [rowId],
+  )
+  if (rows[0]) await markDirty(db, entity, rows[0].project_id, rowId, op)
+}
 
 // ─── Beat board ───────────────────────────────────────────────────────────
 
@@ -70,6 +90,7 @@ export const beatBoard: BeatBoardStorage = {
         now(),
       ],
     )
+    await markDirty(db, "beat", projectId, id)
     const rows = await db.select<BeatRow[]>("SELECT * FROM beats WHERE id = ?", [id])
     return toBeat(rows[0])
   },
@@ -101,6 +122,7 @@ export const beatBoard: BeatBoardStorage = {
       args.push(now())
       args.push(beatId)
       await db.execute(`UPDATE beats SET ${sets.join(", ")} WHERE id = ?`, args)
+      await markRowDirty(db, "beat", "beats", beatId)
     }
     const rows = await db.select<BeatRow[]>("SELECT * FROM beats WHERE id = ?", [beatId])
     return toBeat(rows[0])
@@ -113,6 +135,7 @@ export const beatBoard: BeatBoardStorage = {
       "UPDATE beats SET deleted_at = ?, updated_at = ? WHERE id = ?",
       [ts, ts, beatId],
     )
+    await markRowDirty(db, "beat", "beats", beatId, "delete")
   },
 
   createConnection: async (projectId, input) => {
@@ -131,6 +154,7 @@ export const beatBoard: BeatBoardStorage = {
         now(),
       ],
     )
+    await markDirty(db, "connection", projectId, id)
     const rows = await db.select<ConnectionRow[]>(
       "SELECT * FROM connections WHERE id = ?",
       [id],
@@ -145,6 +169,7 @@ export const beatBoard: BeatBoardStorage = {
       "UPDATE connections SET deleted_at = ?, updated_at = ? WHERE id = ?",
       [ts, ts, connectionId],
     )
+    await markRowDirty(db, "connection", "connections", connectionId, "delete")
   },
 
   createLane: async (projectId, input) => {
@@ -154,6 +179,7 @@ export const beatBoard: BeatBoardStorage = {
       `INSERT INTO lanes (id, project_id, name, color, order_index, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
       [id, projectId, input.name ?? "Lane", input.color ?? "#CCCCCC", input.order ?? 0, now()],
     )
+    await markDirty(db, "lane", projectId, id)
     const rows = await db.select<LaneRow[]>("SELECT * FROM lanes WHERE id = ?", [id])
     return toLane(rows[0])
   },
@@ -179,13 +205,15 @@ export const beatBoard: BeatBoardStorage = {
     args.push(now())
     args.push(laneId)
     await db.execute(`UPDATE lanes SET ${sets.join(", ")} WHERE id = ?`, args)
+    await markRowDirty(db, "lane", "lanes", laneId)
   },
 
-  updateLaneOrder: async (_projectId, orderedIds) => {
+  updateLaneOrder: async (projectId, orderedIds) => {
     const db = await getDb()
     const ts = now()
     for (let i = 0; i < orderedIds.length; i++) {
       await db.execute("UPDATE lanes SET order_index = ?, updated_at = ? WHERE id = ?", [i, ts, orderedIds[i]])
+      await markDirty(db, "lane", projectId, orderedIds[i])
     }
   },
 
@@ -206,6 +234,7 @@ export const beatBoard: BeatBoardStorage = {
         now(),
       ],
     )
+    await markDirty(db, "outline_item", projectId, id)
     const rows = await db.select<OutlineItemRow[]>(
       "SELECT * FROM outline_items WHERE id = ?",
       [id],
@@ -242,6 +271,7 @@ export const beatBoard: BeatBoardStorage = {
     args.push(now())
     args.push(itemId)
     await db.execute(`UPDATE outline_items SET ${sets.join(", ")} WHERE id = ?`, args)
+    await markRowDirty(db, "outline_item", "outline_items", itemId)
   },
 
   deleteOutlineItem: async (itemId) => {
@@ -251,5 +281,6 @@ export const beatBoard: BeatBoardStorage = {
       "UPDATE outline_items SET deleted_at = ?, updated_at = ? WHERE id = ?",
       [ts, ts, itemId],
     )
+    await markRowDirty(db, "outline_item", "outline_items", itemId, "delete")
   },
 }

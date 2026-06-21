@@ -48,34 +48,99 @@ export function newId(): string {
   return crypto.randomUUID()
 }
 
+// ─── Incremental-push change tracking (sync_outbox) ────────────────────────
+//
+// Every local mutation records the row it touched here so the next sync pushes
+// just that row instead of a full snapshot (which silently lost cross-device
+// edits — see migration 0011 / SYNC_DESIGN.md). The apply path (writing pulled
+// server rows) deliberately does NOT mark rows dirty, so pulled rows don't echo
+// back as local edits.
+
+/** Entity-type tags written to sync_outbox; one per synced table. */
+export type SyncEntity =
+  | "project"
+  | "scene"
+  | "element"
+  | "character"
+  | "location"
+  | "beat"
+  | "connection"
+  | "lane"
+  | "outline_item"
+
+/** Records that one row changed locally, so the next sync pushes just this row.
+ *  Gated on the project being sync-enabled via INSERT…SELECT…WHERE EXISTS, so a
+ *  project the user never opts into sync accumulates no outbox rows and there's
+ *  no extra round-trip on the write path. Safe to call on every mutation; the
+ *  apply path is the one place that must NOT call it (to avoid push echo). */
+export async function markDirty(
+  db: Database,
+  entity: SyncEntity,
+  projectId: string,
+  rowId: string,
+  op: "upsert" | "delete" = "upsert",
+): Promise<void> {
+  await db.execute(
+    `INSERT INTO sync_outbox (project_id, entity_type, row_id, op, created_at)
+     SELECT ?, ?, ?, ?, ?
+     WHERE EXISTS (SELECT 1 FROM sync_state WHERE project_id = ? AND enabled = 1)`,
+    [projectId, entity, rowId, op, now(), projectId],
+  )
+}
+
+/** Enqueues a tombstone outbox entry for every row in `table` that a soft-delete
+ *  cascade just stamped with deleted_at = ts (matched by `whereCol = whereVal`),
+ *  so the deletions propagate on the next sync. `table`/`entity`/`whereCol` come
+ *  from fixed constants (never user input), so the interpolation is safe. Same
+ *  enabled-gate as markDirty. */
+export async function enqueueTombstones(
+  db: Database,
+  entity: SyncEntity,
+  table: string,
+  whereCol: string,
+  whereVal: string,
+  ts: string,
+): Promise<void> {
+  await db.execute(
+    `INSERT INTO sync_outbox (project_id, entity_type, row_id, op, created_at)
+     SELECT t.project_id, ?, t.id, 'delete', ?
+     FROM ${table} t
+     WHERE t.${whereCol} = ? AND t.deleted_at = ?
+       AND EXISTS (SELECT 1 FROM sync_state ss WHERE ss.project_id = t.project_id AND ss.enabled = 1)`,
+    [entity, now(), whereVal, ts],
+  )
+}
+
 /** Synced child tables of a project (every per-project entity that participates
- *  in cloud sync). Used to cascade a tombstone when a project is soft-deleted so
- *  the children propagate as deleted instead of lingering. Workspaces are not
- *  here — they don't sync in v1. */
-export const SYNCED_PROJECT_CHILD_TABLES = [
-  "scenes",
-  "script_elements",
-  "characters",
-  "locations",
-  "beats",
-  "connections",
-  "lanes",
-  "outline_items",
-] as const
+ *  in cloud sync), paired with their outbox entity tag. Used to cascade a
+ *  tombstone when a project is soft-deleted so the children propagate as deleted
+ *  instead of lingering. Workspaces are not here — they don't sync in v1. */
+export const SYNCED_PROJECT_CHILD_TABLES: ReadonlyArray<{ table: string; entity: SyncEntity }> = [
+  { table: "scenes", entity: "scene" },
+  { table: "script_elements", entity: "element" },
+  { table: "characters", entity: "character" },
+  { table: "locations", entity: "location" },
+  { table: "beats", entity: "beat" },
+  { table: "connections", entity: "connection" },
+  { table: "lanes", entity: "lane" },
+  { table: "outline_items", entity: "outline_item" },
+]
 
 /** Soft-deletes every live child row of a project across the synced child
- *  tables, stamping deleted_at + updated_at = ts. Table names come from a fixed
+ *  tables, stamping deleted_at + updated_at = ts, and marks each tombstoned row
+ *  dirty so the deletions propagate on sync. Table names come from a fixed
  *  constant list (never user input), so the interpolation is safe. */
 export async function softDeleteProjectChildren(
   db: Database,
   projectId: string,
   ts: string,
 ): Promise<void> {
-  for (const table of SYNCED_PROJECT_CHILD_TABLES) {
+  for (const { table, entity } of SYNCED_PROJECT_CHILD_TABLES) {
     await db.execute(
       `UPDATE ${table} SET deleted_at = ?, updated_at = ? WHERE project_id = ? AND deleted_at IS NULL`,
       [ts, ts, projectId],
     )
+    await enqueueTombstones(db, entity, table, "project_id", projectId, ts)
   }
 }
 

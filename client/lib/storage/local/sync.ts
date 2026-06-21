@@ -1,16 +1,20 @@
 /** Desktop sync engine (Stage 3).
  *
- *  One sync = a full-snapshot push of a project's local rows (incl. tombstones)
- *  followed by applying the server's pulled delta. The server is authoritative
- *  on conflicts (last-sync-wins) and on the cursor; this layer just ships the
- *  snapshot, applies what comes back, and advances the stored cursor. Talks to
- *  the gateway via apiClient, so it inherits the desktop bearer token + gateway
- *  URL. No-ops when there's no linked account. See SYNC_DESIGN.md. */
+ *  One sync = an INCREMENTAL push of only the project rows that changed locally
+ *  since the last sync (drained from sync_outbox), followed by applying the
+ *  server's pulled delta. Pushing only changed rows is what makes multi-device
+ *  safe: an idle/stale device pushes nothing, so it neither clobbers another
+ *  device's edits nor mis-excludes them from its own pull (the full-snapshot v1
+ *  did both — see migration 0011 / SYNC_DESIGN.md). The server is authoritative
+ *  on conflicts (last-sync-wins) and on the cursor; this layer ships the dirty
+ *  rows, applies what comes back, advances the cursor, and clears the drained
+ *  outbox entries. Talks to the gateway via apiClient, so it inherits the
+ *  desktop bearer token + gateway URL. No-ops when there's no linked account. */
 
 import { apiClient, getAuthToken } from "@/lib/api"
 
 import type { SyncProjectState, SyncStorage } from "@/lib/storage"
-import { getDb, now } from "./shared"
+import { getDb, now, SYNCED_PROJECT_CHILD_TABLES } from "./shared"
 import {
   fromTs,
   pushBeat,
@@ -44,39 +48,81 @@ interface SyncResponse {
   cursor?: Ts
 }
 
-// ─── push: local rows → proto-json snapshot (incl. tombstones) ───────────────
+// ─── push: dirty local rows → proto-json snapshot (incl. tombstones) ─────────
+//
+// Only rows the local mutations marked dirty in sync_outbox are pushed. Each
+// dirty row is read back at its CURRENT state (no deleted_at filter, so a
+// tombstone ships and the delete propagates); updated_at is omitted from every
+// row (the server stamps it). The join to sync_outbox — rather than an `id IN
+// (…)` list — keeps a huge first sync under SQLite's bound-parameter limit.
 
-async function buildSnapshot(projectId: string): Promise<Changes> {
+/** Per child-entity: which table to read and which push-mapper reshapes the row
+ *  into the wire field names. The project row is handled separately (it's a
+ *  single object on Changes, not an array). */
+const ENTITY_MAP: Record<
+  string,
+  { table: string; push: (r: Row) => Row; key: Exclude<keyof Changes, "project"> }
+> = {
+  scene: { table: "scenes", push: pushScene, key: "scenes" },
+  element: { table: "script_elements", push: pushElement, key: "elements" },
+  character: { table: "characters", push: pushCharacter, key: "characters" },
+  location: { table: "locations", push: pushLocation, key: "locations" },
+  beat: { table: "beats", push: pushBeat, key: "beats" },
+  connection: { table: "connections", push: pushConnection, key: "connections" },
+  lane: { table: "lanes", push: pushLane, key: "lanes" },
+  outline_item: { table: "outline_items", push: pushOutlineItem, key: "outline_items" },
+}
+
+/** Builds the push from the rows marked dirty in sync_outbox up to maxSeq.
+ *  Returns empty Changes when nothing changed (an idle device pushes nothing —
+ *  the whole point: it can't clobber and it still pulls others' edits). */
+async function buildSnapshotFromOutbox(projectId: string, maxSeq: number): Promise<Changes> {
   const db = await getDb()
-  // Raw reads — NO deleted_at filter, so tombstones ship and deletions
-  // propagate. updated_at is omitted from every row (the server stamps it).
-  const all = async (sql: string) => db.select<Row[]>(sql, [projectId])
-
-  const projectRows = await db.select<Row[]>("SELECT * FROM projects WHERE id = ?", [projectId])
-  const [scenes, elements, characters, locations, beats, connections, lanes, outlineItems] =
-    await Promise.all([
-      all("SELECT * FROM scenes WHERE project_id = ?"),
-      all("SELECT * FROM script_elements WHERE project_id = ?"),
-      all("SELECT * FROM characters WHERE project_id = ?"),
-      all("SELECT * FROM locations WHERE project_id = ?"),
-      all("SELECT * FROM beats WHERE project_id = ?"),
-      all("SELECT * FROM connections WHERE project_id = ?"),
-      all("SELECT * FROM lanes WHERE project_id = ?"),
-      all("SELECT * FROM outline_items WHERE project_id = ?"),
-    ])
-
-  const changes: Changes = {
-    scenes: scenes.map(pushScene),
-    elements: elements.map(pushElement),
-    characters: characters.map(pushCharacter),
-    locations: locations.map(pushLocation),
-    beats: beats.map(pushBeat),
-    connections: connections.map(pushConnection),
-    lanes: lanes.map(pushLane),
-    outline_items: outlineItems.map(pushOutlineItem),
+  const changes: Changes = {}
+  const present = await db.select<Array<{ entity_type: string }>>(
+    "SELECT DISTINCT entity_type FROM sync_outbox WHERE project_id = ? AND seq <= ?",
+    [projectId, maxSeq],
+  )
+  for (const { entity_type } of present) {
+    if (entity_type === "project") {
+      const rows = await db.select<Row[]>("SELECT * FROM projects WHERE id = ?", [projectId])
+      if (rows[0]) changes.project = pushProject(rows[0])
+      continue
+    }
+    const meta = ENTITY_MAP[entity_type]
+    if (!meta) continue
+    // Current state of every dirty row of this type (incl. tombstones). table is
+    // a fixed constant from ENTITY_MAP, never user input — safe to interpolate.
+    const rows = await db.select<Row[]>(
+      `SELECT t.* FROM ${meta.table} t
+       JOIN (SELECT DISTINCT row_id FROM sync_outbox
+             WHERE project_id = ? AND entity_type = ? AND seq <= ?) d ON d.row_id = t.id`,
+      [projectId, entity_type, maxSeq],
+    )
+    if (rows.length > 0) changes[meta.key] = rows.map(meta.push)
   }
-  if (projectRows[0]) changes.project = pushProject(projectRows[0])
   return changes
+}
+
+/** Seeds the outbox with every current row of a project (live + tombstoned) so
+ *  the first sync after opting in uploads the whole project. Called by setEnabled
+ *  on the disabled→enabled transition; a freshly-pulled device has no local rows
+ *  yet, so this enqueues nothing and the first sync is a pure pull. */
+async function seedOutbox(projectId: string): Promise<void> {
+  const db = await getDb()
+  const ts = now()
+  await db.execute(
+    `INSERT INTO sync_outbox (project_id, entity_type, row_id, op, created_at)
+     SELECT id, 'project', id, 'upsert', ? FROM projects WHERE id = ?`,
+    [ts, projectId],
+  )
+  for (const { table, entity } of SYNCED_PROJECT_CHILD_TABLES) {
+    await db.execute(
+      `INSERT INTO sync_outbox (project_id, entity_type, row_id, op, created_at)
+       SELECT project_id, ?, id, 'upsert', ? FROM ${table} WHERE project_id = ?`,
+      [entity, ts, projectId],
+    )
+  }
 }
 
 // ─── apply: pulled proto-json rows → SQLite upsert-by-id ──────────────────────
@@ -247,6 +293,11 @@ const TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
 
 // ─── public surface ──────────────────────────────────────────────────────────
 
+// Projects with a sync round-trip in flight, so the focus/tick/after-save
+// triggers don't run two concurrent syncs of the same project (which would
+// race the outbox high-water and double-push).
+const inFlight = new Set<string>()
+
 export const sync: SyncStorage = {
   isAvailable: async () => getAuthToken() !== null,
 
@@ -260,13 +311,22 @@ export const sync: SyncStorage = {
 
   setEnabled: async (projectId, enabled) => {
     const db = await getDb()
+    const was = await readState(projectId)
     await db.execute(
       `INSERT INTO sync_state (project_id, enabled, status, updated_at)
        VALUES (?, ?, 'idle', ?)
        ON CONFLICT(project_id) DO UPDATE SET enabled = ?, updated_at = ?`,
       [projectId, enabled ? 1 : 0, now(), enabled ? 1 : 0, now()],
     )
-    if (enabled) await sync.syncProject(projectId)
+    if (enabled) {
+      // Opting in (disabled → enabled): seed the outbox with the project's
+      // current rows so the first sync uploads everything. markDirty only began
+      // tracking edits once enabled, so without this seed a pre-existing project
+      // would push nothing. A re-enable re-uploads current state by design
+      // ("sync my version up") — only routine auto-sync must never full-push.
+      if (!was.enabled) await seedOutbox(projectId)
+      await sync.syncProject(projectId)
+    }
   },
 
   syncProject: async (projectId) => {
@@ -276,6 +336,9 @@ export const sync: SyncStorage = {
       await writeStatus(projectId, "offline", null)
       return readState(projectId)
     }
+    // A sync for this project is already running — skip rather than race it.
+    if (inFlight.has(projectId)) return readState(projectId)
+    inFlight.add(projectId)
 
     await writeStatus(projectId, "syncing", null)
     try {
@@ -283,7 +346,18 @@ export const sync: SyncStorage = {
       const rows = await db.select<StateRow[]>("SELECT cursor FROM sync_state WHERE project_id = ?", [projectId])
       const cursorStr = rows[0]?.cursor ?? ""
 
-      const body: { changes: Changes; cursor?: Ts } = { changes: await buildSnapshot(projectId) }
+      // Capture the outbox high-water BEFORE building the push: rows enqueued by
+      // edits during this in-flight sync (seq > maxSeq) are left for next round,
+      // so a concurrent save is never silently dropped.
+      const seqRows = await db.select<Array<{ maxseq: number | null }>>(
+        "SELECT MAX(seq) AS maxseq FROM sync_outbox WHERE project_id = ?",
+        [projectId],
+      )
+      const maxSeq = seqRows[0]?.maxseq ?? 0
+
+      const body: { changes: Changes; cursor?: Ts } = {
+        changes: await buildSnapshotFromOutbox(projectId, maxSeq),
+      }
       if (cursorStr) body.cursor = JSON.parse(cursorStr) as Ts
 
       const resp = await apiClient<SyncResponse>(`sync/projects/${projectId}`, { method: "POST", body })
@@ -294,11 +368,15 @@ export const sync: SyncStorage = {
         `UPDATE sync_state SET cursor = ?, last_synced_at = ?, status = 'idle', error = NULL, updated_at = ? WHERE project_id = ?`,
         [nextCursor, now(), now(), projectId],
       )
+      // Drop the rows we just pushed; edits enqueued mid-sync (seq > maxSeq) stay.
+      await db.execute("DELETE FROM sync_outbox WHERE project_id = ? AND seq <= ?", [projectId, maxSeq])
       // Time-based tombstone GC: reclaim rows deleted long enough ago that every
       // device has surely seen the deletion.
       await purgeLocalTombstones(projectId)
     } catch (err) {
       await writeStatus(projectId, "error", err instanceof Error ? err.message : "Sync failed")
+    } finally {
+      inFlight.delete(projectId)
     }
     return readState(projectId)
   },

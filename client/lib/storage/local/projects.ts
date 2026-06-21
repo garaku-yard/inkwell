@@ -1,6 +1,7 @@
 import type { FullProject, ProjectStorage } from "@/lib/storage"
 import {
   getDb,
+  markDirty,
   newId,
   now,
   softDeleteProjectChildren,
@@ -32,6 +33,7 @@ export const projects: ProjectStorage = {
         ts,
       ],
     )
+    await markDirty(db, "project", id, id)
     const rows = await db.select<ProjectRow[]>("SELECT * FROM projects WHERE id = ?", [id])
     return toProject(rows[0])
   },
@@ -106,6 +108,7 @@ export const projects: ProjectStorage = {
     args.push(ts)
     args.push(projectId)
     await db.execute(`UPDATE projects SET ${sets.join(", ")} WHERE id = ?`, args)
+    await markDirty(db, "project", projectId, projectId)
     const rows = await db.select<ProjectRow[]>("SELECT * FROM projects WHERE id = ?", [projectId])
     return toProject(rows[0])
   },
@@ -117,6 +120,7 @@ export const projects: ProjectStorage = {
       "UPDATE projects SET is_starred = 1 - is_starred, updated_at = ? WHERE id = ?",
       [ts, projectId],
     )
+    await markDirty(db, "project", projectId, projectId)
     const rows = await db.select<ProjectRow[]>("SELECT * FROM projects WHERE id = ?", [projectId])
     return toProject(rows[0])
   },
@@ -143,6 +147,7 @@ export const projects: ProjectStorage = {
       "UPDATE projects SET deleted_at = ?, updated_at = ? WHERE id = ?",
       [ts, ts, projectId],
     )
+    await markDirty(db, "project", projectId, projectId, "delete")
     await softDeleteProjectChildren(db, projectId, ts)
   },
 }
