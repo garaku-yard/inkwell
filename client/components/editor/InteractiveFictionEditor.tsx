@@ -119,13 +119,16 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const activeElements = activePassage?.elements ?? []
 
   const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
-    if (!focusedElementId) return null
-    for (const p of passages) {
-      const el = (p.elements ?? []).find((e) => e.id === focusedElementId)
-      if (el) return { item: el, isScene: false }
+    if (focusedElementId) {
+      for (const p of passages) {
+        const el = (p.elements ?? []).find((e) => e.id === focusedElementId)
+        if (el) return { item: el, isScene: false }
+      }
     }
-    return null
-  }, [focusedElementId, passages])
+    // Fall back to the active passage so the Comments tab is never a dead end.
+    const passage = passages.find((p) => p.id === activePassageId) ?? passages[0]
+    return passage ? { item: passage, isScene: true } : null
+  }, [focusedElementId, passages, activePassageId])
 
   const sidebarItems = useMemo<EditorSidebarItem[]>(
     () =>

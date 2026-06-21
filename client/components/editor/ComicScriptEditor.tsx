@@ -72,13 +72,16 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
   const totalPanels = pages.reduce((acc, p) => acc + panelCount(p.elements ?? []), 0)
 
   const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
-    if (!focusedElementId) return null
-    for (const p of pages) {
-      const el = (p.elements ?? []).find((e) => e.id === focusedElementId)
-      if (el) return { item: el, isScene: false }
+    if (focusedElementId) {
+      for (const p of pages) {
+        const el = (p.elements ?? []).find((e) => e.id === focusedElementId)
+        if (el) return { item: el, isScene: false }
+      }
     }
-    return null
-  }, [focusedElementId, pages])
+    // Fall back to the page in view so the Comments tab is never a dead end.
+    const page = pages.find((p) => p.id === activePageId) ?? pages[0]
+    return page ? { item: page, isScene: true } : null
+  }, [focusedElementId, pages, activePageId])
 
   const sidebarItems = useMemo<EditorSidebarItem[]>(
     () =>

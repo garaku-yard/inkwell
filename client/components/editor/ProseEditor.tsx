@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useMemo, useRef } from "react"
 import { BookOpen, Pilcrow, Quote, Heading, Heading1, Heading2, Heading3, Clock, Asterisk, Hash, Type } from "lucide-react"
-import { EditorToolRail, type RailEntry } from "./shared/EditorToolRail"
+import { type RailEntry } from "./shared/EditorToolRail"
+import { PagedSheets } from "./shared/PagedSheets"
 import {
   EditorSidebar,
   type EditorSidebarItem,
@@ -112,15 +113,20 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   // What a new comment attaches to: the focused body element, or the chapter
   // heading (a scene) when the heading itself is focused.
   const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
-    if (!activeElement) return null
-    const scene = scenes.find((s) => s.id === activeElement.sceneId)
-    if (!scene) return null
-    if (activeElement.elementId) {
-      const el = (scene.elements ?? []).find((e) => e.id === activeElement.elementId)
-      return el ? { item: el, isScene: false } : null
+    if (activeElement) {
+      const scene = scenes.find((s) => s.id === activeElement.sceneId)
+      if (scene) {
+        if (activeElement.elementId) {
+          const el = (scene.elements ?? []).find((e) => e.id === activeElement.elementId)
+          if (el) return { item: el, isScene: false }
+        }
+        return { item: scene, isScene: true }
+      }
     }
-    return { item: scene, isScene: true }
-  }, [activeElement, scenes])
+    // Fall back to the chapter in view so the Comments tab is never a dead end.
+    const fallback = scenes.find((s) => s.id === activeChapterId) ?? scenes[0]
+    return fallback ? { item: fallback, isScene: true } : null
+  }, [activeElement, scenes, activeChapterId])
 
   const sidebarItems = useMemo<EditorSidebarItem[]>(
     () =>
@@ -581,50 +587,24 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         />
 
         <div className="flex flex-1 overflow-hidden">
-        {/* Manuscript desk — A4 pages stacked on a neutral ground. */}
-        <div className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background flex flex-col items-center py-10">
-          {/* Page column + rail wrapper. */}
-          <div className="relative w-[210mm] max-w-[calc(100%-7rem)]">
-            <div className="inkwell-editor-content space-y-8" style={{ fontFamily: editorFontStack("prose") }}>
-              {scenes.length === 0 ? (
-                <div
-                  className="relative w-full rounded-sm bg-card px-16 py-20 text-foreground shadow-lg ring-1 ring-border/60"
-                  style={{ minHeight: "297mm" }}
-                >
-                  <EmptyEditorState
-                    message="No chapters yet."
-                    actionLabel="Add first chapter"
-                    onAction={handleAddChapter}
-                  />
-                </div>
-              ) : (
-                pages.map((page, pageIdx) => (
-                  <div
-                    key={pageIdx}
-                    id={`prose-page-${pageIdx}`}
-                    className="relative w-full rounded-sm bg-card px-16 py-20 text-foreground shadow-lg ring-1 ring-border/60"
-                    style={{ minHeight: "297mm" }}
-                  >
-                    <div className="text-base leading-loose">
-                      {page.map(renderBlock)}
-                    </div>
-                    <div className="pointer-events-none absolute bottom-6 right-8 text-[11px] text-muted-foreground/50 select-none">
-                      {pageIdx + 1}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            {/* Element rail — attached to the page column's right edge, out in the margin. */}
-            <EditorToolRail
-              items={PROSE_RAIL_ITEMS}
-              onSelect={handleRailSelect}
-              storageKey="editor.rail.prose"
-              className="absolute left-full top-0 h-full pl-3"
-            />
-          </div>
-        </div>
-        <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
+          <PagedSheets
+            pages={pages}
+            renderBlock={renderBlock}
+            fontFamily={editorFontStack("prose")}
+            railItems={PROSE_RAIL_ITEMS}
+            onRailSelect={handleRailSelect}
+            railStorageKey="editor.rail.prose"
+            pageIdPrefix="prose-page"
+            isEmpty={scenes.length === 0}
+            emptyState={
+              <EmptyEditorState
+                message="No chapters yet."
+                actionLabel="Add first chapter"
+                onAction={handleAddChapter}
+              />
+            }
+          />
+          <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
       </div>
     </div>

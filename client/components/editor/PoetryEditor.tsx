@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { AlignCenter, AlignLeft, Music, Hash, Feather } from "lucide-react"
+import { AlignCenter, AlignLeft, Music, Hash, Feather, Minus, Tag } from "lucide-react"
 import { syllable } from "syllable"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -25,6 +25,9 @@ import {
   type EditorSidebarCommentTarget,
 } from "./shared/EditorSidebar"
 import { useEditorComments } from "./shared/useEditorComments"
+import { PagedSheets } from "./shared/PagedSheets"
+import { type RailEntry } from "./shared/EditorToolRail"
+import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
@@ -33,11 +36,18 @@ import {
 } from "@/services/project"
 import { deleteScriptElement } from "@/services/editor"
 
-const LYRICS_SECTION_TYPES = ["Verse", "Pre-Chorus", "Chorus", "Post-Chorus", "Bridge", "Hook", "Intro", "Outro", "Interlude"]
-
 interface PoetryEditorProps {
   projectData: FullProject
 }
+
+type PoetryScene = NonNullable<FullProject["scenes"]>[number]
+
+/** One renderable unit on a poem sheet — the title, an empty-poem placeholder,
+ *  or a single body element (line / stanza break / section label / chord row). */
+type PoemBlock =
+  | { key: string; kind: "poemHead"; scene: PoetryScene; poemIdx: number }
+  | { key: string; kind: "emptyPoem"; scene: PoetryScene }
+  | { key: string; kind: "element"; scene: PoetryScene; el: ProjectElement; elIdx: number; lineNumber: number }
 
 function countLines(elements: ProjectElement[]): number {
   return elements.filter(el => el.element_type === "line").length
@@ -75,13 +85,16 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   const totalLines = scenes.reduce((acc, s) => acc + countLines(s.elements ?? []), 0)
 
   const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
-    if (!focusedElementId) return null
-    for (const s of scenes) {
-      const el = (s.elements ?? []).find((e) => e.id === focusedElementId)
-      if (el) return { item: el, isScene: false }
+    if (focusedElementId) {
+      for (const s of scenes) {
+        const el = (s.elements ?? []).find((e) => e.id === focusedElementId)
+        if (el) return { item: el, isScene: false }
+      }
     }
-    return null
-  }, [focusedElementId, scenes])
+    // Fall back to the poem in view so the Comments tab is never a dead end.
+    const scene = scenes.find((s) => s.id === activePoemId) ?? scenes[0]
+    return scene ? { item: scene, isScene: true } : null
+  }, [focusedElementId, scenes, activePoemId])
 
   const sidebarItems = useMemo<EditorSidebarItem[]>(
     () =>
@@ -244,6 +257,172 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     [keyMap],
   )
 
+  // Pack each poem's title + body onto A4 sheets; every poem opens a fresh sheet.
+  const pages = useMemo<PoemBlock[][]>(() => {
+    const blocks: PoemBlock[] = []
+    scenes.forEach((scene, poemIdx) => {
+      blocks.push({ key: `head-${scene.id}`, kind: "poemHead", scene, poemIdx })
+      const els = scene.elements ?? []
+      if (els.length === 0) {
+        blocks.push({ key: `empty-${scene.id}`, kind: "emptyPoem", scene })
+        return
+      }
+      let lineNumber = 0
+      els.forEach((el, elIdx) => {
+        if (el.element_type === "line") lineNumber++
+        blocks.push({ key: el.id, kind: "element", scene, el, elIdx, lineNumber })
+      })
+    })
+    const estimate = (b: PoemBlock): number => {
+      if (b.kind === "poemHead") return 110
+      if (b.kind === "emptyPoem") return 40
+      switch (b.el.element_type) {
+        case "stanza_break":
+          return 20
+        case "section_label":
+          return 48
+        case "chord_row":
+          return 24
+        default:
+          return 30
+      }
+    }
+    return paginate(blocks, estimate, { maxHeight: 940, startsNewSheetBefore: (b) => b.kind === "poemHead" })
+  }, [scenes])
+
+  const railItems: RailEntry[] = [
+    { type: "line", label: "Line", icon: AlignLeft },
+    { type: "stanza_break", label: "Stanza break", icon: Minus },
+    ...(isLyrics
+      ? [
+          { type: "section_label", label: "Section", icon: Tag },
+          { type: "chord_row", label: "Chords", icon: Music },
+        ]
+      : []),
+  ]
+
+  // Rail click: insert after the focused element, else append to the poem in view.
+  const handleRailSelect = (type: string) => {
+    let sceneId: string | undefined
+    let afterIdx: number | undefined
+    if (focusedElementId) {
+      for (const s of scenes) {
+        const idx = (s.elements ?? []).findIndex((e) => e.id === focusedElementId)
+        if (idx >= 0) {
+          sceneId = s.id
+          afterIdx = idx
+          break
+        }
+      }
+    }
+    sceneId = sceneId ?? activePoemId ?? scenes[0]?.id
+    if (!sceneId) return
+    switch (type) {
+      case "line":
+        void handleAddLine(sceneId, afterIdx)
+        break
+      case "stanza_break":
+        void handleAddStanzaBreak(sceneId, afterIdx)
+        break
+      case "section_label":
+        void handleAddSectionLabel(sceneId, "Verse", afterIdx)
+        break
+      case "chord_row":
+        void handleAddChordRow(sceneId, afterIdx)
+        break
+    }
+  }
+
+  const renderBlock = (b: PoemBlock) => {
+    if (b.kind === "poemHead") {
+      return (
+        <div key={b.key} ref={(el) => { poemRefs.current.set(b.scene.id, el) }}>
+          <StableContentEditable
+            value={b.scene.scene_heading ?? ""}
+            onValueChange={(next) => handleContentChange(b.scene.id, next, true)}
+            className={cn(
+              "text-2xl font-semibold outline-none mb-10 min-h-[2rem]",
+              "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50",
+              isLyrics ? "" : "text-center",
+            )}
+            data-placeholder={isLyrics ? "Song title" : "Poem title"}
+          />
+        </div>
+      )
+    }
+    if (b.kind === "emptyPoem") {
+      return (
+        <StableContentEditable
+          key={b.key}
+          value=""
+          onValueChange={() => { /* placeholder; first Enter creates a real line */ }}
+          className="outline-none leading-loose min-h-[1.5rem] text-base empty:before:content-['First\00a0line…'] empty:before:text-muted-foreground/50"
+          onKeyDown={async (e) => {
+            if (e.key === "Enter") { e.preventDefault(); await handleAddLine(b.scene.id) }
+          }}
+        />
+      )
+    }
+    const { scene, el, elIdx, lineNumber } = b
+    if (el.element_type === "section_label") {
+      return (
+        <div key={el.id} className={cn("mt-8 mb-2", elIdx === 0 && "mt-0")}>
+          <StableContentEditable
+            id={`el-${el.id}`}
+            value={el.content}
+            onValueChange={(next) => handleContentChange(el.id, next, false)}
+            onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+            className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground outline-none"
+          />
+        </div>
+      )
+    }
+    if (el.element_type === "chord_row") {
+      return (
+        <StableContentEditable
+          key={el.id}
+          id={`el-${el.id}`}
+          value={el.content}
+          onValueChange={(next) => handleContentChange(el.id, next, false)}
+          onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+          className="font-mono text-xs text-primary/70 outline-none leading-tight min-h-[1rem] mt-1 empty:before:content-['Chords…'] empty:before:text-muted-foreground/50"
+        />
+      )
+    }
+    if (el.element_type === "stanza_break") {
+      return <div key={el.id} className="h-5" />
+    }
+    const showLineNum = !isLyrics && !centered && lineNumber % 5 === 0
+    const sylCount = showSyllables && el.content.trim() ? syllable(el.content) : null
+    return (
+      <div key={el.id} className={cn("relative group/line", centered && !isLyrics && "text-center")}>
+        {showLineNum && (
+          <span className="absolute -right-8 top-0 text-xs text-muted-foreground/50 select-none leading-loose tabular-nums">
+            {lineNumber}
+          </span>
+        )}
+        {sylCount !== null && (
+          <span
+            className={cn(
+              "absolute top-0 text-xs text-muted-foreground/60 select-none leading-loose tabular-nums",
+              showLineNum ? "-right-16" : "-right-8",
+            )}
+            title={`${sylCount} syllable${sylCount === 1 ? "" : "s"}`}
+          >
+            {sylCount}σ
+          </span>
+        )}
+        <StableContentEditable
+          id={`el-${el.id}`}
+          value={el.content}
+          onValueChange={(next) => handleContentChange(el.id, next, false)}
+          onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+          className="outline-none leading-loose text-base min-h-[1.5rem] empty:before:content-['\200b']"
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-screen bg-background">
       {/* Poem/song sidebar — shared rail with list + comments. */}
@@ -330,170 +509,31 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
           }
         />
 
-        <div className="flex flex-1 overflow-hidden">
-        {/* Scroll area */}
         <div
-          className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background"
+          className="flex flex-1 overflow-hidden"
           onFocus={(e) => {
             const id = (e.target as HTMLElement)?.id
             if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
           }}
         >
-          <div
-            className="inkwell-editor-content max-w-[600px] mx-auto px-8 py-16"
-            style={{ fontFamily: editorFontStack("poetry") }}
-          >
-            {scenes.length === 0 ? (
+          <PagedSheets
+            pages={pages}
+            renderBlock={renderBlock}
+            fontFamily={editorFontStack("poetry")}
+            railItems={railItems}
+            onRailSelect={handleRailSelect}
+            railStorageKey="editor.rail.poetry"
+            pageIdPrefix="poem-page"
+            isEmpty={scenes.length === 0}
+            emptyState={
               <EmptyEditorState
                 message={`No ${isLyrics ? "songs" : "poems"} yet.`}
                 actionLabel={isLyrics ? "Write first song" : "Write first poem"}
                 onAction={handleAddPoem}
               />
-            ) : (
-              scenes.map((scene, poemIdx) => {
-                const elements = scene.elements ?? []
-                let lineNumber = 0
-
-                return (
-                  <div
-                    key={scene.id}
-                    ref={(el) => { poemRefs.current.set(scene.id, el) }}
-                    className={cn("mb-20", poemIdx > 0 && "pt-16 border-t border-border/40")}
-                  >
-                    {/* Title */}
-                    <StableContentEditable
-                      value={scene.scene_heading ?? ""}
-                      onValueChange={(next) => handleContentChange(scene.id, next, true)}
-                      className={cn(
-                        "text-2xl font-semibold outline-none mb-1 min-h-[2rem]",
-                        "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50",
-                        isLyrics ? "" : "text-center",
-                      )}
-                      data-placeholder={isLyrics ? "Song title" : "Poem title"}
-                    />
-
-                    {/* Spacing between the title and the body lines. A lyrics
-                        Key/Tempo/Capo meta line used to render here but never
-                        persisted (it saved to a synthetic id matching no row),
-                        so it was removed; reinstating it needs a real backing
-                        field (scene content path or a `meta` element type). */}
-                    <div className="mb-10" />
-
-                    {/* Elements */}
-                    <div className={cn("space-y-0", centered && !isLyrics && "text-center")}>
-                      {elements.length === 0 ? (
-                        <StableContentEditable
-                          value=""
-                          onValueChange={() => { /* empty-state placeholder; first Enter creates a real line */ }}
-                          className="outline-none leading-loose min-h-[1.5rem] text-base empty:before:content-['First\00a0line…'] empty:before:text-muted-foreground/50"
-                          onKeyDown={async (e) => {
-                            if (e.key === "Enter") { e.preventDefault(); await handleAddLine(scene.id) }
-                          }}
-                        />
-                      ) : (
-                        elements.map((el, elIdx) => {
-                          // section_label — lyrics only
-                          if (el.element_type === "section_label") {
-                            return (
-                              <div key={el.id} className={cn("mt-8 mb-2", elIdx === 0 && "mt-0")}>
-                                <StableContentEditable
-                                  id={`el-${el.id}`}
-                                  value={el.content}
-                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
-                                  onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-                                  className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground outline-none"
-                                />
-                              </div>
-                            )
-                          }
-
-                          // chord_row — lyrics only, monospace, subdued
-                          if (el.element_type === "chord_row") {
-                            return (
-                              <StableContentEditable
-                                key={el.id}
-                                id={`el-${el.id}`}
-                                value={el.content}
-                                onValueChange={(next) => handleContentChange(el.id, next, false)}
-                                onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-                                className="font-mono text-xs text-primary/70 outline-none leading-tight min-h-[1rem] mt-1 empty:before:content-['Chords…'] empty:before:text-muted-foreground/50"
-                              />
-                            )
-                          }
-
-                          // stanza_break — blank line between stanzas
-                          if (el.element_type === "stanza_break") {
-                            return <div key={el.id} className="h-5" />
-                          }
-
-                          // line — poetry/lyrics body line with optional line number
-                          lineNumber++
-                          const showLineNum = !isLyrics && !centered && lineNumber % 5 === 0
-                          const sylCount = showSyllables && el.content.trim()
-                            ? syllable(el.content)
-                            : null
-
-                          return (
-                            <div key={el.id} className="relative group/line">
-                              {showLineNum && (
-                                <span className="absolute -right-8 top-0 text-xs text-muted-foreground/50 select-none leading-loose tabular-nums">
-                                  {lineNumber}
-                                </span>
-                              )}
-                              {sylCount !== null && (
-                                <span
-                                  className={cn(
-                                    "absolute top-0 text-xs text-muted-foreground/60 select-none leading-loose tabular-nums",
-                                    showLineNum ? "-right-16" : "-right-8",
-                                  )}
-                                  title={`${sylCount} syllable${sylCount === 1 ? "" : "s"}`}
-                                >
-                                  {sylCount}σ
-                                </span>
-                              )}
-                              <StableContentEditable
-                                id={`el-${el.id}`}
-                                value={el.content}
-                                onValueChange={(next) => handleContentChange(el.id, next, false)}
-                                onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-                                className="outline-none leading-loose text-base min-h-[1.5rem] empty:before:content-['\200b']"
-                              />
-                            </div>
-                          )
-                        })
-                      )}
-                    </div>
-
-                    {/* Insert toolbar */}
-                    <div className="flex items-center gap-1 mt-8 flex-wrap opacity-60 hover:opacity-100 transition-opacity">
-                      <span className="text-xs text-muted-foreground/60 mr-1">Insert</span>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddLine(scene.id)}>
-                        Line
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddStanzaBreak(scene.id)}>
-                        Stanza break
-                      </Button>
-                      {isLyrics && (
-                        <>
-                          {LYRICS_SECTION_TYPES.map(s => (
-                            <Button key={s} variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddSectionLabel(scene.id, s)}>
-                              {s}
-                            </Button>
-                          ))}
-                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2 gap-1" onClick={() => handleAddChordRow(scene.id)}>
-                            <Music className="h-3 w-3" />
-                            Chords
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
-        <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
+            }
+          />
+          <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
       </div>
     </div>

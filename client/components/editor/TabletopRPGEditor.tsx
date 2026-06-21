@@ -109,13 +109,16 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     acc + (s.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0), 0)
 
   const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
-    if (!focusedElementId) return null
-    for (const s of sections) {
-      const el = (s.elements ?? []).find((e) => e.id === focusedElementId)
-      if (el) return { item: el, isScene: false }
+    if (focusedElementId) {
+      for (const s of sections) {
+        const el = (s.elements ?? []).find((e) => e.id === focusedElementId)
+        if (el) return { item: el, isScene: false }
+      }
     }
-    return null
-  }, [focusedElementId, sections])
+    // Fall back to the section in view so the Comments tab is never a dead end.
+    const section = sections.find((s) => s.id === activeSectionId) ?? sections[0]
+    return section ? { item: section, isScene: true } : null
+  }, [focusedElementId, sections, activeSectionId])
 
   const sidebarItems = useMemo<EditorSidebarItem[]>(
     () =>
