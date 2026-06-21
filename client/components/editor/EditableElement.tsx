@@ -27,6 +27,9 @@ interface EditableElementProps {
   // For character autocomplete
   scenes?: Scene[]
   currentSceneId?: string
+  /** Unresolved-comment count for this element/scene, derived by the parent from
+   *  the shared comment list. Drives the inline badge. */
+  unresolvedCommentsCount?: number
 }
 
 export const EditableElement = React.memo(
@@ -43,13 +46,13 @@ export const EditableElement = React.memo(
       onFocusHandled,
       scenes,
       currentSceneId,
+      unresolvedCommentsCount = 0,
     } = props
     const isScene = "scene_heading" in element
     const type = isScene ? "SCENE_HEADING" : (element.element_type as ToolbarScriptElementType | "SCENE_HEADING")
     const content = isScene ? element.scene_heading : element.content
     const config = SCRIPT_ELEMENT_CONFIG[type as keyof typeof SCRIPT_ELEMENT_CONFIG] || SCRIPT_ELEMENT_CONFIG.ACTION
     const isActive = element.id === activeElementId
-    const unresolvedCommentsCount = element.comments?.filter((c) => !c.isResolved).length || 0
 
     // The contentEditable mechanics live in the shared primitive — we
     // wire it up via the hook so the autocomplete popovers below can

@@ -17,6 +17,9 @@ import { createPoetryKeymap } from "./poetry/keymap"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToChordPro } from "@/lib/export/chordpro"
 import { useExportToast } from "@/lib/export/use-export-toast"
+import { parsePlainTextToPoetry, parseChordProToPoetry } from "@/lib/import/poetry"
+import { importIntoProject } from "@/lib/import/import-into-project"
+import { type ParsedProject } from "@/lib/import/types"
 import { StableContentEditable } from "./shared/StableContentEditable"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import {
@@ -135,6 +138,36 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     setTimeout(() => {
       poemRefs.current.get(s.id)?.scrollIntoView({ behavior: "smooth", block: "center" })
     }, 100)
+  }
+
+  // Import a poem/song file as new poems appended to this project. The parser
+  // is chosen by the caller (plain text vs ChordPro).
+  const runImport = async (
+    parse: (text: string, title: string) => ParsedProject,
+    text: string,
+    fileName: string,
+  ) => {
+    if (!user?.id) return
+    const title = fileName.replace(/\.[^/.]+$/, "")
+    const parsed = parse(text, title)
+    try {
+      const created = await importIntoProject(projectData.id, user.id, parsed, scenes.length)
+      setScenes((prev) => [...prev, ...created])
+      if (created[0]) {
+        setTimeout(() => {
+          poemRefs.current.get(created[0].id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }, 100)
+      }
+      const word = created.length === 1 ? (isLyrics ? "song" : "poem") : isLyrics ? "songs" : "poems"
+      toast({ title: "Import complete", description: `Added ${created.length} ${word} from ${fileName}.` })
+    } catch (err) {
+      console.error("Failed to import:", err)
+      toast({
+        title: "Import failed",
+        description: err instanceof Error ? err.message : "Couldn't import that file.",
+        variant: "destructive",
+      })
+    }
   }
 
   const insertElement = async (
@@ -461,6 +494,18 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
           isAIOpen={isAIChatOpen}
           projectId={projectData.id}
           category={projectData.category}
+          importItems={[
+            {
+              label: "Plain Text (.txt)",
+              accept: ".txt",
+              onFile: (text, fileName) => void runImport(parsePlainTextToPoetry, text, fileName),
+            },
+            {
+              label: "ChordPro (.cho)",
+              accept: ".cho,.crd,.chopro,.txt",
+              onFile: (text, fileName) => void runImport(parseChordProToPoetry, text, fileName),
+            },
+          ]}
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",

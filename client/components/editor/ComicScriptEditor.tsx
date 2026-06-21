@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { Files, LayoutGrid, Plus } from "lucide-react"
+import { Files, LayoutGrid, Plus, Square, User, MessageSquare, Captions, Zap, ArrowRightLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
@@ -23,6 +23,9 @@ import {
   type EditorSidebarCommentTarget,
 } from "./shared/EditorSidebar"
 import { useEditorComments } from "./shared/useEditorComments"
+import { PagedSheets } from "./shared/PagedSheets"
+import { type RailEntry } from "./shared/EditorToolRail"
+import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
@@ -43,6 +46,27 @@ type ComicElementType = KeymapComicElementType
 interface ComicScriptEditorProps {
   projectData: FullProject
 }
+
+type ComicScene = NonNullable<FullProject["scenes"]>[number]
+
+/** One renderable unit on a comic-script sheet — a page header, the
+ *  empty-page placeholder, or a single script element. Pagination packs
+ *  these onto A4 sheets; every page header opens a fresh sheet. */
+type ComicBlock =
+  | { key: string; kind: "pageHead"; page: ComicScene; pageIdx: number; panels: number }
+  | { key: string; kind: "emptyPage"; page: ComicScene }
+  | { key: string; kind: "element"; page: ComicScene; el: ProjectElement; elIdx: number; panelNum: number }
+
+/** Comic's element vocabulary for the right-edge tool rail. Mirrors the
+ *  Marvel/DC script element set the old inline toolbar exposed. */
+const COMIC_RAIL_ITEMS: RailEntry[] = [
+  { type: "panel", label: "Panel", icon: Square },
+  { type: "character", label: "Character", icon: User },
+  { type: "balloon", label: "Dialogue", icon: MessageSquare },
+  { type: "caption", label: "Caption", icon: Captions },
+  { type: "sfx", label: "SFX", icon: Zap },
+  { type: "transition", label: "Transition", icon: ArrowRightLeft },
+]
 
 function panelCount(elements: ProjectElement[]): number {
   return elements.filter(el => el.element_type === "panel").length
@@ -224,6 +248,182 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
     [keyMap],
   )
 
+  // Pack each page's header + elements onto A4 sheets; every page opens a
+  // fresh sheet (one comic page = one manuscript sheet).
+  const sheets = useMemo<ComicBlock[][]>(() => {
+    const blocks: ComicBlock[] = []
+    pages.forEach((page, pageIdx) => {
+      const els = page.elements ?? []
+      blocks.push({ key: `head-${page.id}`, kind: "pageHead", page, pageIdx, panels: panelCount(els) })
+      if (els.length === 0) {
+        blocks.push({ key: `empty-${page.id}`, kind: "emptyPage", page })
+        return
+      }
+      let panelNum = 0
+      els.forEach((el, elIdx) => {
+        if (el.element_type === "panel") panelNum++
+        blocks.push({ key: el.id, kind: "element", page, el, elIdx, panelNum })
+      })
+    })
+    const estimate = (b: ComicBlock): number => {
+      if (b.kind === "pageHead") return 70
+      if (b.kind === "emptyPage") return 48
+      switch (b.el.element_type) {
+        case "panel":
+          return 64
+        case "caption":
+          return 56
+        case "sfx":
+          return 44
+        default:
+          return 34
+      }
+    }
+    return paginate(blocks, estimate, { maxHeight: 940, startsNewSheetBefore: (b) => b.kind === "pageHead" })
+  }, [pages])
+
+  // Rail click: insert after the focused element, else append to the page in view.
+  const handleRailSelect = (type: string) => {
+    let pageId: string | undefined
+    let afterIdx: number | undefined
+    if (focusedElementId) {
+      for (const p of pages) {
+        const idx = (p.elements ?? []).findIndex((e) => e.id === focusedElementId)
+        if (idx >= 0) {
+          pageId = p.id
+          afterIdx = idx
+          break
+        }
+      }
+    }
+    pageId = pageId ?? activePageId ?? pages[0]?.id
+    if (!pageId) return
+    void handleAddElement(pageId, type as ComicElementType, afterIdx)
+  }
+
+  /** Render one script element with its per-type comic styling. */
+  const renderComicElement = (page: ComicScene, el: ProjectElement, elIdx: number, panelNum: number) => {
+    if (el.element_type === "panel") {
+      return (
+        <div className={cn("mt-6", elIdx === 0 && "mt-0")}>
+          <div className="text-xs font-bold uppercase tracking-widest text-primary mb-1 select-none">
+            Panel {panelNum}
+          </div>
+          <StableContentEditable
+            id={`el-${el.id}`}
+            value={el.content}
+            onValueChange={(next) => handleContentChange(el.id, next, false)}
+            onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
+            className="outline-none text-sm leading-relaxed min-h-[1.4rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:not-italic"
+            data-placeholder="Panel description…"
+          />
+        </div>
+      )
+    }
+    if (el.element_type === "character") {
+      return (
+        <div className="mt-4">
+          <StableContentEditable
+            id={`el-${el.id}`}
+            value={el.content}
+            onValueChange={(next) => handleContentChange(el.id, next, false)}
+            onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
+            className="outline-none text-sm font-bold uppercase tracking-wide min-h-[1.2rem] empty:before:content-['CHARACTER'] empty:before:text-muted-foreground/50"
+          />
+        </div>
+      )
+    }
+    if (el.element_type === "balloon") {
+      return (
+        <div className="pl-4">
+          <StableContentEditable
+            id={`el-${el.id}`}
+            value={el.content}
+            onValueChange={(next) => handleContentChange(el.id, next, false)}
+            onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
+            className="outline-none text-sm leading-relaxed min-h-[1.4rem] empty:before:content-['Dialogue…'] empty:before:text-muted-foreground/50"
+          />
+        </div>
+      )
+    }
+    if (el.element_type === "caption") {
+      return (
+        <div className="mt-3 border-l-2 border-muted pl-3">
+          <div className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-0.5 select-none">Caption</div>
+          <StableContentEditable
+            id={`el-${el.id}`}
+            value={el.content}
+            onValueChange={(next) => handleContentChange(el.id, next, false)}
+            onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
+            className="outline-none text-sm italic leading-relaxed min-h-[1.4rem] empty:before:content-['Caption\00a0text…'] empty:before:text-muted-foreground/50"
+          />
+        </div>
+      )
+    }
+    if (el.element_type === "sfx") {
+      return (
+        <div className="mt-3">
+          <div className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-0.5 select-none">SFX</div>
+          <StableContentEditable
+            id={`el-${el.id}`}
+            value={el.content}
+            onValueChange={(next) => handleContentChange(el.id, next, false)}
+            onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
+            className="outline-none text-base font-black uppercase tracking-wider min-h-[1.4rem] empty:before:content-['KRAKKK!!!'] empty:before:text-muted-foreground/50"
+          />
+        </div>
+      )
+    }
+    if (el.element_type === "transition") {
+      return (
+        <div className="mt-4 text-right">
+          <StableContentEditable
+            id={`el-${el.id}`}
+            value={el.content}
+            onValueChange={(next) => handleContentChange(el.id, next, false)}
+            onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
+            className="outline-none text-xs uppercase tracking-widest text-muted-foreground min-h-[1.2rem] empty:before:content-['CUT\00a0TO—'] empty:before:text-muted-foreground/50"
+          />
+        </div>
+      )
+    }
+    return null
+  }
+
+  /** Render any block — page header, empty-page placeholder, or element. */
+  const renderBlock = (b: ComicBlock) => {
+    if (b.kind === "pageHead") {
+      return (
+        <div ref={(el) => { pageRefs.current.set(b.page.id, el) }} className="mb-6">
+          <StableContentEditable
+            value={b.page.scene_heading ?? ""}
+            onValueChange={(next) => handleContentChange(b.page.id, next, true)}
+            className="text-sm font-bold uppercase tracking-widest outline-none inline-block empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
+            data-placeholder={`PAGE ${b.pageIdx + 1}`}
+          />
+          {b.panels > 0 && (
+            <span className="text-sm font-bold text-muted-foreground ml-2">
+              ({b.panels} {b.panels === 1 ? "PANEL" : "PANELS"})
+            </span>
+          )}
+        </div>
+      )
+    }
+    if (b.kind === "emptyPage") {
+      return (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs gap-1 font-sans -ml-2 text-muted-foreground/60"
+          onClick={() => handleAddPanel(b.page.id)}
+        >
+          <Plus className="h-3 w-3" /> Add panel
+        </Button>
+      )
+    }
+    return renderComicElement(b.page, b.el, b.elIdx, b.panelNum)
+  }
+
   return (
     <div className="flex h-screen bg-background">
       {/* Pages sidebar — shared rail with list + comments. */}
@@ -283,189 +483,31 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
           ]}
         />
 
-        <div className="flex flex-1 overflow-hidden">
-        {/* Script scroll area */}
         <div
-          className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background"
+          className="flex flex-1 overflow-hidden"
           onFocus={(e) => {
             const id = (e.target as HTMLElement)?.id
             if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
           }}
         >
-          <div
-            className="inkwell-editor-content max-w-[680px] mx-auto px-10 py-12"
-            style={{ fontFamily: editorFontStack("comic") }}
-          >
-            {pages.length === 0 ? (
+          <PagedSheets
+            pages={sheets}
+            renderBlock={renderBlock}
+            fontFamily={editorFontStack("comic")}
+            railItems={COMIC_RAIL_ITEMS}
+            onRailSelect={handleRailSelect}
+            railStorageKey="editor.rail.comic"
+            pageIdPrefix="comic-page"
+            isEmpty={pages.length === 0}
+            emptyState={
               <EmptyEditorState
                 message="No pages yet."
                 actionLabel="Add first page"
                 onAction={handleAddPage}
               />
-            ) : (
-              pages.map((page, pageIdx) => {
-                const elements = page.elements ?? []
-                const pc = panelCount(elements)
-                let panelNum = 0
-
-                return (
-                  <div
-                    key={page.id}
-                    ref={(el) => { pageRefs.current.set(page.id, el) }}
-                    className={cn("mb-16", pageIdx > 0 && "pt-12 border-t border-border/40")}
-                  >
-                    {/* PAGE HEADER: PAGE X (N PANELS) */}
-                    <div className="mb-6">
-                      <StableContentEditable
-                        value={page.scene_heading ?? ""}
-                        onValueChange={(next) => handleContentChange(page.id, next, true)}
-                        className="text-sm font-bold uppercase tracking-widest outline-none inline empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
-                        data-placeholder={`PAGE ${pageIdx + 1}`}
-                      />
-                      {pc > 0 && (
-                        <span className="text-sm font-bold text-muted-foreground ml-2">
-                          ({pc} {pc === 1 ? "PANEL" : "PANELS"})
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Script elements */}
-                    <div className="space-y-0">
-                      {elements.length === 0 ? (
-                        <div className="text-muted-foreground/40 text-sm italic font-sans">
-                          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 font-sans -ml-2" onClick={() => handleAddPanel(page.id)}>
-                            <Plus className="h-3 w-3" /> Add panel
-                          </Button>
-                        </div>
-                      ) : (
-                        elements.map((el, elIdx) => {
-                          if (el.element_type === "panel") {
-                            panelNum++
-                            return (
-                              <div key={el.id} className={cn("mt-6", elIdx === 0 && "mt-0")}>
-                                {/* PANEL N label */}
-                                <div className="text-xs font-bold uppercase tracking-widest text-primary mb-1 select-none">
-                                  Panel {panelNum}
-                                </div>
-                                {/* Action/description line */}
-                                <StableContentEditable
-                                  id={`el-${el.id}`}
-                                  value={el.content}
-                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
-                                  onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
-                                  className="outline-none text-sm leading-relaxed min-h-[1.4rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:not-italic"
-                                  data-placeholder="Panel description…"
-                                />
-                              </div>
-                            )
-                          }
-
-                          if (el.element_type === "character") {
-                            return (
-                              <div key={el.id} className="mt-4">
-                                <StableContentEditable
-                                  id={`el-${el.id}`}
-                                  value={el.content}
-                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
-                                  onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
-                                  className="outline-none text-sm font-bold uppercase tracking-wide min-h-[1.2rem] empty:before:content-['CHARACTER'] empty:before:text-muted-foreground/50"
-                                />
-                              </div>
-                            )
-                          }
-
-                          if (el.element_type === "balloon") {
-                            return (
-                              <div key={el.id} className="pl-4">
-                                <StableContentEditable
-                                  id={`el-${el.id}`}
-                                  value={el.content}
-                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
-                                  onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
-                                  className="outline-none text-sm leading-relaxed min-h-[1.4rem] empty:before:content-['Dialogue…'] empty:before:text-muted-foreground/50"
-                                />
-                              </div>
-                            )
-                          }
-
-                          if (el.element_type === "caption") {
-                            return (
-                              <div key={el.id} className="mt-3 pl-0 border-l-2 border-muted pl-3">
-                                <div className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-0.5 select-none">Caption</div>
-                                <StableContentEditable
-                                  id={`el-${el.id}`}
-                                  value={el.content}
-                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
-                                  onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
-                                  className="outline-none text-sm italic leading-relaxed min-h-[1.4rem] empty:before:content-['Caption\00a0text…'] empty:before:text-muted-foreground/50"
-                                />
-                              </div>
-                            )
-                          }
-
-                          if (el.element_type === "sfx") {
-                            return (
-                              <div key={el.id} className="mt-3">
-                                <div className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-0.5 select-none">SFX</div>
-                                <StableContentEditable
-                                  id={`el-${el.id}`}
-                                  value={el.content}
-                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
-                                  onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
-                                  className="outline-none text-base font-black uppercase tracking-wider min-h-[1.4rem] empty:before:content-['KRAKKK!!!'] empty:before:text-muted-foreground/50"
-                                />
-                              </div>
-                            )
-                          }
-
-                          if (el.element_type === "transition") {
-                            return (
-                              <div key={el.id} className="mt-4 text-right">
-                                <StableContentEditable
-                                  id={`el-${el.id}`}
-                                  value={el.content}
-                                  onValueChange={(next) => handleContentChange(el.id, next, false)}
-                                  onKeyDown={(e) => handleKeyDown(e, page.id, el, elIdx)}
-                                  className="outline-none text-xs uppercase tracking-widest text-muted-foreground min-h-[1.2rem] empty:before:content-['CUT\00a0TO—'] empty:before:text-muted-foreground/50"
-                                />
-                              </div>
-                            )
-                          }
-
-                          return null
-                        })
-                      )}
-                    </div>
-
-                    {/* Insert toolbar */}
-                    <div className="flex items-center gap-1 mt-8 flex-wrap opacity-60 hover:opacity-100 transition-opacity font-sans">
-                      <span className="text-xs text-muted-foreground/60 mr-1">Insert</span>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddPanel(page.id)}>
-                        Panel
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(page.id, "character")}>
-                        Character
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(page.id, "balloon")}>
-                        Dialogue
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(page.id, "caption")}>
-                        Caption
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(page.id, "sfx")}>
-                        SFX
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(page.id, "transition")}>
-                        Transition
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
-        <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
+            }
+          />
+          <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
       </div>
     </div>

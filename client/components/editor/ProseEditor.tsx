@@ -22,6 +22,8 @@ import { dispatchKey } from "@/lib/editor/keymap"
 import { createProseKeymap } from "./prose/keymap"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import { useExportToast } from "@/lib/export/use-export-toast"
+import { parseMarkdownToProse } from "@/lib/import/markdown-prose"
+import { importIntoProject } from "@/lib/import/import-into-project"
 import { StableContentEditable } from "./shared/StableContentEditable"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import {
@@ -166,6 +168,32 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     setTimeout(() => {
       chapterRefs.current.get(newScene.id)?.scrollIntoView({ behavior: "smooth", block: "center" })
     }, 100)
+  }
+
+  // Import Markdown / plain text as new chapters appended to this project.
+  const handleImportMarkdown = async (text: string, fileName: string) => {
+    if (!user?.id) return
+    const title = fileName.replace(/\.[^/.]+$/, "")
+    const parsed = parseMarkdownToProse(text, title)
+    try {
+      const created = await importIntoProject(projectData.id, user.id, parsed, scenes.length)
+      setScenes((prev) => [...prev, ...created])
+      const firstNew = created[0]
+      if (firstNew) {
+        setTimeout(() => {
+          chapterRefs.current.get(firstNew.id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }, 100)
+      }
+      const chapterWord = created.length === 1 ? "chapter" : "chapters"
+      toast({ title: "Import complete", description: `Added ${created.length} ${chapterWord} from ${fileName}.` })
+    } catch (err) {
+      console.error("Failed to import:", err)
+      toast({
+        title: "Import failed",
+        description: err instanceof Error ? err.message : "Couldn't import that file.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleAddElement = async (sceneId: string, type: ProseElementType, afterIdx?: number) => {
@@ -554,6 +582,13 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           isAIOpen={isAIChatOpen}
           projectId={projectData.id}
           category={projectData.category}
+          importItems={[
+            {
+              label: "Markdown / Text (.md, .txt)",
+              accept: ".md,.markdown,.txt",
+              onFile: (text, fileName) => void handleImportMarkdown(text, fileName),
+            },
+          ]}
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",

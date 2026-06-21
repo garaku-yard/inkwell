@@ -2,43 +2,32 @@
 
 import type React from "react"
 import { useState, useRef, useCallback, useMemo, useEffect } from "react"
-import Link from "next/link"
-import { Download, FileText, ArrowLeft, Bot, FilePlus2Icon, BarChart3, ChevronDown } from "lucide-react"
 import { useDebouncedCallback } from "use-debounce"
-import { AppHeaderActions } from "@/components/AppHeaderActions"
-import { Button } from "@/components/ui/button"
-import { ProjectNavMenu } from "./shared/ProjectNavMenu"
-import { Toolbar } from "./Toolbar"
+import { EditorHeader } from "./shared/EditorHeader"
+import { type RailEntry } from "./shared/EditorToolRail"
+import { PagedSheets, type SheetMetrics } from "./shared/PagedSheets"
+import { paginate } from "@/lib/editor/paginate"
 import { SidePanel } from "./SidePanel"
-import { EditorPane, type EditorPaneRef } from "./EditorPane"
-import { ImportProjectDialog } from "../import-dialog"
+import { EditableElement } from "./EditableElement"
+import { parseFdx } from "@/lib/import/screenplay-fdx"
+import { importIntoProject } from "@/lib/import/import-into-project"
 import {
   updateElementContent,
   updateSceneHeading,
-  addComment,
-  updateComment,
-  deleteComment,
-  toggleCommentResolved,
   type FullProject,
   type Scene,
   type ProjectElement,
-  type Comment
 } from "@/services/project"
 import { dispatchKey } from "@/lib/editor/keymap";
 import { createScreenplayKeymap } from "./screenplay/keymap";
-import type { ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
+import { ELEMENT_ORDER, SCRIPT_ELEMENT_CONFIG, type ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
 import { AIChatPanel } from "./AIChatPanel"
-import { ProjectKnowledgeButton } from "./ProjectKnowledgeButton"
 import { useScreenplayElements } from "./screenplay/useScreenplayElements"
+import { useEditorComments } from "./shared/useEditorComments"
 import { useAuth } from "@/lib/AuthContext"
+import { useTheme } from "@/lib/ThemeContext"
 import { exportScreenplayToFDX } from "@/lib/export/screenplay-fdx"
 import { useExportToast } from "@/lib/export/use-export-toast"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -48,27 +37,107 @@ interface ScreenplayEditorProps {
   projectData: FullProject
 }
 
+/** Screenplay element vocabulary for the right-edge tool rail — the
+ *  active (non "coming soon") element types in script order. Clicking one
+ *  transforms the focused element or inserts a fresh one; with nothing focused,
+ *  Scene starts a new scene and everything else inserts. */
+const SCREENPLAY_RAIL_ITEMS: RailEntry[] = ELEMENT_ORDER.filter(
+  (type) => !("comingSoon" in SCRIPT_ELEMENT_CONFIG[type] && SCRIPT_ELEMENT_CONFIG[type].comingSoon),
+).map((type) => ({
+  type,
+  label: SCRIPT_ELEMENT_CONFIG[type].tooltip,
+  icon: SCRIPT_ELEMENT_CONFIG[type].icon,
+}))
+
+/** True US-Letter geometry for the screenplay sheets. Page count is semantic
+ *  here (1 page ≈ 1 minute of screen time), so the 8.5×11in paper and inch
+ *  margins are preserved exactly from the old EditorPane. */
+const US_LETTER: SheetMetrics = {
+  width: "8.5in",
+  minHeight: "11in",
+  paddingClass: "pt-[1in] pb-[1in] pl-[1.5in] pr-[1in]",
+  contentClass: "text-[12pt] leading-[1.5]",
+  pageNumber: { position: "top-right", render: (n) => `Page ${n}` },
+}
+
+/** One renderable unit on a screenplay page — a scene heading or an element,
+ *  carrying its precomputed owning-scene id so renderBlock stays dumb. */
+type ScreenplayBlock = { key: string; item: ScriptItem; currentSceneId: string }
+
+// Page-height estimate constants, ported verbatim from the old EditorPane so the
+// page count is byte-for-byte identical (US Letter: 9in content × 96 DPI).
+const PAGE_CONTENT_HEIGHT = 9 * 96 // 864px
+const LINE_HEIGHT = 24 // 12pt at 1.5 line-height
+const ELEMENT_PADDING = 8 // py-1 = 4px top + 4px bottom
+
+function estimateScreenplayBlock(b: ScreenplayBlock): number {
+  const content = b.item.type === "SCENE_HEADING" ? b.item.data.scene_heading : b.item.data.content
+  const lines = Math.max(1, Math.ceil((content?.length || 0) / 60))
+  return lines * LINE_HEIGHT + ELEMENT_PADDING
+}
+
+
+/** Interactive empty state for a script with no scenes yet. Focusable, and
+ *  creates the first scene on a double-Enter (matching the original behaviour). */
+function ScreenplayEmptyState({ onAddNewScene }: { onAddNewScene: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const lastEnterRef = useRef(0)
+  const DOUBLE_ENTER_THRESHOLD = 300
+
+  useEffect(() => {
+    const t = setTimeout(() => ref.current?.focus(), 100)
+    return () => clearTimeout(t)
+  }, [])
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "Enter") return
+    e.preventDefault()
+    const now = Date.now()
+    if (now - lastEnterRef.current < DOUBLE_ENTER_THRESHOLD) onAddNewScene()
+    lastEnterRef.current = now
+  }
+
+  return (
+    <div
+      ref={ref}
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+      className="flex h-full items-start justify-center pt-20 outline-none"
+    >
+      <div className="text-muted-foreground text-sm text-center">
+        <p className="mb-2">
+          Press <kbd className="px-2 py-1 bg-muted rounded border">Enter</kbd> twice to create a new scene
+        </p>
+        <p>or click Scene in the toolbar</p>
+      </div>
+    </div>
+  )
+}
 
 export function ScreenplayEditor({ projectData: initialProjectData }: ScreenplayEditorProps) {
   const { user } = useAuth()
   const { toast } = useToast()
+  const { editorFontStack } = useTheme()
   const runExport = useExportToast()
   const [project, setProject] = useState<FullProject>(initialProjectData)
   const [activeElementId, setActiveElementId] = useState<string | null>(null)
   const [activeElementType, setActiveElementType] = useState<ToolbarScriptElementType | "SCENE_HEADING" | null>(null)
   const [focusAtEndId, setFocusAtEndId] = useState<string | null>(null)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
-  const [isImportProjectDialogOpen, setIsImportProjectDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const elementRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
-  const editorPaneRef = useRef<EditorPaneRef>(null)
   const sidePanelRef = useRef<HTMLDivElement>(null)
-  const toolbarRef = useRef<HTMLDivElement>(null)
 
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
-  const refreshComments = useCallback(() => {
-    setRefreshTrigger(prev => prev + 1)
-  }, [])
+  // Comments use the same shared model as the other five editors: a flat list
+  // loaded once + reload-after-write. The inline EditableElement badge and the
+  // SidePanel both derive from this list (see unresolvedCountByElement below).
+  const {
+    comments: projectComments,
+    onAddComment: handleAddComment,
+    onUpdateComment: handleUpdateComment,
+    onDeleteComment: handleDeleteComment,
+    onToggleCommentResolved: handleToggleCommentResolved,
+  } = useEditorComments(project.id)
 
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const hasInitialFocused = useRef(false)
@@ -109,15 +178,12 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     ])
   }, [project.scenes])
 
-  const scrollToElement = useCallback(
-    (elementId: string) => {
-      const itemIndex = flattenedScriptItems.findIndex((item) => item.data.id === elementId)
-      if (itemIndex !== -1) {
-        editorPaneRef.current?.scrollToIndex(itemIndex)
-      }
-    },
-    [flattenedScriptItems],
-  )
+  // Scroll an element into view by its own DOM node. Nothing is virtualized, so
+  // every element is always mounted in elementRefs — landing on the element
+  // itself is more precise than the old scroll-to-its-page-center hop.
+  const scrollToElement = useCallback((elementId: string) => {
+    elementRefs.current.get(elementId)?.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [])
 
   // Helper function to focus an element and place cursor at end
   const focusElementAtEnd = useCallback((elementId: string, delay: number = 100) => {
@@ -140,187 +206,28 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     }, delay)
   }, [])
 
-  // Focus on last element when opening/refreshing the project
+  // Focus the last element when opening the project. All elements mount on the
+  // first render (no virtualization), so focusElementAtEnd's own timeout +
+  // requestAnimationFrame is enough — no 500ms / double-rAF dance needed.
   useEffect(() => {
-    if (!hasInitialFocused.current && flattenedScriptItems.length > 0) {
-      hasInitialFocused.current = true
-      const lastItem = flattenedScriptItems[flattenedScriptItems.length - 1]
+    if (hasInitialFocused.current || flattenedScriptItems.length === 0) return
+    hasInitialFocused.current = true
+    const lastId = flattenedScriptItems[flattenedScriptItems.length - 1].data.id
+    scrollToElement(lastId)
+    focusElementAtEnd(lastId, 0)
+  }, [flattenedScriptItems, scrollToElement, focusElementAtEnd])
 
-      // First scroll to the element, then wait for it to render, then focus
-      scrollToElement(lastItem.data.id)
-
-      // Use a longer delay to ensure virtualized content has rendered
-      setTimeout(() => {
-        const element = elementRefs.current.get(lastItem.data.id)
-        if (element) {
-          element.focus()
-          // Double requestAnimationFrame to ensure layout is complete
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              const selection = window.getSelection()
-              if (selection && element) {
-                const range = document.createRange()
-                range.selectNodeContents(element)
-                range.collapse(false)
-                selection.removeAllRanges()
-                selection.addRange(range)
-              }
-            })
-          })
-        }
-      }, 500)
+  // Unresolved-comment count per element/scene id, derived from the flat list —
+  // drives the inline badge in EditableElement (and matches how SidePanel
+  // counts). Recomputed only when the comment list changes.
+  const unresolvedCountByElement = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const c of projectComments) {
+      if (c.isResolved || !c.elementId) continue
+      map.set(c.elementId, (map.get(c.elementId) ?? 0) + 1)
     }
-  }, [flattenedScriptItems, scrollToElement])
-
-  const handleAddComment = useCallback(async (elementId: string, isScene: boolean, content: string) => {
-    try {
-      const createdComment = await addComment(
-        project.id,
-        project.id,
-        content,
-        0,
-        isScene ? undefined : elementId,
-        isScene ? elementId : undefined,
-        undefined
-      )
-
-      // Attach the new comment to the matching element / scene in project state
-      // so EditableElement's "unresolvedCommentsCount" badge appears immediately.
-      // Without this the inline indicator would only surface on next full reload.
-      const commentForState: Comment = {
-        ...createdComment,
-        elementId,
-        isScene,
-      }
-      setProject((prevProject) => {
-        if (!prevProject.scenes) return prevProject
-        const newScenes = prevProject.scenes.map((scene: Scene) => {
-          if (isScene && scene.id === elementId) {
-            return { ...scene, comments: [...(scene.comments ?? []), commentForState] }
-          }
-          if (!isScene && scene.elements?.some((el: ProjectElement) => el.id === elementId)) {
-            return {
-              ...scene,
-              elements: scene.elements.map((el: ProjectElement) =>
-                el.id === elementId
-                  ? { ...el, comments: [...(el.comments ?? []), commentForState] }
-                  : el,
-              ),
-            }
-          }
-          return scene
-        })
-        return { ...prevProject, scenes: newScenes }
-      })
-
-      refreshComments()
-    } catch (err) {
-      console.error("Failed to add comment:", err)
-    }
-  }, [project.id, refreshComments])
-
-  const handleUpdateComment = useCallback(async (commentId: string, content: string) => {
-    try {
-      const updatedComment = await updateComment(commentId, content)
-
-      setProject((prevProject) => {
-        if (!prevProject.scenes) return prevProject
-
-        const newScenes = prevProject.scenes.map((scene: Scene) => ({
-          ...scene,
-          comments: scene.comments?.map((c: Comment) => (c.id === commentId ? updatedComment : c)),
-          elements: scene.elements?.map((el: ProjectElement) => ({
-            ...el,
-            comments: el.comments?.map((c: Comment) => (c.id === commentId ? updatedComment : c)),
-          })),
-        }))
-
-        return { ...prevProject, scenes: newScenes }
-      })
-
-      // SidePanel keeps an independent `allComments` list sourced from
-      // getComments(project.id); bump the refresh trigger so it re-reads with
-      // the updated content. Without this the user's edit doesn't appear in
-      // the CommentPanel even though the backend saved it.
-      refreshComments()
-    } catch (err) {
-      console.error("Failed to update comment:", err)
-    }
-  }, [refreshComments])
-
-  const handleDeleteComment = useCallback(async (commentId: string) => {
-    try {
-      await deleteComment(commentId)
-
-      setProject((prevProject) => {
-        if (!prevProject.scenes) return prevProject
-
-        const newScenes = prevProject.scenes.map((scene: Scene) => ({
-          ...scene,
-          comments: scene.comments?.filter((c: Comment) => c.id !== commentId),
-          elements: scene.elements?.map((el: ProjectElement) => ({
-            ...el,
-            comments: el.comments?.filter((c: Comment) => c.id !== commentId),
-          })),
-        }))
-
-        return { ...prevProject, scenes: newScenes }
-      })
-
-      refreshComments()
-    } catch (err) {
-      console.error("Failed to delete comment:", err)
-    }
-  }, [refreshComments])
-
-
-  const handleToggleCommentResolved = useCallback(
-    async (elementId: string, commentId: string, isScene: boolean, newResolvedState: boolean) => {
-      const originalProject = JSON.parse(JSON.stringify(project))
-
-      try {
-        const updatedComment = await toggleCommentResolved(commentId, newResolvedState)
-
-        setProject((prevProject) => {
-          if (!prevProject.scenes) return prevProject
-
-          const newScenes = prevProject.scenes.map((scene: Scene) => {
-            if (isScene && scene.id === elementId) {
-              return {
-                ...scene,
-                comments: scene.comments?.map((c: Comment) =>
-                  c.id === commentId ? updatedComment : c,
-                ),
-              }
-            }
-            return {
-              ...scene,
-              elements: scene.elements?.map((el: ProjectElement) =>
-                el.id === elementId
-                  ? {
-                    ...el,
-                    comments: el.comments?.map((c: Comment) =>
-                      c.id === commentId ? updatedComment : c,
-                    ),
-                  }
-                  : el,
-              ),
-            }
-          })
-
-          return { ...prevProject, scenes: newScenes }
-        })
-
-        // Force SidePanel to reload allComments so the resolve state change
-        // is visible in the CommentPanel and the tab badge counter.
-        refreshComments()
-      } catch (err) {
-        console.error("Failed to toggle comment resolved status:", err)
-        setProject(originalProject)
-      }
-    },
-    [project, refreshComments],
-  )
+    return map
+  }, [projectComments])
 
   const handleContentChange = useCallback(
     (id: string, content: string, isScene: boolean) => {
@@ -383,11 +290,10 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
 
   const handleBlur = useCallback(() => {
     blurTimeoutRef.current = setTimeout(() => {
+      // Keep the active element when focus moves into the side panel (e.g.
+      // clicking a comment). Rail clicks are handled separately —
+      // handleRailSelect cancels this timeout before it can fire.
       if (sidePanelRef.current && sidePanelRef.current.contains(document.activeElement)) {
-        return
-      }
-      // Don't clear if clicking on toolbar
-      if (toolbarRef.current && toolbarRef.current.contains(document.activeElement)) {
         return
       }
       setActiveElementId(null)
@@ -453,135 +359,170 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     [keyMap],
   );
 
+  // Rail click — with an element focused, retype it (unless it's already that
+  // type); with nothing focused, Scene starts a new scene and everything else
+  // inserts. The rail lives in the page margin, so clicking it blurs the editor;
+  // cancel the pending blur-clear first so the active element survives until the
+  // transform runs (handleTransformElement reads activeElementId).
+  const handleRailSelect = useCallback(
+    (type: string) => {
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current)
+        blurTimeoutRef.current = null
+      }
+      const t = type as ToolbarScriptElementType | "SCENE_HEADING"
+      if (activeElementId) {
+        if (activeElementType !== t) handleTransformElement(t)
+      } else if (t === "SCENE_HEADING") {
+        handleAddNewScene()
+      } else {
+        handleInsertElement(t as ToolbarScriptElementType)
+      }
+    },
+    [activeElementId, activeElementType, handleTransformElement, handleInsertElement, handleAddNewScene],
+  )
+
   const toggleAIChat = useCallback(() => {
     setIsAIChatOpen((prev) => !prev)
   }, [])
 
-  const handleProjectImported = () => {
-    setIsImportProjectDialogOpen(false);
+  // Import a Final Draft (.fdx) file as new scenes appended to THIS project
+  // (the dashboard's Import still creates a new project — editor Import imports
+  // into the open one).
+  const handleImportFdx = async (text: string, fileName: string) => {
+    if (!user?.id) return
+    try {
+      const parsed = parseFdx(text)
+      const created = await importIntoProject(project.id, user.id, parsed, project.scenes?.length ?? 0)
+      setProject((prev) => ({ ...prev, scenes: [...(prev.scenes ?? []), ...created] }))
+      if (created[0]) scrollToElement(created[0].id)
+      const word = created.length === 1 ? "scene" : "scenes"
+      toast({ title: "Import complete", description: `Added ${created.length} ${word} from ${fileName}.` })
+    } catch (err) {
+      console.error("Failed to import FDX:", err)
+      toast({
+        title: "Import failed",
+        description: err instanceof Error ? err.message : "Couldn't import that file.",
+        variant: "destructive",
+      })
+    }
   }
 
+  // Pack scene headings + elements onto US-Letter sheets. The estimate is the
+  // old EditorPane's verbatim, so the page count is identical; no
+  // startsNewSheetBefore — a scene mid-page is correct for screenplays.
+  const pages = useMemo<ScreenplayBlock[][]>(() => {
+    const blocks: ScreenplayBlock[] = flattenedScriptItems.map((item) => ({
+      key: item.data.id,
+      item,
+      currentSceneId: item.type === "SCENE_HEADING" ? item.data.id : (item.data.scene_id || ""),
+    }))
+    return paginate(blocks, estimateScreenplayBlock, { maxHeight: PAGE_CONTENT_HEIGHT })
+  }, [flattenedScriptItems])
+
+  const renderBlock = useCallback(
+    (b: ScreenplayBlock) => (
+      <div className="relative">
+        <EditableElement
+          ref={(el) => { elementRefs.current.set(b.item.data.id, el) }}
+          element={b.item.data}
+          onContentChange={handleContentChange}
+          onFinalizeUpdate={handleFinalizeUpdate}
+          onKeyDown={handleKeyDown}
+          activeElementId={activeElementId}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          focusAtEnd={focusAtEndId === b.item.data.id}
+          onFocusHandled={handleFocusHandled}
+          scenes={allScenes}
+          currentSceneId={b.currentSceneId}
+          unresolvedCommentsCount={unresolvedCountByElement.get(b.item.data.id) ?? 0}
+        />
+      </div>
+    ),
+    [
+      handleContentChange,
+      handleFinalizeUpdate,
+      handleKeyDown,
+      activeElementId,
+      handleFocus,
+      handleBlur,
+      focusAtEndId,
+      handleFocusHandled,
+      allScenes,
+      unresolvedCountByElement,
+    ],
+  )
+
   return (
-    <div className="flex flex-col h-screen">
-      <header className="border-b bg-background z-10">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="icon" className="mr-2">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
-            <FileText className="h-5 w-5" />
-            <h1 className="text-lg font-medium">{project.title}</h1>
-            <ProjectNavMenu projectId={project.id} category={project.category} current="editor" />
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Save status — inline replacement for the floating chip
-                we used to render bottom-right. Reads as a quiet status
-                line, lives where every other editor's status lives, and
-                announces transitions to assistive tech via aria-live. */}
-            <span
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-              className="text-xs text-muted-foreground"
-            >
-              {isSaving ? "Saving…" : ""}
-            </span>
-            <ProjectKnowledgeButton projectId={project.id} category={project.category} />
-            <Button
-              variant="outline"
-              className="gap-2 bg-transparent"
-              onClick={toggleAIChat}
-              aria-pressed={isAIChatOpen}
-            >
-              <Bot className="h-4 w-4" />
-              Writing Buddy
-            </Button>
-            <Link href={`/analytics?project=${project.id}`}>
-              <Button variant="outline" className="gap-2 bg-transparent">
-                <BarChart3 className="h-4 w-4" />
-                Analytics
-              </Button>
-            </Link>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2 bg-transparent">
-                  <Download className="h-4 w-4" />
-                  Export
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => void runExport({
-                  extension: "pdf",
-                  projectTitle: project.title,
-                  run: async () => {
-                    // jspdf is heavy — load it only when the user exports.
-                    const { exportScreenplayToPDF } = await import("@/lib/export/screenplay-pdf")
-                    await exportScreenplayToPDF(project)
-                  },
-                })}>
-                  Export as PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void runExport({
-                  extension: "fdx",
-                  projectTitle: project.title,
-                  run: () => exportScreenplayToFDX(project),
-                })}>
-                  Export as FDX (Final Draft)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button variant="outline" className="gap-2 bg-transparent" onClick={() => setIsImportProjectDialogOpen(true)}>
-              <FilePlus2Icon className="h-4 w-4" />
-              Import
-            </Button>
-            <div className="h-6 w-px bg-border mx-1" aria-hidden="true" />
-            <AppHeaderActions />
-          </div>
-        </div>
-      </header>
+    <div className="flex h-screen">
+      <SidePanel
+        ref={sidePanelRef}
+        project={project}
+        allScenes={allScenes}
+        totalScenes={totalScenes}
+        totalElements={totalElements}
+        onScrollToElement={scrollToElement}
+        activeElementId={activeElementId}
+        comments={projectComments}
+        onAddComment={handleAddComment}
+        onUpdateComment={handleUpdateComment}
+        onDeleteComment={handleDeleteComment}
+        onToggleCommentResolved={handleToggleCommentResolved}
+      />
+      <div className="flex flex-col flex-1 min-w-0">
+      <EditorHeader
+        title={project.title}
+        subtitle="Screenplay"
+        saveStatus={isSaving ? "saving" : "saved"}
+        onToggleAI={toggleAIChat}
+        isAIOpen={isAIChatOpen}
+        projectId={project.id}
+        category={project.category}
+        importItems={[
+          {
+            label: "Final Draft (.fdx)",
+            accept: ".fdx",
+            onFile: (text, fileName) => void handleImportFdx(text, fileName),
+          },
+        ]}
+        exportItems={[
+          {
+            label: "Export as PDF",
+            onClick: () => void runExport({
+              extension: "pdf",
+              projectTitle: project.title,
+              run: async () => {
+                // jspdf is heavy — load it only when the user exports.
+                const { exportScreenplayToPDF } = await import("@/lib/export/screenplay-pdf")
+                await exportScreenplayToPDF(project)
+              },
+            }),
+          },
+          {
+            label: "Export as FDX (Final Draft)",
+            onClick: () => void runExport({
+              extension: "fdx",
+              projectTitle: project.title,
+              run: () => exportScreenplayToFDX(project),
+            }),
+          },
+        ]}
+      />
 
       <div className="flex flex-1 overflow-hidden">
-        <SidePanel
-          ref={sidePanelRef}
-          project={project}
-          allScenes={allScenes}
-          totalScenes={totalScenes}
-          totalElements={totalElements}
-          onScrollToElement={scrollToElement}
-          activeElementId={activeElementId}
-          onAddComment={handleAddComment}
-          onUpdateComment={handleUpdateComment}
-          onDeleteComment={handleDeleteComment}
-          onToggleCommentResolved={handleToggleCommentResolved}
-          refreshTrigger={refreshTrigger}
-        />
-
-        <div className={cn("flex-1 flex flex-col overflow-hidden", isAIChatOpen && "border-r")}>
-          <Toolbar
-            ref={toolbarRef}
-            onInsertElement={handleInsertElement}
-            onTransformElement={handleTransformElement}
-            onAddNewScene={handleAddNewScene}
-            activeElementType={activeElementType}
-            hasActiveElement={activeElementId !== null}
-          />
-          <EditorPane
-            ref={editorPaneRef}
-            items={flattenedScriptItems}
-            scenes={allScenes}
-            elementRefs={elementRefs}
-            onContentChange={handleContentChange}
-            onFinalizeUpdate={handleFinalizeUpdate}
-            onKeyDown={handleKeyDown}
-            activeElementId={activeElementId}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-            focusAtEndId={focusAtEndId}
-            onFocusHandled={handleFocusHandled}
-            onAddNewScene={handleAddNewScene}
+        <div className={cn("relative flex-1 flex flex-col overflow-hidden", isAIChatOpen && "border-r")}>
+          <PagedSheets
+            pages={pages}
+            renderBlock={renderBlock}
+            fontFamily={editorFontStack("screenplay")}
+            pageSize={US_LETTER}
+            pageIdPrefix="screenplay-page"
+            railItems={SCREENPLAY_RAIL_ITEMS}
+            onRailSelect={handleRailSelect}
+            railStorageKey="editor.rail.screenplay"
+            isEmpty={flattenedScriptItems.length === 0}
+            emptyState={<ScreenplayEmptyState onAddNewScene={handleAddNewScene} />}
           />
         </div>
         <AIChatPanel
@@ -599,13 +540,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           currentElement={activeElementId || undefined}
         />
       </div>
-
-      <ImportProjectDialog
-        open={isImportProjectDialogOpen}
-        onOpenChange={setIsImportProjectDialogOpen}
-        onProjectImported={handleProjectImported}
-      />
-
+      </div>
     </div>
   )
 }

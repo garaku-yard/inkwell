@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { ChevronRight, ChevronDown, Table, Pencil, Dice6, Library, Type } from "lucide-react"
+import { ChevronRight, ChevronDown, Table, Pencil, Dice6, Library, Type, Pilcrow, Heading2, Boxes, Shield, StickyNote, ScrollText } from "lucide-react"
 import { StatBlockTemplatePicker } from "./ttrpg/StatBlockTemplatePicker"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
@@ -18,6 +17,8 @@ import { SlashMenu } from "./ttrpg/SlashMenu"
 import { deleteScriptElement } from "@/services/editor"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import { useExportToast } from "@/lib/export/use-export-toast"
+import { parseMarkdownToTtrpg } from "@/lib/import/markdown-ttrpg"
+import { importIntoProject } from "@/lib/import/import-into-project"
 import { StableContentEditable } from "./shared/StableContentEditable"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import {
@@ -26,6 +27,9 @@ import {
   type EditorSidebarCommentTarget,
 } from "./shared/EditorSidebar"
 import { useEditorComments } from "./shared/useEditorComments"
+import { PagedSheets } from "./shared/PagedSheets"
+import { type RailEntry } from "./shared/EditorToolRail"
+import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
@@ -72,6 +76,35 @@ function parseDiceTable(content: string): { die: string; rows: [string, string][
 interface TabletopRPGEditorProps {
   projectData: FullProject
 }
+
+type RPGScene = NonNullable<FullProject["scenes"]>[number]
+
+/** One renderable unit on a TTRPG sheet — a section header, the
+ *  empty-section placeholder, or a single element (body / subheading /
+ *  stat block / table / random table / callout / rule box). */
+type RPGBlock =
+  | { key: string; kind: "sectionHead"; section: RPGScene }
+  | { key: string; kind: "emptySection"; section: RPGScene }
+  | { key: string; kind: "element"; section: RPGScene; el: ProjectElement; elIdx: number }
+
+/** TTRPG's element vocabulary for the right-edge tool rail. The five
+ *  structured "block" types collapse behind one flyout so the rail
+ *  stays short. */
+const RPG_RAIL_ITEMS: RailEntry[] = [
+  { type: "body", label: "Body", icon: Pilcrow },
+  { type: "h2", label: "Subheading", icon: Heading2 },
+  {
+    label: "Block",
+    icon: Boxes,
+    items: [
+      { type: "stat_block", label: "Stat block", icon: Shield },
+      { type: "table", label: "Table", icon: Table },
+      { type: "dice_table", label: "Random table", icon: Dice6 },
+      { type: "callout", label: "Designer note", icon: StickyNote },
+      { type: "rule_box", label: "Rule box", icon: ScrollText },
+    ],
+  },
+]
 
 export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const { user } = useAuth()
@@ -162,6 +195,31 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     setTimeout(() => {
       sectionRefs.current.get(section.id)?.scrollIntoView({ behavior: "smooth", block: "start" })
     }, 100)
+  }
+
+  // Import a Markdown / text file as new sections appended to this project.
+  const handleImportMarkdown = async (text: string, fileName: string) => {
+    if (!user?.id) return
+    const title = fileName.replace(/\.[^/.]+$/, "")
+    const parsed = parseMarkdownToTtrpg(text, title)
+    try {
+      const created = await importIntoProject(projectData.id, user.id, parsed, sections.length)
+      setSections((prev) => [...prev, ...created])
+      if (created[0]) {
+        setTimeout(() => {
+          sectionRefs.current.get(created[0].id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }, 100)
+      }
+      const word = created.length === 1 ? "section" : "sections"
+      toast({ title: "Import complete", description: `Added ${created.length} ${word} from ${fileName}.` })
+    } catch (err) {
+      console.error("Failed to import:", err)
+      toast({
+        title: "Import failed",
+        description: err instanceof Error ? err.message : "Couldn't import that file.",
+        variant: "destructive",
+      })
+    }
   }
 
   const insertElement = async (sectionId: string, type: RPGElementType, content: string, afterIdx?: number) => {
@@ -582,6 +640,94 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     )
   }
 
+  // Pack each section's title + elements onto A4 sheets; every section opens a
+  // fresh sheet. The structured block estimates are deliberately generous —
+  // the sheet min-height absorbs any slack so a card never clips.
+  const sheets = useMemo<RPGBlock[][]>(() => {
+    const blocks: RPGBlock[] = []
+    sections.forEach((section) => {
+      blocks.push({ key: `head-${section.id}`, kind: "sectionHead", section })
+      const els = section.elements ?? []
+      if (els.length === 0) {
+        blocks.push({ key: `empty-${section.id}`, kind: "emptySection", section })
+        return
+      }
+      els.forEach((el, elIdx) => {
+        blocks.push({ key: el.id, kind: "element", section, el, elIdx })
+      })
+    })
+    const estimate = (b: RPGBlock): number => {
+      if (b.kind === "sectionHead") return 120
+      if (b.kind === "emptySection") return 40
+      switch (b.el.element_type) {
+        case "h2":
+          return 56
+        case "stat_block":
+          return 240
+        case "dice_table":
+          return 220
+        case "table":
+          return 160
+        case "callout":
+        case "rule_box":
+          return 96
+        default: {
+          const len = (b.el.content ?? "").length
+          return 16 + Math.max(1, Math.ceil(len / 80)) * 28
+        }
+      }
+    }
+    return paginate(blocks, estimate, { maxHeight: 940, startsNewSheetBefore: (b) => b.kind === "sectionHead" })
+  }, [sections])
+
+  // Rail click: insert after the focused element, else append to the section in view.
+  const handleRailSelect = (type: string) => {
+    let sectionId: string | undefined
+    let afterIdx: number | undefined
+    if (focusedElementId) {
+      for (const s of sections) {
+        const idx = (s.elements ?? []).findIndex((e) => e.id === focusedElementId)
+        if (idx >= 0) {
+          sectionId = s.id
+          afterIdx = idx
+          break
+        }
+      }
+    }
+    sectionId = sectionId ?? activeSectionId ?? sections[0]?.id
+    if (!sectionId) return
+    void handleAddElement(sectionId, type as RPGElementType, afterIdx)
+  }
+
+  /** Render any block — section header, empty-section placeholder, or element. */
+  const renderBlock = (b: RPGBlock) => {
+    if (b.kind === "sectionHead") {
+      return (
+        <div ref={(el) => { sectionRefs.current.set(b.section.id, el) }}>
+          <StableContentEditable
+            value={b.section.scene_heading ?? ""}
+            onValueChange={(next) => handleContentChange(b.section.id, next, true)}
+            className="text-3xl font-black uppercase tracking-wider outline-none mb-8 pb-3 border-b-2 border-foreground empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
+            data-placeholder="CHAPTER TITLE"
+          />
+        </div>
+      )
+    }
+    if (b.kind === "emptySection") {
+      return (
+        <StableContentEditable
+          value=""
+          onValueChange={() => { /* empty-state placeholder; first Enter creates a body element */ }}
+          className="text-base outline-none leading-relaxed min-h-[1.5rem] empty:before:content-['Start\00a0writing…'] empty:before:text-muted-foreground/50"
+          onKeyDown={async (e) => {
+            if (e.key === "Enter") { e.preventDefault(); await handleAddElement(b.section.id, "body") }
+          }}
+        />
+      )
+    }
+    return renderElement(b.el, b.section.id, b.elIdx)
+  }
+
   return (
     <div className="flex h-screen bg-background">
       {/* Sections sidebar — shared rail (sections + h2 subheadings) + comments. */}
@@ -617,6 +763,13 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
           isAIOpen={isAIChatOpen}
           projectId={projectData.id}
           category={projectData.category}
+          importItems={[
+            {
+              label: "Markdown / Text (.md, .txt)",
+              accept: ".md,.markdown,.txt",
+              onFile: (text, fileName) => void handleImportMarkdown(text, fileName),
+            },
+          ]}
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",
@@ -637,87 +790,31 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
           ]}
         />
 
-        <div className="flex flex-1 overflow-hidden">
         <div
-          className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background"
+          className="flex flex-1 overflow-hidden"
           onFocus={(e) => {
             const id = (e.target as HTMLElement)?.id
             if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
           }}
         >
-          <div
-            className="inkwell-editor-content max-w-[720px] mx-auto px-10 py-12"
-            style={{ fontFamily: editorFontStack("ttrpg") }}
-          >
-            {sections.length === 0 ? (
+          <PagedSheets
+            pages={sheets}
+            renderBlock={renderBlock}
+            fontFamily={editorFontStack("ttrpg")}
+            railItems={RPG_RAIL_ITEMS}
+            onRailSelect={handleRailSelect}
+            railStorageKey="editor.rail.ttrpg"
+            pageIdPrefix="ttrpg-page"
+            isEmpty={sections.length === 0}
+            emptyState={
               <EmptyEditorState
                 message="No sections yet."
                 actionLabel="Create first section"
                 onAction={handleAddSection}
               />
-            ) : (
-              sections.map((section, sectionIdx) => {
-                const elements = section.elements ?? []
-                return (
-                  <div
-                    key={section.id}
-                    ref={(el) => { sectionRefs.current.set(section.id, el) }}
-                    className={cn("mb-20", sectionIdx > 0 && "pt-14 border-t border-border/40")}
-                  >
-                    {/* Chapter/section title */}
-                    <StableContentEditable
-                      value={section.scene_heading ?? ""}
-                      onValueChange={(next) => handleContentChange(section.id, next, true)}
-                      className="text-3xl font-black uppercase tracking-wider outline-none mb-8 pb-3 border-b-2 border-foreground empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
-                      data-placeholder="CHAPTER TITLE"
-                    />
-
-                    {/* Elements */}
-                    {elements.length === 0 ? (
-                      <StableContentEditable
-                        value=""
-                        onValueChange={() => { /* empty-state placeholder; first Enter creates a body element */ }}
-                        className="text-base outline-none leading-relaxed min-h-[1.5rem] empty:before:content-['Start\00a0writing…'] empty:before:text-muted-foreground/50"
-                        onKeyDown={async (e) => {
-                          if (e.key === "Enter") { e.preventDefault(); await handleAddElement(section.id, "body") }
-                        }}
-                      />
-                    ) : (
-                      elements.map((el, elIdx) => renderElement(el, section.id, elIdx))
-                    )}
-
-                    {/* Insert toolbar */}
-                    <div className="flex flex-wrap items-center gap-1.5 mt-10 pt-6 border-t border-border/40 opacity-60 hover:opacity-100 transition-opacity">
-                      <span className="text-xs text-muted-foreground/60 mr-1 w-full mb-0.5">Insert</span>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(section.id, "body")}>
-                        Body
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(section.id, "h2")}>
-                        Subheading
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2 border border-amber-700/30 text-amber-700 dark:text-amber-500 hover:bg-amber-700/10" onClick={() => handleAddElement(section.id, "stat_block")}>
-                        Stat block
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(section.id, "table")}>
-                        Table
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2 gap-1" onClick={() => handleAddElement(section.id, "dice_table")}>
-                        <Dice6 className="h-3 w-3" /> Random table
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2 border border-primary/30 text-primary hover:bg-primary/10" onClick={() => handleAddElement(section.id, "callout")}>
-                        Designer note
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement(section.id, "rule_box")}>
-                        Rule box
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
-        <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
+            }
+          />
+          <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
       </div>
       {slashMenu && (

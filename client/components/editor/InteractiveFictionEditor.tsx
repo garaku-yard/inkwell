@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo } from "react"
-import { Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Play, RotateCcw, ChevronLeft } from "lucide-react"
+import { Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Play, RotateCcw, ChevronLeft, AlignLeft, Split, Braces, StickyNote } from "lucide-react"
 import { PassageGraph } from "./PassageGraph"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -18,6 +18,8 @@ import { deleteScriptElement } from "@/services/editor"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToTwee } from "@/lib/export/if-twee"
 import { useExportToast } from "@/lib/export/use-export-toast"
+import { parseTweeToIF } from "@/lib/import/twee"
+import { importIntoProject } from "@/lib/import/import-into-project"
 import { StableContentEditable } from "./shared/StableContentEditable"
 import {
   EditorSidebar,
@@ -25,6 +27,9 @@ import {
   type EditorSidebarCommentTarget,
 } from "./shared/EditorSidebar"
 import { useEditorComments } from "./shared/useEditorComments"
+import { PagedSheets } from "./shared/PagedSheets"
+import { type RailEntry } from "./shared/EditorToolRail"
+import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
@@ -39,6 +44,27 @@ import {
 // set         — variable assignment: {set $gold to 10}
 // note        — author note, never shown in-game
 type IFElementType = "body" | "choice" | "conditional" | "set" | "note"
+
+type IFScene = NonNullable<FullProject["scenes"]>[number]
+
+/** One renderable unit on the active passage's A4 sheet — its header
+ *  (title + link hint), the empty-passage placeholder, or a single
+ *  element. IF paginates within the active passage only; passages never
+ *  share a sheet (one passage is edited at a time). */
+type IFBlock =
+  | { key: string; kind: "passageHead"; passage: IFScene }
+  | { key: string; kind: "emptyPassage"; passage: IFScene }
+  | { key: string; kind: "element"; passage: IFScene; el: ProjectElement }
+
+/** IF's element vocabulary for the right-edge tool rail. The rail
+ *  appends to the active passage (IF edits one passage at a time). */
+const IF_RAIL_ITEMS: RailEntry[] = [
+  { type: "body", label: "Body", icon: AlignLeft },
+  { type: "choice", label: "Choice link", icon: Link2 },
+  { type: "conditional", label: "Conditional", icon: Split },
+  { type: "set", label: "Set variable", icon: Braces },
+  { type: "note", label: "Author note", icon: StickyNote },
+]
 
 // Parse all [[text -> target]] or [[target]] links from a string.
 // Tolerant of null/undefined content because elements loaded from the
@@ -179,6 +205,30 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     setPassages(prev => [...prev, { ...passage, elements: [] }])
     setActivePassageId(passage.id)
     setView("write")
+  }
+
+  // Import a Twee 3 file as new passages appended to this project.
+  const handleImportTwee = async (text: string, fileName: string) => {
+    if (!user?.id) return
+    const title = fileName.replace(/\.[^/.]+$/, "")
+    const parsed = parseTweeToIF(text, title)
+    try {
+      const created = await importIntoProject(projectData.id, user.id, parsed, passages.length)
+      setPassages((prev) => [...prev, ...created])
+      if (created[0]) {
+        setActivePassageId(created[0].id)
+        setView("write")
+      }
+      const word = created.length === 1 ? "passage" : "passages"
+      toast({ title: "Import complete", description: `Added ${created.length} ${word} from ${fileName}.` })
+    } catch (err) {
+      console.error("Failed to import:", err)
+      toast({
+        title: "Import failed",
+        description: err instanceof Error ? err.message : "Couldn't import that file.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleAddElement = async (type: IFElementType) => {
@@ -416,6 +466,229 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     if (target) setActivePassageId(target.id)
   }
 
+  // Pack the *active passage* onto A4 sheets — no cross-passage pagination,
+  // since IF edits one passage at a time. A long passage still flows onto
+  // additional sheets within itself.
+  const writeSheets = useMemo<IFBlock[][]>(() => {
+    if (!activePassage) return []
+    const blocks: IFBlock[] = [
+      { key: `head-${activePassage.id}`, kind: "passageHead", passage: activePassage },
+    ]
+    const els = activePassage.elements ?? []
+    if (els.length === 0) {
+      blocks.push({ key: `empty-${activePassage.id}`, kind: "emptyPassage", passage: activePassage })
+    } else {
+      els.forEach((el) => blocks.push({ key: el.id, kind: "element", passage: activePassage, el }))
+    }
+    const estimate = (b: IFBlock): number => {
+      if (b.kind === "passageHead") return 150
+      if (b.kind === "emptyPassage") return 40
+      switch (b.el.element_type) {
+        case "choice":
+          return 80
+        case "conditional":
+          return 88
+        case "set":
+          return 64
+        case "note":
+          return 64
+        default: {
+          const len = (b.el.content ?? "").length
+          return 16 + Math.max(1, Math.ceil(len / 80)) * 28
+        }
+      }
+    }
+    return paginate(blocks, estimate, { maxHeight: 940 })
+  }, [activePassage])
+
+  // Rail click: append the chosen element type to the active passage.
+  const handleRailSelect = (type: string) => {
+    void handleAddElement(type as IFElementType)
+  }
+
+  /** Render one passage element with its per-type IF styling + link badges. */
+  const renderIFElement = (el: ProjectElement) => {
+    if (el.element_type === "body") {
+      return (
+        <StableContentEditable
+          id={`el-${el.id}`}
+          value={el.content}
+          onValueChange={(next) => {
+            handleContentChange(el.id, next, false)
+            setAutocomplete(computeAutocompleteContext(el.id))
+          }}
+          onKeyDown={(e) => handleKeyDown(e, el)}
+          className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Passage\00a0text…'] empty:before:text-muted-foreground/50"
+        />
+      )
+    }
+
+    if (el.element_type === "choice") {
+      const targets = parseLinks(el.content)
+      return (
+        <div>
+          <StableContentEditable
+            id={`el-${el.id}`}
+            value={el.content}
+            onValueChange={(next) => {
+              handleContentChange(el.id, next, false)
+              setAutocomplete(computeAutocompleteContext(el.id))
+            }}
+            onKeyDown={(e) => handleKeyDown(e, el)}
+            className="outline-none font-mono text-sm text-primary bg-primary/5 border border-primary/20 rounded-md px-3 py-1.5 min-h-[2rem] leading-relaxed"
+          />
+          {targets.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-1.5 pl-1">
+              {targets.map((target, i) => {
+                const exists = passageNames.has(target.toLowerCase().trim())
+                return (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      if (exists) navigateToPassage(target)
+                      else void handleAddPassage(target)
+                    }}
+                    className={cn(
+                      "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer",
+                      exists
+                        ? "border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 hover:bg-green-500/10"
+                        : "border-destructive/40 text-destructive bg-destructive/5 hover:bg-destructive/10 font-semibold underline underline-offset-2"
+                    )}
+                    aria-label={exists ? `Go to "${target}"` : `Missing passage "${target}" — click to create`}
+                    title={
+                      exists
+                        ? `Go to "${target}"`
+                        : `Click to create passage "${target}"`
+                    }
+                  >
+                    {exists
+                      ? <CheckCircle2 className="h-2.5 w-2.5" />
+                      : <AlertCircle className="h-2.5 w-2.5" />}
+                    {!exists && <span className="sr-only">Missing: </span>}
+                    {target}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    if (el.element_type === "conditional") {
+      const targets = parseLinks(el.content)
+      return (
+        <div>
+          <StableContentEditable
+            id={`el-${el.id}`}
+            value={el.content}
+            onValueChange={(next) => handleContentChange(el.id, next, false)}
+            onKeyDown={(e) => handleKeyDown(e, el)}
+            className="outline-none font-mono text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-md px-3 py-2 min-h-[2rem] leading-relaxed"
+          />
+          {targets.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-1.5 pl-1">
+              {targets.map((target, i) => {
+                const exists = passageNames.has(target.toLowerCase().trim())
+                return (
+                  <button
+                    key={i}
+                    onClick={() => exists && navigateToPassage(target)}
+                    className={cn(
+                      "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors",
+                      exists
+                        ? "border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 hover:bg-green-500/10 cursor-pointer"
+                        : "border-destructive/40 text-destructive bg-destructive/5 cursor-default font-semibold underline underline-offset-2"
+                    )}
+                    aria-label={exists ? `Go to "${target}"` : `Missing passage "${target}"`}
+                  >
+                    {exists ? <CheckCircle2 className="h-2.5 w-2.5" /> : <AlertCircle className="h-2.5 w-2.5" />}
+                    {!exists && <span className="sr-only">Missing: </span>}
+                    {target}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    if (el.element_type === "set") {
+      return (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground/50 mb-0.5 pl-1 select-none">Variable</div>
+          <StableContentEditable
+            id={`el-${el.id}`}
+            value={el.content}
+            onValueChange={(next) => handleContentChange(el.id, next, false)}
+            onKeyDown={(e) => handleKeyDown(e, el)}
+            className="outline-none font-mono text-xs text-violet-700 dark:text-violet-400 bg-violet-500/5 border border-violet-500/20 rounded-md px-3 py-1.5 min-h-[1.5rem] leading-relaxed"
+          />
+        </div>
+      )
+    }
+
+    if (el.element_type === "note") {
+      return (
+        <div className="opacity-60 hover:opacity-100 transition-opacity">
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground/50 mb-0.5 pl-1 select-none">Author note</div>
+          <StableContentEditable
+            id={`el-${el.id}`}
+            value={el.content}
+            onValueChange={(next) => handleContentChange(el.id, next, false)}
+            className="outline-none text-sm italic text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-3 py-1.5 min-h-[1.5rem] leading-relaxed empty:before:content-['Note\00a0(not\00a0shown\00a0in\00a0game)…'] empty:before:text-muted-foreground/50"
+          />
+        </div>
+      )
+    }
+
+    return null
+  }
+
+  /** Render any write-view block — passage header, empty placeholder, or element. */
+  const renderBlock = (b: IFBlock) => {
+    if (b.kind === "passageHead") {
+      const isStart = passages.findIndex((p) => p.id === b.passage.id) === 0
+      return (
+        <div>
+          <div className="mb-1">
+            {isStart && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-primary mb-2 block">
+                Start passage
+              </span>
+            )}
+            <StableContentEditable
+              value={b.passage.scene_heading ?? ""}
+              onValueChange={(next) => handleContentChange(b.passage.id, next, true)}
+              className="text-xl font-bold outline-none pb-2 border-b empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
+              data-placeholder="Passage name"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground/50 mb-8 mt-1.5">
+            Link with{" "}
+            <code className="font-mono bg-muted px-1 rounded text-[11px]">[[Choice text → PassageName]]</code>
+            {" "}or{" "}
+            <code className="font-mono bg-muted px-1 rounded text-[11px]">[[PassageName]]</code>
+          </p>
+        </div>
+      )
+    }
+    if (b.kind === "emptyPassage") {
+      return (
+        <StableContentEditable
+          value=""
+          onValueChange={() => { /* empty-state placeholder; first keystroke creates a body element */ }}
+          className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Write\00a0passage\00a0text…'] empty:before:text-muted-foreground/50"
+          onKeyDown={async (e) => {
+            if (e.key === "Enter") { e.preventDefault(); await handleAddElement("body") }
+          }}
+        />
+      )
+    }
+    return <div className="mb-2">{renderIFElement(b.el)}</div>
+  }
+
   return (
     <div className="flex h-screen bg-background">
       {/* Passage list sidebar — shared rail (searchable) + comments. */}
@@ -463,6 +736,13 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           isAIOpen={isAIChatOpen}
           projectId={projectData.id}
           category={projectData.category}
+          importItems={[
+            {
+              label: "Twee 3 (.twee)",
+              accept: ".twee,.tw,.txt",
+              onFile: (text, fileName) => void handleImportTwee(text, fileName),
+            },
+          ]}
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",
@@ -670,225 +950,34 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           )
         })()}
 
-        {/* Write view */}
+        {/* Write view — the active passage on an A4 sheet, element tool
+            rail riding the margin. */}
         {view === "write" && (
           <div
-            className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background"
+            className="flex flex-1 overflow-hidden"
             onFocus={(e) => {
               const id = (e.target as HTMLElement)?.id
               if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
             }}
           >
-            {!activePassageId ? (
-              <div className="flex flex-col items-center justify-center h-full gap-4">
-                <p className="text-muted-foreground text-sm">No passages yet.</p>
-                <Button size="sm" onClick={() => handleAddPassage("Start")}>
-                  <Plus className="h-3.5 w-3.5 mr-1.5" /> Create Start passage
-                </Button>
-              </div>
-            ) : (
-              <div
-                className="inkwell-editor-content max-w-[660px] mx-auto px-8 py-10"
-                style={{ fontFamily: editorFontStack("if") }}
-              >
-                {/* Passage title */}
-                <div className="mb-1">
-                  {passages.findIndex(p => p.id === activePassageId) === 0 && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary mb-2 block">
-                      Start passage
-                    </span>
-                  )}
-                  <StableContentEditable
-                    value={activePassage?.scene_heading ?? ""}
-                    onValueChange={(next) => activePassageId && handleContentChange(activePassageId, next, true)}
-                    className="text-xl font-bold outline-none pb-2 border-b empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
-                    data-placeholder="Passage name"
-                  />
-                </div>
-
-                <p className="text-xs text-muted-foreground/50 mb-8 mt-1.5">
-                  Link with{" "}
-                  <code className="font-mono bg-muted px-1 rounded text-[11px]">[[Choice text → PassageName]]</code>
-                  {" "}or{" "}
-                  <code className="font-mono bg-muted px-1 rounded text-[11px]">[[PassageName]]</code>
-                </p>
-
-                {/* Elements */}
-                <div className="space-y-2">
-                  {activeElements.length === 0 ? (
-                    <StableContentEditable
-                      value=""
-                      onValueChange={() => { /* empty-state placeholder; first keystroke creates a body element */ }}
-                      className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Write\00a0passage\00a0text…'] empty:before:text-muted-foreground/50"
-                      onKeyDown={async (e) => {
-                        if (e.key === "Enter") { e.preventDefault(); await handleAddElement("body") }
-                      }}
-                    />
-                  ) : (
-                    activeElements.map((el) => {
-                      if (el.element_type === "body") {
-                        return (
-                          <StableContentEditable
-                            key={el.id}
-                            id={`el-${el.id}`}
-                            value={el.content}
-                            onValueChange={(next) => {
-                              handleContentChange(el.id, next, false)
-                              setAutocomplete(computeAutocompleteContext(el.id))
-                            }}
-                            onKeyDown={(e) => handleKeyDown(e, el)}
-                            className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Passage\00a0text…'] empty:before:text-muted-foreground/50"
-                          />
-                        )
-                      }
-
-                      if (el.element_type === "choice") {
-                        const targets = parseLinks(el.content)
-                        return (
-                          <div key={el.id} className="mt-1">
-                            <StableContentEditable
-                              id={`el-${el.id}`}
-                              value={el.content}
-                              onValueChange={(next) => {
-                                handleContentChange(el.id, next, false)
-                                setAutocomplete(computeAutocompleteContext(el.id))
-                              }}
-                              onKeyDown={(e) => handleKeyDown(e, el)}
-                              className="outline-none font-mono text-sm text-primary bg-primary/5 border border-primary/20 rounded-md px-3 py-1.5 min-h-[2rem] leading-relaxed"
-                            />
-                            {/* Link resolution badges */}
-                            {targets.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mt-1.5 pl-1">
-                                {targets.map((target, i) => {
-                                  const exists = passageNames.has(target.toLowerCase().trim())
-                                  return (
-                                    <button
-                                      key={i}
-                                      onClick={() => {
-                                        if (exists) navigateToPassage(target)
-                                        else void handleAddPassage(target)
-                                      }}
-                                      className={cn(
-                                        "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer",
-                                        exists
-                                          ? "border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 hover:bg-green-500/10"
-                                          : "border-destructive/40 text-destructive bg-destructive/5 hover:bg-destructive/10 font-semibold underline underline-offset-2"
-                                      )}
-                                      aria-label={exists ? `Go to "${target}"` : `Missing passage "${target}" — click to create`}
-                                      title={
-                                        exists
-                                          ? `Go to "${target}"`
-                                          : `Click to create passage "${target}"`
-                                      }
-                                    >
-                                      {exists
-                                        ? <CheckCircle2 className="h-2.5 w-2.5" />
-                                        : <AlertCircle className="h-2.5 w-2.5" />}
-                                      {!exists && <span className="sr-only">Missing: </span>}
-                                      {target}
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      }
-
-                      if (el.element_type === "conditional") {
-                        const targets = parseLinks(el.content)
-                        return (
-                          <div key={el.id} className="mt-1">
-                            <StableContentEditable
-                              id={`el-${el.id}`}
-                              value={el.content}
-                              onValueChange={(next) => handleContentChange(el.id, next, false)}
-                              onKeyDown={(e) => handleKeyDown(e, el)}
-                              className="outline-none font-mono text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-md px-3 py-2 min-h-[2rem] leading-relaxed"
-                            />
-                            {targets.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mt-1.5 pl-1">
-                                {targets.map((target, i) => {
-                                  const exists = passageNames.has(target.toLowerCase().trim())
-                                  return (
-                                    <button
-                                      key={i}
-                                      onClick={() => exists && navigateToPassage(target)}
-                                      className={cn(
-                                        "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors",
-                                        exists
-                                          ? "border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 hover:bg-green-500/10 cursor-pointer"
-                                          : "border-destructive/40 text-destructive bg-destructive/5 cursor-default font-semibold underline underline-offset-2"
-                                      )}
-                                      aria-label={exists ? `Go to "${target}"` : `Missing passage "${target}"`}
-                                    >
-                                      {exists ? <CheckCircle2 className="h-2.5 w-2.5" /> : <AlertCircle className="h-2.5 w-2.5" />}
-                                      {!exists && <span className="sr-only">Missing: </span>}
-                                      {target}
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      }
-
-                      if (el.element_type === "set") {
-                        return (
-                          <div key={el.id} className="mt-1">
-                            <div className="text-[10px] uppercase tracking-widest text-muted-foreground/50 mb-0.5 pl-1 select-none">Variable</div>
-                            <StableContentEditable
-                              id={`el-${el.id}`}
-                              value={el.content}
-                              onValueChange={(next) => handleContentChange(el.id, next, false)}
-                              onKeyDown={(e) => handleKeyDown(e, el)}
-                              className="outline-none font-mono text-xs text-violet-700 dark:text-violet-400 bg-violet-500/5 border border-violet-500/20 rounded-md px-3 py-1.5 min-h-[1.5rem] leading-relaxed"
-                            />
-                          </div>
-                        )
-                      }
-
-                      if (el.element_type === "note") {
-                        return (
-                          <div key={el.id} className="mt-1 opacity-60 hover:opacity-100 transition-opacity">
-                            <div className="text-[10px] uppercase tracking-widest text-muted-foreground/50 mb-0.5 pl-1 select-none">Author note</div>
-                            <StableContentEditable
-                              id={`el-${el.id}`}
-                              value={el.content}
-                              onValueChange={(next) => handleContentChange(el.id, next, false)}
-                              className="outline-none text-sm italic text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-3 py-1.5 min-h-[1.5rem] leading-relaxed empty:before:content-['Note\00a0(not\00a0shown\00a0in\00a0game)…'] empty:before:text-muted-foreground/50"
-                            />
-                          </div>
-                        )
-                      }
-
-                      return null
-                    })
-                  )}
-                </div>
-
-                {/* Insert toolbar */}
-                <div className="flex items-center gap-1.5 pt-8 mt-6 border-t border-border/40 flex-wrap opacity-60 hover:opacity-100 transition-opacity">
-                  <span className="text-xs text-muted-foreground/60 mr-1">Insert</span>
-                  <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement("body")}>
-                    Body
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-6 text-xs px-2 text-primary hover:text-primary border border-primary/20" onClick={() => handleAddElement("choice")}>
-                    Choice link
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-6 text-xs px-2 text-amber-600 dark:text-amber-400 border border-amber-500/20" onClick={() => handleAddElement("conditional")}>
-                    Conditional
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-6 text-xs px-2 text-violet-600 dark:text-violet-400 border border-violet-500/20" onClick={() => handleAddElement("set")}>
-                    Set variable
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleAddElement("note")}>
-                    Author note
+            <PagedSheets
+              pages={writeSheets}
+              renderBlock={renderBlock}
+              fontFamily={editorFontStack("if")}
+              railItems={IF_RAIL_ITEMS}
+              onRailSelect={handleRailSelect}
+              railStorageKey="editor.rail.if"
+              pageIdPrefix="if-page"
+              isEmpty={!activePassage}
+              emptyState={
+                <div className="flex flex-col items-center justify-center gap-4 py-32 text-center">
+                  <p className="text-muted-foreground text-sm">No passages yet.</p>
+                  <Button size="sm" onClick={() => handleAddPassage("Start")}>
+                    <Plus className="h-3.5 w-3.5 mr-1.5" /> Create Start passage
                   </Button>
                 </div>
-              </div>
-            )}
+              }
+            />
           </div>
         )}
         <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />

@@ -1,12 +1,13 @@
-import type { ReactNode } from "react"
+import { useRef, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Bot, ChevronDown, Download } from "lucide-react"
+import { ArrowLeft, Bot, ChevronDown, Download, Upload } from "lucide-react"
 
 import { AppHeaderActions } from "@/components/AppHeaderActions"
 import { SyncControl } from "@/components/sync/SyncControl"
 import { Button } from "@/components/ui/button"
 import { ProjectKnowledgeButton } from "../ProjectKnowledgeButton"
 import { ProjectNavMenu } from "./ProjectNavMenu"
+import { SaveStatusPill } from "./SaveStatusPill"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +23,16 @@ export interface EditorHeaderExportItem {
   onClick: () => void
 }
 
+export interface EditorHeaderImportItem {
+  /** Menu/button label, e.g. "Markdown / Text (.md, .txt)". */
+  label: string
+  /** Accept filter for the file picker, e.g. ".md,.txt". */
+  accept: string
+  /** Called with the chosen file's text + name. The editor parses it and
+   *  imports into the current project. */
+  onFile: (text: string, fileName: string) => void
+}
+
 interface EditorHeaderProps {
   /** Title shown in the header h1. Usually `projectData.title`. */
   title: string
@@ -29,8 +40,9 @@ interface EditorHeaderProps {
    *  Lyrics, Comic Script, Tabletop RPG). */
   subtitle: string
   /** Right-side stat slot: word count, line count, page+panel count.
-   *  Renders as `<span>` inside the right cluster. */
-  statRight: ReactNode
+   *  Renders as `<span>` inside the right cluster. Omit to hide it (e.g.
+   *  screenplay shows its scene count in the sidebar, not the header). */
+  statRight?: ReactNode
   saveStatus: SaveStatus
   onToggleAI: () => void
   /** Whether the Writing Buddy panel is currently open. Drives
@@ -39,6 +51,9 @@ interface EditorHeaderProps {
   /** Items that populate the Export dropdown menu. Pass an empty list
    *  to hide the menu entirely (no current call site does that). */
   exportItems: EditorHeaderExportItem[]
+  /** Import formats this editor accepts. Each opens a file picker and hands the
+   *  chosen file's text to `onFile`. Omit/empty to hide the Import control. */
+  importItems?: EditorHeaderImportItem[]
   /** Optional extra slot rendered between the stat and the save status
    *  — used by Poetry for its center-align toggle. Most editors leave
    *  this undefined. */
@@ -63,11 +78,33 @@ export function EditorHeader({
   onToggleAI,
   isAIOpen,
   exportItems,
+  importItems,
   extras,
   projectId,
   category,
 }: EditorHeaderProps) {
   const router = useRouter()
+  // One hidden file input drives every import item; the pending item's onFile +
+  // accept are swapped in just before we open the picker.
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const pendingOnFile = useRef<EditorHeaderImportItem["onFile"] | null>(null)
+
+  const triggerImport = (item: EditorHeaderImportItem) => {
+    pendingOnFile.current = item.onFile
+    const input = fileInputRef.current
+    if (!input) return
+    input.accept = item.accept
+    input.value = "" // reset so re-selecting the same file still fires change
+    input.click()
+  }
+
+  const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const text = await file.text()
+    pendingOnFile.current?.(text, file.name)
+  }
+
   return (
     <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 py-3 border-b shrink-0">
       {/* Left: back button + project title. */}
@@ -91,24 +128,43 @@ export function EditorHeader({
           <ProjectNavMenu projectId={projectId} category={category} current="editor" />
         )}
       </div>
-      {/* Right: stats + save status + export + actions. */}
+      {/* Save status lives in a floating bottom-right pill, not the header. */}
+      <SaveStatusPill status={saveStatus} />
+      {/* Hidden picker shared by all import items (see triggerImport). */}
+      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChosen} />
+      {/* Right: stats + import + export + actions. */}
       <div className="flex items-center justify-end gap-4 text-xs text-muted-foreground">
-        <span>{statRight}</span>
+        {statRight != null && <span>{statRight}</span>}
         {extras}
-        <span
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          className={cn(
-            // BRANDBOOK semantic palette only sanctions success/error/info.
-            // Saving is a transient state, not an outcome — muted reads
-            // honestly. Unsaved (the failure-adjacent case) earns the
-            // destructive token so the writer notices it.
-            saveStatus === "unsaved" && "text-destructive",
-          )}
-        >
-          {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving…" : "Unsaved"}
-        </span>
+        {importItems && importItems.length === 1 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => triggerImport(importItems[0])}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Import
+          </Button>
+        )}
+        {importItems && importItems.length > 1 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
+                <Upload className="h-3.5 w-3.5" />
+                Import
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {importItems.map((item) => (
+                <DropdownMenuItem key={item.label} onClick={() => triggerImport(item)}>
+                  {item.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         {exportItems.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

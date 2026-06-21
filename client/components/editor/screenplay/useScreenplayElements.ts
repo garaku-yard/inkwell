@@ -102,11 +102,6 @@ export function useScreenplayElements({
         return
       }
 
-      if (!sceneId) {
-        console.error("Cannot add element: Scene ID is required.")
-        return
-      }
-
       const newElementData = {
         scene_id: sceneId,
         element_type: type,
@@ -159,7 +154,6 @@ export function useScreenplayElements({
       let elementToTransform: ProjectElement | null = null
       let sceneToTransform: Scene | null = null
       let parentSceneId: string | null = null
-      let elementIndex = 0
 
       for (const scene of project.scenes || []) {
         if (scene.id === activeElementId) {
@@ -170,11 +164,9 @@ export function useScreenplayElements({
         if (foundIndex !== -1) {
           elementToTransform = scene.elements![foundIndex]
           parentSceneId = scene.id
-          elementIndex = foundIndex
           break
         }
       }
-      void elementIndex
 
       // Case 1: Transform Element → Scene
       if (elementToTransform && newType === "SCENE_HEADING") {

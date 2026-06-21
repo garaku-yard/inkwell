@@ -1,14 +1,11 @@
 "use client"
 
-import React, { useState, useMemo, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import React, { useState, useMemo } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Clipboard, Film, Hash, MessageCircle } from "lucide-react"
+import { Film, Hash, MessageCircle } from "lucide-react"
 import type { FullProject, Scene, ProjectElement, Comment } from "@/services/project"
-import { getComments } from "@/services/project"
 import { SCRIPT_ELEMENT_CONFIG } from "@/lib/helpers/screenplay-config"
 import { Separator } from "@/components/ui/separator"
 import { CommentPanel } from "./CommentPanel"
@@ -24,11 +21,12 @@ interface SidePanelProps {
   totalElements: number
   onScrollToElement: (id: string) => void
   activeElementId: string | null
+  /** Flat comment list from the shared useEditorComments hook. */
+  comments: Comment[]
   onAddComment: (elementId: string, isScene: boolean, content: string) => void
   onUpdateComment: (commentId: string, content: string) => void
   onDeleteComment: (commentId: string) => void
   onToggleCommentResolved: (elementId: string, commentId: string, isScene: boolean, newResolvedState: boolean) => void
-  refreshTrigger?: number
 }
 
 export const SidePanel = React.memo(
@@ -41,36 +39,15 @@ export const SidePanel = React.memo(
         totalElements,
         onScrollToElement,
         activeElementId,
+        comments,
         onAddComment,
         onUpdateComment,
         onDeleteComment,
         onToggleCommentResolved,
-        refreshTrigger,
       },
       ref,
     ) => {
       const [activeTab, setActiveTab] = useState("scenes")
-      const [allComments, setAllComments] = useState<Comment[]>([])
-      const [, setCommentsLoading] = useState(false)
-      const router = useRouter()
-
-      useEffect(() => {
-        loadAllComments()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [project.id, refreshTrigger])
-
-      const loadAllComments = async () => {
-        setCommentsLoading(true)
-        try {
-          const projectComments = await getComments(project.id)
-          setAllComments(projectComments)
-        } catch (error) {
-          console.error('Failed to load comments:', error)
-          setAllComments([])
-        } finally {
-          setCommentsLoading(false)
-        }
-      };
 
       const getElementIcon = (elementType: ProjectElement["element_type"]) => {
         const config = SCRIPT_ELEMENT_CONFIG[elementType as keyof typeof SCRIPT_ELEMENT_CONFIG]
@@ -86,17 +63,13 @@ export const SidePanel = React.memo(
       }
 
       const getCommentCount = (elementId: string) => {
-        return allComments.filter(comment => comment.elementId === elementId).length
-      }
-
-      const handleBeatBoardClick = (projectId: string) => {
-        router.push(`/projects/beat-board?id=${projectId}`)
+        return comments.filter(comment => comment.elementId === elementId).length
       }
 
       const activeElement = useMemo((): ActiveScriptItem | null => {
         if (!activeElementId) return null
 
-        const elementComments = allComments.filter(comment => comment.elementId === activeElementId)
+        const elementComments = comments.filter(comment => comment.elementId === activeElementId)
 
         if (project.scenes) {
           for (const scene of project.scenes) {
@@ -110,7 +83,7 @@ export const SidePanel = React.memo(
           }
         }
         return null
-      }, [activeElementId, project.scenes, allComments])
+      }, [activeElementId, project.scenes, comments])
 
       const unresolvedCommentsCount = useMemo(() => {
         if (!activeElement) return 0
@@ -120,15 +93,6 @@ export const SidePanel = React.memo(
       return (
         <div ref={ref} className="w-80 border-r bg-muted/30 flex flex-col min-h-0">
           <div className="p-4 space-y-3 flex-shrink-0">
-            <Button
-              className="w-full justify-start gap-2 bg-transparent"
-              variant="outline"
-              onClick={() => handleBeatBoardClick(project.id)}
-            >
-              <Clipboard className="h-4 w-4" />
-              Beat Board
-            </Button>
-
             <div className="flex gap-2 text-xs text-muted-foreground">
               <Badge variant="secondary" className="gap-1">
                 <Film className="h-3 w-3" />
