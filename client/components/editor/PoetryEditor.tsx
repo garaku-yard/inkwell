@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { Plus, AlignCenter, AlignLeft, Music, Hash } from "lucide-react"
+import { AlignCenter, AlignLeft, Music, Hash, Feather } from "lucide-react"
 import { syllable } from "syllable"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -19,6 +19,12 @@ import { exportProjectToChordPro } from "@/lib/export/chordpro"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import { StableContentEditable } from "./shared/StableContentEditable"
 import { useScrollSpy } from "./shared/useScrollSpy"
+import {
+  EditorSidebar,
+  type EditorSidebarItem,
+  type EditorSidebarCommentTarget,
+} from "./shared/EditorSidebar"
+import { useEditorComments } from "./shared/useEditorComments"
 import {
   createScene,
   createSceneElement,
@@ -51,12 +57,46 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   const runExport = useExportToast()
   const { toast } = useToast()
   const { editorFontStack } = useTheme()
+  const {
+    comments: projectComments,
+    onAddComment,
+    onUpdateComment,
+    onDeleteComment,
+    onToggleCommentResolved,
+  } = useEditorComments(projectData.id)
+  // Last-focused body element — the target a new comment attaches to. Set by a
+  // single focus listener on the scroll container (reads the focused el-<id>).
+  const [focusedElementId, setFocusedElementId] = useState<string | null>(null)
   const activePoemId = useScrollSpy({
     refs: poemRefs,
     orderedIds: scenes.map((s) => s.id),
   })
 
   const totalLines = scenes.reduce((acc, s) => acc + countLines(s.elements ?? []), 0)
+
+  const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
+    if (!focusedElementId) return null
+    for (const s of scenes) {
+      const el = (s.elements ?? []).find((e) => e.id === focusedElementId)
+      if (el) return { item: el, isScene: false }
+    }
+    return null
+  }, [focusedElementId, scenes])
+
+  const sidebarItems = useMemo<EditorSidebarItem[]>(
+    () =>
+      scenes.map((scene, i) => {
+        const lc = countLines(scene.elements ?? [])
+        return {
+          id: scene.id,
+          title: scene.scene_heading || "Untitled",
+          index: i + 1,
+          meta: lc > 0 ? `${lc} ${lc === 1 ? "line" : "lines"}` : undefined,
+          commentTargetIds: [scene.id, ...(scene.elements ?? []).map((e) => e.id)],
+        }
+      }),
+    [scenes],
+  )
 
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
     if (isScene) {
@@ -206,49 +246,30 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Poem/song sidebar */}
-      <aside className="w-52 border-r flex flex-col shrink-0 bg-sidebar">
-        <div className="p-3 border-b">
-          <span className="text-sm font-medium">{isLyrics ? "Songs" : "Poems"}</span>
-        </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-          {scenes.map((scene, i) => {
-            const isActive = scene.id === activePoemId
-            return (
-            <button
-              key={scene.id}
-              onClick={() => poemRefs.current.get(scene.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              aria-current={isActive ? "true" : undefined}
-              className={cn(
-                "w-full text-left px-3 py-2 rounded-md text-sm transition-colors group",
-                isActive ? "bg-muted text-foreground" : "hover:bg-accent",
-              )}
-            >
-              <div className="flex items-baseline gap-1.5 min-w-0">
-                <span className={cn("text-xs shrink-0", isActive ? "text-muted-foreground" : "text-muted-foreground/50")}>{i + 1}</span>
-                <span className={cn(
-                  "truncate transition-colors",
-                  isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
-                )}>
-                  {scene.scene_heading || "Untitled"}
-                </span>
-              </div>
-              {countLines(scene.elements ?? []) > 0 && (
-                <p className="text-xs text-muted-foreground/60 pl-4 mt-0.5">
-                  {countLines(scene.elements ?? [])} lines
-                </p>
-              )}
-            </button>
-            )
-          })}
-        </div>
-        <div className="p-2 border-t">
-          <Button variant="ghost" size="sm" className="w-full gap-2 justify-start text-xs" onClick={handleAddPoem}>
-            <Plus className="h-3.5 w-3.5" />
-            {isLyrics ? "New song" : "New poem"}
-          </Button>
-        </div>
-      </aside>
+      {/* Poem/song sidebar — shared rail with list + comments. */}
+      <EditorSidebar
+        headerIcon={isLyrics ? Music : Feather}
+        headerLabel={isLyrics ? "Songs" : "Poems"}
+        stats={[
+          {
+            icon: Hash,
+            label: `${scenes.length} ${isLyrics ? (scenes.length === 1 ? "song" : "songs") : scenes.length === 1 ? "poem" : "poems"}`,
+          },
+          { icon: AlignLeft, label: `${totalLines} ${totalLines === 1 ? "line" : "lines"}` },
+        ]}
+        items={sidebarItems}
+        activeItemId={activePoemId}
+        onItemClick={(id) => poemRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        addLabel={isLyrics ? "New song" : "New poem"}
+        onAdd={handleAddPoem}
+        emptyLabel={`No ${isLyrics ? "songs" : "poems"} yet.`}
+        comments={projectComments}
+        activeCommentTarget={activeCommentTarget}
+        onAddComment={onAddComment}
+        onUpdateComment={onUpdateComment}
+        onDeleteComment={onDeleteComment}
+        onToggleCommentResolved={onToggleCommentResolved}
+      />
 
       {/* Main editor */}
       <div className="flex flex-col flex-1 min-w-0">
@@ -311,7 +332,13 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
 
         <div className="flex flex-1 overflow-hidden">
         {/* Scroll area */}
-        <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
+        <div
+          className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background"
+          onFocus={(e) => {
+            const id = (e.target as HTMLElement)?.id
+            if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
+          }}
+        >
           <div
             className="inkwell-editor-content max-w-[600px] mx-auto px-8 py-16"
             style={{ fontFamily: editorFontStack("poetry") }}

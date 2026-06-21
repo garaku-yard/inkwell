@@ -12,6 +12,8 @@ import type { Scene } from "@/services/project"
  *  ProseEditor.tsx. */
 export type ProseElementType =
   | "chapter_heading"
+  | "heading_2"
+  | "heading_3"
   | "paragraph"
   | "dialogue"
   | "scene_break"

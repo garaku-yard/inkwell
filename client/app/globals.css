@@ -271,6 +271,31 @@ html.window-maximised body {
     line-height: var(--inkwell-editor-lh);
   }
 
+  /* Quiet scrollbar for the editor desks. Thin, rounded, and derived from the
+     theme's muted-foreground so it adapts to light/dark — barely-there at rest,
+     a touch firmer on hover. Keeps the scroll affordance (position + "more
+     below" cue) without the chunky default chrome. */
+  .inkwell-quiet-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 22%, transparent) transparent;
+  }
+  .inkwell-quiet-scroll::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .inkwell-quiet-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .inkwell-quiet-scroll::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, var(--muted-foreground) 22%, transparent);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  .inkwell-quiet-scroll:hover::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, var(--muted-foreground) 45%, transparent);
+  }
+
 
   /* UI font applied to body when preference is set */
   body {

@@ -52,6 +52,10 @@ function elementToXhtml(el: ProjectElement): string {
       return `      <p class="scene-break">* * *</p>`
     case "chapter_heading":
       return `      <h2>${content}</h2>`
+    case "heading_2":
+      return `      <h3>${content}</h3>`
+    case "heading_3":
+      return `      <h4>${content}</h4>`
     case "scene_heading_stinger":
       return `      <p class="stinger"><em>${content}</em></p>`
     case "dialogue":

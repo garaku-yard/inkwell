@@ -38,8 +38,8 @@ export const AIChatComposer = forwardRef<HTMLInputElement, AIChatComposerProps>(
       }
     }
     return (
-      <div className="p-5 border-t flex-shrink-0">
-        <div className="flex gap-3 mb-3">
+      <div className="p-4 border-t flex-shrink-0">
+        <div className="flex gap-2 mb-2">
           <Input
             ref={ref}
             value={value}

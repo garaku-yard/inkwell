@@ -69,27 +69,30 @@ export function EditorHeader({
 }: EditorHeaderProps) {
   const router = useRouter()
   return (
-    <header className="flex items-center justify-between px-6 py-3 border-b shrink-0">
-      <div className="flex items-center gap-3">
+    <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 py-3 border-b shrink-0">
+      {/* Left: back button + project title. */}
+      <div className="flex min-w-0 items-center gap-3">
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 shrink-0"
           onClick={() => router.push("/dashboard")}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-base font-semibold leading-tight">{title}</h1>
-            <p className="text-xs text-muted-foreground">{subtitle}</p>
-          </div>
-          {projectId && (
-            <ProjectNavMenu projectId={projectId} category={category} current="editor" />
-          )}
+        <div className="min-w-0">
+          <h1 className="truncate text-base font-semibold leading-tight">{title}</h1>
+          <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
         </div>
       </div>
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      {/* Center: cross-feature nav pills, balanced between the two side clusters. */}
+      <div className="flex justify-center">
+        {projectId && (
+          <ProjectNavMenu projectId={projectId} category={category} current="editor" />
+        )}
+      </div>
+      {/* Right: stats + save status + export + actions. */}
+      <div className="flex items-center justify-end gap-4 text-xs text-muted-foreground">
         <span>{statRight}</span>
         {extras}
         <span

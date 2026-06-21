@@ -253,7 +253,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
 
         <div className="flex flex-1 overflow-hidden">
         {/* Script scroll area */}
-        <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
+        <div className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background">
           <div
             className="inkwell-editor-content max-w-[680px] mx-auto px-10 py-12"
             style={{ fontFamily: editorFontStack("comic") }}

@@ -1,10 +1,10 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, MoreHorizontal, Edit, Trash2, Check, RotateCcw } from "lucide-react"
+import { MoreHorizontal, Edit, Trash2, Check, RotateCcw } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { Scene, ProjectElement, Comment } from "@/services/project"
@@ -64,13 +64,7 @@ export const CommentPanel = React.memo(
 
     return (
       <Card className="h-full flex flex-col border-none shadow-none">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            Comments
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col p-4 pt-0">
+        <CardContent className="flex-1 flex flex-col px-4 pt-4 pb-2">
           {!activeElement ? (
             <div className="flex-1 flex items-center justify-center text-muted-foreground text-center">
               Select a scene or element to view comments.

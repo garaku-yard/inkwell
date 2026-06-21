@@ -564,7 +564,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             setPlayHistory([])
           }
           return (
-            <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
+            <div className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background">
               <div className="max-w-[660px] mx-auto px-8 py-10">
                 {/* Player toolbar */}
                 <div className="flex items-center justify-between mb-6 text-xs text-muted-foreground">
@@ -674,7 +674,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
 
         {/* Write view */}
         {view === "write" && (
-          <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
+          <div className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background">
             {!activePassageId ? (
               <div className="flex flex-col items-center justify-center h-full gap-4">
                 <p className="text-muted-foreground text-sm">No passages yet.</p>

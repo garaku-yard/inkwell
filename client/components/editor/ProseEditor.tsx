@@ -1,9 +1,14 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { Plus, BookOpen, Pilcrow, Quote, Heading, Clock, Asterisk } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { EditorToolRail, type RailItem } from "./shared/EditorToolRail"
+import { BookOpen, Pilcrow, Quote, Heading, Heading1, Heading2, Heading3, Clock, Asterisk, Hash, Type } from "lucide-react"
+import { EditorToolRail, type RailEntry } from "./shared/EditorToolRail"
+import {
+  EditorSidebar,
+  type EditorSidebarItem,
+  type EditorSidebarCommentTarget,
+} from "./shared/EditorSidebar"
+import { useEditorComments } from "./shared/useEditorComments"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
@@ -28,16 +33,27 @@ import { deleteScriptElement, updateScriptElement } from "@/services/editor"
 
 type ProseElementType =
   | "chapter_heading"
+  | "heading_2"
+  | "heading_3"
   | "paragraph"
   | "dialogue"
   | "scene_break"
   | "scene_heading_stinger"
 
-/** Prose's element vocabulary for the right-edge tool rail. */
-const PROSE_RAIL_ITEMS: RailItem[] = [
+/** Prose's element vocabulary for the right-edge tool rail. Headings collapse
+ *  into one expandable group so the rail stays short as the set grows. */
+const PROSE_RAIL_ITEMS: RailEntry[] = [
   { type: "paragraph", label: "Paragraph", icon: Pilcrow },
   { type: "dialogue", label: "Dialogue", icon: Quote },
-  { type: "chapter_heading", label: "Section heading", icon: Heading },
+  {
+    label: "Heading",
+    icon: Heading,
+    items: [
+      { type: "chapter_heading", label: "Heading 1", icon: Heading1 },
+      { type: "heading_2", label: "Heading 2", icon: Heading2 },
+      { type: "heading_3", label: "Heading 3", icon: Heading3 },
+    ],
+  },
   { type: "scene_heading_stinger", label: "Stinger", icon: Clock },
   { type: "scene_break", label: "Scene break", icon: Asterisk },
 ]
@@ -71,6 +87,13 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const runExport = useExportToast()
   const { toast } = useToast()
   const { editorFontStack } = useTheme()
+  const {
+    comments: projectComments,
+    onAddComment,
+    onUpdateComment,
+    onDeleteComment,
+    onToggleCommentResolved,
+  } = useEditorComments(projectData.id)
   const activeChapterId = useScrollSpy({
     refs: chapterRefs,
     orderedIds: scenes.map((s) => s.id),
@@ -85,6 +108,34 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const totalWords = scenes.reduce((acc, scene) => {
     return acc + (scene.elements ?? []).reduce((s, el) => s + wordCount(el.content), 0)
   }, 0)
+
+  // What a new comment attaches to: the focused body element, or the chapter
+  // heading (a scene) when the heading itself is focused.
+  const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
+    if (!activeElement) return null
+    const scene = scenes.find((s) => s.id === activeElement.sceneId)
+    if (!scene) return null
+    if (activeElement.elementId) {
+      const el = (scene.elements ?? []).find((e) => e.id === activeElement.elementId)
+      return el ? { item: el, isScene: false } : null
+    }
+    return { item: scene, isScene: true }
+  }, [activeElement, scenes])
+
+  const sidebarItems = useMemo<EditorSidebarItem[]>(
+    () =>
+      scenes.map((scene, i) => {
+        const chWords = (scene.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0)
+        return {
+          id: scene.id,
+          title: scene.scene_heading || "Untitled",
+          index: i + 1,
+          meta: chWords > 0 ? `${chWords.toLocaleString()}w` : undefined,
+          commentTargetIds: [scene.id, ...(scene.elements ?? []).map((e) => e.id)],
+        }
+      }),
+    [scenes],
+  )
 
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
     if (isScene) {
@@ -268,6 +319,12 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
       if (el.element_type === "chapter_heading") {
         return 56 + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * 34
       }
+      if (el.element_type === "heading_2") {
+        return 44 + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * 30
+      }
+      if (el.element_type === "heading_3") {
+        return 36 + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * 28
+      }
       if (el.element_type === "scene_heading_stinger") {
         return 96 + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * LINE_PX
       }
@@ -328,7 +385,35 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
           onFocus={onFocus}
           className="text-xl font-semibold mt-10 mb-3 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
-          data-placeholder="Section heading"
+          data-placeholder="Heading 1"
+        />
+      )
+    }
+    if (el.element_type === "heading_2") {
+      return (
+        <StableContentEditable
+          key={el.id}
+          id={`el-${el.id}`}
+          value={el.content}
+          onValueChange={(next) => handleContentChange(el.id, next, false)}
+          onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+          onFocus={onFocus}
+          className="text-lg font-semibold mt-8 mb-2 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
+          data-placeholder="Heading 2"
+        />
+      )
+    }
+    if (el.element_type === "heading_3") {
+      return (
+        <StableContentEditable
+          key={el.id}
+          id={`el-${el.id}`}
+          value={el.content}
+          onValueChange={(next) => handleContentChange(el.id, next, false)}
+          onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+          onFocus={onFocus}
+          className="text-base font-semibold mt-6 mb-1 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
+          data-placeholder="Heading 3"
         />
       )
     }
@@ -374,7 +459,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         className={cn(
           "outline-none min-h-[1.75rem]",
           elIdx === 0 ||
-            ["chapter_heading", "scene_heading_stinger", "dialogue", "scene_break"].includes(
+            ["chapter_heading", "heading_2", "heading_3", "scene_heading_stinger", "dialogue", "scene_break"].includes(
               (scene.elements ?? [])[elIdx - 1]?.element_type ?? "",
             )
             ? ""
@@ -428,51 +513,29 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Chapter sidebar */}
-      <aside className="w-52 border-r flex flex-col shrink-0 bg-sidebar">
-        <div className="flex items-center gap-2 p-3 border-b">
-          <BookOpen className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Chapters</span>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-          {scenes.map((scene, i) => {
-            const chWords = (scene.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0)
-            const isActive = scene.id === activeChapterId
-            return (
-              <button
-                key={scene.id}
-                onClick={() => chapterRefs.current.get(scene.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                aria-current={isActive ? "true" : undefined}
-                className={cn(
-                  "w-full text-left px-3 py-2 rounded-md text-sm transition-colors group",
-                  isActive ? "bg-muted text-foreground" : "hover:bg-accent",
-                )}
-              >
-                <div className="flex items-baseline gap-1.5 min-w-0">
-                  <span className={cn("text-xs shrink-0", isActive ? "text-muted-foreground" : "text-muted-foreground/50")}>{i + 1}</span>
-                  <span className={cn(
-                    "truncate transition-colors",
-                    isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
-                  )}>
-                    {scene.scene_heading || "Untitled"}
-                  </span>
-                </div>
-                {chWords > 0 && (
-                  <p className="text-xs text-muted-foreground/60 pl-4 mt-0.5">{chWords.toLocaleString()}w</p>
-                )}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="p-2 border-t">
-          <Button variant="ghost" size="sm" className="w-full gap-2 justify-start text-xs" onClick={handleAddChapter}>
-            <Plus className="h-3.5 w-3.5" />
-            Add chapter
-          </Button>
-        </div>
-      </aside>
+      {/* Chapter sidebar — shared rail with list + comments. */}
+      <EditorSidebar
+        headerIcon={BookOpen}
+        headerLabel="Chapters"
+        stats={[
+          { icon: Hash, label: `${scenes.length} ${scenes.length === 1 ? "chapter" : "chapters"}` },
+          { icon: Type, label: `${totalWords.toLocaleString()} words` },
+        ]}
+        items={sidebarItems}
+        activeItemId={activeChapterId}
+        onItemClick={(id) =>
+          chapterRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
+        addLabel="Add chapter"
+        onAdd={handleAddChapter}
+        emptyLabel="No chapters yet."
+        comments={projectComments}
+        activeCommentTarget={activeCommentTarget}
+        onAddComment={onAddComment}
+        onUpdateComment={onUpdateComment}
+        onDeleteComment={onDeleteComment}
+        onToggleCommentResolved={onToggleCommentResolved}
+      />
 
       {/* Main editor */}
       <div className="flex flex-col flex-1 min-w-0">
@@ -519,7 +582,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
 
         <div className="flex flex-1 overflow-hidden">
         {/* Manuscript desk — A4 pages stacked on a neutral ground. */}
-        <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background flex flex-col items-center py-10">
+        <div className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background flex flex-col items-center py-10">
           {/* Page column + rail wrapper. */}
           <div className="relative w-[210mm] max-w-[calc(100%-7rem)]">
             <div className="inkwell-editor-content space-y-8" style={{ fontFamily: editorFontStack("prose") }}>

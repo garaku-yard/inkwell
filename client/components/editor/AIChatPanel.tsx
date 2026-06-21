@@ -90,39 +90,32 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
         isOpen ? "w-[420px]" : "w-0",
       )}
     >
-      <div className="h-[57px] flex-shrink-0 border-b" />
-
-      <div
-        className={cn(
-          "flex-1 flex flex-col border-t",
-          !isOpen && "invisible",
-        )}
-      >
-        <div className={cn("flex-1 flex flex-col", !isOpen && "invisible")}>
-          <AIChatHeader
-            providers={providers}
-            selectedId={selectedId}
-            onSelect={selectProvider}
-            onClose={onClose}
-          />
-          <AIChatMessages
-            ref={messagesEndRef}
-            messages={messages}
-            isTyping={isTyping}
-            showEmptyState={showEmptyState}
-          />
-          <AIChatComposer
-            ref={inputRef}
-            value={inputValue}
-            onChange={setInputValue}
-            onSend={handleSend}
-            onStop={stop}
-            isTyping={isTyping}
-            canSend={canSend}
-            emptyState={showEmptyState}
-            providerLabel={selectedProvider?.label}
-          />
-        </div>
+      {/* Fixed inner width so the content doesn't squish during the
+          width-collapse animation; hidden once fully closed. */}
+      <div className={cn("flex h-full w-[420px] flex-col", !isOpen && "invisible")}>
+        <AIChatHeader
+          providers={providers}
+          selectedId={selectedId}
+          onSelect={selectProvider}
+          onClose={onClose}
+        />
+        <AIChatMessages
+          ref={messagesEndRef}
+          messages={messages}
+          isTyping={isTyping}
+          showEmptyState={showEmptyState}
+        />
+        <AIChatComposer
+          ref={inputRef}
+          value={inputValue}
+          onChange={setInputValue}
+          onSend={handleSend}
+          onStop={stop}
+          isTyping={isTyping}
+          canSend={canSend}
+          emptyState={showEmptyState}
+          providerLabel={selectedProvider?.label}
+        />
       </div>
     </div>
   )

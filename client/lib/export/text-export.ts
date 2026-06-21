@@ -45,6 +45,10 @@ export function exportProjectToMarkdown(project: FullProject) {
       if (!el.content.trim()) continue
       if (el.element_type === "chapter_heading") {
         lines.push(`### ${el.content}`, "")
+      } else if (el.element_type === "heading_2") {
+        lines.push(`#### ${el.content}`, "")
+      } else if (el.element_type === "heading_3") {
+        lines.push(`##### ${el.content}`, "")
       } else if (el.element_type === "scene_break") {
         lines.push("---", "")
       } else {

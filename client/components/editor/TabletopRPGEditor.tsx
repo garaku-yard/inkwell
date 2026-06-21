@@ -608,7 +608,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         />
 
         <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-y-auto bg-secondary dark:bg-background">
+        <div className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background">
           <div
             className="inkwell-editor-content max-w-[720px] mx-auto px-10 py-12"
             style={{ fontFamily: editorFontStack("ttrpg") }}

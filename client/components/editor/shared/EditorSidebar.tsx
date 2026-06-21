@@ -1,0 +1,225 @@
+"use client"
+
+/**
+ * EditorSidebar — the shared left rail for the format editors (Prose, Poetry,
+ * Comic, TabletopRPG, Interactive Fiction). Brings them up to the screenplay's
+ * sidebar class: a labelled header, stat badges, and tabbed [List | Comments].
+ *
+ * It's the engine; each editor supplies its own vocabulary — the noun in the
+ * header ("Chapters" / "Poems" / "Pages" / "Sections" / "Passages"), the item
+ * list, the stats, and the add action. Comments are wired through the generic
+ * {@link useEditorComments} hook and rendered by the existing CommentPanel, so
+ * the experience matches the screenplay reference. The screenplay keeps its own
+ * scene/element-aware SidePanel; this is for the flatter formats.
+ */
+
+import React, { useMemo, useState } from "react"
+import { MessageCircle, Plus } from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
+import type { Comment, ProjectElement, Scene } from "@/services/project"
+import { CommentPanel } from "../CommentPanel"
+
+/** One row in the list tab — a chapter, poem, page, section, or passage. */
+export interface EditorSidebarItem {
+  id: string
+  /** Display title; pass a sensible fallback (e.g. "Untitled") for blanks. */
+  title: string
+  /** 1-based position shown as a leading index. */
+  index: number
+  /** Optional secondary line (e.g. "1,200w"). */
+  meta?: string
+  /** Element / scene ids owned by this item, used to count its comments. */
+  commentTargetIds?: string[]
+}
+
+/** A small stat badge shown under the header (e.g. count, word total). */
+export interface EditorSidebarStat {
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+}
+
+/** The thing a new comment attaches to — the focused element, or a scene. */
+export interface EditorSidebarCommentTarget {
+  item: Scene | ProjectElement
+  isScene: boolean
+}
+
+interface EditorSidebarProps {
+  headerIcon: React.ComponentType<{ className?: string }>
+  /** Header label; doubles as the list tab's label (e.g. "Chapters"). */
+  headerLabel: string
+  stats?: EditorSidebarStat[]
+  items: EditorSidebarItem[]
+  activeItemId: string | null
+  onItemClick: (id: string) => void
+  addLabel: string
+  onAdd: () => void
+  /** Shown in the list tab when there are no items. */
+  emptyLabel?: string
+  /** Width utility for the aside; defaults to w-72. */
+  widthClassName?: string
+
+  comments: Comment[]
+  /** What a new comment attaches to right now; null disables posting. */
+  activeCommentTarget: EditorSidebarCommentTarget | null
+  onAddComment: (elementId: string, isScene: boolean, content: string) => void
+  onUpdateComment: (commentId: string, content: string) => void
+  onDeleteComment: (commentId: string) => void
+  onToggleCommentResolved: (elementId: string, commentId: string, isScene: boolean, newResolvedState: boolean) => void
+}
+
+export function EditorSidebar({
+  headerIcon: HeaderIcon,
+  headerLabel,
+  stats,
+  items,
+  activeItemId,
+  onItemClick,
+  addLabel,
+  onAdd,
+  emptyLabel = "Nothing here yet.",
+  widthClassName = "w-72",
+  comments,
+  activeCommentTarget,
+  onAddComment,
+  onUpdateComment,
+  onDeleteComment,
+  onToggleCommentResolved,
+}: EditorSidebarProps) {
+  const [tab, setTab] = useState("items")
+
+  const unresolvedTotal = useMemo(
+    () => comments.filter((c) => !c.isResolved).length,
+    [comments],
+  )
+
+  const commentCountFor = (item: EditorSidebarItem) => {
+    if (!item.commentTargetIds?.length) return 0
+    return comments.filter((c) => c.elementId && item.commentTargetIds!.includes(c.elementId)).length
+  }
+
+  // Build the CommentPanel's activeElement: the focused element/scene with its
+  // comments attached, matching the discriminated-union shape it expects.
+  const activeElementForPanel = useMemo(() => {
+    if (!activeCommentTarget) return null
+    const targetComments = comments.filter((c) => c.elementId === activeCommentTarget.item.id)
+    return activeCommentTarget.isScene
+      ? { ...(activeCommentTarget.item as Scene), isScene: true as const, comments: targetComments }
+      : { ...(activeCommentTarget.item as ProjectElement), isScene: false as const, comments: targetComments }
+  }, [activeCommentTarget, comments])
+
+  return (
+    <aside className={cn("flex flex-col min-h-0 border-r bg-sidebar", widthClassName)}>
+      {/* Header + stats */}
+      <div className="shrink-0 space-y-2 border-b p-3">
+        <div className="flex items-center gap-2">
+          <HeaderIcon className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">{headerLabel}</span>
+        </div>
+        {stats && stats.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {stats.map((s, i) => {
+              const Icon = s.icon
+              return (
+                <Badge key={i} variant="secondary" className="gap-1 font-normal">
+                  <Icon className="h-3 w-3" />
+                  {s.label}
+                </Badge>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
+        <div className="shrink-0 px-3 pt-2">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="items">{headerLabel}</TabsTrigger>
+            <TabsTrigger value="comments" className="gap-1.5">
+              Comments
+              {unresolvedTotal > 0 && (
+                <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] tabular-nums">
+                  {unresolvedTotal}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* List */}
+        <TabsContent value="items" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-2">
+          {items.length === 0 ? (
+            <p className="px-3 py-8 text-center text-xs text-muted-foreground">{emptyLabel}</p>
+          ) : (
+            items.map((item) => {
+              const active = item.id === activeItemId
+              const cc = commentCountFor(item)
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onItemClick(item.id)}
+                  aria-current={active ? "true" : undefined}
+                  className={cn(
+                    "group w-full rounded-md px-3 py-2 text-left transition-colors",
+                    active ? "bg-muted" : "hover:bg-accent",
+                  )}
+                >
+                  <div className="flex min-w-0 items-baseline gap-1.5">
+                    <span className={cn("shrink-0 text-xs", active ? "text-muted-foreground" : "text-muted-foreground/50")}>
+                      {item.index}
+                    </span>
+                    <span
+                      className={cn(
+                        "truncate text-sm transition-colors",
+                        active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
+                      )}
+                    >
+                      {item.title}
+                    </span>
+                  </div>
+                  {(item.meta || cc > 0) && (
+                    <div className="mt-0.5 flex items-center gap-2 pl-4">
+                      {item.meta && <span className="text-xs text-muted-foreground/60">{item.meta}</span>}
+                      {cc > 0 && (
+                        <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground/60">
+                          <MessageCircle className="h-3 w-3" />
+                          {cc}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </button>
+              )
+            })
+          )}
+        </TabsContent>
+
+        {/* Comments */}
+        <TabsContent value="comments" className="min-h-0 flex-1">
+          <CommentPanel
+            activeElement={activeElementForPanel}
+            onAddComment={onAddComment}
+            onUpdateComment={onUpdateComment}
+            onDeleteComment={onDeleteComment}
+            onToggleCommentResolved={onToggleCommentResolved}
+          />
+        </TabsContent>
+      </Tabs>
+
+      {/* Footer add — only on the list tab; it's out of context under Comments
+          (and would otherwise stack right under the comment composer). */}
+      {tab === "items" && (
+        <div className="shrink-0 border-t p-2">
+          <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-xs" onClick={onAdd}>
+            <Plus className="h-3.5 w-3.5" />
+            {addLabel}
+          </Button>
+        </div>
+      )}
+    </aside>
+  )
+}
