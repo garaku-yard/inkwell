@@ -6,13 +6,16 @@ import { projectsHelpers } from "./shared"
 // ─── Elements ─────────────────────────────────────────────────────────────
 
 export const elements: ElementStorage = {
-  create: async (input) =>
+  create: async (input) => {
     // Gateway POST /elements expects flat snake_case body with both
     // scene_id and project_id (the gRPC contract requires both — the
     // service doesn't derive project membership from scene id). The
     // local SQLite impl ignores projectId and looks it up via SQL,
     // so the desktop path doesn't depend on this contract.
-    apiClient<ProjectElement>(`elements`, {
+    // The gateway wraps the created element as `{ element: … }`; unwrap it so
+    // callers get a ProjectElement (with its id + content), matching the local
+    // impl — otherwise optimistic renders that read .id/.content break.
+    const res = await apiClient<{ element: ProjectElement }>(`elements`, {
       method: "POST",
       body: {
         project_id: input.projectId,
@@ -22,15 +25,20 @@ export const elements: ElementStorage = {
         line_number: input.elementOrder,
         formatting: {},
       },
-    }),
+    })
+    return res.element
+  },
 
   listForScene: (sceneId, userId) => projectsHelpers.listElementsForScene(sceneId, userId),
 
-  update: async (elementId, patch) =>
-    apiClient<ProjectElement>(`elements/${elementId}`, {
+  update: async (elementId, patch) => {
+    // Same `{ element: … }` envelope as create — unwrap to a ProjectElement.
+    const res = await apiClient<{ element: ProjectElement }>(`elements/${elementId}`, {
       method: "PATCH",
       body: patch,
-    }),
+    })
+    return res.element
+  },
 
   delete: async (elementId) => {
     await apiClient<void>(`elements/${elementId}`, { method: "DELETE" })
