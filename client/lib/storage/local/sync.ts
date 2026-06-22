@@ -267,6 +267,7 @@ interface StateRow {
   last_synced_at: string | null
   status: string
   error: string | null
+  notice: string | null
 }
 
 const DISABLED = (projectId: string): SyncProjectState => ({
@@ -280,6 +281,7 @@ function toState(row: StateRow): SyncProjectState {
     lastSyncedAt: row.last_synced_at,
     status: (row.status as SyncProjectState["status"]) ?? "idle",
     error: row.error ?? undefined,
+    notice: row.notice ?? undefined,
   }
 }
 
@@ -363,15 +365,19 @@ export const sync: SyncStorage = {
         // Path-keyed file engine: push changed files, apply the pulled delta,
         // advance the manifest + cursor. See ./vault-sync.
         const { cursor, skipped } = await runVaultSync(projectId, cursorStr)
-        await db.execute(
-          `UPDATE sync_state SET cursor = ?, last_synced_at = ?, status = 'idle', error = NULL, updated_at = ? WHERE project_id = ?`,
-          [cursor, now(), now(), projectId],
-        )
-        // v1 surfaces oversized-file skips via the console; a dedicated "sync
-        // issues" affordance is a follow-up (see SYNC_DESIGN.md).
+        // Surface oversized-file skips as a non-fatal per-project notice (status
+        // stays idle); the dropdown shows it. Also logged for the full list.
+        const notice =
+          skipped.length > 0
+            ? `${skipped.length} file${skipped.length > 1 ? "s" : ""} over 20 MB weren't synced`
+            : null
         if (skipped.length > 0) {
           console.warn(`Vault sync skipped ${skipped.length} file(s) over 20 MB:`, skipped)
         }
+        await db.execute(
+          `UPDATE sync_state SET cursor = ?, last_synced_at = ?, status = 'idle', error = NULL, notice = ?, updated_at = ? WHERE project_id = ?`,
+          [cursor, now(), notice, now(), projectId],
+        )
         return readState(projectId)
       }
 
@@ -394,7 +400,7 @@ export const sync: SyncStorage = {
 
       const nextCursor = resp.cursor ? JSON.stringify(resp.cursor) : cursorStr
       await db.execute(
-        `UPDATE sync_state SET cursor = ?, last_synced_at = ?, status = 'idle', error = NULL, updated_at = ? WHERE project_id = ?`,
+        `UPDATE sync_state SET cursor = ?, last_synced_at = ?, status = 'idle', error = NULL, notice = NULL, updated_at = ? WHERE project_id = ?`,
         [nextCursor, now(), now(), projectId],
       )
       // Drop the rows we just pushed; edits enqueued mid-sync (seq > maxSeq) stay.

@@ -83,6 +83,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0012_vault_sync.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 13,
+      description: "vault backup perf: manifest mtime/size fast-path + sync_state.notice",
+      sql: include_str!("../migrations/0013_vault_backup_perf.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 

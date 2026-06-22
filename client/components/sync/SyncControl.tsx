@@ -96,6 +96,12 @@ export function SyncControl({ projectId }: { projectId?: string }) {
                 aria-label="Sync this project"
               />
             </div>
+            {enabled && state?.notice && status !== "error" && (
+              <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-500">
+                <TriangleAlert className="h-3.5 w-3.5 shrink-0 mt-px" />
+                <span>{state.notice}</span>
+              </p>
+            )}
             {enabled && (
               <Button
                 size="sm"

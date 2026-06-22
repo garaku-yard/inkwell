@@ -53,11 +53,23 @@ interface VaultSyncResponse {
   has_more?: boolean
 }
 
-/** A locally-changed file queued for push. `bytes` is null for a deletion. */
+/** A locally-changed file queued for push. `bytes` is null for a deletion.
+ *  mtime/size are the on-disk stats recorded into the manifest so the next sync
+ *  can skip re-hashing this file when they're unchanged. */
 interface PushItem {
   path: string
   bytes: Uint8Array | null
   hash: string
+  mtime: string
+  size: number
+}
+
+/** A manifest row: the content hash plus the mtime/size last seen, for the
+ *  stat-based fast-path (skip re-hashing when mtime+size are unchanged). */
+interface ManifestEntry {
+  hash: string
+  mtime: string
+  size: number
 }
 
 // ─── byte / hash helpers ───────────────────────────────────────────────────────
@@ -121,32 +133,54 @@ const isMarkdown = (rel: string) => rel.toLowerCase().endsWith(".md")
 
 type DB = Awaited<ReturnType<typeof getDb>>
 
-async function loadManifest(db: DB, projectId: string): Promise<Map<string, string>> {
-  const rows = await db.select<Array<{ path: string; synced_hash: string }>>(
-    "SELECT path, synced_hash FROM vault_manifest WHERE project_id = ?",
+async function loadManifest(db: DB, projectId: string): Promise<Map<string, ManifestEntry>> {
+  const rows = await db.select<Array<{ path: string; synced_hash: string; mtime: string; size: number }>>(
+    "SELECT path, synced_hash, mtime, size FROM vault_manifest WHERE project_id = ?",
     [projectId],
   )
-  return new Map(rows.map((r) => [r.path, r.synced_hash]))
+  return new Map(rows.map((r) => [r.path, { hash: r.synced_hash, mtime: r.mtime, size: r.size }]))
 }
 
 async function setManifest(
   db: DB,
-  map: Map<string, string>,
+  map: Map<string, ManifestEntry>,
   projectId: string,
+  path: string,
+  entry: ManifestEntry,
+): Promise<void> {
+  await db.execute(
+    `INSERT INTO vault_manifest (project_id, path, synced_hash, mtime, size) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(project_id, path) DO UPDATE SET synced_hash = ?, mtime = ?, size = ?`,
+    [projectId, path, entry.hash, entry.mtime, entry.size, entry.hash, entry.mtime, entry.size],
+  )
+  map.set(path, entry)
+}
+
+/** Stats the on-disk file and records hash + its current mtime/size in the
+ *  manifest, so the next sync's fast-path can skip re-hashing it. */
+async function recordManifest(
+  db: DB,
+  map: Map<string, ManifestEntry>,
+  projectId: string,
+  abs: string,
   path: string,
   hash: string,
 ): Promise<void> {
-  await db.execute(
-    `INSERT INTO vault_manifest (project_id, path, synced_hash) VALUES (?, ?, ?)
-     ON CONFLICT(project_id, path) DO UPDATE SET synced_hash = ?`,
-    [projectId, path, hash, hash],
-  )
-  map.set(path, hash)
+  let mtime = ""
+  let size = 0
+  try {
+    const info = await stat(abs)
+    size = info.size ?? 0
+    mtime = info.mtime ? String(info.mtime.getTime()) : ""
+  } catch {
+    /* file vanished between write and stat — record hash with empty stats */
+  }
+  await setManifest(db, map, projectId, path, { hash, mtime, size })
 }
 
 async function clearManifest(
   db: DB,
-  map: Map<string, string>,
+  map: Map<string, ManifestEntry>,
   projectId: string,
   path: string,
 ): Promise<void> {
@@ -173,23 +207,35 @@ async function vaultPathOrThrow(db: DB, projectId: string): Promise<string> {
 
 async function classifyChanges(
   vaultRoot: string,
-  manifest: Map<string, string>,
-): Promise<{ items: PushItem[]; skipped: string[] }> {
+  manifest: Map<string, ManifestEntry>,
+): Promise<{ items: PushItem[]; skipped: string[]; refresh: PushItem[] }> {
   const files = await walkAllFiles(vaultRoot)
   const onDisk = new Set(files.map((f) => f.rel))
   const items: PushItem[] = []
   const skipped: string[] = []
+  // Files whose content is unchanged but whose mtime/size drifted — refresh the
+  // manifest stats (no push) so the fast-path keeps hitting next time.
+  const refresh: PushItem[] = []
 
   // Created / modified files.
   for (const f of files) {
     let size = 0
+    let mtime = ""
     try {
-      size = (await stat(f.abs)).size ?? 0
+      const info = await stat(f.abs)
+      size = info.size ?? 0
+      mtime = info.mtime ? String(info.mtime.getTime()) : ""
     } catch {
       continue // vanished mid-walk; next sync catches it
     }
     if (size > MAX_PUSH_FILE_BYTES) {
       skipped.push(f.rel)
+      continue
+    }
+    const prev = manifest.get(f.rel)
+    // Fast-path: same size + mtime as last sync ⇒ assume unchanged, skip the
+    // read + hash. Only trusted when we have a real mtime (null mtime → "").
+    if (prev && mtime !== "" && prev.size === size && prev.mtime === mtime) {
       continue
     }
     let bytes: Uint8Array
@@ -199,19 +245,22 @@ async function classifyChanges(
       continue
     }
     const hash = await sha256Hex(bytes)
-    if (manifest.get(f.rel) !== hash) {
-      items.push({ path: f.rel, bytes, hash })
+    if (!prev || prev.hash !== hash) {
+      items.push({ path: f.rel, bytes, hash, mtime, size })
+    } else {
+      // Content identical, only stats drifted (e.g. touched) — refresh, no push.
+      refresh.push({ path: f.rel, bytes: null, hash, mtime, size })
     }
   }
 
   // Deletions: in the manifest (we synced it before) but gone from disk.
   for (const path of manifest.keys()) {
     if (!onDisk.has(path)) {
-      items.push({ path, bytes: null, hash: "" })
+      items.push({ path, bytes: null, hash: "", mtime: "", size: 0 })
     }
   }
 
-  return { items, skipped }
+  return { items, skipped, refresh }
 }
 
 function takeBatch(remaining: PushItem[]): PushItem[] {
@@ -250,7 +299,7 @@ async function diskHash(abs: string): Promise<string | null> {
 
 async function applyPulled(
   db: DB,
-  manifest: Map<string, string>,
+  manifest: Map<string, ManifestEntry>,
   projectId: string,
   vaultRoot: string,
   files: WireFile[],
@@ -264,7 +313,7 @@ async function applyPulled(
     if (f.deleted_at) {
       // Tombstone. Only delete when there's no unsynced local edit — otherwise
       // leave the local file so it's pushed (and wins) next round.
-      if (current !== null && current === base) {
+      if (current !== null && current === base?.hash) {
         await remove(abs).catch(() => {})
         if (isMarkdown(rel)) await vault.reindexLinks(projectId, rel).catch(() => {})
       }
@@ -276,11 +325,11 @@ async function applyPulled(
     const hash = await sha256Hex(bytes)
 
     if (current === hash) {
-      // Already byte-identical on disk — just record the base.
-      await setManifest(db, manifest, projectId, rel, hash)
+      // Already byte-identical on disk — just record the base (+ its stats).
+      await recordManifest(db, manifest, projectId, abs, rel, hash)
       continue
     }
-    if (current !== null && current !== base) {
+    if (current !== null && current !== base?.hash) {
       // Unsynced local edit diverges from both base and server — keep local,
       // don't advance the manifest, so the next classify pushes it (LWW: the
       // last sync wins, and this local edit is the newer one).
@@ -292,7 +341,7 @@ async function applyPulled(
       await mkdir(joinPath(vaultRoot, rel.slice(0, slash)), { recursive: true }).catch(() => {})
     }
     await writeFile(abs, bytes)
-    await setManifest(db, manifest, projectId, rel, hash)
+    await recordManifest(db, manifest, projectId, abs, rel, hash)
     if (isMarkdown(rel)) await vault.reindexLinks(projectId, rel).catch(() => {})
   }
 }
@@ -317,7 +366,13 @@ export async function runVaultSync(
   const projectRows = await db.select<Row[]>("SELECT * FROM projects WHERE id = ?", [projectId])
   const projectWire = projectRows[0] ? pushProject(projectRows[0]) : undefined
 
-  const { items, skipped } = await classifyChanges(vaultRoot, manifest)
+  const { items, skipped, refresh } = await classifyChanges(vaultRoot, manifest)
+  // Files whose content didn't change but whose stats drifted: refresh the
+  // manifest's mtime/size so the fast-path keeps hitting. Local-only, so it's
+  // safe to do before any network call (survives a later network failure).
+  for (const r of refresh) {
+    await setManifest(db, manifest, projectId, r.path, { hash: r.hash, mtime: r.mtime, size: r.size })
+  }
   const remaining = [...items]
 
   let cursor = cursorStr
@@ -347,7 +402,7 @@ export async function runVaultSync(
     // them and excludes them from our pull, so our copy is the synced one.
     for (const item of batch) {
       if (item.bytes === null) await clearManifest(db, manifest, projectId, item.path)
-      else await setManifest(db, manifest, projectId, item.path, item.hash)
+      else await setManifest(db, manifest, projectId, item.path, { hash: item.hash, mtime: item.mtime, size: item.size })
     }
 
     if (resp.cursor !== undefined && resp.cursor !== null) cursor = JSON.stringify(resp.cursor)

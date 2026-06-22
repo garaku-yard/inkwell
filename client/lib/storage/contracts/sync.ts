@@ -23,6 +23,9 @@ export interface SyncProjectState {
   status: "idle" | "syncing" | "offline" | "error"
   /** Last error message when status === "error". */
   error?: string
+  /** Non-fatal heads-up from the last successful sync (status stays idle) —
+   *  e.g. files skipped for being too large. Shown in the sync dropdown. */
+  notice?: string
 }
 
 /**
