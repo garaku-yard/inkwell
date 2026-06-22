@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Suspense, useState } from "react"
+import { Suspense, useRef, useState } from "react"
 import {
   FileText,
   Plus,
@@ -29,6 +29,13 @@ import { NewProjectDialog } from "./new-project-dialog"
 import { CloudProjectsButton } from "@/components/sync/CloudProjectsButton"
 import { CollaboratorsDialog } from "./collaborators-dialog"
 import { FdxImportDialog } from "./fdx-import-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { useToast } from "@/hooks/use-toast"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { RenameProjectDialog } from "@/components/rename-project-dialog"
 import { useEffect } from "react"
@@ -41,6 +48,7 @@ function DashboardPageContent() {
   const searchParams = useSearchParams()
   const { isAuthenticated, isLoading: authLoading, user } = useAuth()
   const { needsOnboarding, activeWorkspace } = useWorkspace()
+  const { toast } = useToast()
   const userId = user?.id
 
   const [searchQuery, setSearchQuery] = useState("")
@@ -154,6 +162,29 @@ function DashboardPageContent() {
     if (typeof picked === "string") setImportPath(picked)
   }
 
+  // .iw (portable Inkwell project) import — cross-platform via the browser file
+  // API (works on web + desktop), unlike the Tauri-dialog .fdx path above.
+  const iwInputRef = useRef<HTMLInputElement>(null)
+  const handleIwSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = "" // reset so re-selecting the same file fires change again
+    if (!file || !userId) return
+    try {
+      const [{ parseIw }, { importIwAsProject }] = await Promise.all([
+        import("@/lib/iw/format"),
+        import("@/lib/import/iw"),
+      ])
+      const project = await importIwAsProject(parseIw(await file.text()), userId)
+      router.push(`/projects/${project.id}/editor`)
+    } catch (err) {
+      toast({
+        title: "Couldn't import project",
+        description: err instanceof Error ? err.message : "Invalid .iw file",
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleManageCollaborators = (projectId: string, projectTitle: string) => {
     setCollaboratorsDialog({ open: true, projectId, projectName: projectTitle })
   }
@@ -210,10 +241,29 @@ function DashboardPageContent() {
                   <Plus className="h-4 w-4 mr-2" />
                   New Project
                 </Button>
-                <Button onClick={handleImportClick} disabled={!isTauri()}>
-                  <FilePlus2Icon className="h-4 w-4 mr-2" />
-                  Import
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button>
+                      <FilePlus2Icon className="h-4 w-4 mr-2" />
+                      Import
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => iwInputRef.current?.click()}>
+                      Inkwell project (.iw)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleImportClick} disabled={!isTauri()}>
+                      Final Draft (.fdx){!isTauri() && " — desktop only"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <input
+                  ref={iwInputRef}
+                  type="file"
+                  accept=".iw"
+                  className="hidden"
+                  onChange={handleIwSelected}
+                />
                 <CloudProjectsButton onPulled={refetch} />
               </div>
             </div>

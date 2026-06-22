@@ -4,6 +4,9 @@ import { ArrowLeft, Bot, ChevronDown, Download, Upload } from "lucide-react"
 
 import { AppHeaderActions } from "@/components/AppHeaderActions"
 import { SyncControl } from "@/components/sync/SyncControl"
+import { useAuth } from "@/lib/AuthContext"
+import { exportProjectToIw } from "@/lib/export/iw"
+import { useExportToast } from "@/lib/export/use-export-toast"
 import { Button } from "@/components/ui/button"
 import { ProjectKnowledgeButton } from "../ProjectKnowledgeButton"
 import { ProjectNavMenu } from "./ProjectNavMenu"
@@ -84,6 +87,28 @@ export function EditorHeader({
   category,
 }: EditorHeaderProps) {
   const router = useRouter()
+  const { user } = useAuth()
+  const runExport = useExportToast()
+
+  // Universal "save the whole project as a portable .iw file", appended to every
+  // non-vault editor's Export menu (the per-format items handle readable exports;
+  // this is the lossless one). See lib/iw/format.
+  const allExportItems: EditorHeaderExportItem[] =
+    projectId && category && category !== "vault" && user?.id
+      ? [
+          ...exportItems,
+          {
+            label: "Inkwell project (.iw)",
+            onClick: () =>
+              void runExport({
+                extension: "iw",
+                projectTitle: title,
+                run: () => exportProjectToIw(projectId, user.id),
+              }),
+          },
+        ]
+      : exportItems
+
   // One hidden file input drives every import item; the pending item's onFile +
   // accept are swapped in just before we open the picker.
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -165,7 +190,7 @@ export function EditorHeader({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        {exportItems.length > 0 && (
+        {allExportItems.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs">
@@ -175,7 +200,7 @@ export function EditorHeader({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {exportItems.map((item) => (
+              {allExportItems.map((item) => (
                 <DropdownMenuItem key={item.label} onClick={item.onClick}>
                   {item.label}
                 </DropdownMenuItem>
