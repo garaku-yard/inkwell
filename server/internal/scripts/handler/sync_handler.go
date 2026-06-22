@@ -38,6 +38,78 @@ func (h *ScriptsHandler) SyncProject(ctx context.Context, req *scriptspb.SyncPro
 	}, nil
 }
 
+// Vault sync page bounds: one pull page carries at most this many files and this
+// many content bytes (whichever comes first), so a large first pull stays under
+// the gateway's request size cap. The client pages until has_more is false.
+const (
+	vaultPageMaxFiles = 200
+	vaultPageMaxBytes = 16 << 20 // 16 MiB
+)
+
+// SyncVault reconciles a vault project's files for the gateway's vault sync
+// endpoint: it maps the proto file batch to domain, delegates to the service
+// (apply-then-pull-by-path, last-sync-wins), and maps the resulting page back.
+// See SYNC_DESIGN.md.
+func (h *ScriptsHandler) SyncVault(ctx context.Context, req *scriptspb.SyncVaultRequest) (*scriptspb.SyncVaultResponse, error) {
+	projectID, err := uuid.Parse(req.ProjectId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
+	}
+	ownerID, err := uuid.Parse(req.OwnerId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid owner_id: %v", err)
+	}
+
+	var project *domain.Project
+	if req.Project != nil {
+		project = syncProtoToProject(req.Project)
+	}
+	files := make([]*domain.VaultFile, 0, len(req.Files))
+	for _, f := range req.Files {
+		files = append(files, &domain.VaultFile{
+			Path:        f.Path,
+			Content:     f.Content,
+			ContentHash: f.ContentHash,
+			DeletedAt:   goTimePtr(f.DeletedAt),
+		})
+	}
+
+	out, nextCursor, hasMore, err := h.service.SyncVault(
+		ctx, projectID, ownerID, project, protoToVaultCursor(req.Cursor), files,
+		vaultPageMaxFiles, vaultPageMaxBytes,
+	)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	respFiles := make([]*scriptspb.VaultFile, 0, len(out))
+	for _, f := range out {
+		respFiles = append(respFiles, &scriptspb.VaultFile{
+			Path:        f.Path,
+			Content:     f.Content,
+			ContentHash: f.ContentHash,
+			UpdatedAt:   protoTS(f.UpdatedAt),
+			DeletedAt:   protoTSPtr(f.DeletedAt),
+		})
+	}
+	return &scriptspb.SyncVaultResponse{
+		Files:   respFiles,
+		Cursor:  vaultCursorToProto(nextCursor),
+		HasMore: hasMore,
+	}, nil
+}
+
+func protoToVaultCursor(c *scriptspb.VaultCursor) domain.VaultCursor {
+	if c == nil {
+		return domain.VaultCursor{}
+	}
+	return domain.VaultCursor{UpdatedAt: goTime(c.UpdatedAt), Path: c.Path}
+}
+
+func vaultCursorToProto(c domain.VaultCursor) *scriptspb.VaultCursor {
+	return &scriptspb.VaultCursor{UpdatedAt: protoTS(c.UpdatedAt), Path: c.Path}
+}
+
 // ─── time + id helpers ───────────────────────────────────────────────────────
 
 func protoTS(t time.Time) *common.Timestamp {

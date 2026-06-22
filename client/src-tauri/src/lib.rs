@@ -77,6 +77,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0011_sync_outbox.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 12,
+      description: "vault_manifest: per-file content-hash base for path-keyed vault file sync",
+      sql: include_str!("../migrations/0012_vault_sync.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 

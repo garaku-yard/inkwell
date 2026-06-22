@@ -144,9 +144,58 @@ Requires a linked token + connectivity; offline edits queue in `sync_outbox`
 and flush on reconnect. Per-project status (synced / syncing / offline / error)
 surfaced on the project card + a Settings → Sync section.
 
+## Vault file sync (path-keyed engine) — shipped
+
+Vault projects are a folder of real files on disk (markdown + attachments), not
+the UUID rows the engine above reconciles, so they sync through a **separate,
+path-keyed engine** — keyed by vault-relative path, never a UUID. The server had
+no file store at all (structured rows only), so this is a new subsystem that
+*mirrors* the row engine's contract (server clock, tombstones, apply-then-pull-
+excluding-pushed, owner-only auth) rather than extending it.
+
+**Server.** A `vault_files` table (`(project_id, path)` PK, `content BYTEA` —
+markdown as UTF-8, attachments as raw bytes — `content_hash`, server-stamped
+`updated_at`, `deleted_at` tombstone; migration `000006`). New proto messages
+(`VaultFile`, `VaultCursor`, `SyncVaultRequest/Response`) + a `SyncVault` RPC,
+behind `POST /api/v1/sync/vault/projects/{id}`. The pushed `project` row is
+upserted create-if-absent (so a vault project lands in the cloud project list
+like any other). Apply upserts by path (last-sync-wins); pull is **keyset-
+paginated by `(updated_at, path)`** — a composite cursor so a large first pull
+never skips files that share a timestamp — bounded per page by file count AND
+byte budget, with `has_more` driving the next page. Tombstone GC reuses the
+daily cron.
+
+**Client (`local/vault-sync.ts`).** A per-file **manifest** (`vault_manifest:
+path → content hash at last sync` = the common base). Each sync walks the vault,
+hashes every file, and diffs against the manifest to classify created / modified
+/ deleted; only changed files are pushed (batched under the request cap), then
+the pulled delta is applied to disk and the manifest advanced. The manifest is
+the echo guard — a pulled file's hash is recorded as we write it, so the
+filesystem watcher firing on our own write never looks like a fresh local edit.
+**Conflicts resolve last-sync-wins** (consistent with the row engine), but an
+UNSYNCED local edit is never overwritten by an apply: if a pulled file's path has
+diverged from both the base and the server copy, the local file is kept and
+pushed next round (so the genuinely-last write wins, nothing is silently lost on
+a routine sync). `syncProject`/`setEnabled` route by `project.category` — vault
+projects to this engine, everything else to the row engine; the UI is unchanged.
+
+**Scope + limits (v1).** Syncs **all** non-hidden files (`.md` + attachments);
+`.obsidian`/`.git`/dotfiles are skipped. A file over 20 MB is skipped on push
+(base64 + the 32 MiB request cap) — surfaced via `console.warn`; a proper "sync
+issues" affordance is a follow-up. A fresh device must choose a local folder
+before a vault can be pulled onto it (Stage 4, below). Per-file re-hashing every
+sync is O(vault); an mtime/size fast-path is a later optimization.
+
+**Verified.** Server SQL against live Postgres (upsert-by-path, the keyset
+tiebreaker with same-`updated_at` rows, exclude-pushed, tombstone GC) and the
+full HTTP→gRPC→service→repo path against the running stack via curl: push,
+fresh-device full pull with exact **binary** byte round-trip, incremental delta
+after an edit, and tombstone propagation. **Remaining: the two-device app-level
+round-trip on a running desktop build** (the client engine driving real Tauri
+filesystem walk/hash/apply), same open item as the row engine.
+
 ## Out of scope (v1)
 
-- **Vault** `.md` file sync (own phase).
 - **Workspaces** — `projects.workspace_id` is always NULL on desktop and the
   link is unused; projects sync without workspace association.
 - Device-local config: `ai_providers` + keychain, notification prefs.

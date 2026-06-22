@@ -48,6 +48,18 @@ export interface SyncStorage {
    *  Empty when not linked. */
   listCloudProjects(): Promise<CloudProject[]>
   /** Pull a cloud project onto this device (enables sync + an initial pull, so
-   *  its rows are written into the local store). */
-  pullProject(projectId: string): Promise<void>
+   *  its rows are written into the local store). A vault project additionally
+   *  needs a destination folder and its metadata: its files (not a project row)
+   *  are what sync, so the local project row must be seeded before the first pull
+   *  knows where to write. DB-backed projects ignore `opts` — their rows arrive
+   *  via the pull itself. */
+  pullProject(projectId: string, opts?: PullProjectOptions): Promise<void>
+}
+
+/** Extra inputs for pulling a vault project onto a fresh device. */
+export interface PullProjectOptions {
+  /** Absolute path of the local folder the vault's files should land in. */
+  vaultFolder?: string
+  /** Cloud project metadata used to seed the local project row (vault only). */
+  meta?: CloudProject
 }

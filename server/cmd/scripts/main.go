@@ -117,6 +117,11 @@ func main() {
 			} else if n > 0 {
 				slog.Info("tombstone GC purged rows", "count", n)
 			}
+			if n, err := syncRepo.PurgeVaultTombstones(ctx, retention); err != nil {
+				slog.Warn("vault tombstone GC failed", "error", err)
+			} else if n > 0 {
+				slog.Info("vault tombstone GC purged files", "count", n)
+			}
 		}
 		runGC()
 		ticker := time.NewTicker(24 * time.Hour)

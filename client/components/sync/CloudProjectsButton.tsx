@@ -52,11 +52,25 @@ export function CloudProjectsButton({ onPulled }: { onPulled?: () => void }) {
     }
   }
 
-  const handlePull = async (id: string) => {
-    setPulling(id)
+  const handlePull = async (p: CloudProject) => {
+    // A vault project is a folder of files — ask where they should land before
+    // pulling. The user can cancel the folder picker to abort.
+    let vaultFolder: string | undefined
+    if (p.category === "vault") {
+      const { open } = await import("@tauri-apps/plugin-dialog")
+      const picked = await open({
+        directory: true,
+        multiple: false,
+        title: `Choose a folder for "${p.title || "vault"}"`,
+      })
+      if (typeof picked !== "string") return // cancelled
+      vaultFolder = picked
+    }
+
+    setPulling(p.id)
     try {
-      await pullCloudProject(id)
-      setItems((prev) => prev?.map((p) => (p.id === id ? { ...p, onThisDevice: true } : p)) ?? null)
+      await pullCloudProject(p.id, { vaultFolder, meta: p })
+      setItems((prev) => prev?.map((x) => (x.id === p.id ? { ...x, onThisDevice: true } : x)) ?? null)
       onPulled?.()
     } finally {
       setPulling(null)
@@ -124,7 +138,7 @@ export function CloudProjectsButton({ onPulled }: { onPulled?: () => void }) {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => void handlePull(p.id)}
+                      onClick={() => void handlePull(p)}
                       disabled={pulling === p.id}
                     >
                       {pulling === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}

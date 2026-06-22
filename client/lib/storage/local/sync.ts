@@ -14,7 +14,8 @@
 import { apiClient, getAuthToken } from "@/lib/api"
 
 import type { SyncProjectState, SyncStorage } from "@/lib/storage"
-import { getDb, now, SYNCED_PROJECT_CHILD_TABLES } from "./shared"
+import { getDb, LOCAL_USER_ID, now, SYNCED_PROJECT_CHILD_TABLES } from "./shared"
+import { runVaultSync } from "./vault-sync"
 import {
   fromTs,
   pushBeat,
@@ -150,6 +151,16 @@ const gn = (row: Row, key: string) => (row[key] as number | undefined) ?? 0
 const gts = (row: Row, key: string) => fromTs(row[key] as Ts | undefined)
 
 type DB = Awaited<ReturnType<typeof getDb>>
+
+/** Vault projects sync their files (markdown + attachments) through the separate
+ *  path-keyed engine in ./vault-sync, not the DB row engine here. */
+async function isVaultProject(db: DB, projectId: string): Promise<boolean> {
+  const rows = await db.select<Array<{ category: string }>>(
+    "SELECT category FROM projects WHERE id = ?",
+    [projectId],
+  )
+  return rows[0]?.category === "vault"
+}
 
 async function applyProject(db: DB, p: Row): Promise<void> {
   await db.execute(
@@ -324,7 +335,9 @@ export const sync: SyncStorage = {
       // tracking edits once enabled, so without this seed a pre-existing project
       // would push nothing. A re-enable re-uploads current state by design
       // ("sync my version up") — only routine auto-sync must never full-push.
-      if (!was.enabled) await seedOutbox(projectId)
+      // Vault projects skip the outbox entirely: the file engine's manifest diff
+      // naturally treats every file as new on the first sync.
+      if (!was.enabled && !(await isVaultProject(db, projectId))) await seedOutbox(projectId)
       await sync.syncProject(projectId)
     }
   },
@@ -345,6 +358,22 @@ export const sync: SyncStorage = {
       const db = await getDb()
       const rows = await db.select<StateRow[]>("SELECT cursor FROM sync_state WHERE project_id = ?", [projectId])
       const cursorStr = rows[0]?.cursor ?? ""
+
+      if (await isVaultProject(db, projectId)) {
+        // Path-keyed file engine: push changed files, apply the pulled delta,
+        // advance the manifest + cursor. See ./vault-sync.
+        const { cursor, skipped } = await runVaultSync(projectId, cursorStr)
+        await db.execute(
+          `UPDATE sync_state SET cursor = ?, last_synced_at = ?, status = 'idle', error = NULL, updated_at = ? WHERE project_id = ?`,
+          [cursor, now(), now(), projectId],
+        )
+        // v1 surfaces oversized-file skips via the console; a dedicated "sync
+        // issues" affordance is a follow-up (see SYNC_DESIGN.md).
+        if (skipped.length > 0) {
+          console.warn(`Vault sync skipped ${skipped.length} file(s) over 20 MB:`, skipped)
+        }
+        return readState(projectId)
+      }
 
       // Capture the outbox high-water BEFORE building the push: rows enqueued by
       // edits during this in-flight sync (seq > maxSeq) are left for next round,
@@ -408,9 +437,26 @@ export const sync: SyncStorage = {
     }))
   },
 
-  pullProject: async (projectId) => {
+  pullProject: async (projectId, opts) => {
+    // A vault project's files sync, not a project row — so on a fresh device the
+    // local project row + its vault folder must be seeded BEFORE the first pull,
+    // or the file engine has nowhere to write. DB-backed projects skip this: the
+    // pull's applyChanges creates their rows.
+    if (opts?.meta?.category === "vault") {
+      if (!opts.vaultFolder) {
+        throw new Error("Choose a folder to pull this vault into.")
+      }
+      const db = await getDb()
+      const ts = now()
+      await db.execute(
+        `INSERT INTO projects (id, title, description, owner_id, category, status, is_starred, created_at, updated_at, vault_path)
+         VALUES (?, ?, '', ?, 'vault', ?, 0, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET vault_path = excluded.vault_path`,
+        [projectId, opts.meta.title || "Untitled", LOCAL_USER_ID, opts.meta.status || "draft", ts, ts, opts.vaultFolder],
+      )
+    }
     // Enabling sync on a not-yet-local project does an empty push + full pull,
-    // writing the project + its children into the local store.
+    // writing the project + its children (or vault files) into the local store.
     await sync.setEnabled(projectId, true)
   },
 }

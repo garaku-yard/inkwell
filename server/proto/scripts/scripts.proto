@@ -678,6 +678,43 @@ message SyncProjectResponse {
   common.Timestamp cursor = 2; // new high-water for the caller to store
 }
 
+// ─── Vault sync (path-keyed file sync) ───────────────────────────────────────
+
+// VaultFile is one file in a vault project, keyed by its vault-relative path
+// (forward-slash separated). content holds the raw bytes — markdown as UTF-8,
+// attachments (images/PDFs/…) as their binary. A set deleted_at is a tombstone.
+// updated_at is server-stamped and only meaningful on a pull. content is omitted
+// on tombstones and may be empty on a delta the caller already holds by hash.
+message VaultFile {
+  string path = 1;
+  bytes content = 2;
+  string content_hash = 3;        // sha-256 hex of content (integrity + compare)
+  common.Timestamp updated_at = 4;
+  common.Timestamp deleted_at = 5;
+}
+
+// VaultCursor is a keyset position into a project's vault files ordered by
+// (updated_at, path), so a large first pull can page without skipping files that
+// share an updated_at. Unset ⇒ full pull from the beginning.
+message VaultCursor {
+  common.Timestamp updated_at = 1;
+  string path = 2;
+}
+
+message SyncVaultRequest {
+  string project_id = 1;
+  string owner_id = 2;            // authenticated caller (gateway-supplied)
+  VaultCursor cursor = 3;         // unset ⇒ full pull (first sync / fresh device)
+  Project project = 4;            // project row to upsert (create-if-absent on first sync)
+  repeated VaultFile files = 5;   // the caller's locally-changed files since its cursor
+}
+
+message SyncVaultResponse {
+  repeated VaultFile files = 1;   // server files changed since the cursor (one page)
+  VaultCursor cursor = 2;         // new keyset high-water for the caller to store
+  bool has_more = 3;              // true ⇒ more pages remain; call again with this cursor
+}
+
 service ScriptsService {
   // Project management (Project now represents the screenplay)
   rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
@@ -747,4 +784,10 @@ service ScriptsService {
   // pushed changes (upsert-by-id, server-stamped updated_at, last-sync-wins) and
   // returns every row changed since the caller's cursor. See SYNC_DESIGN.md.
   rpc SyncProject(SyncProjectRequest) returns (SyncProjectResponse);
+
+  // SyncVault reconciles a vault project's files bidirectionally, keyed by path
+  // (upsert-by-path, server-stamped updated_at, last-sync-wins). Paginated: when
+  // the response sets has_more, call again with the returned cursor until it is
+  // false. See SYNC_DESIGN.md ("vault file sync").
+  rpc SyncVault(SyncVaultRequest) returns (SyncVaultResponse);
 }

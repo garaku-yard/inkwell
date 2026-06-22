@@ -60,6 +60,7 @@ const (
 	ScriptsService_DeleteOutlineItem_FullMethodName    = "/scripts.ScriptsService/DeleteOutlineItem"
 	ScriptsService_GetResourceProject_FullMethodName   = "/scripts.ScriptsService/GetResourceProject"
 	ScriptsService_SyncProject_FullMethodName          = "/scripts.ScriptsService/SyncProject"
+	ScriptsService_SyncVault_FullMethodName            = "/scripts.ScriptsService/SyncVault"
 )
 
 // ScriptsServiceClient is the client API for ScriptsService service.
@@ -123,6 +124,11 @@ type ScriptsServiceClient interface {
 	// pushed changes (upsert-by-id, server-stamped updated_at, last-sync-wins) and
 	// returns every row changed since the caller's cursor. See SYNC_DESIGN.md.
 	SyncProject(ctx context.Context, in *SyncProjectRequest, opts ...grpc.CallOption) (*SyncProjectResponse, error)
+	// SyncVault reconciles a vault project's files bidirectionally, keyed by path
+	// (upsert-by-path, server-stamped updated_at, last-sync-wins). Paginated: when
+	// the response sets has_more, call again with the returned cursor until it is
+	// false. See SYNC_DESIGN.md ("vault file sync").
+	SyncVault(ctx context.Context, in *SyncVaultRequest, opts ...grpc.CallOption) (*SyncVaultResponse, error)
 }
 
 type scriptsServiceClient struct {
@@ -543,6 +549,16 @@ func (c *scriptsServiceClient) SyncProject(ctx context.Context, in *SyncProjectR
 	return out, nil
 }
 
+func (c *scriptsServiceClient) SyncVault(ctx context.Context, in *SyncVaultRequest, opts ...grpc.CallOption) (*SyncVaultResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SyncVaultResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_SyncVault_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ScriptsServiceServer is the server API for ScriptsService service.
 // All implementations must embed UnimplementedScriptsServiceServer
 // for forward compatibility.
@@ -604,6 +620,11 @@ type ScriptsServiceServer interface {
 	// pushed changes (upsert-by-id, server-stamped updated_at, last-sync-wins) and
 	// returns every row changed since the caller's cursor. See SYNC_DESIGN.md.
 	SyncProject(context.Context, *SyncProjectRequest) (*SyncProjectResponse, error)
+	// SyncVault reconciles a vault project's files bidirectionally, keyed by path
+	// (upsert-by-path, server-stamped updated_at, last-sync-wins). Paginated: when
+	// the response sets has_more, call again with the returned cursor until it is
+	// false. See SYNC_DESIGN.md ("vault file sync").
+	SyncVault(context.Context, *SyncVaultRequest) (*SyncVaultResponse, error)
 	mustEmbedUnimplementedScriptsServiceServer()
 }
 
@@ -736,6 +757,9 @@ func (UnimplementedScriptsServiceServer) GetResourceProject(context.Context, *Ge
 }
 func (UnimplementedScriptsServiceServer) SyncProject(context.Context, *SyncProjectRequest) (*SyncProjectResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SyncProject not implemented")
+}
+func (UnimplementedScriptsServiceServer) SyncVault(context.Context, *SyncVaultRequest) (*SyncVaultResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SyncVault not implemented")
 }
 func (UnimplementedScriptsServiceServer) mustEmbedUnimplementedScriptsServiceServer() {}
 func (UnimplementedScriptsServiceServer) testEmbeddedByValue()                        {}
@@ -1496,6 +1520,24 @@ func _ScriptsService_SyncProject_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ScriptsService_SyncVault_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncVaultRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).SyncVault(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_SyncVault_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).SyncVault(ctx, req.(*SyncVaultRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ScriptsService_ServiceDesc is the grpc.ServiceDesc for ScriptsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1666,6 +1708,10 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SyncProject",
 			Handler:    _ScriptsService_SyncProject_Handler,
+		},
+		{
+			MethodName: "SyncVault",
+			Handler:    _ScriptsService_SyncVault_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

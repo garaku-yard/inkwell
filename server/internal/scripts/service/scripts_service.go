@@ -41,6 +41,12 @@ type ScriptsService interface {
 	// pushed changes and returns rows changed since cursor. See SYNC_DESIGN.md.
 	SyncProject(ctx context.Context, projectID, ownerID uuid.UUID, cursor time.Time, in *domain.SyncChanges) (*domain.SyncChanges, time.Time, error)
 
+	// SyncVault reconciles a vault project's files bidirectionally by path
+	// (last-sync-wins) and returns one page of files changed since cursor,
+	// excluding the just-pushed paths. hasMore signals more pages remain. The
+	// optional project row is upserted (create-if-absent). See SYNC_DESIGN.md.
+	SyncVault(ctx context.Context, projectID, ownerID uuid.UUID, project *domain.Project, cursor domain.VaultCursor, files []*domain.VaultFile, maxFiles, maxBytes int) ([]*domain.VaultFile, domain.VaultCursor, bool, error)
+
 	// Scene operations
 	CreateScene(ctx context.Context, projectID, userID uuid.UUID, scene *domain.Scene) (*domain.Scene, error)
 	GetProjectScenes(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Scene, error)
@@ -427,6 +433,57 @@ func (s *scriptsService) SyncProject(ctx context.Context, projectID, ownerID uui
 		return nil, time.Time{}, err
 	}
 	return out, newCursor, nil
+}
+
+// SyncVault reconciles a vault project's files bidirectionally (apply-then-pull,
+// last-sync-wins) in one transaction. Authorization mirrors SyncProject: an
+// existing project must be owned by ownerID; a project not yet on the server is
+// created from the pushed project row (owner forced to ownerID). The pull is
+// keyset-paginated — when hasMore is true the caller syncs again with the
+// returned cursor. See SYNC_DESIGN.md.
+func (s *scriptsService) SyncVault(ctx context.Context, projectID, ownerID uuid.UUID, project *domain.Project, cursor domain.VaultCursor, files []*domain.VaultFile, maxFiles, maxBytes int) ([]*domain.VaultFile, domain.VaultCursor, bool, error) {
+	var (
+		out        []*domain.VaultFile
+		nextCursor domain.VaultCursor
+		hasMore    bool
+	)
+	err := outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
+		owner, oerr := s.sync.ProjectOwner(ctx, tx, projectID)
+		switch {
+		case oerr == sql.ErrNoRows:
+			// Not on the server yet. The push must carry the project row to
+			// create it; otherwise there's nothing to sync.
+			if project == nil {
+				now, nerr := s.sync.ServerNow(ctx, tx)
+				nextCursor = domain.VaultCursor{UpdatedAt: now}
+				return nerr
+			}
+		case oerr != nil:
+			return oerr
+		case owner != ownerID:
+			return domain.ErrUnauthorizedAccess
+		}
+
+		if project != nil {
+			if err := s.sync.UpsertProjectForVault(ctx, tx, ownerID, project); err != nil {
+				return err
+			}
+		}
+		if err := s.sync.ApplyVaultFiles(ctx, tx, projectID, files); err != nil {
+			return err
+		}
+		pushed := make([]string, 0, len(files))
+		for _, f := range files {
+			pushed = append(pushed, f.Path)
+		}
+		var perr error
+		out, hasMore, nextCursor, perr = s.sync.PullVaultFiles(ctx, tx, projectID, cursor, maxFiles, maxBytes, pushed)
+		return perr
+	})
+	if err != nil {
+		return nil, domain.VaultCursor{}, false, err
+	}
+	return out, nextCursor, hasMore, nil
 }
 
 // Scene operations

@@ -152,6 +152,8 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 
 			// Sync — bidirectional per-project reconcile for the desktop client.
 			r.Post("/sync/projects/{projectId}", scriptsHandler.SyncProject)
+			// Vault sync — path-keyed file reconcile for vault projects.
+			r.Post("/sync/vault/projects/{projectId}", scriptsHandler.SyncVault)
 
 			// Projects
 			r.Route("/projects", func(r chi.Router) {

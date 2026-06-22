@@ -63,7 +63,7 @@ function syncKnowledgeRename(
     .catch(() => {})
 }
 
-function joinPath(dir: string, filename: string): string {
+export function joinPath(dir: string, filename: string): string {
   // Cross-platform join: prefer the OS separator already present in `dir`
   // when it's obviously Windows (`C:\`). Otherwise use `/` which Tauri's
   // fs plugin normalises on Windows too. Handles relative `filename` with
@@ -78,7 +78,7 @@ function joinPath(dir: string, filename: string): string {
 /** Strips a leading `./` and collapses `\\` → `/` so we always carry
  *  forward-slash relative paths inside the app; the OS-specific join is
  *  only applied when we hand the path to the filesystem. */
-function normaliseRelPath(rel: string): string {
+export function normaliseRelPath(rel: string): string {
   return rel.replace(/\\/g, "/").replace(/^\.\/+/, "").replace(/^\/+/, "")
 }
 

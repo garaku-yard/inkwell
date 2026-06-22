@@ -3,9 +3,9 @@
  *  capability). See lib/storage/contracts/sync.ts. */
 
 import { getStorage } from "@/lib/storage"
-import type { CloudProject, SyncProjectState } from "@/lib/storage"
+import type { CloudProject, PullProjectOptions, SyncProjectState } from "@/lib/storage"
 
-export type { CloudProject, SyncProjectState }
+export type { CloudProject, PullProjectOptions, SyncProjectState }
 
 /** Whether sync can run right now (desktop + a linked cloud account). */
 export const isSyncAvailable = (): Promise<boolean> => getStorage().sync.isAvailable()
@@ -34,6 +34,7 @@ export const syncAllProjects = (): Promise<SyncProjectState[]> =>
 export const listCloudProjects = (): Promise<CloudProject[]> =>
   getStorage().sync.listCloudProjects()
 
-/** Pull a cloud project onto this device. */
-export const pullCloudProject = (projectId: string): Promise<void> =>
-  getStorage().sync.pullProject(projectId)
+/** Pull a cloud project onto this device. Vault projects pass `vaultFolder` +
+ *  `meta` so the local row + folder are seeded before the first file pull. */
+export const pullCloudProject = (projectId: string, opts?: PullProjectOptions): Promise<void> =>
+  getStorage().sync.pullProject(projectId, opts)
