@@ -322,6 +322,36 @@ The beat board is our most expressive surface and deserves to stay that way.
   the labels (Act 1 / Act 2 / Act 3) become category-aware (Part 1/2/3,
   Issue 1/2/3, etc.).
 
+### Editor canvas
+
+The writing surface is the product's most-used screen and a brand surface in its
+own right. Every manuscript editor — prose, poetry, comic, TTRPG, interactive
+fiction, memoir, lyrics, and screenplay — renders the **same page**, so the nine
+formats feel like one tool. Only the content vocabulary differs.
+
+- **Discrete sheets on a desk.** Pages are physical-feeling sheets (`bg-card`,
+  `rounded-sm`, `shadow-lg`, `ring-1 ring-border/60`) stacked with `space-y-8` on
+  a neutral desk (`bg-secondary` light / `bg-background` dark). Not an infinite
+  scroll of text — paper.
+- **A4 is the default geometry** (`210mm × 297mm`), the standard manuscript page.
+  Screenplay is the one exception: it rides the *same* surface but at true
+  **US Letter** (`8.5in × 11in`) with inch margins, because its page count is
+  semantic (1 page ≈ 1 minute of screen time). Both go through one component
+  (`PagedSheets`, `pageSize` prop) — never fork the page.
+- **The tool rail lives in the margin**, riding the page column's right edge
+  (`EditorToolRail`), collapsed at rest and expanding on hover — inserts are
+  available without cluttering the page. Each format supplies its own rail
+  vocabulary; the chrome is identical.
+- **Page numbers** are quiet (`text-[11px] text-muted-foreground/50`), bottom-
+  right (top-right for screenplay).
+- **Save status** is a floating pill (`SaveStatusPill`), never chrome in the
+  header.
+
+This contract is pinned in the smoke harness (`PagedSheets.smoke.test.tsx`) so
+the "one page everywhere" feel can't silently drift. When adding a format or
+touching the surface, extend `PagedSheets`/`SheetMetrics` — don't build a second
+page.
+
 ### Monogram as a pattern
 
 The monogram's inverted-square treatment is the closest thing Inkwell has
