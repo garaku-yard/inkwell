@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import { Maximize2, Minus, Square, X } from "lucide-react"
 import { isTauri } from "@tauri-apps/api/core"
 
-import { BrandLogo } from "@/components/brand-logo"
 import { cn } from "@/lib/utils"
 
 /** Root `<html>` class toggled by the titlebar so global CSS can flatten
@@ -85,18 +84,12 @@ export function WindowTitlebar() {
       data-tauri-drag-region
       className="flex h-9 shrink-0 select-none items-center justify-between border-b bg-background"
     >
-      {/* Just the mark here — it reads as the window icon. The page header
-          below carries the full mark + wordmark lockup (and is the only
-          brand surface on the web build, which has no titlebar), so showing
-          the wordmark here too would stack "INKWELL" twice in a tiny span. */}
-      <div
-        data-tauri-drag-region
-        className="flex items-center px-3 text-muted-foreground"
-      >
-        <BrandLogo show="mark" className="pointer-events-none h-4 w-auto" />
-      </div>
+      {/* No brand mark here on purpose: the page header right below carries the
+          full nib + wordmark lockup, so a mark in this strip would stack the nib
+          twice in a tiny span. The titlebar stays a quiet drag region + window
+          controls; window identity comes from the OS taskbar icon. */}
       <div data-tauri-drag-region className="flex-1" />
-      <div className="flex items-center gap-1.5 px-3">
+      <div className="flex items-center gap-1 px-2">
         <TitlebarButton onClick={onMinimize} title="Minimize">
           <Minus className="h-3 w-3" />
         </TitlebarButton>
@@ -132,10 +125,13 @@ function TitlebarButton({
       onClick={onClick}
       title={title}
       className={cn(
-        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-muted/40 transition-colors",
+        // Quiet by default — no border or fill at rest, just a muted glyph that
+        // reveals a subtle background on hover. Matches the "quiet craft"
+        // register instead of three filled traffic-light circles.
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 transition-colors",
         destructive
-          ? "text-muted-foreground/60 hover:border-red-800 hover:bg-red-800 hover:text-white"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          ? "hover:bg-destructive hover:text-white"
+          : "hover:bg-muted hover:text-foreground",
       )}
     >
       {children}

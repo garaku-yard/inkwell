@@ -18,8 +18,11 @@ export function AppHeader({ inviteCount = 0 }: AppHeaderProps) {
       <div className="container mx-auto flex items-center justify-between py-3 px-4 sm:px-6 lg:px-8">
         {/* Left — logo + nav */}
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 select-none">
-            <BrandLogo show="mark" className="h-7 w-auto" />
+          {/* Lockup: the nib was towering over the wordmark (h-7 vs h-4) and
+              sitting tight — scaled the mark closer to the wordmark and opened
+              the gap so it reads as one balanced lockup with breathing room. */}
+          <div className="flex items-center gap-2.5 select-none">
+            <BrandLogo show="mark" className="h-6 w-auto" />
             <BrandLogo show="wordmark" className="h-4 w-auto" />
           </div>
         </div>

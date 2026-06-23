@@ -68,9 +68,12 @@ function WorkspaceIcon({
             className={cn(
               "relative flex h-10 w-10 items-center justify-center rounded-[14px] text-sm font-bold transition-all duration-150 select-none border",
               "hover:rounded-[10px]",
+              // Quiet active state: the left indicator bar (below) does the
+              // signalling; the tile just morphs to a tighter square + a faint
+              // fill, rather than a loud high-contrast ring.
               isActive
-                ? "rounded-[10px] border-transparent ring-2 ring-foreground ring-offset-2 ring-offset-background"
-                : "border-border"
+                ? "rounded-[10px] border-transparent bg-muted"
+                : "border-border hover:border-foreground/20"
             )}
             aria-label={workspace.name}
           >
@@ -82,7 +85,7 @@ function WorkspaceIcon({
                 className="h-10 w-10 rounded-[inherit] object-cover"
               />
             ) : primarySlug ? (
-              <CategoryIcon slug={primarySlug} size={40} rounded={isActive ? 10 : 14} />
+              <CategoryIcon slug={primarySlug} size={40} active={isActive} />
             ) : (
               <span className="flex h-10 w-10 items-center justify-center rounded-[inherit] bg-muted text-muted-foreground text-sm font-bold">
                 {workspaceInitials(workspace.name)}
@@ -184,7 +187,7 @@ export function WorkspaceSwitcher() {
 
   return (
     <>
-      <aside className="flex h-full w-16 flex-col items-center gap-2 border-r bg-background py-3 shrink-0">
+      <aside className="flex h-full w-16 flex-col items-center gap-2 border-r bg-sidebar py-3 shrink-0">
         {isLoading ? (
           <>
             <div className="h-10 w-10 rounded-[14px] bg-muted animate-pulse" />

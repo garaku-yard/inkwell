@@ -1,5 +1,6 @@
 import { Clapperboard, BookOpen, MessageSquare, Feather, GitBranch, Dices, User, Music, PenLine } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export const CATEGORY_COLORS: Record<string, { bg: string; ring: string }> = {
   screenplay:          { bg: "#1e1b4b", ring: "#6b6fc4" },
@@ -27,15 +28,20 @@ interface CategoryIconProps {
   slug: string
   size?: number
   rounded?: number
+  /** When false, the icon renders muted (neutral-first); its category colour
+   *  only shows when active, so the rail stays quiet and colour means "this is
+   *  the workspace you're in". */
+  active?: boolean
 }
 
-export function CategoryIcon({ slug, size = 40 }: CategoryIconProps) {
+export function CategoryIcon({ slug, size = 40, active = true }: CategoryIconProps) {
   const colors = CATEGORY_COLORS[slug] ?? { bg: "#1e293b", ring: "#94a3b8" }
   const Icon = CATEGORY_ICONS[slug] ?? PenLine
 
   return (
     <Icon
-      style={{ color: colors.ring, width: size * 0.5, height: size * 0.5, flexShrink: 0 }}
+      className={cn(!active && "text-muted-foreground")}
+      style={{ color: active ? colors.ring : undefined, width: size * 0.5, height: size * 0.5, flexShrink: 0 }}
       strokeWidth={1.8}
     />
   )
