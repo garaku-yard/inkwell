@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { ClearCacheDialog } from "@/components/settings/clear-cache-dialog"
 import { DeleteAccountDialog } from "@/components/settings/delete-account-dialog"
 import { RequestDataDeletionDialog } from "@/components/settings/request-data-deletion-dialog"
+import { getStorage } from "@/lib/storage"
+import { getAuthToken } from "@/lib/api"
 import { useState } from "react"
 
 interface DataControlSectionProps {
@@ -16,6 +18,10 @@ export function DataControlSection({ userEmail }: DataControlSectionProps) {
   const [showClearCache, setShowClearCache] = useState(false)
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
   const [showRequestDeletion, setShowRequestDeletion] = useState(false)
+
+  // Data-deletion (GDPR server request) and account deletion only apply to a
+  // cloud account — hidden until one is linked (Clear Cache stays for everyone).
+  const hasAccount = getStorage().capabilities.has("auth") || getAuthToken() !== null
 
   return (
     <div className="space-y-6">
@@ -48,64 +54,68 @@ export function DataControlSection({ userEmail }: DataControlSectionProps) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-amber-100 dark:bg-amber-900/30 p-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+      {hasAccount && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-amber-100 dark:bg-amber-900/30 p-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <CardTitle>Data Deletion Request</CardTitle>
+                <CardDescription>
+                  Request deletion of your personal data (GDPR compliant)
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle>Data Deletion Request</CardTitle>
-              <CardDescription>
-                Request deletion of your personal data (GDPR compliant)
-              </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start justify-between">
+              <div>
+                <h4 className="font-medium mb-1">Request Data Deletion</h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Submit a request to delete your personal information from our servers.
+                  We&apos;ll process your request within 30 days.
+                </p>
+              </div>
+              <Button variant="outline" onClick={() => setShowRequestDeletion(true)}>
+                Request
+              </Button>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-start justify-between">
-            <div>
-              <h4 className="font-medium mb-1">Request Data Deletion</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Submit a request to delete your personal information from our servers.
-                We&apos;ll process your request within 30 days.
-              </p>
-            </div>
-            <Button variant="outline" onClick={() => setShowRequestDeletion(true)}>
-              Request
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      <Card className="border-red-200 dark:border-red-900">
-        <CardHeader>
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-red-100 dark:bg-red-900/30 p-2">
-              <Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
+      {hasAccount && (
+        <Card className="border-red-200 dark:border-red-900">
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-red-100 dark:bg-red-900/30 p-2">
+                <Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <CardTitle className="text-red-600 dark:text-red-400">Danger Zone</CardTitle>
+                <CardDescription>
+                  Irreversible actions that will permanently affect your account
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-red-600 dark:text-red-400">Danger Zone</CardTitle>
-              <CardDescription>
-                Irreversible actions that will permanently affect your account
-              </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start justify-between">
+              <div>
+                <h4 className="font-medium mb-1 text-red-600 dark:text-red-400">Delete Account</h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Permanently delete your account and all associated data. This action cannot be undone.
+                </p>
+              </div>
+              <Button variant="destructive" onClick={() => setShowDeleteAccount(true)}>
+                Delete Account
+              </Button>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-start justify-between">
-            <div>
-              <h4 className="font-medium mb-1 text-red-600 dark:text-red-400">Delete Account</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Permanently delete your account and all associated data. This action cannot be undone.
-              </p>
-            </div>
-            <Button variant="destructive" onClick={() => setShowDeleteAccount(true)}>
-              Delete Account
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       <ClearCacheDialog open={showClearCache} onOpenChange={setShowClearCache} />
       <DeleteAccountDialog open={showDeleteAccount} onOpenChange={setShowDeleteAccount} userEmail={userEmail} />

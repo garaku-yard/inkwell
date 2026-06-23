@@ -17,6 +17,8 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getStorage } from "@/lib/storage"
+import type { Capability } from "@/lib/storage"
+import { getAuthToken } from "@/lib/api"
 import type { SettingsSection } from "@/app/(private)/settings/page"
 
 interface SettingsSidebarProps {
@@ -24,30 +26,46 @@ interface SettingsSidebarProps {
   onSectionChange: (section: SettingsSection) => void
 }
 
-const sections = [
-  { id: "account" as const, label: "Account", icon: User },
-  { id: "security" as const, label: "Security", icon: Shield },
-  { id: "privacy" as const, label: "Privacy", icon: Eye },
-  { id: "appearance" as const, label: "Appearance", icon: Palette },
-  { id: "notifications" as const, label: "Notifications", icon: Bell },
-  { id: "data" as const, label: "Data & Account Control", icon: Database },
-  { id: "billing" as const, label: "Billing", icon: CreditCard },
-  { id: "collaboration" as const, label: "Collaboration", icon: Users },
-  { id: "integrations" as const, label: "Integrations", icon: Plug },
-  { id: "ai" as const, label: "AI Providers", icon: Sparkles },
-  // "sync" is inserted here at render only on builds with the capability (desktop).
-  { id: "accessibility" as const, label: "Accessibility", icon: Accessibility },
-  { id: "about" as const, label: "About & Legal", icon: Info },
+/** A settings section, with how it's gated. `cap` → only shown on builds with
+ *  that capability (e.g. collaboration/notifications are web-only; sync is
+ *  desktop). `needsAccount` → only shown when there's a cloud account in play
+ *  (web has `auth`; desktop only once signed in), since these are account/server
+ *  features that no-op or error otherwise. No gate → always shown. */
+interface SectionDef {
+  id: SettingsSection
+  label: string
+  icon: typeof User
+  cap?: Capability
+  needsAccount?: boolean
+}
+
+const sections: SectionDef[] = [
+  { id: "account", label: "Account", icon: User },
+  { id: "security", label: "Security", icon: Shield, needsAccount: true },
+  { id: "privacy", label: "Privacy", icon: Eye, needsAccount: true },
+  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "notifications", label: "Notifications", icon: Bell, cap: "notifications" },
+  { id: "data", label: "Data & Account Control", icon: Database },
+  { id: "billing", label: "Billing", icon: CreditCard, needsAccount: true },
+  { id: "collaboration", label: "Collaboration", icon: Users, cap: "collaboration" },
+  { id: "integrations", label: "Integrations", icon: Plug },
+  { id: "ai", label: "AI Providers", icon: Sparkles },
+  { id: "sync", label: "Sync", icon: RefreshCw, cap: "sync" },
+  { id: "accessibility", label: "Accessibility", icon: Accessibility },
+  { id: "about", label: "About & Legal", icon: Info },
 ]
 
-const SYNC_ITEM = { id: "sync" as const, label: "Sync", icon: RefreshCw }
-
 export function SettingsSidebar({ activeSection, onSectionChange }: SettingsSidebarProps) {
-  // Show the Sync section only on builds that support it (desktop). capabilities
-  // is a stable Set bound at boot, safe to read at render.
-  const visibleSections = getStorage().capabilities.has("sync")
-    ? [...sections.slice(0, 10), SYNC_ITEM, ...sections.slice(10)]
-    : sections
+  // capabilities is a stable Set bound at boot; getAuthToken() reflects a linked
+  // cloud account (desktop) — both safe to read at render. The page re-renders
+  // on auth change, so a fresh sign-in reveals the account sections.
+  const caps = getStorage().capabilities
+  const hasAccount = caps.has("auth") || getAuthToken() !== null
+  const visibleSections = sections.filter((s) => {
+    if (s.cap) return caps.has(s.cap)
+    if (s.needsAccount) return hasAccount
+    return true
+  })
 
   return (
     <nav className="w-full lg:w-64 flex-shrink-0">

@@ -1,9 +1,8 @@
 "use client"
 
-import { Palette, Type, Layout, Monitor, Moon, Sun, Check } from "lucide-react"
+import { Palette, Type, Monitor, Moon, Sun, Check } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   useTheme,
@@ -236,27 +235,6 @@ export function AppearanceSection() {
                 <SelectItem value="2.0">Spacious (2.0)</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Layout — coming soon, sidebar and width don't have real hooks */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-orange-100 dark:bg-orange-900/30 p-2">
-              <Layout className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-            </div>
-            <div>
-              <CardTitle>Layout Preferences</CardTitle>
-              <CardDescription>Sidebar position and editor width — coming in a future release</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            <Badge variant="secondary" className="mb-3">Coming soon</Badge>
-            <p>Right-sidebar mode and editor width options will be configurable here.</p>
           </div>
         </CardContent>
       </Card>
