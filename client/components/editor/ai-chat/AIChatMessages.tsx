@@ -20,6 +20,14 @@ interface AIChatMessagesProps {
  *  the editor canvas. The ref is the bottom anchor for scroll-into-view. */
 export const AIChatMessages = forwardRef<HTMLDivElement, AIChatMessagesProps>(
   function AIChatMessages({ messages, isTyping, showEmptyState }, anchorRef) {
+    // The stream adds an empty assistant message up front and keeps isTyping
+    // true for the whole reply. Show the standalone dots ONLY while we're still
+    // waiting for the first token; once text starts streaming, the growing
+    // bubble is the indicator — so we never show a text bubble + a dots bubble
+    // at once (and we hide the empty placeholder bubble below).
+    const last = messages[messages.length - 1]
+    const assistantStreaming = last?.type === "ai" && last.content !== "" && !last.error
+    const showTyping = isTyping && !assistantStreaming
     return (
       <ScrollArea className="min-h-0 flex-1 p-4">
         {/* aria-live="polite" so screen readers announce assistant replies as
@@ -43,9 +51,14 @@ export const AIChatMessages = forwardRef<HTMLDivElement, AIChatMessagesProps>(
               </Link>
             </div>
           ) : (
-            messages.map((message) => <MessageBubble key={message.id} message={message} />)
+            messages.map((message) =>
+              // Hide the empty assistant placeholder — the dots stand in for it.
+              message.type === "ai" && message.content === "" && !message.error ? null : (
+                <MessageBubble key={message.id} message={message} />
+              ),
+            )
           )}
-          {isTyping && <TypingIndicator />}
+          {showTyping && <TypingIndicator />}
           <div ref={anchorRef} />
         </div>
       </ScrollArea>

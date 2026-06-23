@@ -162,6 +162,12 @@ function DashboardPageContent() {
     if (typeof picked === "string") setImportPath(picked)
   }
 
+  // Per-format importers are shown only when the active workspace can hold that
+  // format. Final Draft (.fdx) creates a screenplay, so it's hidden unless this
+  // workspace includes the screenplay category (empty categories ⇒ permissive).
+  const wsCategories = activeWorkspace?.categories ?? []
+  const allowsScreenplayImport = wsCategories.length === 0 || wsCategories.some((c) => c.slug === "screenplay")
+
   // .iw (portable Inkwell project) import — cross-platform via the browser file
   // API (works on web + desktop), unlike the Tauri-dialog .fdx path above.
   const iwInputRef = useRef<HTMLInputElement>(null)
@@ -249,12 +255,18 @@ function DashboardPageContent() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    {/* .iw is universal (it carries its own category); per-format
+                        importers only show when this workspace can hold that
+                        format — e.g. Final Draft (screenplay) is hidden in a
+                        Novel workspace. */}
                     <DropdownMenuItem onClick={() => iwInputRef.current?.click()}>
                       Inkwell project (.iw)
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleImportClick} disabled={!isTauri()}>
-                      Final Draft (.fdx){!isTauri() && " — desktop only"}
-                    </DropdownMenuItem>
+                    {allowsScreenplayImport && (
+                      <DropdownMenuItem onClick={handleImportClick} disabled={!isTauri()}>
+                        Final Draft (.fdx){!isTauri() && " — desktop only"}
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <input
