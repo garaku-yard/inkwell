@@ -269,7 +269,7 @@ function BeatBoardPageContent() {
           handleLaneDragStart={(_e, itemId) => timeline.setDraggedLaneItem(itemId)}
           setDraggedLaneItem={timeline.setDraggedLaneItem}
           onUpdateOutlineItem={timeline.handleUpdateOutlineItem} scriptMarkers={scriptMarkers}
-          totalPages={TOTAL_PAGES} structure={structure}
+          totalPages={TOTAL_PAGES} structure={structure} defaultExpanded={structure.linear}
         />
       </div>
       <BeatCanvas

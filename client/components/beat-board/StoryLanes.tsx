@@ -35,6 +35,10 @@ interface StoryLanesProps {
   totalPages?: number;
   onItemHover?: (beatId: string | null) => void;
   structure?: CategoryStructure;
+  /** Whether the timeline starts expanded. The beat board passes
+   *  `structure.linear` so non-linear formats lead with the canvas; the outline
+   *  editor (where this timeline IS the view) leaves it true. Defaults to true. */
+  defaultExpanded?: boolean;
 }
 
 export function StoryLanes({
@@ -42,9 +46,12 @@ export function StoryLanes({
   beats, outlineItems, hoveredLane, draggedLaneItem, setHoveredLane,
   handleDropOnTimeline, handleLaneDragStart, setDraggedLaneItem,
   onUpdateOutlineItem, onDeleteOutlineItem, totalPages = 120, scriptMarkers,
-  onAddLane, onItemHover, structure
+  onAddLane, onItemHover, structure, defaultExpanded
 }: StoryLanesProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  // Default-expanded unless the caller says otherwise. The beat board passes
+  // defaultExpanded=structure.linear so non-linear formats (IF/TTRPG/poetry/
+  // lyrics) lead with the canvas; the outline editor leaves it expanded.
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? true);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const [resizingItem, setResizingItem] = useState<{ itemId: string; edge: "left" | "right" } | null>(null);
   const [slidingItem, setSlidingItem] = useState<{ itemId: string; startX: number; originalPosition: number; } | null>(null);
@@ -245,7 +252,7 @@ export function StoryLanes({
                       return (
                         <div
                           key={item.id}
-                          className={`absolute top-2 bottom-2 rounded border shadow-sm flex items-center justify-between text-xs font-medium transition-all group ${draggedLaneItem === item.id ? "opacity-30" : ""} ${isInteracting ? "ring-2 ring-blue-400 z-10" : ""}`} style={{ left: `${position}%`, width: `${width}%`, backgroundColor: beat.color, minWidth: "20px", cursor: isInteracting ? 'grabbing' : 'grab' }}
+                          className={`absolute top-2 bottom-2 rounded border shadow-sm flex items-center justify-between text-xs font-medium transition-all group ${draggedLaneItem === item.id ? "opacity-30" : ""} ${isInteracting ? "ring-2 ring-primary z-10" : ""}`} style={{ left: `${position}%`, width: `${width}%`, backgroundColor: beat.color, minWidth: "20px", cursor: isInteracting ? 'grabbing' : 'grab' }}
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => { e.stopPropagation(); handleDropOnTimeline(e, item.laneId, item.id); }}
                           onMouseDown={(e) => handleItemMouseDown(e, item.id)}
@@ -280,7 +287,7 @@ export function StoryLanes({
               <div className="relative flex-1 h-4 bg-gradient-to-r from-muted via-secondary to-muted border border-border rounded">
                 {scriptMarkers.map((marker) => (
                   <div key={marker.name} className="absolute top-0 bottom-0 group cursor-help" style={{ left: `${getPagePosition(marker.page)}%` }}>
-                    <div className="w-1 h-full opacity-80" style={{ backgroundColor: marker.color }} />
+                    <div className="w-1 h-full bg-muted-foreground/60" />
                     <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-popover text-popover-foreground border border-border text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
                       {marker.name}
                     </div>

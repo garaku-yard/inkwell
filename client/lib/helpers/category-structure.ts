@@ -20,9 +20,17 @@ export interface CategoryStructure {
   beatLabelPlural: string
   /** Label for the timeline panel header. */
   structureLabel: string
+  /** Whether the format is a linear narrative laid out left-to-right on a unit
+   *  axis. The beat board shows the Story Map timeline expanded for linear
+   *  formats (screenplay/novel/memoir/comic) and collapsed-by-default for
+   *  non-linear ones (IF/TTRPG/poetry/lyrics), where the free-form canvas is the
+   *  better primary view. Computed in {@link getCategoryStructure}. */
+  linear: boolean
 }
 
-const STRUCTURES: Record<string, CategoryStructure> = {
+// `linear` is added by getCategoryStructure (derived from NON_LINEAR), so the
+// per-format literals below don't repeat it.
+const STRUCTURES: Record<string, Omit<CategoryStructure, "linear">> = {
   screenplay: {
     unitLabel: "page",
     unitLabelPlural: "pages",
@@ -139,6 +147,11 @@ const STRUCTURES: Record<string, CategoryStructure> = {
 
 const DEFAULT_STRUCTURE = STRUCTURES.screenplay
 
+/** Formats whose structure isn't a left-to-right line — the beat board leads with
+ *  the free-form canvas and collapses the Story Map timeline by default. */
+const NON_LINEAR = new Set(["poetry", "lyrics", "interactive_fiction", "ttrpg"])
+
 export function getCategoryStructure(category?: string | null): CategoryStructure {
-  return STRUCTURES[category ?? ""] ?? DEFAULT_STRUCTURE
+  const base = STRUCTURES[category ?? ""] ?? DEFAULT_STRUCTURE
+  return { ...base, linear: !NON_LINEAR.has(category ?? "") }
 }
