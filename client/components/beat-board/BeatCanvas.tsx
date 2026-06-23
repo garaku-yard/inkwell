@@ -57,8 +57,8 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
     const to = getConnectionPoint(toBeat, connection.toSide);
     return (
       <g key={connection.id} className="group">
-        <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} className="stroke-gray-500 dark:stroke-gray-400" strokeWidth="2" markerEnd="url(#arrowhead)" />
-        <circle cx={(from.x + to.x) / 2} cy={(from.y + to.y) / 2} r="8" className="fill-white dark:fill-gray-800 stroke-gray-500 dark:stroke-gray-400 cursor-pointer hover:fill-red-100 dark:hover:fill-red-900" strokeWidth="1"
+        <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} className="stroke-muted-foreground" strokeWidth="2" markerEnd="url(#arrowhead)" />
+        <circle cx={(from.x + to.x) / 2} cy={(from.y + to.y) / 2} r="8" className="fill-card stroke-muted-foreground cursor-pointer hover:fill-destructive/20" strokeWidth="1"
           onClick={() => props.handleDeleteConnection(connection.id)} />
         <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 + 1} textAnchor="middle" fontSize="10" className="fill-gray-500 dark:fill-gray-400 pointer-events-none">×</text>
       </g>
@@ -67,7 +67,7 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
 
   const ConnectionHandle = ({ beatId, side, position }: { beatId: string; side: ConnectionSide; position: React.CSSProperties; }) => (
     <div
-      className="connection-handle absolute w-3 h-3 bg-blue-500 border border-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-crosshair hover:bg-blue-600"
+      className="connection-handle absolute w-3 h-3 bg-primary border border-background rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-crosshair hover:bg-primary/80"
       style={position}
       onMouseDown={(e) => props.handleConnectionStart(e, beatId, side)}
       onMouseUp={() => props.isConnecting && props.handleConnectionEnd(beatId, side)}
@@ -77,7 +77,7 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
   return (
     <div
       ref={boardRef}
-      className="flex-1 relative overflow-auto cursor-default select-none beat-board-background bg-gray-50 dark:bg-black"
+      className="flex-1 relative overflow-auto cursor-default select-none beat-board-background bg-secondary"
       style={{
         backgroundImage: `radial-gradient(circle, var(--grid-color, #e5e7eb) 1px, transparent 1px)`,
         backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
@@ -90,17 +90,17 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
     >
       {!isLoading && beats.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center text-gray-500 dark:text-gray-400 p-8 rounded-lg bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
-            <ClipboardList className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500" />
-            <h2 className="mt-4 text-lg font-medium text-gray-800 dark:text-gray-200">Your Beat Board is Empty</h2>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Double-click to create a beat or drop an image to create a visual beat.</p>
+          <div className="text-center text-muted-foreground p-8 rounded-lg border border-border bg-card/60 backdrop-blur-sm">
+            <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground/50" />
+            <h2 className="mt-4 text-lg font-medium text-foreground">Your Beat Board is Empty</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Double-click to create a beat or drop an image to create a visual beat.</p>
           </div>
         </div>
       )}
-      <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }}>
+      <svg className="absolute inset-0 w-full h-full text-muted-foreground" style={{ zIndex: 1 }}>
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280" />
+            <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" />
           </marker>
         </defs>
         {connections.map(renderArrow)}
@@ -108,7 +108,7 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
           const startBeat = beats.find(b => b.id === props.connectionStart?.beatId);
           if (!startBeat) return null;
           const startPoint = getConnectionPoint(startBeat, props.connectionStart.side);
-          return <line x1={startPoint.x} y1={startPoint.y} x2={props.tempConnection.x} y2={props.tempConnection.y} stroke="#3b82f6" strokeWidth="2" strokeDasharray="5,5" />;
+          return <line x1={startPoint.x} y1={startPoint.y} x2={props.tempConnection.x} y2={props.tempConnection.y} className="stroke-primary" strokeWidth="2" strokeDasharray="5,5" />;
         })()}
       </svg>
       {beats.map((beat) => (

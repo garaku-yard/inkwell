@@ -48,7 +48,7 @@ export function BeatCard({
       className={`absolute border rounded-lg p-4 shadow-md transition-all duration-100 hover:shadow-xl group flex flex-col ${movingBeatId === beat.id ? "cursor-grabbing" : "cursor-grab"} ${draggedBeat === beat.id ? "opacity-50" : ""}`}
       style={{
         left: beat.position.x, top: beat.position.y, width: beat.width, height: beat.height,
-        backgroundColor: beat.color, borderColor: draggedBeat === beat.id || movingBeatId === beat.id ? "#3b82f6" : "#d1d5db",
+        backgroundColor: beat.color, borderColor: draggedBeat === beat.id || movingBeatId === beat.id ? "#14b8a6" : "#d1d5db",
         zIndex: draggedBeat === beat.id || movingBeatId === beat.id || isResizing === beat.id ? 10 : 2,
       }}
     >
@@ -71,7 +71,7 @@ export function BeatCard({
               e.stopPropagation();
               handleFieldChange(beat.id, "imageUrl" as keyof Beat, null);
             }}
-            className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10"
+            className="absolute top-2 right-2 bg-destructive text-white p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -102,7 +102,7 @@ export function BeatCard({
 
           <Popover open={colorPickerOpen === beat.id} onOpenChange={(open) => setColorPickerOpen(open ? beat.id : null)}>
             <PopoverTrigger asChild><Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}><div className="w-4 h-4 rounded-full border" style={{ backgroundColor: beat.color }} /></Button></PopoverTrigger>
-            <PopoverContent className="w-64 p-3" align="end"><div className="grid grid-cols-6 gap-2 mt-2">{PRESET_COLORS.map((color) => (<button key={color} className="w-8 h-8 rounded border-2 hover:border-gray-400" style={{ backgroundColor: color, borderColor: beat.color === color ? "#3b82f6" : "#e5e7eb" }} onClick={() => handleChangeColor(beat.id, color)} />))}</div></PopoverContent>
+            <PopoverContent className="w-64 p-3" align="end"><div className="grid grid-cols-6 gap-2 mt-2">{PRESET_COLORS.map((color) => (<button key={color} className="w-8 h-8 rounded border-2 hover:border-gray-400" style={{ backgroundColor: color, borderColor: beat.color === color ? "#14b8a6" : "#e5e7eb" }} onClick={() => handleChangeColor(beat.id, color)} />))}</div></PopoverContent>
           </Popover>
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
@@ -111,7 +111,7 @@ export function BeatCard({
                 <Upload className="h-4 w-4 mr-2" />
                 {beat.imageUrl ? 'Change Image' : 'Upload Image'}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDeleteBeat(beat.id)} className="text-red-600 focus:text-red-600 focus:bg-red-50">
+              <DropdownMenuItem onClick={() => handleDeleteBeat(beat.id)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete Beat
               </DropdownMenuItem>
