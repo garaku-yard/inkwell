@@ -14,12 +14,11 @@
 #   4. Commit + push to the AUR git repo.
 
 pkgname=inkwell-bin
-pkgver=0.2.3
-# Upstream binary version embedded in the AppImage filename. Usually
-# matches `pkgver`; split out here because the v0.2.3 release tag was
-# cut without bumping `tauri.conf.json`, so the release artefact is
-# still named `Inkwell_0.2.2_amd64.AppImage`. Realign next release.
-_binver=0.2.2
+pkgver=0.3.0
+# Upstream binary version embedded in the AppImage filename. Matches `pkgver`
+# again as of v0.3.0 (tauri.conf.json was bumped in lockstep with the tag, so
+# the artefact is named `Inkwell_0.3.0_amd64.AppImage`).
+_binver=0.3.0
 pkgrel=1
 pkgdesc="A local-first, collaborative writing platform for screenwriters, novelists, poets, and more"
 arch=('x86_64')
