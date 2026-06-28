@@ -29,6 +29,20 @@ export interface ProjectShellChapter {
   title: string
 }
 
+/** Human format names for the header subtitle, so every view reads the same as
+ *  the editor ("Interactive Fiction", "Tabletop RPG", …). */
+const FORMAT_NAMES: Record<string, string> = {
+  screenplay: "Screenplay",
+  novel: "Novel",
+  memoir: "Memoir",
+  comic: "Comic Script",
+  poetry: "Poetry",
+  lyrics: "Lyrics",
+  interactive_fiction: "Interactive Fiction",
+  ttrpg: "Tabletop RPG",
+  vault: "Vault",
+}
+
 interface ProjectShellProps {
   projectId: string
   title: string
@@ -95,9 +109,11 @@ export function ProjectShell({
         </div>
       </aside>
 
-      {/* Main column — header + the view's content. */}
+      {/* Main column — header + the view's content. The header is generic to all
+          views: back + title (left), the view nav centered, app actions (right).
+          View-specific controls live in the view's own toolbar, not here. */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
+        <header className="grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 border-b bg-background px-4">
           <div className="flex min-w-0 items-center gap-3">
             <Button asChild variant="ghost" size="sm" className="gap-1.5">
               <Link href="/dashboard">
@@ -106,10 +122,17 @@ export function ProjectShell({
               </Link>
             </Button>
             <div className="h-5 w-px bg-border" />
-            <h1 className="truncate text-base font-semibold">{title}</h1>
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-semibold leading-tight">{title}</h1>
+              {category && FORMAT_NAMES[category] && (
+                <p className="truncate text-xs text-muted-foreground">{FORMAT_NAMES[category]}</p>
+              )}
+            </div>
           </div>
-          <div className={cn("flex items-center gap-2")}>
+          <div className="flex items-center justify-center">
             {projectId && <ProjectNavMenu projectId={projectId} category={category} current={current} />}
+          </div>
+          <div className={cn("flex items-center justify-end gap-2")}>
             {headerActions}
             <AppHeaderActions />
           </div>
