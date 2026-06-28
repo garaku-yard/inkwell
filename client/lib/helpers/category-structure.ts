@@ -26,11 +26,15 @@ export interface CategoryStructure {
    *  non-linear ones (IF/TTRPG/poetry/lyrics), where the free-form canvas is the
    *  better primary view. Computed in {@link getCategoryStructure}. */
   linear: boolean
+  /** Plural label for the project's chapter/unit list, matching each editor's
+   *  sidebar ("Chapters" / "Pages" / "Poems" / "Passages" / …). Used by the
+   *  shared ProjectShell rail. Computed in {@link getCategoryStructure}. */
+  sceneLabelPlural: string
 }
 
-// `linear` is added by getCategoryStructure (derived from NON_LINEAR), so the
-// per-format literals below don't repeat it.
-const STRUCTURES: Record<string, Omit<CategoryStructure, "linear">> = {
+// `linear` + `sceneLabelPlural` are added by getCategoryStructure (derived from
+// NON_LINEAR / SCENE_LABELS), so the per-format literals below don't repeat them.
+const STRUCTURES: Record<string, Omit<CategoryStructure, "linear" | "sceneLabelPlural">> = {
   screenplay: {
     unitLabel: "page",
     unitLabelPlural: "pages",
@@ -151,7 +155,24 @@ const DEFAULT_STRUCTURE = STRUCTURES.screenplay
  *  the free-form canvas and collapses the Story Map timeline by default. */
 const NON_LINEAR = new Set(["poetry", "lyrics", "interactive_fiction", "ttrpg"])
 
+// Matches each editor's own sidebar header label so the shared ProjectShell rail
+// reads the same as the editor (see components/editor/*Editor.tsx headerLabel).
+const SCENE_LABELS: Record<string, string> = {
+  screenplay: "Scenes",
+  novel: "Chapters",
+  memoir: "Chapters",
+  comic: "Pages",
+  poetry: "Poems",
+  lyrics: "Songs",
+  interactive_fiction: "Passages",
+  ttrpg: "Contents",
+}
+
 export function getCategoryStructure(category?: string | null): CategoryStructure {
   const base = STRUCTURES[category ?? ""] ?? DEFAULT_STRUCTURE
-  return { ...base, linear: !NON_LINEAR.has(category ?? "") }
+  return {
+    ...base,
+    linear: !NON_LINEAR.has(category ?? ""),
+    sceneLabelPlural: SCENE_LABELS[category ?? ""] ?? "Chapters",
+  }
 }

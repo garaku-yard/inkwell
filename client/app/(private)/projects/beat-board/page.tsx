@@ -1,20 +1,17 @@
 "use client"
 
 import type React from "react"
-import { Suspense, useState, useRef, useMemo } from "react"
-import Link from "next/link"
+import { Suspense, useState, useRef, useMemo, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { useDebouncedCallback } from "use-debounce"
-import { ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { ProjectNavMenu } from "@/components/editor/shared/ProjectNavMenu"
+import { ProjectShell } from "@/components/editor/shared/ProjectShell"
 import { StoryLanes, type ScriptMarker } from "@/components/beat-board/StoryLanes";
 import { BeatCanvas } from "@/components/beat-board/BeatCanvas";
 import { PaneSpinner } from "@/components/shared/PaneSpinner";
 
 import { createBeat, deleteBeat, updateBeat, deleteConnection, type Beat } from "@/services/beat"
 import { type OutlineItem, updateOutlineItem } from "@/services/beat-board";
-import { getProjectById, type FullProject } from "@/services/project"
+import { getProjectById, getProjectScenes, type FullProject, type Scene } from "@/services/project"
 import { useAuth } from "@/lib/AuthContext"
 import { getCategoryStructure } from "@/lib/helpers/category-structure"
 import { useProjectLoader } from "@/hooks/useProjectLoader"
@@ -54,6 +51,14 @@ function BeatBoardPageContent() {
 
   const isLoading = projectLoading || boardLoading
   const error = projectError ?? boardError
+
+  // Chapter/unit list for the shared shell's rail (navigation back to the
+  // Editor). Loaded alongside the board; failures just leave the rail empty.
+  const [chapters, setChapters] = useState<Scene[]>([])
+  useEffect(() => {
+    if (!projectId || !user?.id) return
+    getProjectScenes(projectId, user.id).then(setChapters).catch(() => setChapters([]))
+  }, [projectId, user?.id])
 
   const [editingField, setEditingField] = useState<{ beatId: string; field: keyof Beat } | null>(null)
   const [colorPickerOpen, setColorPickerOpen] = useState<string | null>(null)
@@ -239,22 +244,16 @@ function BeatBoardPageContent() {
   if (error) return <div>{error}</div>;
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-black" onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
-      <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black z-10">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard"><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Dashboard</Button></Link>
-            <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{project?.title || 'Beat Board'}</h1>
-            {projectId && (
-              <ProjectNavMenu
-                projectId={projectId}
-                category={project?.category}
-                current="beat-board"
-              />
-            )}
-          </div>
-        </div>
+    <ProjectShell
+      projectId={projectId}
+      title={project?.title || "Beat Board"}
+      category={project?.category}
+      current="beat-board"
+      chapters={chapters.map((s) => ({ id: s.id, title: s.scene_heading }))}
+      chapterLabel={structure.sceneLabelPlural}
+    >
+    <div className="h-full flex flex-col" onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
+      <div className="z-10">
         <StoryLanes
           onAddLane={timeline.handleAddLane}
           lanes={lanes}
@@ -297,6 +296,7 @@ function BeatBoardPageContent() {
         onImageDrop={handleImageDrop}
       />
     </div>
+    </ProjectShell>
   )
 }
 

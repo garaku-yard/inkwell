@@ -1,0 +1,121 @@
+"use client"
+
+/**
+ * ProjectShell — the shared chrome for a project's non-editor views (Beat Board,
+ * and later Outline / Analytics): the left chapter rail + the top bar (back,
+ * title, the Editor/Beat Board/Outline/Analytics nav, optional per-view actions,
+ * and the app actions). It exists so switching tabs keeps the same workspace
+ * layout instead of jumping to a bespoke page.
+ *
+ * The rail is list-only here (navigation): clicking a chapter jumps to it in the
+ * Editor. The editors keep their own richer EditorSidebar (comments + scroll-to)
+ * for now; migrating them onto this shell is a later stage. Stable per-format
+ * labels come from the caller (`chapterLabel`).
+ */
+
+import React from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { ArrowLeft, BookText } from "lucide-react"
+
+import { AppHeaderActions } from "@/components/AppHeaderActions"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { ProjectNavMenu } from "./ProjectNavMenu"
+
+export interface ProjectShellChapter {
+  id: string
+  title: string
+}
+
+interface ProjectShellProps {
+  projectId: string
+  title: string
+  category?: string
+  current: "editor" | "beat-board" | "outline-editor" | "analytics"
+  /** The project's chapters/units, format-labelled by `chapterLabel`. */
+  chapters: ProjectShellChapter[]
+  /** Plural rail label, matching the editor's (Chapters / Pages / Poems / …). */
+  chapterLabel: string
+  /** Click handler for a chapter; defaults to navigating to it in the Editor. */
+  onChapterSelect?: (id: string) => void
+  /** Per-view actions rendered in the header before the app actions. */
+  headerActions?: React.ReactNode
+  children: React.ReactNode
+}
+
+export function ProjectShell({
+  projectId,
+  title,
+  category,
+  current,
+  chapters,
+  chapterLabel,
+  onChapterSelect,
+  headerActions,
+  children,
+}: ProjectShellProps) {
+  const router = useRouter()
+  const selectChapter =
+    onChapterSelect ?? (() => router.push(`/projects/editor?id=${projectId}`))
+
+  return (
+    <div className="flex h-screen bg-background">
+      {/* Left chapter rail — mirrors the editor's, list-only for navigation. */}
+      <aside className="flex w-72 shrink-0 flex-col border-r bg-sidebar">
+        <div className="shrink-0 space-y-2 border-b p-3">
+          <div className="flex items-center gap-2">
+            <BookText className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">{chapterLabel}</span>
+          </div>
+          <Badge variant="secondary" className="gap-1 font-normal">
+            {chapters.length} {chapterLabel.toLowerCase()}
+          </Badge>
+        </div>
+        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-2">
+          {chapters.length === 0 ? (
+            <p className="px-3 py-8 text-center text-xs text-muted-foreground">Nothing here yet.</p>
+          ) : (
+            chapters.map((ch, i) => (
+              <button
+                key={ch.id}
+                onClick={() => selectChapter(ch.id)}
+                className="group w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-accent"
+              >
+                <div className="flex min-w-0 items-baseline gap-1.5">
+                  <span className="shrink-0 text-xs text-muted-foreground/50">{i + 1}</span>
+                  <span className="truncate text-sm text-muted-foreground group-hover:text-foreground">
+                    {ch.title || "Untitled"}
+                  </span>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </aside>
+
+      {/* Main column — header + the view's content. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button asChild variant="ghost" size="sm" className="gap-1.5">
+              <Link href="/dashboard">
+                <ArrowLeft className="h-4 w-4" />
+                Dashboard
+              </Link>
+            </Button>
+            <div className="h-5 w-px bg-border" />
+            <h1 className="truncate text-base font-semibold">{title}</h1>
+          </div>
+          <div className={cn("flex items-center gap-2")}>
+            {projectId && <ProjectNavMenu projectId={projectId} category={category} current={current} />}
+            {headerActions}
+            <AppHeaderActions />
+          </div>
+        </header>
+        <div className="min-h-0 flex-1">{children}</div>
+      </div>
+    </div>
+  )
+}
