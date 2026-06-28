@@ -9,7 +9,8 @@ import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
-import { EditorHeader } from "./shared/EditorHeader"
+import { ProjectShell } from "./shared/ProjectShell"
+import { EditorToolbar } from "./shared/EditorToolbar"
 import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createIFKeymap } from "./if/keymap"
@@ -690,8 +691,14 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Passage list sidebar — shared rail (searchable) + comments. */}
+    <>
+    <ProjectShell
+      projectId={projectData.id}
+      title={projectData.title}
+      category={projectData.category}
+      current="editor"
+      sidebar={
+      /* Passage list sidebar — shared rail (searchable) + comments. */
       <EditorSidebar
         headerIcon={GitBranch}
         headerLabel="Passages"
@@ -717,25 +724,15 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
         onDeleteComment={onDeleteComment}
         onToggleCommentResolved={onToggleCommentResolved}
       />
-
-      {/* Main editor */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <EditorHeader
+      }
+      toolbar={
+        <EditorToolbar
           title={projectData.title}
-          subtitle="Interactive Fiction"
-          statRight={
-            <span className="flex items-center gap-3">
-              <span>{passages.length} passages</span>
-              <span className="flex items-center gap-1">
-                <Link2 className="h-3 w-3" />{totalLinks}
-              </span>
-            </span>
-          }
+          projectId={projectData.id}
+          category={projectData.category}
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
-          projectId={projectData.id}
-          category={projectData.category}
           importItems={[
             {
               label: "Twee 3 (.twee)",
@@ -761,7 +758,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               }),
             },
           ]}
-          extras={
+          leading={
             <div role="group" aria-label="View mode" className="flex items-center rounded-md border overflow-hidden text-xs">
               <button
                 onClick={() => setView("write")}
@@ -803,8 +800,9 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             </div>
           }
         />
-
-        <div className="flex flex-1 overflow-hidden">
+      }
+    >
+        <div className="flex h-full overflow-hidden">
         {/* Graph view */}
         {view === "graph" && (
           <div className="flex-1 overflow-hidden">
@@ -982,7 +980,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
         )}
         <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
-      </div>
+    </ProjectShell>
       {autocomplete && (
         <PassageAutocomplete
           passages={passages.map((p) => p.scene_heading).filter(Boolean)}
@@ -993,6 +991,6 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           onDismiss={() => setAutocomplete(null)}
         />
       )}
-    </div>
+    </>
   )
 }

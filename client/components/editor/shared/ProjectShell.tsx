@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, BookText } from "lucide-react"
 
 import { AppHeaderActions } from "@/components/AppHeaderActions"
+import { SyncControl } from "@/components/sync/SyncControl"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -48,12 +49,21 @@ interface ProjectShellProps {
   title: string
   category?: string
   current: "editor" | "beat-board" | "outline-editor" | "analytics"
-  /** The project's chapters/units, format-labelled by `chapterLabel`. */
-  chapters: ProjectShellChapter[]
+  /** The project's chapters/units, format-labelled by `chapterLabel`. Used by the
+   *  built-in navigation rail; ignored when a custom `sidebar` is supplied. */
+  chapters?: ProjectShellChapter[]
   /** Plural rail label, matching the editor's (Chapters / Pages / Poems / …). */
-  chapterLabel: string
+  chapterLabel?: string
   /** Click handler for a chapter; defaults to navigating to it in the Editor. */
   onChapterSelect?: (id: string) => void
+  /** Replaces the built-in chapter rail entirely. The editors pass their richer
+   *  EditorSidebar here (search + comments + scroll-to) while the beat board /
+   *  outline / analytics views fall back to the built-in list rail. */
+  sidebar?: React.ReactNode
+  /** A slim view-specific toolbar rendered directly under the generic header
+   *  (e.g. the editor's Write/Graph/Play switch + import/export/AI). The header
+   *  itself stays generic across every view. */
+  toolbar?: React.ReactNode
   /** Per-view actions rendered in the header before the app actions. */
   headerActions?: React.ReactNode
   children: React.ReactNode
@@ -64,9 +74,11 @@ export function ProjectShell({
   title,
   category,
   current,
-  chapters,
-  chapterLabel,
+  chapters = [],
+  chapterLabel = "Chapters",
   onChapterSelect,
+  sidebar,
+  toolbar,
   headerActions,
   children,
 }: ProjectShellProps) {
@@ -76,7 +88,9 @@ export function ProjectShell({
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Left chapter rail — mirrors the editor's, list-only for navigation. */}
+      {/* Left rail — the editor's own sidebar when supplied, otherwise the
+          built-in list rail (mirrors the editor's, list-only for navigation). */}
+      {sidebar ?? (
       <aside className="flex w-72 shrink-0 flex-col border-r bg-sidebar">
         <div className="shrink-0 space-y-2 border-b p-3">
           <div className="flex items-center gap-2">
@@ -108,6 +122,7 @@ export function ProjectShell({
           )}
         </div>
       </aside>
+      )}
 
       {/* Main column — header + the view's content. The header is generic to all
           views: back + title (left), the view nav centered, app actions (right).
@@ -134,9 +149,11 @@ export function ProjectShell({
           </div>
           <div className={cn("flex items-center justify-end gap-2")}>
             {headerActions}
+            <SyncControl projectId={projectId} />
             <AppHeaderActions />
           </div>
         </header>
+        {toolbar}
         <div className="min-h-0 flex-1">{children}</div>
       </div>
     </div>
