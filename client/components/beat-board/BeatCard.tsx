@@ -4,7 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { MoreHorizontal, Trash2, GripHorizontal, Upload } from "lucide-react"
+import { MoreHorizontal, Trash2, GripHorizontal, Upload, Palette } from "lucide-react"
 import type { Beat } from "@/services/beat"
 
 const PRESET_COLORS = [
@@ -101,7 +101,7 @@ export function BeatCard({
           </div>
 
           <Popover open={colorPickerOpen === beat.id} onOpenChange={(open) => setColorPickerOpen(open ? beat.id : null)}>
-            <PopoverTrigger asChild><Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}><div className="w-4 h-4 rounded-full border" style={{ backgroundColor: beat.color }} /></Button></PopoverTrigger>
+            <PopoverTrigger asChild><Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100" onClick={(e) => e.stopPropagation()} title="Card colour"><Palette className="h-4 w-4" /></Button></PopoverTrigger>
             <PopoverContent className="w-64 p-3" align="end"><div className="grid grid-cols-6 gap-2 mt-2">{PRESET_COLORS.map((color) => (<button key={color} className="w-8 h-8 rounded border-2 hover:border-gray-400" style={{ backgroundColor: color, borderColor: beat.color === color ? "#14b8a6" : "#e5e7eb" }} onClick={() => handleChangeColor(beat.id, color)} />))}</div></PopoverContent>
           </Popover>
           <DropdownMenu>
