@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Play, RotateCcw, ChevronLeft, AlignLeft, Split, Braces, StickyNote } from "lucide-react"
 import { PassageGraph } from "./PassageGraph"
 import { Button } from "@/components/ui/button"
@@ -195,6 +195,57 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     }
     scheduleSave(id, content, isScene)
   }, [scheduleSave])
+
+  // A passage created with no elements would render an empty-state placeholder
+  // whose keystrokes were never persisted (a real body element was only created
+  // on Enter) — typed text looked "Saved" but vanished on reload. seedBody
+  // creates a real, saveable body element so the body always routes through the
+  // normal save path. Guarded per-passage so rapid input / the effect below
+  // can't create duplicates.
+  const seedingRef = useRef<string | null>(null)
+  const seedBody = useCallback(async (passageId: string, content: string) => {
+    if (!user?.id || seedingRef.current === passageId) return
+    seedingRef.current = passageId
+    try {
+      const el = await createSceneElement(projectData.id, passageId, user.id, {
+        element_type: "body",
+        content,
+        order_index: 0,
+      })
+      setPassages(prev => prev.map(p =>
+        p.id === passageId && (p.elements ?? []).length === 0
+          ? { ...p, elements: [el] }
+          : p,
+      ))
+      // When seeded from a keystroke, move focus into the real element so the
+      // writer keeps typing without interruption.
+      if (content) {
+        setTimeout(() => {
+          const div = document.getElementById(`el-${el.id}`)
+          if (!div) return
+          div.focus()
+          const range = document.createRange()
+          range.selectNodeContents(div)
+          range.collapse(false)
+          const sel = window.getSelection()
+          sel?.removeAllRanges()
+          sel?.addRange(range)
+        }, 30)
+      }
+    } catch {
+      /* leave the placeholder in place; the next keystroke retries */
+    } finally {
+      if (seedingRef.current === passageId) seedingRef.current = null
+    }
+  }, [user?.id, projectData.id])
+
+  // Ensure the active passage has a body element to type into, created up front
+  // so there's no unsaved-keystroke window when the writer starts.
+  useEffect(() => {
+    if (!activePassageId) return
+    const passage = passages.find(p => p.id === activePassageId)
+    if (passage && (passage.elements ?? []).length === 0) void seedBody(activePassageId, "")
+  }, [activePassageId, passages, seedBody])
 
   const handleAddPassage = async (name = "") => {
     if (!user?.id) return
@@ -679,7 +730,9 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
       return (
         <StableContentEditable
           value=""
-          onValueChange={() => { /* empty-state placeholder; first keystroke creates a body element */ }}
+          // First keystroke before the auto-seed effect lands creates the body
+          // element with the typed text, so nothing is ever dropped.
+          onValueChange={(next) => { if (next) void seedBody(b.passage.id, next) }}
           className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Write\00a0passage\00a0text…'] empty:before:text-muted-foreground/50"
           onKeyDown={async (e) => {
             if (e.key === "Enter") { e.preventDefault(); await handleAddElement("body") }
