@@ -353,6 +353,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 
 					r.Get("/projects", scriptsHandler.GetOrgProjects)
 					r.Get("/seats", workspaceHandler.OrgSeats)
+					r.Put("/seats", workspaceHandler.SetOrgSeats)
 
 					r.Get("/members", workspaceHandler.ListOrgMembers)
 					r.Post("/members/invite", workspaceHandler.InviteOrgMember)

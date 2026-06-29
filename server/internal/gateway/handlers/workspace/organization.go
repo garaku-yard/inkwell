@@ -370,6 +370,51 @@ func (h *WorkspaceHandler) OrgSeats(w http.ResponseWriter, r *http.Request) {
 	}.ServeHTTP(w, r)
 }
 
+// SetOrgSeats sets the org's seat count. Owner only, since seats bill to the
+// owner's subscription. The count cannot drop below the current member count.
+// Updates the owner's subscription quantity (the per-seat charge prorates
+// through the payment gateway when one is configured).
+func (h *WorkspaceHandler) SetOrgSeats(w http.ResponseWriter, r *http.Request) {
+	type setSeatsBody struct {
+		Seats int32 `json:"seats"`
+	}
+	handlers.Endpoint[setSeatsBody, map[string]int32]{
+		Auth:   true,
+		Decode: jsonBodyOrInvalid[setSeatsBody],
+		Handle: func(r *http.Request, userID string, body *setSeatsBody) (*map[string]int32, error) {
+			orgID := chi.URLParam(r, "orgId")
+			if err := h.requireOrgRole(r.Context(), orgID, userID, roleOwner); err != nil {
+				return nil, err
+			}
+			orgResp, err := h.client.GetOrganization(r.Context(), &workspacepb.GetOrganizationRequest{OrgId: orgID})
+			if err != nil {
+				return nil, err
+			}
+			usage, err := h.client.CountOrgSeats(r.Context(), &workspacepb.CountOrgSeatsRequest{OrgId: orgID})
+			if err != nil {
+				return nil, err
+			}
+			if body.Seats < usage.GetSeats() {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest,
+					fmt.Sprintf("Can't set fewer than %d seats — that's the current member count. Remove members first.", usage.GetSeats()))
+			}
+			seats := body.Seats
+			if seats < 1 {
+				seats = 1
+			}
+			ownerID := orgResp.GetOrganization().GetOwnerId()
+			if _, err := h.billingClient.SyncSeats(r.Context(), &billingpb.SyncSeatsRequest{UserId: ownerID, Seats: seats}); err != nil {
+				return nil, err
+			}
+			return &map[string]int32{
+				"members": usage.GetSeats(),
+				"pending": usage.GetPendingInvites(),
+				"total":   h.orgSeatLimit(r.Context(), ownerID),
+			}, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
 // ListIncomingOrgInvites returns the pending org invitations addressed to the
 // authenticated user (by their account email), for the invitations inbox.
 func (h *WorkspaceHandler) ListIncomingOrgInvites(w http.ResponseWriter, r *http.Request) {

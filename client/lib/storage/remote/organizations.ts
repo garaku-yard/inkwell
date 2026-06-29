@@ -50,6 +50,8 @@ export const organizations: OrganizationStorage = {
     (await apiClient<IncomingOrgInvite[] | null>("organizations/invites/incoming")) ?? [],
 
   seats: (orgId) => apiClient<OrgSeatInfo>(`organizations/${orgId}/seats`),
+  setSeats: (orgId, seats) =>
+    apiClient<OrgSeatInfo>(`organizations/${orgId}/seats`, { method: "PUT", body: { seats } }),
   listProjects: async (orgId) => {
     const res = await apiClient<{ projects: Project[] }>(`organizations/${orgId}/projects`)
     return res.projects ?? []

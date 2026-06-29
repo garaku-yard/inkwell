@@ -31,6 +31,8 @@ export interface OrganizationStorage {
   listIncomingInvites(): Promise<IncomingOrgInvite[]>
 
   seats(orgId: string): Promise<OrgSeatInfo>
+  /** Set the org's seat count (owner only). Cannot drop below current members. */
+  setSeats(orgId: string, seats: number): Promise<OrgSeatInfo>
   /** The projects owned by the organization (the org's shared project pool). */
   listProjects(orgId: string): Promise<Project[]>
 }

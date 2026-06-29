@@ -93,6 +93,9 @@ export const declineOrgInvite = (token: string): Promise<void> =>
 export const getOrgSeats = (orgId: string): Promise<OrgSeatInfo> =>
   getStorage().organizations.seats(orgId)
 
+export const setOrgSeats = (orgId: string, seats: number): Promise<OrgSeatInfo> =>
+  getStorage().organizations.setSeats(orgId, seats)
+
 export const listIncomingOrgInvites = (): Promise<IncomingOrgInvite[]> =>
   getStorage().organizations.listIncomingInvites()
 

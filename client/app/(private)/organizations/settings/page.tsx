@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, Building2, Loader2, MoreHorizontal, Settings2, Trash2, UserPlus, Users, X } from "lucide-react"
+import { ArrowLeft, Building2, Loader2, Minus, MoreHorizontal, Plus, Settings2, Trash2, UserPlus, Users, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,6 +36,7 @@ import {
   inviteOrgMember,
   listOrgMembers,
   removeOrgMember,
+  setOrgSeats,
   updateOrganization,
   updateOrgMemberRole,
   type Organization,
@@ -147,7 +148,7 @@ function OrgSettingsContent() {
             />
           )}
           {section === "members" && (
-            <MembersSection orgId={org.id} canManage={canManage} currentUserId={user?.id} onMembershipChange={refetch} />
+            <MembersSection orgId={org.id} canManage={canManage} isOwner={isOwner} currentUserId={user?.id} onMembershipChange={refetch} />
           )}
         </main>
       </div>
@@ -264,11 +265,13 @@ function GeneralSection({
 function MembersSection({
   orgId,
   canManage,
+  isOwner,
   currentUserId,
   onMembershipChange,
 }: {
   orgId: string
   canManage: boolean
+  isOwner: boolean
   currentUserId?: string
   onMembershipChange: () => void
 }) {
@@ -279,8 +282,21 @@ function MembersSection({
   const [target, setTarget] = useState("")
   const [role, setRole] = useState<OrgRole>("editor")
   const [inviting, setInviting] = useState(false)
+  const [savingSeats, setSavingSeats] = useState(false)
   const [busyUser, setBusyUser] = useState<string | null>(null)
   const [removeTarget, setRemoveTarget] = useState<OrgMember | null>(null)
+
+  const changeSeats = async (next: number) => {
+    if (!seats || savingSeats || next < 1 || next < seats.members) return
+    setSavingSeats(true)
+    try {
+      setSeats(await setOrgSeats(orgId, next))
+    } catch (err) {
+      toast({ title: "Could not update seats", description: err instanceof Error ? err.message : undefined, variant: "destructive" })
+    } finally {
+      setSavingSeats(false)
+    }
+  }
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -354,17 +370,53 @@ function MembersSection({
 
       {seats && (
         <Card>
-          <CardContent className="flex items-center justify-between py-4">
-            <div className="flex items-center gap-2 text-sm">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium">{seats.members}</span>
-              <span className="text-muted-foreground">member{seats.members === 1 ? "" : "s"}</span>
-              {seats.pending > 0 && <span className="text-muted-foreground">· {seats.pending} pending</span>}
+          <CardContent className="space-y-3 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">{seats.members}</span>
+                <span className="text-muted-foreground">member{seats.members === 1 ? "" : "s"}</span>
+                {seats.pending > 0 && <span className="text-muted-foreground">· {seats.pending} pending</span>}
+              </div>
+              <div className="text-sm">
+                <span className={cn("font-medium", full && "text-destructive")}>{used}</span>
+                <span className="text-muted-foreground"> of {seats.total} seats used</span>
+              </div>
             </div>
-            <div className="text-sm">
-              <span className={cn("font-medium", full && "text-destructive")}>{used}</span>
-              <span className="text-muted-foreground"> of {seats.total} seats used</span>
-            </div>
+
+            {isOwner && (
+              <div className="flex items-center justify-between border-t pt-3">
+                <div>
+                  <p className="text-sm font-medium">Total seats</p>
+                  <p className="text-xs text-muted-foreground">Each seat is one member. Adjust to fit your team.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => changeSeats(seats.total - 1)}
+                    disabled={savingSeats || seats.total <= seats.members || seats.total <= 1}
+                    aria-label="Remove a seat"
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </Button>
+                  <span className="w-9 text-center text-sm font-semibold tabular-nums">
+                    {savingSeats ? <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin" /> : seats.total}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => changeSeats(seats.total + 1)}
+                    disabled={savingSeats}
+                    aria-label="Add a seat"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
