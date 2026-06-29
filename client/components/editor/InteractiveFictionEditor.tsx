@@ -16,6 +16,7 @@ import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createIFKeymap } from "./if/keymap"
 import { PassageAutocomplete } from "./if/PassageAutocomplete"
+import { mergeResyncedScenes } from "./if/resync"
 import { deleteScriptElement } from "@/services/editor"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToTwee } from "@/lib/export/if-twee"
@@ -35,6 +36,7 @@ import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
+  getFullProject,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
@@ -147,7 +149,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const activeElements = activePassage?.elements ?? []
 
   // Live collaboration (no-op on the desktop build — no realtime capability).
-  const { setFocus: reportFocus, sendEdit, subscribeEdits } = useProjectPresence()
+  const { setFocus: reportFocus, sendEdit, subscribeEdits, subscribeResync } = useProjectPresence()
 
   // Report which passage this client is editing so collaborators' presence bar
   // reads "editing <passage>".
@@ -195,6 +197,23 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
       )
     })
   }, [subscribeEdits])
+
+  // On reconnect we may have missed edits while offline. Refetch the project
+  // from the DB (source of truth) and reconcile, keeping only the node the
+  // writer is mid-keystroke on so the resync never clobbers their cursor.
+  useEffect(() => {
+    return subscribeResync(async () => {
+      if (!user?.id) return
+      try {
+        const fresh = await getFullProject(projectData.id, user.id)
+        const activeDomId =
+          typeof document !== "undefined" ? document.activeElement?.id : undefined
+        setPassages((prev) => mergeResyncedScenes(prev, fresh.scenes ?? [], activeDomId))
+      } catch {
+        // A failed refetch leaves local state as-is; the next reconnect retries.
+      }
+    })
+  }, [subscribeResync, user?.id, projectData.id])
 
   const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
     if (focusedElementId) {

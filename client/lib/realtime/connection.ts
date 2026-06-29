@@ -19,6 +19,9 @@ export interface RealtimeHandlers {
   onFrame?: (frame: ServerFrame) => void
   /** Fired when the live status flips, so the UI can show a presence dot. */
   onStatusChange?: (connected: boolean) => void
+  /** Fired after a *re*-connect (not the first open): the socket was down and
+   *  is back, so the owner should re-sync state it may have missed offline. */
+  onResync?: () => void
 }
 
 /** Reconnect backoff bounds, in milliseconds. */
@@ -36,6 +39,9 @@ export class RealtimeConnection {
   private closed = false
   private backoff = BACKOFF_MIN
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  /** Whether the socket has opened at least once — distinguishes the first
+   *  connect from a reconnect, so resync only fires on the latter. */
+  private openedBefore = false
   /** The latest focus, re-sent after a reconnect so peers see us again. */
   private lastFocus: OutboundFocus | null = null
 
@@ -67,6 +73,10 @@ export class RealtimeConnection {
       this.handlers.onStatusChange?.(true)
       // Re-announce our focus so peers who were already here see it again.
       if (this.lastFocus) this.rawSend(this.lastFocus)
+      // On a reconnect (not the first open) we may have missed edits while
+      // offline — ask the owner to re-sync from the source of truth.
+      if (this.openedBefore) this.handlers.onResync?.()
+      this.openedBefore = true
     }
     ws.onmessage = (ev) => {
       const frame = parseServerFrame(typeof ev.data === "string" ? ev.data : "")

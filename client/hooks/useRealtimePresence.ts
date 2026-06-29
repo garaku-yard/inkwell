@@ -23,6 +23,8 @@ import type { EditFrame, Peer } from "@/lib/realtime/protocol"
 export type RemoteEdit = EditFrame
 /** Subscriber for remote edits; returns an unsubscribe function. */
 export type EditSubscriber = (edit: RemoteEdit) => void
+/** Subscriber fired after a reconnect, so the editor can re-sync from the DB. */
+export type ResyncSubscriber = () => void
 
 export interface RealtimePresence {
   /** Other people in the room, one entry per user (self excluded). */
@@ -35,6 +37,8 @@ export interface RealtimePresence {
   sendEdit: (elementId: string, content: string, isScene: boolean) => void
   /** Subscribe to remote edits; returns an unsubscribe function. */
   subscribeEdits: (handler: EditSubscriber) => () => void
+  /** Subscribe to reconnect events to re-sync state; returns an unsubscribe. */
+  subscribeResync: (handler: ResyncSubscriber) => () => void
 }
 
 /** True when the bound storage exposes realtime presence (web build only). */
@@ -68,9 +72,10 @@ export function useRealtimePresence(projectId: string | undefined): RealtimePres
   const [byConn, setByConn] = useState<Map<string, Peer>>(() => new Map())
   const [connected, setConnected] = useState(false)
   const connRef = useRef<RealtimeConnection | null>(null)
-  // Edit subscribers live in a ref so the connection callback stays stable and
-  // editors can (un)subscribe without re-opening the socket.
+  // Edit + resync subscribers live in refs so the connection callbacks stay
+  // stable and editors can (un)subscribe without re-opening the socket.
   const editSubsRef = useRef<Set<EditSubscriber>>(new Set())
+  const resyncSubsRef = useRef<Set<ResyncSubscriber>>(new Set())
 
   useEffect(() => {
     if (!projectId || !user || !realtimeSupported()) return
@@ -80,6 +85,7 @@ export function useRealtimePresence(projectId: string | undefined): RealtimePres
 
     const conn = new RealtimeConnection(projectId, {
       onStatusChange: setConnected,
+      onResync: () => resyncSubsRef.current.forEach((fn) => fn()),
       onFrame: (frame) => {
         if (frame.type === "edit") {
           editSubsRef.current.forEach((fn) => fn(frame))
@@ -128,7 +134,14 @@ export function useRealtimePresence(projectId: string | undefined): RealtimePres
     }
   }, [])
 
+  const subscribeResync = useCallback((handler: ResyncSubscriber) => {
+    resyncSubsRef.current.add(handler)
+    return () => {
+      resyncSubsRef.current.delete(handler)
+    }
+  }, [])
+
   const peers = useMemo(() => aggregate(byConn, user?.id), [byConn, user?.id])
 
-  return { peers, connected, setFocus, sendEdit, subscribeEdits }
+  return { peers, connected, setFocus, sendEdit, subscribeEdits, subscribeResync }
 }

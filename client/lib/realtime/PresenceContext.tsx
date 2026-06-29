@@ -20,6 +20,7 @@ const EMPTY: RealtimePresence = {
   setFocus: () => {},
   sendEdit: () => {},
   subscribeEdits: () => () => {},
+  subscribeResync: () => () => {},
 }
 
 const PresenceContext = createContext<RealtimePresence>(EMPTY)
