@@ -54,6 +54,13 @@ func (s *notificationService) handleCollabAdded(ctx context.Context, evt events.
 		return fmt.Errorf("collab.added: invalid user_id %q: %w", p.UserID, err)
 	}
 
+	// Self-add: the project creator is registered as the "owner" collaborator on
+	// their own project, which fires this event with InvitedBy == UserID. Don't
+	// notify someone that they added themselves.
+	if p.InvitedBy == p.UserID {
+		return nil
+	}
+
 	prefs, err := s.GetPreferences(ctx, recipient)
 	if err != nil {
 		return fmt.Errorf("collab.added: load preferences: %w", err)
