@@ -9,6 +9,7 @@ import {
   Mail,
   Loader2,
   FileText,
+  Building2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -16,6 +17,13 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import Link from "next/link"
 import { getPendingInvites, acceptInvite, declineInvite, type Invitation } from "@/services/invites"
+import {
+  acceptOrgInvite,
+  declineOrgInvite,
+  listIncomingOrgInvites,
+  type IncomingOrgInvite,
+} from "@/services/organization"
+import { useWorkspace } from "@/lib/WorkspaceContext"
 
 const formatRelativeTime = (dateString: string) => {
   const date = new Date(dateString)
@@ -31,19 +39,53 @@ const formatRelativeTime = (dateString: string) => {
 
 export default function InvitesPage() {
   const [invites, setInvites] = useState<Invitation[]>([])
+  const [orgInvites, setOrgInvites] = useState<IncomingOrgInvite[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [processingInvites, setProcessingInvites] = useState<Set<string>>(new Set())
   const router = useRouter()
+  const { refetch: refetchWorkspaces, setActiveOrg } = useWorkspace()
 
   useEffect(() => {
     setIsLoading(true)
-    getPendingInvites()
-      .then(setInvites)
-      .catch((err) => {
+    Promise.all([
+      getPendingInvites().catch((err) => {
         console.error("Failed to fetch invites:", err)
+        return [] as Invitation[]
+      }),
+      listIncomingOrgInvites().catch((err) => {
+        console.error("Failed to fetch org invites:", err)
+        return [] as IncomingOrgInvite[]
+      }),
+    ])
+      .then(([projectInvites, incomingOrg]) => {
+        setInvites(projectInvites)
+        setOrgInvites(incomingOrg)
       })
       .finally(() => setIsLoading(false))
   }, [])
+
+  const handleOrgInviteAction = async (token: string, accepted: boolean) => {
+    setProcessingInvites((prev) => new Set(prev).add(token))
+    try {
+      if (accepted) {
+        const org = await acceptOrgInvite(token)
+        await refetchWorkspaces()
+        setActiveOrg(org)
+        router.push("/dashboard")
+      } else {
+        await declineOrgInvite(token)
+        setOrgInvites((prev) => prev.filter((i) => i.token !== token))
+      }
+    } catch (error) {
+      console.error(`Failed to ${accepted ? "accept" : "decline"} org invite:`, error)
+    } finally {
+      setProcessingInvites((prev) => {
+        const next = new Set(prev)
+        next.delete(token)
+        return next
+      })
+    }
+  }
 
   const handleInviteAction = async (invitationId: string, projectId: string, accepted: boolean) => {
     setProcessingInvites((prev) => new Set(prev).add(invitationId))
@@ -136,6 +178,57 @@ export default function InvitesPage() {
     )
   }
 
+  const OrgInviteCard = ({ invite }: { invite: IncomingOrgInvite }) => {
+    const isProcessing = processingInvites.has(invite.token)
+    return (
+      <Card className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-200 border-border/50 h-full flex flex-col overflow-hidden">
+        <CardHeader className="pb-3 flex-shrink-0 relative">
+          <div className="absolute top-0 left-0 right-0 h-1 rounded-t-lg bg-primary" />
+          <div className="flex items-start justify-between mb-3 pt-1">
+            <Badge variant="outline" className="text-xs font-medium bg-yellow-50 text-yellow-700 border-yellow-200">
+              Pending
+            </Badge>
+            <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/50 flex items-center gap-1">
+              <Building2 className="h-3 w-3" />
+              Organization
+            </Badge>
+          </div>
+          <h3 className="font-semibold text-base line-clamp-2 text-foreground mb-2 min-h-[2.5rem] group-hover:text-primary transition-colors">
+            {invite.org_name}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            You&apos;ve been invited as <span className="font-medium capitalize text-foreground">{invite.role}</span>.
+          </p>
+        </CardHeader>
+        <CardContent className="pt-0 mt-auto bg-gradient-to-t from-muted/30 to-transparent flex-shrink-0">
+          <div className="flex gap-2 w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-muted-foreground hover:text-red-600 hover:border-red-200 hover:bg-red-50 border-border/50 bg-transparent transition-colors"
+              onClick={() => handleOrgInviteAction(invite.token, false)}
+              disabled={isProcessing}
+            >
+              {isProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+              <span className="ml-1 hidden sm:inline">Decline</span>
+            </Button>
+            <Button
+              size="sm"
+              className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm"
+              onClick={() => handleOrgInviteAction(invite.token, true)}
+              disabled={isProcessing}
+            >
+              {isProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+              <span className="ml-1 hidden sm:inline">Accept</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const totalInvites = invites.length + orgInvites.length
+
   return (
     <div className="h-full overflow-y-auto bg-background">
       <header className="border-b sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -149,10 +242,10 @@ export default function InvitesPage() {
               </Link>
               <Mail className="h-5 w-5 text-muted-foreground" />
               <div>
-                <h1 className="text-lg font-semibold text-foreground">Project Invitations</h1>
-                {invites.length > 0 && (
+                <h1 className="text-lg font-semibold text-foreground">Invitations</h1>
+                {totalInvites > 0 && (
                   <p className="text-sm text-muted-foreground">
-                    {invites.length} pending invitation{invites.length !== 1 ? "s" : ""}
+                    {totalInvites} pending invitation{totalInvites !== 1 ? "s" : ""}
                   </p>
                 )}
               </div>
@@ -168,13 +261,26 @@ export default function InvitesPage() {
           </div>
         ) : (
           <>
+            {orgInvites.length > 0 && (
+              <section className="mb-8">
+                <h2 className="text-sm font-medium text-muted-foreground mb-3">Organizations</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {orgInvites.map((invite) => (
+                    <OrgInviteCard key={invite.token} invite={invite} />
+                  ))}
+                </div>
+              </section>
+            )}
             {invites.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-                {invites.map((invite) => (
-                  <InviteCard key={invite.id} invite={invite} />
-                ))}
-              </div>
-            ) : (
+              <section>
+                {orgInvites.length > 0 && <h2 className="text-sm font-medium text-muted-foreground mb-3">Projects</h2>}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+                  {invites.map((invite) => (
+                    <InviteCard key={invite.id} invite={invite} />
+                  ))}
+                </div>
+              </section>
+            ) : orgInvites.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-4">
                   <Mail className="h-8 w-8 text-muted-foreground" />
@@ -190,7 +296,7 @@ export default function InvitesPage() {
                   </Button>
                 </Link>
               </div>
-            )}
+            ) : null}
           </>
         )}
       </main>

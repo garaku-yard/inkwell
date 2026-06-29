@@ -50,6 +50,7 @@ const (
 	WorkspaceService_InviteOrgMember_FullMethodName          = "/workspace.WorkspaceService/InviteOrgMember"
 	WorkspaceService_AcceptOrgInvite_FullMethodName          = "/workspace.WorkspaceService/AcceptOrgInvite"
 	WorkspaceService_DeclineOrgInvite_FullMethodName         = "/workspace.WorkspaceService/DeclineOrgInvite"
+	WorkspaceService_ListIncomingOrgInvites_FullMethodName   = "/workspace.WorkspaceService/ListIncomingOrgInvites"
 )
 
 // WorkspaceServiceClient is the client API for WorkspaceService service.
@@ -95,6 +96,7 @@ type WorkspaceServiceClient interface {
 	InviteOrgMember(ctx context.Context, in *InviteOrgMemberRequest, opts ...grpc.CallOption) (*InviteOrgMemberResponse, error)
 	AcceptOrgInvite(ctx context.Context, in *AcceptOrgInviteRequest, opts ...grpc.CallOption) (*AcceptOrgInviteResponse, error)
 	DeclineOrgInvite(ctx context.Context, in *DeclineOrgInviteRequest, opts ...grpc.CallOption) (*DeclineOrgInviteResponse, error)
+	ListIncomingOrgInvites(ctx context.Context, in *ListIncomingOrgInvitesRequest, opts ...grpc.CallOption) (*ListIncomingOrgInvitesResponse, error)
 }
 
 type workspaceServiceClient struct {
@@ -415,6 +417,16 @@ func (c *workspaceServiceClient) DeclineOrgInvite(ctx context.Context, in *Decli
 	return out, nil
 }
 
+func (c *workspaceServiceClient) ListIncomingOrgInvites(ctx context.Context, in *ListIncomingOrgInvitesRequest, opts ...grpc.CallOption) (*ListIncomingOrgInvitesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListIncomingOrgInvitesResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_ListIncomingOrgInvites_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkspaceServiceServer is the server API for WorkspaceService service.
 // All implementations must embed UnimplementedWorkspaceServiceServer
 // for forward compatibility.
@@ -458,6 +470,7 @@ type WorkspaceServiceServer interface {
 	InviteOrgMember(context.Context, *InviteOrgMemberRequest) (*InviteOrgMemberResponse, error)
 	AcceptOrgInvite(context.Context, *AcceptOrgInviteRequest) (*AcceptOrgInviteResponse, error)
 	DeclineOrgInvite(context.Context, *DeclineOrgInviteRequest) (*DeclineOrgInviteResponse, error)
+	ListIncomingOrgInvites(context.Context, *ListIncomingOrgInvitesRequest) (*ListIncomingOrgInvitesResponse, error)
 	mustEmbedUnimplementedWorkspaceServiceServer()
 }
 
@@ -560,6 +573,9 @@ func (UnimplementedWorkspaceServiceServer) AcceptOrgInvite(context.Context, *Acc
 }
 func (UnimplementedWorkspaceServiceServer) DeclineOrgInvite(context.Context, *DeclineOrgInviteRequest) (*DeclineOrgInviteResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeclineOrgInvite not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) ListIncomingOrgInvites(context.Context, *ListIncomingOrgInvitesRequest) (*ListIncomingOrgInvitesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListIncomingOrgInvites not implemented")
 }
 func (UnimplementedWorkspaceServiceServer) mustEmbedUnimplementedWorkspaceServiceServer() {}
 func (UnimplementedWorkspaceServiceServer) testEmbeddedByValue()                          {}
@@ -1140,6 +1156,24 @@ func _WorkspaceService_DeclineOrgInvite_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkspaceService_ListIncomingOrgInvites_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListIncomingOrgInvitesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).ListIncomingOrgInvites(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_ListIncomingOrgInvites_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).ListIncomingOrgInvites(ctx, req.(*ListIncomingOrgInvitesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkspaceService_ServiceDesc is the grpc.ServiceDesc for WorkspaceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1270,6 +1304,10 @@ var WorkspaceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeclineOrgInvite",
 			Handler:    _WorkspaceService_DeclineOrgInvite_Handler,
+		},
+		{
+			MethodName: "ListIncomingOrgInvites",
+			Handler:    _WorkspaceService_ListIncomingOrgInvites_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -1,7 +1,13 @@
 import { apiClient } from "@/lib/api"
 
 import type { OrganizationStorage } from "@/lib/storage"
-import type { Organization, OrgMember, OrgRole } from "@/services/organization"
+import type {
+  IncomingOrgInvite,
+  Organization,
+  OrgMember,
+  OrgRole,
+  OrgSeatInfo,
+} from "@/services/organization"
 import type { Project } from "@/services/project"
 
 // ─── Organizations ──────────────────────────────────────────────────────────
@@ -40,11 +46,10 @@ export const organizations: OrganizationStorage = {
   declineInvite: async (token) => {
     await apiClient<void>(`organizations/invites/${token}/decline`, { method: "POST" })
   },
+  listIncomingInvites: async () =>
+    (await apiClient<IncomingOrgInvite[] | null>("organizations/invites/incoming")) ?? [],
 
-  seats: async (orgId) => {
-    const res = await apiClient<{ seats: number }>(`organizations/${orgId}/seats`)
-    return res.seats
-  },
+  seats: (orgId) => apiClient<OrgSeatInfo>(`organizations/${orgId}/seats`),
   listProjects: async (orgId) => {
     const res = await apiClient<{ projects: Project[] }>(`organizations/${orgId}/projects`)
     return res.projects ?? []

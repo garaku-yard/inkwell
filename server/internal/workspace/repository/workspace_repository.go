@@ -66,12 +66,18 @@ type WorkspaceRepository interface {
 	// CountOrgSeats returns the number of members in a single organization — the
 	// billable seat count for that org's per-seat subscription.
 	CountOrgSeats(ctx context.Context, orgID uuid.UUID) (int, error)
+	// CountPendingOrgInvites returns the number of unaccepted, unexpired invites
+	// for an org. Pending invites hold a seat for enforcement purposes.
+	CountPendingOrgInvites(ctx context.Context, orgID uuid.UUID) (int, error)
 
 	// Organization invites
 	CreateOrgInvite(ctx context.Context, inv *domain.OrgInvite) error
 	GetOrgInviteByToken(ctx context.Context, token string) (*domain.OrgInvite, error)
 	MarkOrgInviteAccepted(ctx context.Context, token string) error
 	MarkOrgInviteDeclined(ctx context.Context, token string) error
+	// GetIncomingOrgInvites returns the pending invites addressed to an email,
+	// joined with each org's name for the invitee's inbox.
+	GetIncomingOrgInvites(ctx context.Context, email string) ([]domain.IncomingOrgInvite, error)
 }
 
 type postgresWorkspaceRepository struct {

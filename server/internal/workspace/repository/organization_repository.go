@@ -167,6 +167,44 @@ func (r *postgresWorkspaceRepository) CountOrgSeats(ctx context.Context, orgID u
 	return count, nil
 }
 
+func (r *postgresWorkspaceRepository) CountPendingOrgInvites(ctx context.Context, orgID uuid.UUID) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM org_invites
+		WHERE org_id = $1 AND accepted_at IS NULL AND declined_at IS NULL AND expires_at > NOW()`,
+		orgID,
+	).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count pending org invites: %w", err)
+	}
+	return count, nil
+}
+
+func (r *postgresWorkspaceRepository) GetIncomingOrgInvites(ctx context.Context, email string) ([]domain.IncomingOrgInvite, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT i.token, i.org_id, o.name, i.role
+		FROM org_invites i
+		JOIN organizations o ON o.id = i.org_id
+		WHERE i.email = $1 AND i.accepted_at IS NULL AND i.declined_at IS NULL AND i.expires_at > NOW()
+		ORDER BY i.created_at DESC`,
+		email,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get incoming org invites: %w", err)
+	}
+	defer rows.Close()
+
+	var invites []domain.IncomingOrgInvite
+	for rows.Next() {
+		var inv domain.IncomingOrgInvite
+		if err := rows.Scan(&inv.Token, &inv.OrgID, &inv.OrgName, &inv.Role); err != nil {
+			return nil, fmt.Errorf("scan incoming org invite: %w", err)
+		}
+		invites = append(invites, inv)
+	}
+	return invites, rows.Err()
+}
+
 // ─── Organization invites ──────────────────────────────────────────────────────
 
 func (r *postgresWorkspaceRepository) CreateOrgInvite(ctx context.Context, inv *domain.OrgInvite) error {

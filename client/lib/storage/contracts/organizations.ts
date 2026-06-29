@@ -1,5 +1,11 @@
 import type { Project } from "@/services/project"
-import type { Organization, OrgMember, OrgRole } from "@/services/organization"
+import type {
+  IncomingOrgInvite,
+  Organization,
+  OrgMember,
+  OrgRole,
+  OrgSeatInfo,
+} from "@/services/organization"
 
 // ─── Organizations ──────────────────────────────────────────────────────────
 
@@ -21,8 +27,10 @@ export interface OrganizationStorage {
   removeMember(orgId: string, userId: string): Promise<void>
   acceptInvite(token: string): Promise<Organization>
   declineInvite(token: string): Promise<void>
+  /** Pending org invitations addressed to the current user. */
+  listIncomingInvites(): Promise<IncomingOrgInvite[]>
 
-  seats(orgId: string): Promise<number>
+  seats(orgId: string): Promise<OrgSeatInfo>
   /** The projects owned by the organization (the org's shared project pool). */
   listProjects(orgId: string): Promise<Project[]>
 }

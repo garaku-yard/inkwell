@@ -45,6 +45,15 @@ type OrgMember struct {
 	CreatedAt time.Time  `db:"created_at"`
 }
 
+// IncomingOrgInvite is a pending invite addressed to a user, enriched with the
+// org's name for display in the invitee's invitations inbox.
+type IncomingOrgInvite struct {
+	Token   string
+	OrgID   uuid.UUID
+	OrgName string
+	Role    InviteRole
+}
+
 type OrgInvite struct {
 	ID         uuid.UUID  `db:"id"`
 	OrgID      uuid.UUID  `db:"org_id"`

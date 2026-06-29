@@ -257,10 +257,27 @@ export function WorkspaceSwitcher() {
           </TooltipContent>
         </Tooltip>
 
-        {/* Settings — personal workspace settings (org settings ship in a later
-            stage). Hidden while in org context so this never points at a page
-            that doesn't apply to the active scope. */}
-        {!activeOrg && activeWorkspace && (
+        {/* Settings — scoped to the active context: org settings when inside an
+            org, otherwise the active personal workspace's settings. */}
+        {activeOrg ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => router.push(`/organizations/settings?id=${activeOrg.id}`)}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-[14px] border border-border",
+                  "text-muted-foreground transition-all duration-150 hover:rounded-[10px] hover:border-primary hover:text-primary",
+                )}
+                aria-label="Organization settings"
+              >
+                <Settings2 className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Organization settings</p>
+            </TooltipContent>
+          </Tooltip>
+        ) : activeWorkspace ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -278,7 +295,7 @@ export function WorkspaceSwitcher() {
               <p>Workspace settings</p>
             </TooltipContent>
           </Tooltip>
-        )}
+        ) : null}
       </aside>
 
       <AddWorkspaceDialog open={addOpen} onOpenChange={setAddOpen} onSwitchToOrg={() => setCreateOrgOpen(true)} />

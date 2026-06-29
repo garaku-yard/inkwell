@@ -332,7 +332,25 @@ message CountOrgSeatsRequest {
 }
 
 message CountOrgSeatsResponse {
-  int32 seats = 1;
+  int32 seats = 1;           // current members
+  int32 pending_invites = 2; // unaccepted, unexpired invites (also hold a seat)
+}
+
+// IncomingOrgInvite is a pending org invitation addressed to a user, surfaced in
+// their invitations inbox so they can accept without an out-of-band token.
+message IncomingOrgInvite {
+  string token    = 1;
+  string org_id   = 2;
+  string org_name = 3;
+  string role     = 4;
+}
+
+message ListIncomingOrgInvitesRequest {
+  string email = 1;
+}
+
+message ListIncomingOrgInvitesResponse {
+  repeated IncomingOrgInvite invites = 1;
 }
 
 // ─── Organization invites ────────────────────────────────────────────────────
@@ -414,4 +432,5 @@ service WorkspaceService {
   rpc InviteOrgMember(InviteOrgMemberRequest) returns (InviteOrgMemberResponse);
   rpc AcceptOrgInvite(AcceptOrgInviteRequest) returns (AcceptOrgInviteResponse);
   rpc DeclineOrgInvite(DeclineOrgInviteRequest) returns (DeclineOrgInviteResponse);
+  rpc ListIncomingOrgInvites(ListIncomingOrgInvitesRequest) returns (ListIncomingOrgInvitesResponse);
 }

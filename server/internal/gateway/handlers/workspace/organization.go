@@ -2,12 +2,16 @@ package workspace
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/handlers"
+	billingpb "inkwell/server/pkg/grpc/billing"
+	"inkwell/server/pkg/grpc/identity"
 	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
 
@@ -18,6 +22,27 @@ const (
 	roleOwner = "owner"
 	roleAdmin = "admin"
 )
+
+// orgSeatLimit returns how many seats the org owner has purchased — the org's
+// member cap. It reads the owner's subscription quantity; no active per-seat
+// subscription means a single seat (owner only). Fails to 1 on any billing
+// error so a hiccup never silently grants unlimited seats.
+func (h *WorkspaceHandler) orgSeatLimit(ctx context.Context, ownerID string) int32 {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	resp, err := h.billingClient.GetUserSubscription(ctx, &billingpb.GetUserSubscriptionRequest{UserId: ownerID})
+	if err != nil || resp.GetSubscription() == nil {
+		return 1
+	}
+	sub := resp.GetSubscription()
+	if sub.GetStatus() != "active" && sub.GetStatus() != "trialing" {
+		return 1
+	}
+	if q := sub.GetQuantity(); q > 1 {
+		return q
+	}
+	return 1
+}
 
 // requireOrgRole resolves the caller's role in the org and authorizes the
 // request against the allowed roles, returning 403 when the caller is not a
@@ -161,13 +186,14 @@ func (h *WorkspaceHandler) DeleteOrganization(w http.ResponseWriter, r *http.Req
 	}.ServeHTTP(w, r)
 }
 
-// ListOrgMembers returns the org's members. Requires membership.
+// ListOrgMembers returns the org's members, enriched with identity-resolved
+// display names so the UI never shows raw UUIDs. Requires membership.
 func (h *WorkspaceHandler) ListOrgMembers(w http.ResponseWriter, r *http.Request) {
-	handlers.Endpoint[struct{}, []*workspacepb.OrgMember]{
+	handlers.Endpoint[struct{}, []map[string]any]{
 		Method: http.MethodGet,
 		Auth:   true,
 		Decode: handlers.NoBody[struct{}],
-		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]*workspacepb.OrgMember, error) {
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]map[string]any, error) {
 			orgID := chi.URLParam(r, "orgId")
 			if err := h.requireOrgRole(r.Context(), orgID, userID, roleOwner, roleAdmin, "editor", "viewer"); err != nil {
 				return nil, err
@@ -176,7 +202,32 @@ func (h *WorkspaceHandler) ListOrgMembers(w http.ResponseWriter, r *http.Request
 			if err != nil {
 				return nil, err
 			}
-			return &resp.Members, nil
+
+			// Resolve each member's display identity. GetUser is per-user (the
+			// batch GetUsers is unimplemented); org member counts are small. A
+			// lookup failure degrades to the raw row rather than failing the list.
+			out := make([]map[string]any, 0, len(resp.Members))
+			for _, m := range resp.Members {
+				row := map[string]any{
+					"id":         m.GetId(),
+					"org_id":     m.GetOrgId(),
+					"user_id":    m.GetUserId(),
+					"role":       m.GetRole(),
+					"invited_by": m.GetInvitedBy(),
+				}
+				if ures, uerr := h.identityClient.GetUser(r.Context(), &identity.GetUserRequest{UserId: m.GetUserId()}); uerr == nil && ures.GetUser() != nil {
+					u := ures.GetUser()
+					name := u.GetUsername()
+					if u.GetUsername() != "" && u.GetUserTag() != "" {
+						name = u.GetUsername() + "#" + u.GetUserTag()
+					}
+					row["name"] = name
+					row["email"] = u.GetEmail()
+					row["avatar_url"] = u.GetAvatarUrl()
+				}
+				out = append(out, row)
+			}
+			return &out, nil
 		},
 	}.ServeHTTP(w, r)
 }
@@ -205,6 +256,23 @@ func (h *WorkspaceHandler) InviteOrgMember(w http.ResponseWriter, r *http.Reques
 			}
 			if target == "" || body.Role == "" {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "target (email or @username or username#tag) and role are required")
+			}
+
+			// Seat enforcement: members plus pending invites must stay within the
+			// purchased seat count. Both occupy a seat, so an invite is refused
+			// when none is free.
+			orgResp, err := h.client.GetOrganization(r.Context(), &workspacepb.GetOrganizationRequest{OrgId: orgID})
+			if err != nil {
+				return nil, err
+			}
+			limit := h.orgSeatLimit(r.Context(), orgResp.GetOrganization().GetOwnerId())
+			usage, err := h.client.CountOrgSeats(r.Context(), &workspacepb.CountOrgSeatsRequest{OrgId: orgID})
+			if err != nil {
+				return nil, err
+			}
+			if usage.GetSeats()+usage.GetPendingInvites() >= limit {
+				return nil, apierror.New(apierror.CodeResourceExhausted, http.StatusTooManyRequests,
+					fmt.Sprintf("This organization has used all %d seats. Remove a member or add seats to invite more.", limit))
 			}
 			resolvedEmail, err := ResolveEmailOrTag(r.Context(), h.identityClient, target)
 			if err != nil {
@@ -273,7 +341,8 @@ func (h *WorkspaceHandler) RemoveOrgMember(w http.ResponseWriter, r *http.Reques
 	}.ServeHTTP(w, r)
 }
 
-// OrgSeats returns the org's current seat count. Requires membership.
+// OrgSeats returns the org's seat usage: members in use, pending invites (which
+// also hold a seat), and the total purchased. Requires membership.
 func (h *WorkspaceHandler) OrgSeats(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[struct{}, map[string]int32]{
 		Method: http.MethodGet,
@@ -284,11 +353,42 @@ func (h *WorkspaceHandler) OrgSeats(w http.ResponseWriter, r *http.Request) {
 			if err := h.requireOrgRole(r.Context(), orgID, userID, roleOwner, roleAdmin, "editor", "viewer"); err != nil {
 				return nil, err
 			}
+			orgResp, err := h.client.GetOrganization(r.Context(), &workspacepb.GetOrganizationRequest{OrgId: orgID})
+			if err != nil {
+				return nil, err
+			}
 			resp, err := h.client.CountOrgSeats(r.Context(), &workspacepb.CountOrgSeatsRequest{OrgId: orgID})
 			if err != nil {
 				return nil, err
 			}
-			return &map[string]int32{"seats": resp.Seats}, nil
+			return &map[string]int32{
+				"members": resp.GetSeats(),
+				"pending": resp.GetPendingInvites(),
+				"total":   h.orgSeatLimit(r.Context(), orgResp.GetOrganization().GetOwnerId()),
+			}, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// ListIncomingOrgInvites returns the pending org invitations addressed to the
+// authenticated user (by their account email), for the invitations inbox.
+func (h *WorkspaceHandler) ListIncomingOrgInvites(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, []*workspacepb.IncomingOrgInvite]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]*workspacepb.IncomingOrgInvite, error) {
+			// Resolve the caller's email — org invites are addressed by email.
+			ures, err := h.identityClient.GetUser(r.Context(), &identity.GetUserRequest{UserId: userID})
+			if err != nil || ures.GetUser() == nil {
+				empty := []*workspacepb.IncomingOrgInvite{}
+				return &empty, nil
+			}
+			resp, err := h.client.ListIncomingOrgInvites(r.Context(), &workspacepb.ListIncomingOrgInvitesRequest{Email: ures.GetUser().GetEmail()})
+			if err != nil {
+				return nil, err
+			}
+			return &resp.Invites, nil
 		},
 	}.ServeHTTP(w, r)
 }

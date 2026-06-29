@@ -341,6 +341,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 				r.Get("/", workspaceHandler.ListOrganizations)
 				r.Post("/", workspaceHandler.CreateOrganization)
 
+				r.Get("/invites/incoming", workspaceHandler.ListIncomingOrgInvites)
 				r.Post("/invites/{token}/accept", workspaceHandler.AcceptOrgInvite)
 				r.Post("/invites/{token}/decline", workspaceHandler.DeclineOrgInvite)
 

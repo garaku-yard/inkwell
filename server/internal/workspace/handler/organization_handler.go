@@ -160,7 +160,32 @@ func (h *WorkspaceHandler) CountOrgSeats(ctx context.Context, req *workspacepb.C
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	return &workspacepb.CountOrgSeatsResponse{Seats: int32(seats)}, nil
+	pending, err := h.svc.CountPendingOrgInvites(ctx, orgID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &workspacepb.CountOrgSeatsResponse{Seats: int32(seats), PendingInvites: int32(pending)}, nil
+}
+
+// ListIncomingOrgInvites returns the pending org invites addressed to an email.
+func (h *WorkspaceHandler) ListIncomingOrgInvites(ctx context.Context, req *workspacepb.ListIncomingOrgInvitesRequest) (*workspacepb.ListIncomingOrgInvitesResponse, error) {
+	if req.Email == "" {
+		return nil, status.Error(codes.InvalidArgument, "email is required")
+	}
+	invites, err := h.svc.ListIncomingOrgInvites(ctx, req.Email)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	out := make([]*workspacepb.IncomingOrgInvite, 0, len(invites))
+	for _, inv := range invites {
+		out = append(out, &workspacepb.IncomingOrgInvite{
+			Token:   inv.Token,
+			OrgId:   inv.OrgID.String(),
+			OrgName: inv.OrgName,
+			Role:    string(inv.Role),
+		})
+	}
+	return &workspacepb.ListIncomingOrgInvitesResponse{Invites: out}, nil
 }
 
 // ─── Organization invites ──────────────────────────────────────────────────────

@@ -56,11 +56,13 @@ type WorkspaceService interface {
 	UpdateOrgMemberRole(ctx context.Context, orgID, userID uuid.UUID, role domain.MemberRole) (*domain.OrgMember, error)
 	ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]domain.OrgMember, error)
 	CountOrgSeats(ctx context.Context, orgID uuid.UUID) (int, error)
+	CountPendingOrgInvites(ctx context.Context, orgID uuid.UUID) (int, error)
 
 	// Organization invites
 	InviteOrgMember(ctx context.Context, orgID uuid.UUID, email string, role domain.InviteRole, invitedBy uuid.UUID) (string, error)
 	AcceptOrgInvite(ctx context.Context, token string, userID uuid.UUID) (*domain.Organization, error)
 	DeclineOrgInvite(ctx context.Context, token string) error
+	ListIncomingOrgInvites(ctx context.Context, email string) ([]domain.IncomingOrgInvite, error)
 }
 
 type workspaceService struct {

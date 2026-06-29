@@ -159,6 +159,10 @@ func (s *workspaceService) CountOrgSeats(ctx context.Context, orgID uuid.UUID) (
 	return s.repo.CountOrgSeats(ctx, orgID)
 }
 
+func (s *workspaceService) CountPendingOrgInvites(ctx context.Context, orgID uuid.UUID) (int, error) {
+	return s.repo.CountPendingOrgInvites(ctx, orgID)
+}
+
 // ─── Organization invites ──────────────────────────────────────────────────────
 
 func (s *workspaceService) InviteOrgMember(ctx context.Context, orgID uuid.UUID, email string, role domain.InviteRole, invitedBy uuid.UUID) (string, error) {
@@ -211,4 +215,8 @@ func (s *workspaceService) AcceptOrgInvite(ctx context.Context, token string, us
 
 func (s *workspaceService) DeclineOrgInvite(ctx context.Context, token string) error {
 	return s.repo.MarkOrgInviteDeclined(ctx, token)
+}
+
+func (s *workspaceService) ListIncomingOrgInvites(ctx context.Context, email string) ([]domain.IncomingOrgInvite, error) {
+	return s.repo.GetIncomingOrgInvites(ctx, email)
 }

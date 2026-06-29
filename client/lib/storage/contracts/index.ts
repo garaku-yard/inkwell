@@ -26,7 +26,13 @@ import type {
   WorkspaceMember,
   WorkspacesResponse,
 } from "@/services/workspace"
-import type { Organization, OrgMember, OrgRole } from "@/services/organization"
+import type {
+  IncomingOrgInvite,
+  Organization,
+  OrgMember,
+  OrgRole,
+  OrgSeatInfo,
+} from "@/services/organization"
 import type {
   CreateElementRequest,
   UpdateElementRequest,
@@ -86,10 +92,12 @@ export type {
   Invitation,
   Lane,
   Location,
+  IncomingOrgInvite,
   MyBilling,
   Organization,
   OrgMember,
   OrgRole,
+  OrgSeatInfo,
   OutlineItem,
   PaymentGateway,
   Project,

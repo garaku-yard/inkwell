@@ -25,6 +25,27 @@ export interface OrgMember {
   user_id: string
   role: OrgRole
   invited_by?: string
+  /** Identity-resolved display fields (gateway-enriched). Absent if the
+   *  identity lookup failed. */
+  name?: string
+  email?: string
+  avatar_url?: string
+}
+
+/** Org seat usage: members in use + pending invites (which also hold a seat),
+ *  against the total purchased. */
+export interface OrgSeatInfo {
+  members: number
+  pending: number
+  total: number
+}
+
+/** A pending org invitation addressed to the current user. */
+export interface IncomingOrgInvite {
+  token: string
+  org_id: string
+  org_name: string
+  role: OrgRole
 }
 
 /** Lists every organization the authenticated user belongs to. */
@@ -69,8 +90,11 @@ export const acceptOrgInvite = (token: string): Promise<Organization> =>
 export const declineOrgInvite = (token: string): Promise<void> =>
   getStorage().organizations.declineInvite(token)
 
-export const getOrgSeats = (orgId: string): Promise<number> =>
+export const getOrgSeats = (orgId: string): Promise<OrgSeatInfo> =>
   getStorage().organizations.seats(orgId)
+
+export const listIncomingOrgInvites = (): Promise<IncomingOrgInvite[]> =>
+  getStorage().organizations.listIncomingInvites()
 
 export const listOrgProjects = (orgId: string): Promise<Project[]> =>
   getStorage().organizations.listProjects(orgId)

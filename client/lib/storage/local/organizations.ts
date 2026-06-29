@@ -17,6 +17,7 @@ export const organizations: OrganizationStorage = {
   removeMember: () => reject("organizations"),
   acceptInvite: () => reject("organizations"),
   declineInvite: () => reject("organizations"),
-  seats: async () => 0,
+  listIncomingInvites: async () => [],
+  seats: async () => ({ members: 0, pending: 0, total: 0 }),
   listProjects: async () => [],
 }

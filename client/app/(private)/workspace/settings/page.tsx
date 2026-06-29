@@ -2,20 +2,21 @@
 
 import { Suspense, useState, useEffect, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { ArrowLeft, Settings2, Tag, Users } from "lucide-react"
+import { ArrowLeft, Settings2, Tag } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useWorkspace } from "@/lib/WorkspaceContext"
 import { getWorkspace, type Workspace } from "@/services/workspace"
 import { GeneralSection } from "@/components/workspace/settings/GeneralSection"
-import { MembersSection } from "@/components/workspace/settings/MembersSection"
 import { CategoriesSection } from "@/components/workspace/settings/CategoriesSection"
 import { PaneSpinner } from "@/components/shared/PaneSpinner"
 import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
 import { cn } from "@/lib/utils"
 
-type Section = "general" | "members" | "categories"
+// Personal workspaces are solo, category-filter bundles — no members. Team
+// membership lives on organizations (see /organizations/settings).
+type Section = "general" | "categories"
 
 function WorkspaceSettingsPageContent() {
   const searchParams = useSearchParams()
@@ -66,7 +67,6 @@ function WorkspaceSettingsPageContent() {
 
   const navItems: { id: Section; label: string; icon: React.ReactNode }[] = [
     { id: "general", label: "General", icon: <Settings2 className="h-4 w-4" /> },
-    { id: "members", label: "Members", icon: <Users className="h-4 w-4" /> },
     { id: "categories", label: "Categories", icon: <Tag className="h-4 w-4" /> },
   ]
 
@@ -114,7 +114,6 @@ function WorkspaceSettingsPageContent() {
               onDeleted={handleDeleted}
             />
           )}
-          {section === "members" && <MembersSection workspaceId={workspace.id} />}
           {section === "categories" && (
             <CategoriesSection workspace={workspace} onUpdated={handleSectionUpdate} />
           )}
