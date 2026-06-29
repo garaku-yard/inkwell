@@ -45,8 +45,24 @@ export interface FocusFrame {
   peer: Peer
 }
 
+/**
+ * A live element-content change relayed from another peer. The gateway passes
+ * it through verbatim; receivers apply it to the named element unless they are
+ * actively editing that element (the cursor-jump guard). The DB stays source of
+ * truth via the sender's autosave, so this carries the whole content, not a diff.
+ */
+export interface EditFrame {
+  type: "edit"
+  /** The scene (passage) or element id whose content changed. */
+  elementId: string
+  /** The element's full new content. */
+  content: string
+  /** True when elementId names a scene heading rather than an element body. */
+  isScene: boolean
+}
+
 /** Any frame the gateway can push to a client. */
-export type ServerFrame = RosterFrame | PeerJoinFrame | PeerLeaveFrame | FocusFrame
+export type ServerFrame = RosterFrame | PeerJoinFrame | PeerLeaveFrame | FocusFrame | EditFrame
 
 /** The focus frame a client sends upstream; the gateway stamps identity. */
 export interface OutboundFocus {
@@ -54,6 +70,9 @@ export interface OutboundFocus {
   elementId: string
   label: string
 }
+
+/** The edit frame a client sends upstream; relayed verbatim to the room. */
+export type OutboundEdit = EditFrame
 
 /** Narrowing parse of an inbound frame; returns null on anything unrecognised. */
 export function parseServerFrame(data: string): ServerFrame | null {
@@ -70,6 +89,7 @@ export function parseServerFrame(data: string): ServerFrame | null {
     case "peer_join":
     case "peer_leave":
     case "focus":
+    case "edit":
       return raw as ServerFrame
     default:
       return null

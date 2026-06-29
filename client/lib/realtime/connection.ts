@@ -11,7 +11,7 @@
  */
 
 import { getApiBaseUrl } from "@/lib/api"
-import { parseServerFrame, type ServerFrame, type OutboundFocus } from "./protocol"
+import { parseServerFrame, type ServerFrame, type OutboundFocus, type OutboundEdit } from "./protocol"
 
 /** Callbacks the owner wires up; all optional. */
 export interface RealtimeHandlers {
@@ -97,7 +97,12 @@ export class RealtimeConnection {
     this.rawSend(this.lastFocus)
   }
 
-  private rawSend(payload: OutboundFocus): void {
+  /** Broadcasts a live content change for an element to the rest of the room. */
+  sendEdit(elementId: string, content: string, isScene: boolean): void {
+    this.rawSend({ type: "edit", elementId, content, isScene })
+  }
+
+  private rawSend(payload: OutboundFocus | OutboundEdit): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(payload))
     }

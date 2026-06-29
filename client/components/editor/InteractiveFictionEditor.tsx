@@ -146,12 +146,55 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const activePassage = passages.find(p => p.id === activePassageId) ?? null
   const activeElements = activePassage?.elements ?? []
 
+  // Live collaboration (no-op on the desktop build — no realtime capability).
+  const { setFocus: reportFocus, sendEdit, subscribeEdits } = useProjectPresence()
+
   // Report which passage this client is editing so collaborators' presence bar
-  // reads "editing <passage>". No-op on the desktop build (no realtime).
-  const { setFocus: reportFocus } = useProjectPresence()
+  // reads "editing <passage>".
   useEffect(() => {
     if (activePassageId) reportFocus(activePassageId, activePassage?.scene_heading || "Untitled")
   }, [activePassageId, activePassage?.scene_heading, reportFocus])
+
+  // Broadcast content changes on a short per-id debounce (separate from the
+  // longer autosave) so co-editors see typing land within a beat without a
+  // frame per keystroke. Per-id timers so switching elements never drops one.
+  const editTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const broadcastEdit = useCallback((id: string, content: string, isScene: boolean) => {
+    const timers = editTimersRef.current
+    const pending = timers.get(id)
+    if (pending) clearTimeout(pending)
+    timers.set(id, setTimeout(() => {
+      timers.delete(id)
+      sendEdit(id, content, isScene)
+    }, 150))
+  }, [sendEdit])
+  useEffect(() => {
+    const timers = editTimersRef.current
+    return () => {
+      timers.forEach((t) => clearTimeout(t))
+      timers.clear()
+    }
+  }, [])
+
+  // Apply co-editors' content changes to local state — but never to the element
+  // the local writer is actively editing (their caret stays put; their content
+  // stays authoritative). StableContentEditable syncs the DOM for the rest.
+  useEffect(() => {
+    return subscribeEdits((edit) => {
+      const domId = edit.isScene ? `head-${edit.elementId}` : `el-${edit.elementId}`
+      if (typeof document !== "undefined" && document.activeElement?.id === domId) return
+      setPassages((prev) =>
+        edit.isScene
+          ? prev.map((p) => (p.id === edit.elementId ? { ...p, scene_heading: edit.content } : p))
+          : prev.map((p) => ({
+              ...p,
+              elements: (p.elements ?? []).map((el) =>
+                el.id === edit.elementId ? { ...el, content: edit.content } : el,
+              ),
+            })),
+      )
+    })
+  }, [subscribeEdits])
 
   const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
     if (focusedElementId) {
@@ -202,7 +245,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
       })))
     }
     scheduleSave(id, content, isScene)
-  }, [scheduleSave])
+    broadcastEdit(id, content, isScene)
+  }, [scheduleSave, broadcastEdit])
 
   // A passage created with no elements would render an empty-state placeholder
   // whose keystrokes were never persisted (a real body element was only created
@@ -719,6 +763,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               </span>
             )}
             <StableContentEditable
+              id={`head-${b.passage.id}`}
               value={b.passage.scene_heading ?? ""}
               onValueChange={(next) => handleContentChange(b.passage.id, next, true)}
               className="text-xl font-bold outline-none pb-2 border-b empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"

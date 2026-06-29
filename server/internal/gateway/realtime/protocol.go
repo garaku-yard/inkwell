@@ -18,6 +18,11 @@ const (
 	// TypeFocus is sent by a client when its editing focus moves to a different
 	// element (or clears), and relayed by the gateway to the rest of the room.
 	TypeFocus = "focus"
+	// TypeEdit carries a live element-content change. The gateway relays it to
+	// the rest of the room verbatim; the DB stays source of truth via the
+	// client's existing debounced autosave. Receivers apply it to every element
+	// except the one they are actively editing (the cursor-jump guard).
+	TypeEdit = "edit"
 )
 
 // Peer is a single live editing session as seen by everyone else in the room.

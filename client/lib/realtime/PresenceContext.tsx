@@ -18,6 +18,8 @@ const EMPTY: RealtimePresence = {
   peers: [],
   connected: false,
   setFocus: () => {},
+  sendEdit: () => {},
+  subscribeEdits: () => () => {},
 }
 
 const PresenceContext = createContext<RealtimePresence>(EMPTY)

@@ -82,6 +82,45 @@ func readFrame(t *testing.T, ws *websocket.Conn) map[string]any {
 	return frame
 }
 
+// expectNoFrame asserts the connection receives nothing within dur — used to
+// prove a sender is excluded from its own broadcast.
+func expectNoFrame(t *testing.T, ws *websocket.Conn, dur time.Duration) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), dur)
+	defer cancel()
+	if _, data, err := ws.Read(ctx); err == nil {
+		t.Fatalf("expected no frame, got %q", data)
+	}
+}
+
+// TestEditFrameRelayedToRoom drives a live element edit: the sender's edit
+// reaches the other peer verbatim and is never echoed back to the sender.
+func TestEditFrameRelayedToRoom(t *testing.T) {
+	srv := presenceTestServer(t)
+	defer srv.Close()
+
+	a := dial(t, srv, "user-a")
+	defer a.Close(websocket.StatusNormalClosure, "")
+	readFrame(t, a) // A's roster (empty)
+
+	b := dial(t, srv, "user-b")
+	defer b.Close(websocket.StatusNormalClosure, "")
+	readFrame(t, b) // B's roster
+	readFrame(t, a) // A sees peer_join(B)
+
+	edit := `{"type":"edit","elementId":"el-9","content":"hello","isScene":false}`
+	if err := a.Write(context.Background(), websocket.MessageText, []byte(edit)); err != nil {
+		t.Fatalf("A write edit: %v", err)
+	}
+
+	got := readFrame(t, b)
+	if got["type"] != "edit" || got["elementId"] != "el-9" || got["content"] != "hello" {
+		t.Fatalf("B edit frame = %+v, want el-9/hello", got)
+	}
+	// The sender must not receive its own edit.
+	expectNoFrame(t, a, 200*time.Millisecond)
+}
+
 // TestPresenceProtocolEndToEnd drives a full presence exchange over real
 // WebSocket connections: roster on join, peer_join broadcast, focus relay, and
 // peer_leave on disconnect.

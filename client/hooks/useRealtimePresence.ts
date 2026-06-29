@@ -17,7 +17,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAuth } from "@/lib/AuthContext"
 import { getStorage } from "@/lib/storage"
 import { RealtimeConnection } from "@/lib/realtime/connection"
-import type { Peer } from "@/lib/realtime/protocol"
+import type { EditFrame, Peer } from "@/lib/realtime/protocol"
+
+/** A remote element-content change, ready to apply to local editor state. */
+export type RemoteEdit = EditFrame
+/** Subscriber for remote edits; returns an unsubscribe function. */
+export type EditSubscriber = (edit: RemoteEdit) => void
 
 export interface RealtimePresence {
   /** Other people in the room, one entry per user (self excluded). */
@@ -26,6 +31,10 @@ export interface RealtimePresence {
   connected: boolean
   /** Report the element this client is editing; empty id clears focus. */
   setFocus: (elementId: string, label?: string) => void
+  /** Broadcast a live content change for an element to the room. */
+  sendEdit: (elementId: string, content: string, isScene: boolean) => void
+  /** Subscribe to remote edits; returns an unsubscribe function. */
+  subscribeEdits: (handler: EditSubscriber) => () => void
 }
 
 /** True when the bound storage exposes realtime presence (web build only). */
@@ -59,6 +68,9 @@ export function useRealtimePresence(projectId: string | undefined): RealtimePres
   const [byConn, setByConn] = useState<Map<string, Peer>>(() => new Map())
   const [connected, setConnected] = useState(false)
   const connRef = useRef<RealtimeConnection | null>(null)
+  // Edit subscribers live in a ref so the connection callback stays stable and
+  // editors can (un)subscribe without re-opening the socket.
+  const editSubsRef = useRef<Set<EditSubscriber>>(new Set())
 
   useEffect(() => {
     if (!projectId || !user || !realtimeSupported()) return
@@ -69,6 +81,10 @@ export function useRealtimePresence(projectId: string | undefined): RealtimePres
     const conn = new RealtimeConnection(projectId, {
       onStatusChange: setConnected,
       onFrame: (frame) => {
+        if (frame.type === "edit") {
+          editSubsRef.current.forEach((fn) => fn(frame))
+          return
+        }
         setByConn((prev) => {
           const next = new Map(prev)
           switch (frame.type) {
@@ -101,7 +117,18 @@ export function useRealtimePresence(projectId: string | undefined): RealtimePres
     connRef.current?.setFocus(elementId, label)
   }, [])
 
+  const sendEdit = useCallback((elementId: string, content: string, isScene: boolean) => {
+    connRef.current?.sendEdit(elementId, content, isScene)
+  }, [])
+
+  const subscribeEdits = useCallback((handler: EditSubscriber) => {
+    editSubsRef.current.add(handler)
+    return () => {
+      editSubsRef.current.delete(handler)
+    }
+  }, [])
+
   const peers = useMemo(() => aggregate(byConn, user?.id), [byConn, user?.id])
 
-  return { peers, connected, setFocus }
+  return { peers, connected, setFocus, sendEdit, subscribeEdits }
 }

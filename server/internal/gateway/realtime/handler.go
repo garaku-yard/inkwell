@@ -180,12 +180,17 @@ func (h *Handler) readPump(ctx context.Context, ws *websocket.Conn, c *conn, pro
 		case TypeFocus:
 			peer := h.hub.setFocus(c, in.ElementID, in.Label)
 			h.hub.broadcast(projectID, c, encodePeer(TypeFocus, peer))
+		case TypeEdit:
+			// Live content change — relay verbatim; the DB stays source of truth
+			// via the sender's autosave. The sender is excluded by broadcast.
+			h.hub.broadcast(projectID, c, data)
 		case TypeRoster, TypePeerJoin, TypePeerLeave:
 			// Presence is server-authoritative — never relay a client's claim.
 			continue
 		default:
-			// Unknown to this stage (e.g. Stage 3 edits) — relay as-is.
-			h.hub.broadcast(projectID, c, data)
+			// Unrecognised — drop. New client→room frames must be added here
+			// explicitly so a stray type can't be fanned out unchecked.
+			continue
 		}
 	}
 }
