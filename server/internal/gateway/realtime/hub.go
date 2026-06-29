@@ -6,6 +6,8 @@
 package realtime
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -17,6 +19,7 @@ import (
 // Outbound frames are queued on send and flushed by the connection's writer.
 type conn struct {
 	id        string // unique within the process; identifies the peer in a room
+	projectID string // the room this connection belongs to
 	userID    string
 	name      string
 	avatarURL string
@@ -52,20 +55,33 @@ type publisher interface {
 // currently editing that project. It is the in-process fan-out; when a publisher
 // is set it also mirrors every broadcast to the other gateway instances.
 type Hub struct {
-	mu     sync.RWMutex
-	rooms  map[string]map[*conn]struct{}
-	connID atomic.Uint64 // monotonic source of per-connection ids
-	pub    publisher     // cross-instance fan-out; nil ⇒ local-only
+	mu       sync.RWMutex
+	rooms    map[string]map[*conn]struct{}
+	connID   atomic.Uint64 // monotonic source of per-connection ids
+	idPrefix string        // random per-process prefix; keeps conn ids unique cluster-wide
+	pub      publisher     // cross-instance fan-out; nil ⇒ local-only
 }
 
-// NewHub returns an empty Hub.
+// NewHub returns an empty Hub with a random id prefix, so connection ids stay
+// unique across gateway instances that share a Redis presence store (a bare
+// per-process counter would collide — both instances start at 1).
 func NewHub() *Hub {
-	return &Hub{rooms: make(map[string]map[*conn]struct{})}
+	return &Hub{rooms: make(map[string]map[*conn]struct{}), idPrefix: randomPrefix()}
 }
 
-// nextConnID hands out a process-unique connection id.
+// randomPrefix returns a short random hex string, or "h" if the system RNG
+// fails (collisions only risk a momentary roster glitch, never corruption).
+func randomPrefix() string {
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "h"
+	}
+	return hex.EncodeToString(b[:])
+}
+
+// nextConnID hands out a connection id unique across the cluster.
 func (h *Hub) nextConnID() string {
-	return strconv.FormatUint(h.connID.Add(1), 10)
+	return h.idPrefix + "-" + strconv.FormatUint(h.connID.Add(1), 10)
 }
 
 // join adds a connection to a project room (creating it on first use) and

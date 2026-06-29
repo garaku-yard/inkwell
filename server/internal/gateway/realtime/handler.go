@@ -3,6 +3,7 @@ package realtime
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -36,24 +37,39 @@ const (
 type Handler struct {
 	hub            *Hub
 	clients        *grpcclient.Registry
-	originPatterns []string // host patterns for the WS Origin check (empty ⇒ skip)
+	presence       *PresenceStore // cluster-wide roster; nil ⇒ local roster only
+	originPatterns []string        // host patterns for the WS Origin check (empty ⇒ skip)
 }
 
 // NewHandler builds a realtime Handler. allowedOrigins are the gateway's
 // configured origins; their hosts become the WebSocket Origin allowlist. A
-// non-nil fanout enables cross-instance fan-out over Redis: the hub mirrors its
-// broadcasts through it, and a subscriber loop delivers other instances' frames
-// to the local room. Pass nil for single-instance / no-Redis deployments.
-func NewHandler(clients *grpcclient.Registry, allowedOrigins []string, fanout *Fanout) *Handler {
+// non-nil cluster enables the Redis-backed cross-instance plumbing: the hub
+// mirrors broadcasts through the fan-out (and a subscriber loop delivers other
+// instances' frames), and the join-time roster is read from the shared presence
+// store. Pass nil for single-instance / no-Redis deployments.
+func NewHandler(clients *grpcclient.Registry, allowedOrigins []string, cluster *Cluster) *Handler {
 	hub := NewHub()
-	if fanout != nil {
-		hub.pub = fanout
-		go fanout.Run(context.Background(), hub.deliverRemote)
-	}
-	return &Handler{
+	h := &Handler{
 		hub:            hub,
 		clients:        clients,
 		originPatterns: toOriginPatterns(allowedOrigins),
+	}
+	if cluster != nil {
+		hub.pub = cluster.Fanout
+		h.presence = cluster.Presence
+		go cluster.Fanout.Run(context.Background(), hub.deliverRemote)
+	}
+	return h
+}
+
+// presenceOp runs a short-lived presence-store call. Failures are non-fatal —
+// presence is best-effort overlay state, never a reason to drop a live edit
+// session — so the caller ignores the returned error beyond logging.
+func presenceOp(fn func(context.Context) error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := fn(ctx); err != nil {
+		slog.Warn("realtime presence store op failed", "error", err)
 	}
 }
 
@@ -121,16 +137,29 @@ func (h *Handler) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	c := &conn{
 		id:        h.hub.nextConnID(),
+		projectID: projectID,
 		userID:    userID,
 		name:      name,
 		avatarURL: avatarURL,
 		send:      make(chan []byte, sendBuffer),
 	}
 
-	// Join under one lock, capturing who is already here; tell the joiner about
-	// them and tell them about the joiner.
+	// Join the local room (membership for delivery), capturing the local roster.
 	roster := h.hub.join(projectID, c)
 	defer h.hub.leave(projectID, c)
+
+	// With a presence store, the join-time roster is the cluster-wide one so the
+	// joiner sees peers on other gateway instances too, not just this one.
+	if h.presence != nil {
+		presenceOp(func(ctx context.Context) error { return h.presence.Add(ctx, projectID, c.peer()) })
+		clusterCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		if peers, err := h.presence.Roster(clusterCtx, projectID, c.id); err == nil {
+			roster = peers
+		}
+		cancel()
+		defer presenceOp(func(ctx context.Context) error { return h.presence.Remove(ctx, projectID, c.id) })
+	}
+
 	c.send <- encodeRoster(roster)
 	h.hub.broadcast(projectID, c, encodePeer(TypePeerJoin, c.peer()))
 	defer h.hub.broadcast(projectID, c, encodeLeave(c.id))
@@ -188,6 +217,9 @@ func (h *Handler) readPump(ctx context.Context, ws *websocket.Conn, c *conn, pro
 		case TypeFocus:
 			peer := h.hub.setFocus(c, in.ElementID, in.Label)
 			h.hub.broadcast(projectID, c, encodePeer(TypeFocus, peer))
+			if h.presence != nil {
+				presenceOp(func(ctx context.Context) error { return h.presence.Update(ctx, projectID, peer) })
+			}
 		case TypeEdit:
 			// Live content change — relay verbatim; the DB stays source of truth
 			// via the sender's autosave. The sender is excluded by broadcast.
@@ -227,6 +259,12 @@ func (h *Handler) writePump(ctx context.Context, cancel context.CancelFunc, ws *
 			if err != nil {
 				cancel()
 				return
+			}
+			// Keep this connection's presence alive in the shared store.
+			if h.presence != nil {
+				presenceOp(func(opctx context.Context) error {
+					return h.presence.Refresh(opctx, c.projectID, c.id)
+				})
 			}
 		}
 	}

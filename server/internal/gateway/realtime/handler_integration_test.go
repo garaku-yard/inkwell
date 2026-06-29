@@ -3,13 +3,16 @@ package realtime
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	nethttptest "net/http/httptest"
 
@@ -38,8 +41,14 @@ func (identityStub) GetUser(_ context.Context, in *identity.GetUserRequest, _ ..
 // presenceTestServer wires the realtime handler behind a chi router that injects
 // the X-Test-User header as the authenticated user id.
 func presenceTestServer(t *testing.T) *nethttptest.Server {
+	return clusterTestServer(t, nil)
+}
+
+// clusterTestServer is presenceTestServer with an explicit cross-instance
+// Cluster, so a test can stand up two instances sharing one Redis.
+func clusterTestServer(t *testing.T, cluster *Cluster) *nethttptest.Server {
 	t.Helper()
-	h := NewHandler(&grpcclient.Registry{Scripts: scriptsStub{}, Identity: identityStub{}}, nil, nil)
+	h := NewHandler(&grpcclient.Registry{Scripts: scriptsStub{}, Identity: identityStub{}}, nil, cluster)
 	r := chi.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -51,10 +60,15 @@ func presenceTestServer(t *testing.T) *nethttptest.Server {
 	return nethttptest.NewServer(r)
 }
 
-// dial connects a presence client as the given user.
+// dial connects a presence client as the given user to project p1.
 func dial(t *testing.T, srv *nethttptest.Server, userID string) *websocket.Conn {
+	return dialProject(t, srv, userID, "p1")
+}
+
+// dialProject connects a presence client as the given user to a named project.
+func dialProject(t *testing.T, srv *nethttptest.Server, userID, projectID string) *websocket.Conn {
 	t.Helper()
-	url := strings.Replace(srv.URL, "http", "ws", 1) + "/ws/projects/p1"
+	url := strings.Replace(srv.URL, "http", "ws", 1) + "/ws/projects/" + projectID
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	ws, _, err := websocket.Dial(ctx, url, &websocket.DialOptions{
@@ -175,5 +189,56 @@ func TestPresenceProtocolEndToEnd(t *testing.T) {
 	leave := readFrame(t, a)
 	if leave["type"] != "peer_leave" || leave["connId"] != bConnID {
 		t.Fatalf("A frame = %+v, want peer_leave for %s", leave, bConnID)
+	}
+}
+
+// TestClusterRosterCrossInstance proves the Stage-5 payoff: a joiner on one
+// gateway instance sees, in its join-time roster, a peer connected to a
+// different instance — because the roster is read from the shared Redis
+// presence store, not just the local hub. Gated on REDIS_TEST_ADDR.
+func TestClusterRosterCrossInstance(t *testing.T) {
+	addr := os.Getenv("REDIS_TEST_ADDR")
+	if addr == "" {
+		t.Skip("REDIS_TEST_ADDR not set — skipping cross-instance Redis test")
+	}
+	newRDB := func() *redis.Client {
+		return redis.NewClient(&redis.Options{Addr: addr, Password: os.Getenv("REDIS_TEST_PASSWORD")})
+	}
+	ping := newRDB()
+	pctx, pcancel := context.WithTimeout(context.Background(), 3*time.Second)
+	if err := ping.Ping(pctx).Err(); err != nil {
+		pcancel()
+		t.Skipf("Redis at %s unreachable: %v", addr, err)
+	}
+	pcancel()
+	_ = ping.Close()
+
+	// Two gateway instances, each its own Cluster (distinct fan-out instance id)
+	// over the same Redis.
+	srv1 := clusterTestServer(t, NewCluster(newRDB()))
+	defer srv1.Close()
+	srv2 := clusterTestServer(t, NewCluster(newRDB()))
+	defer srv2.Close()
+
+	pid := fmt.Sprintf("xinst-%d", time.Now().UnixNano())
+
+	// A joins instance 1.
+	a := dialProject(t, srv1, "user-a", pid)
+	defer a.Close(websocket.StatusNormalClosure, "")
+	if f := readFrame(t, a); f["type"] != "roster" {
+		t.Fatalf("A first frame = %+v, want roster", f)
+	}
+
+	// B joins instance 2 — and must already see A in its roster, even though A is
+	// on a different instance.
+	b := dialProject(t, srv2, "user-b", pid)
+	defer b.Close(websocket.StatusNormalClosure, "")
+	bRoster := readFrame(t, b)
+	if bRoster["type"] != "roster" {
+		t.Fatalf("B first frame = %+v, want roster", bRoster)
+	}
+	peers := bRoster["peers"].([]any)
+	if len(peers) != 1 || peers[0].(map[string]any)["userId"] != "user-a" {
+		t.Fatalf("B cross-instance roster = %+v, want [user-a on instance 1]", peers)
 	}
 }
