@@ -47,7 +47,11 @@ export function CategoriesSection({ workspace, onUpdated }: CategoriesSectionPro
     }
   }, [])
 
-  const enabledSlugs = new Set(workspace.categories.map((c) => c.slug))
+  // Guard the array the way every other workspace consumer does: a workspace
+  // with no enabled categories can arrive with `categories` undefined (the
+  // gateway's proto3 JSON omits empty repeated fields), and the type lies that
+  // it's always present.
+  const enabledSlugs = new Set((workspace.categories ?? []).map((c) => c.slug))
 
   const handleToggle = async (slug: string, enabled: boolean) => {
     setTogglingSlug(slug)
