@@ -8,9 +8,8 @@
  * Write/Graph/Play. The generic header above it (back, title, the cross-feature
  * nav, sync, app actions) stays identical across every view.
  *
- * It deliberately mirrors the action half of {@link EditorHeader} — including the
- * universal "export as .iw" item — so editors can move onto the shared shell one
- * at a time without losing any affordance.
+ * It carries the universal "export as .iw" item alongside each format's own
+ * import/export, so every editor keeps a lossless export regardless of format.
  */
 
 import { useRef, type ReactNode } from "react"
@@ -30,8 +29,23 @@ import { cn } from "@/lib/utils"
 
 import { ProjectKnowledgeButton } from "../ProjectKnowledgeButton"
 import { SaveStatusPill } from "./SaveStatusPill"
-import type { EditorHeaderExportItem, EditorHeaderImportItem } from "./EditorHeader"
 import type { SaveStatus } from "./useElementAutosave"
+
+/** An entry in an editor's Export menu. */
+export interface EditorToolbarExportItem {
+  label: string
+  onClick: () => void
+}
+
+/** An import format an editor accepts. Each opens a file picker and hands the
+ *  chosen file's text + name to `onFile`, which parses and imports it. */
+export interface EditorToolbarImportItem {
+  /** Menu/button label, e.g. "Markdown / Text (.md, .txt)". */
+  label: string
+  /** Accept filter for the file picker, e.g. ".md,.txt". */
+  accept: string
+  onFile: (text: string, fileName: string) => void
+}
 
 interface EditorToolbarProps {
   /** Project title — used to name the universal `.iw` export. */
@@ -43,9 +57,9 @@ interface EditorToolbarProps {
   /** Whether the Writing Buddy panel is open (drives aria-pressed). */
   isAIOpen?: boolean
   /** Per-format export items; the lossless `.iw` export is appended here. */
-  exportItems: EditorHeaderExportItem[]
+  exportItems: EditorToolbarExportItem[]
   /** Import formats this editor accepts. Omit/empty to hide the Import control. */
-  importItems?: EditorHeaderImportItem[]
+  importItems?: EditorToolbarImportItem[]
   /** Leading controls, pinned left (e.g. IF's Write/Graph/Play switch). */
   leading?: ReactNode
 }
@@ -66,8 +80,8 @@ export function EditorToolbar({
   const runExport = useExportToast()
 
   // Universal lossless "save the whole project as .iw", appended to every
-  // non-vault editor's Export menu (matches EditorHeader). See lib/iw/format.
-  const allExportItems: EditorHeaderExportItem[] =
+  // non-vault editor's Export menu. See lib/iw/format.
+  const allExportItems: EditorToolbarExportItem[] =
     projectId && category && category !== "vault" && user?.id
       ? [
           ...exportItems,
@@ -86,9 +100,9 @@ export function EditorToolbar({
   // One hidden file input drives every import item; the pending item's onFile +
   // accept are swapped in just before we open the picker.
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const pendingOnFile = useRef<EditorHeaderImportItem["onFile"] | null>(null)
+  const pendingOnFile = useRef<EditorToolbarImportItem["onFile"] | null>(null)
 
-  const triggerImport = (item: EditorHeaderImportItem) => {
+  const triggerImport = (item: EditorToolbarImportItem) => {
     pendingOnFile.current = item.onFile
     const input = fileInputRef.current
     if (!input) return
