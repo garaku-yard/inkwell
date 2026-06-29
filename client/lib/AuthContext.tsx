@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { isTauri } from "@tauri-apps/api/core"
@@ -59,6 +59,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [sessionExpired, setSessionExpired] = useState(false)
+  // True while an intentional logout is in progress (and briefly after). The
+  // logout path deliberately makes requests that 401 once the cookie is
+  // cleared — those must NOT raise the "session expired" modal.
+  const loggingOutRef = useRef(false)
   const router = useRouter()
 
   const login = useCallback((u: AuthUser) => {
@@ -67,6 +71,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [])
 
   const logout = useCallback(async () => {
+    loggingOutRef.current = true
     try {
       await getStorage().auth.logout()
     } catch {
@@ -85,6 +90,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(next)
     setSessionExpired(false)
     if (next === null) router.push("/login")
+    // Keep suppressing the expiry modal briefly so any requests that were
+    // already in flight when the cookie cleared can 401 quietly.
+    setTimeout(() => {
+      loggingOutRef.current = false
+    }, 2000)
   }, [router])
 
   const showSessionExpired = useCallback(() => {
@@ -120,11 +130,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [])
 
-  // Open the expired-session modal whenever an API call reports 401.
+  // Open the expired-session modal whenever an API call reports 401 — except
+  // when the 401 is the expected result of an intentional logout, or we're
+  // already on a public auth route where no session could have "expired".
   useEffect(() => {
     const onExpired = () => {
+      if (loggingOutRef.current) {
+        setUser(null)
+        return
+      }
+      const path = typeof window !== "undefined" ? window.location.pathname : ""
+      const onAuthRoute =
+        path === "/login" || path === "/register" || path === "/forgot-password"
       setUser((prev) => {
-        if (prev !== null) setSessionExpired(true)
+        if (prev !== null && !onAuthRoute) setSessionExpired(true)
         return null
       })
     }
