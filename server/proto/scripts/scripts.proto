@@ -18,6 +18,7 @@ message Project {
   bool is_starred = 8;
   string category = 9; // "screenplay", "novel", "comic_script", "poetry", "interactive_fiction", "tabletop_rpg", "memoir", "lyrics"
   common.Timestamp deleted_at = 10; // tombstone for sync (nil = live)
+  string org_id = 11; // owning organization (empty = personal project owned by owner_id)
 }
 
 // Note: Screenplay is now represented by Project entity
@@ -165,6 +166,7 @@ message CreateProjectRequest {
   string description = 2;
   string owner_id = 3;
   string category = 4;
+  string org_id = 5; // optional; when set the project is owned by this organization
 }
 
 message CreateProjectResponse {
@@ -218,6 +220,14 @@ message GetUserProjectsRequest {
 message GetUserProjectsResponse {
   repeated Project projects = 1;
   common.PaginationResponse pagination = 2;
+}
+
+message GetOrgProjectsRequest {
+  string org_id = 1;
+}
+
+message GetOrgProjectsResponse {
+  repeated Project projects = 1;
 }
 
 // Script content is now managed through ProjectElements linked to Project
@@ -723,7 +733,8 @@ service ScriptsService {
   rpc ToggleProjectStar(ToggleProjectStarRequest) returns (ToggleProjectStarResponse);
   rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse);
   rpc GetUserProjects(GetUserProjectsRequest) returns (GetUserProjectsResponse);
-  
+  rpc GetOrgProjects(GetOrgProjectsRequest) returns (GetOrgProjectsResponse);
+
   // Outline unit management (acts, sequences, beats, sub-beats)
   rpc CreateOutlineUnit(CreateOutlineUnitRequest) returns (CreateOutlineUnitResponse);
   rpc GetProjectOutline(GetProjectOutlineRequest) returns (GetProjectOutlineResponse);

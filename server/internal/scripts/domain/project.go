@@ -19,6 +19,7 @@ type Project struct {
 	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
 	DeletedAt   *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
+	OrgID       *uuid.UUID `json:"org_id,omitempty" db:"org_id"` // owning org; nil = personal project
 }
 
 // ProjectElement represents an individual line/element in a screenplay

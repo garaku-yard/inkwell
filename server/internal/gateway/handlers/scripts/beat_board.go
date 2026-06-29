@@ -61,7 +61,7 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *createBeatBody) (*BeatResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
 			}
@@ -118,7 +118,7 @@ func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Requ
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*BeatBoardDataResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
 			}
@@ -144,7 +144,7 @@ func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Requ
 // taken from the client, so authorization always runs against the resource's
 // real project.
 func (h *ScriptsHandler) resolveAccessOrForbidden(ctx context.Context, userID, projectID string) (string, error) {
-	resolvedID, err := handlers.ResolveProjectAccess(ctx, userID, projectID, h.scriptsClient, h.collabClient)
+	resolvedID, err := handlers.ResolveProjectAccess(ctx, userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
 	if err != nil {
 		return "", apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
 	}
@@ -345,7 +345,7 @@ func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request
 		Handle: func(r *http.Request, userID string, req *createConnectionBody) (*ConnectionResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
 			}
@@ -418,7 +418,7 @@ func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *createLaneBody) (*LaneResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
 			}
@@ -449,7 +449,7 @@ func (h *ScriptsHandler) GetProjectLanes(w http.ResponseWriter, r *http.Request)
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]LaneResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
 			}
@@ -547,7 +547,7 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 		Handle: func(r *http.Request, userID string, req *updateLaneOrderBody) (*struct{}, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
 			}
@@ -624,7 +624,7 @@ func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Reques
 		Handle: func(r *http.Request, userID string, req *createOutlineItemBody) (*OutlineItemResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
 			}

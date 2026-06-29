@@ -25,6 +25,7 @@ const (
 	ScriptsService_ToggleProjectStar_FullMethodName    = "/scripts.ScriptsService/ToggleProjectStar"
 	ScriptsService_DeleteProject_FullMethodName        = "/scripts.ScriptsService/DeleteProject"
 	ScriptsService_GetUserProjects_FullMethodName      = "/scripts.ScriptsService/GetUserProjects"
+	ScriptsService_GetOrgProjects_FullMethodName       = "/scripts.ScriptsService/GetOrgProjects"
 	ScriptsService_CreateOutlineUnit_FullMethodName    = "/scripts.ScriptsService/CreateOutlineUnit"
 	ScriptsService_GetProjectOutline_FullMethodName    = "/scripts.ScriptsService/GetProjectOutline"
 	ScriptsService_UpdateOutlineUnit_FullMethodName    = "/scripts.ScriptsService/UpdateOutlineUnit"
@@ -74,6 +75,7 @@ type ScriptsServiceClient interface {
 	ToggleProjectStar(ctx context.Context, in *ToggleProjectStarRequest, opts ...grpc.CallOption) (*ToggleProjectStarResponse, error)
 	DeleteProject(ctx context.Context, in *DeleteProjectRequest, opts ...grpc.CallOption) (*DeleteProjectResponse, error)
 	GetUserProjects(ctx context.Context, in *GetUserProjectsRequest, opts ...grpc.CallOption) (*GetUserProjectsResponse, error)
+	GetOrgProjects(ctx context.Context, in *GetOrgProjectsRequest, opts ...grpc.CallOption) (*GetOrgProjectsResponse, error)
 	// Outline unit management (acts, sequences, beats, sub-beats)
 	CreateOutlineUnit(ctx context.Context, in *CreateOutlineUnitRequest, opts ...grpc.CallOption) (*CreateOutlineUnitResponse, error)
 	GetProjectOutline(ctx context.Context, in *GetProjectOutlineRequest, opts ...grpc.CallOption) (*GetProjectOutlineResponse, error)
@@ -193,6 +195,16 @@ func (c *scriptsServiceClient) GetUserProjects(ctx context.Context, in *GetUserP
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetUserProjectsResponse)
 	err := c.cc.Invoke(ctx, ScriptsService_GetUserProjects_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) GetOrgProjects(ctx context.Context, in *GetOrgProjectsRequest, opts ...grpc.CallOption) (*GetOrgProjectsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOrgProjectsResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_GetOrgProjects_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -570,6 +582,7 @@ type ScriptsServiceServer interface {
 	ToggleProjectStar(context.Context, *ToggleProjectStarRequest) (*ToggleProjectStarResponse, error)
 	DeleteProject(context.Context, *DeleteProjectRequest) (*DeleteProjectResponse, error)
 	GetUserProjects(context.Context, *GetUserProjectsRequest) (*GetUserProjectsResponse, error)
+	GetOrgProjects(context.Context, *GetOrgProjectsRequest) (*GetOrgProjectsResponse, error)
 	// Outline unit management (acts, sequences, beats, sub-beats)
 	CreateOutlineUnit(context.Context, *CreateOutlineUnitRequest) (*CreateOutlineUnitResponse, error)
 	GetProjectOutline(context.Context, *GetProjectOutlineRequest) (*GetProjectOutlineResponse, error)
@@ -652,6 +665,9 @@ func (UnimplementedScriptsServiceServer) DeleteProject(context.Context, *DeleteP
 }
 func (UnimplementedScriptsServiceServer) GetUserProjects(context.Context, *GetUserProjectsRequest) (*GetUserProjectsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserProjects not implemented")
+}
+func (UnimplementedScriptsServiceServer) GetOrgProjects(context.Context, *GetOrgProjectsRequest) (*GetOrgProjectsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOrgProjects not implemented")
 }
 func (UnimplementedScriptsServiceServer) CreateOutlineUnit(context.Context, *CreateOutlineUnitRequest) (*CreateOutlineUnitResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateOutlineUnit not implemented")
@@ -886,6 +902,24 @@ func _ScriptsService_GetUserProjects_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ScriptsServiceServer).GetUserProjects(ctx, req.(*GetUserProjectsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_GetOrgProjects_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOrgProjectsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).GetOrgProjects(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_GetOrgProjects_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).GetOrgProjects(ctx, req.(*GetOrgProjectsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1568,6 +1602,10 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUserProjects",
 			Handler:    _ScriptsService_GetUserProjects_Handler,
+		},
+		{
+			MethodName: "GetOrgProjects",
+			Handler:    _ScriptsService_GetOrgProjects_Handler,
 		},
 		{
 			MethodName: "CreateOutlineUnit",

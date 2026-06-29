@@ -18,22 +18,26 @@ import (
 	"inkwell/server/pkg/grpc/collab"
 	"inkwell/server/pkg/grpc/common"
 	scriptspb "inkwell/server/pkg/grpc/scripts"
+	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
 
 // ScriptsHandler routes project, scene, and element HTTP requests to the scripts
 // gRPC service. It also fans out to the collab service to enrich responses with
-// collaborator counts and to verify access for shared projects.
+// collaborator counts and to verify access for shared projects, and to the
+// workspace service to authorize access to org-owned projects.
 type ScriptsHandler struct {
-	scriptsClient scriptspb.ScriptsServiceClient
-	collabClient  collab.CollaborationServiceClient
+	scriptsClient   scriptspb.ScriptsServiceClient
+	collabClient    collab.CollaborationServiceClient
+	workspaceClient workspacepb.WorkspaceServiceClient
 }
 
 // NewScriptsHandler creates a ScriptsHandler using the gRPC clients in the
 // provided registry.
 func NewScriptsHandler(clients *grpcclient.Registry) *ScriptsHandler {
 	return &ScriptsHandler{
-		scriptsClient: clients.Scripts,
-		collabClient:  clients.Collab,
+		scriptsClient:   clients.Scripts,
+		collabClient:    clients.Collab,
+		workspaceClient: clients.Workspace,
 	}
 }
 
@@ -47,6 +51,9 @@ type createProjectBody struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Category    string `json:"category"`
+	// OrgID, when set, creates the project inside an organization. The caller
+	// must be a member with a writing role (owner/admin/editor).
+	OrgID string `json:"org_id"`
 }
 
 // createProjectResponse is the JSON shape returned by CreateProject.
@@ -71,11 +78,21 @@ func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "title is required")
 			}
 
+			// Creating into an org requires a writing role in that org. Viewers
+			// and non-members are rejected before the project is created.
+			if body.OrgID != "" {
+				role, err := handlers.ResolveOrgRole(r.Context(), h.workspaceClient, body.OrgID, userID)
+				if err != nil || (role != "owner" && role != "admin" && role != "editor") {
+					return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "you do not have permission to create projects in this organization")
+				}
+			}
+
 			resp, err := h.scriptsClient.CreateProject(r.Context(), &scriptspb.CreateProjectRequest{
 				Title:       body.Title,
 				Description: body.Description,
 				OwnerId:     userID,
 				Category:    body.Category,
+				OrgId:       body.OrgID,
 			})
 			if err != nil {
 				return nil, err
@@ -112,7 +129,7 @@ func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Project ID is required")
 			}
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
 			}
@@ -320,6 +337,37 @@ func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request)
 	}.ServeHTTP(w, r)
 }
 
+// GetOrgProjects returns the projects owned by an organization. The caller must
+// be a member of the org (any role); non-members receive 403.
+func (h *ScriptsHandler) GetOrgProjects(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, map[string]interface{}]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]interface{}, error) {
+			orgID := chi.URLParam(r, "orgId")
+			if orgID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "org ID is required")
+			}
+			if _, err := handlers.ResolveOrgRole(r.Context(), h.workspaceClient, orgID, userID); err != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "you are not a member of this organization")
+			}
+
+			resp, err := h.scriptsClient.GetOrgProjects(r.Context(), &scriptspb.GetOrgProjectsRequest{OrgId: orgID})
+			if err != nil {
+				return nil, err
+			}
+
+			projects := make([]map[string]interface{}, len(resp.Projects))
+			for i, project := range resp.Projects {
+				projects[i] = convertProjectFromProto(project)
+			}
+			result := map[string]interface{}{"projects": projects}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
 // GetSharedProjects returns projects where the authenticated user is an active
 // collaborator but not the owner. It queries the collab service for the user's
 // active collaborations, then fetches each project using an empty userID bypass —
@@ -430,7 +478,7 @@ func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(ctx, userID, projectID, h.scriptsClient, h.collabClient)
+			resolvedID, authErr := handlers.ResolveProjectAccess(ctx, userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Unauthorized")
 			}
@@ -745,6 +793,10 @@ func convertProjectFromProto(project *scriptspb.Project) map[string]interface{} 
 		"category":    project.Category,
 		"status":      project.Status,
 		"is_starred":  project.IsStarred,
+	}
+
+	if project.OrgId != "" {
+		result["org_id"] = project.OrgId
 	}
 
 	result["created_at"] = handlers.TimestampToString(project.CreatedAt)

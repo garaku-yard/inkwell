@@ -22,12 +22,14 @@ import (
 // ScriptsService defines the business logic interface for the Scripts service
 type ScriptsService interface {
 	// Project operations
-	CreateProject(ctx context.Context, title, description, category string, ownerID uuid.UUID) (*domain.Project, error)
+	CreateProject(ctx context.Context, title, description, category string, ownerID uuid.UUID, orgID *uuid.UUID) (*domain.Project, error)
 	GetProject(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error)
 	UpdateProject(ctx context.Context, projectID, userID uuid.UUID, title, description, status *string) (*domain.Project, error)
 	ToggleProjectStar(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error)
 	DeleteProject(ctx context.Context, projectID, userID uuid.UUID) error
 	GetUserProjects(ctx context.Context, userID uuid.UUID, offset, limit int) ([]*domain.Project, int64, error)
+	// GetOrgProjects lists the projects owned by an organization.
+	GetOrgProjects(ctx context.Context, orgID uuid.UUID) ([]*domain.Project, error)
 
 	// Script element operations
 	DeleteScriptElement(ctx context.Context, elementID, userID uuid.UUID) error
@@ -115,7 +117,7 @@ func NewScriptsService(db *sql.DB, repo *repository.Repository, store outbox.Sto
 // Before creating the project the service enforces the user's projects quota
 // via the billing service. Quota enforcement is skipped when the service was
 // constructed with a nil quota client (local dev without billing running).
-func (s *scriptsService) CreateProject(ctx context.Context, title, description, category string, ownerID uuid.UUID) (*domain.Project, error) {
+func (s *scriptsService) CreateProject(ctx context.Context, title, description, category string, ownerID uuid.UUID, orgID *uuid.UUID) (*domain.Project, error) {
 	if s.quota != nil {
 		if err := quota.Require(ctx, s.quota, ownerID.String(), quota.MetricProjects, 1); err != nil {
 			return nil, err
@@ -131,6 +133,7 @@ func (s *scriptsService) CreateProject(ctx context.Context, title, description, 
 		Description: description,
 		Category:    category,
 		OwnerID:     ownerID,
+		OrgID:       orgID,
 		Status:      "draft",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -302,6 +305,12 @@ func (s *scriptsService) DeleteProject(ctx context.Context, projectID, userID uu
 	}
 
 	return nil
+}
+
+// GetOrgProjects lists the projects owned by an organization. Access control
+// (org membership) is enforced by the gateway before this is reached.
+func (s *scriptsService) GetOrgProjects(ctx context.Context, orgID uuid.UUID) ([]*domain.Project, error) {
+	return s.repo.Project.GetProjectsByOrg(ctx, orgID)
 }
 
 // GetUserProjects retrieves projects for a user with pagination

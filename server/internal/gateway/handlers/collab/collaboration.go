@@ -15,6 +15,7 @@ import (
 	"inkwell/server/pkg/grpc/collab"
 	"inkwell/server/pkg/grpc/identity"
 	"inkwell/server/pkg/grpc/scripts"
+	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
 
 // CollaborationHandler routes collaboration HTTP requests to the collab gRPC
@@ -22,20 +23,22 @@ import (
 // collaborators and comment authors, and the scripts service to look up project
 // titles when enriching invitation data.
 type CollaborationHandler struct {
-	client         collab.CollaborationServiceClient
-	identityClient identity.IdentityServiceClient
-	scriptsClient  scripts.ScriptsServiceClient
-	billingClient  billingpb.BillingServiceClient
+	client          collab.CollaborationServiceClient
+	identityClient  identity.IdentityServiceClient
+	scriptsClient   scripts.ScriptsServiceClient
+	billingClient   billingpb.BillingServiceClient
+	workspaceClient workspacepb.WorkspaceServiceClient
 }
 
 // NewCollaborationHandler creates a CollaborationHandler using the gRPC clients
 // in the provided registry.
 func NewCollaborationHandler(clients *grpcclient.Registry) *CollaborationHandler {
 	return &CollaborationHandler{
-		client:         clients.Collab,
-		identityClient: clients.Identity,
-		scriptsClient:  clients.Scripts,
-		billingClient:  clients.Billing,
+		client:          clients.Collab,
+		identityClient:  clients.Identity,
+		scriptsClient:   clients.Scripts,
+		billingClient:   clients.Billing,
+		workspaceClient: clients.Workspace,
 	}
 }
 
@@ -374,7 +377,7 @@ func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Reques
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
 
-			if _, err := handlers.ResolveProjectAccess(ctx, userID, screenplayID, h.scriptsClient, h.client); err != nil {
+			if _, err := handlers.ResolveProjectAccess(ctx, userID, screenplayID, h.scriptsClient, h.client, h.workspaceClient); err != nil {
 				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
 			}
 

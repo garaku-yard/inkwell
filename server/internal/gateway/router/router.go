@@ -350,6 +350,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 					r.Put("/", workspaceHandler.UpdateOrganization)
 					r.Delete("/", workspaceHandler.DeleteOrganization)
 
+					r.Get("/projects", scriptsHandler.GetOrgProjects)
 					r.Get("/seats", workspaceHandler.OrgSeats)
 
 					r.Get("/members", workspaceHandler.ListOrgMembers)

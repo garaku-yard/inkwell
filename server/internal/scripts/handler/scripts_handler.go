@@ -54,8 +54,18 @@ func (h *ScriptsHandler) CreateProject(ctx context.Context, req *scriptspb.Creat
 		return nil, status.Errorf(codes.InvalidArgument, "invalid owner_id: %v", err)
 	}
 
+	// Optional owning organization. Membership is authorized at the gateway.
+	var orgID *uuid.UUID
+	if req.OrgId != "" {
+		parsed, err := uuid.Parse(req.OrgId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid org_id: %v", err)
+		}
+		orgID = &parsed
+	}
+
 	// Create project via service
-	project, err := h.service.CreateProject(ctx, req.Title, req.Description, req.Category, ownerID)
+	project, err := h.service.CreateProject(ctx, req.Title, req.Description, req.Category, ownerID, orgID)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -255,6 +265,29 @@ func (h *ScriptsHandler) GetUserProjects(ctx context.Context, req *scriptspb.Get
 			ItemsPerPage: limit,
 		},
 	}, nil
+}
+
+// GetOrgProjects returns the projects owned by an organization. Org membership
+// is authorized at the gateway before this RPC is reached.
+func (h *ScriptsHandler) GetOrgProjects(ctx context.Context, req *scriptspb.GetOrgProjectsRequest) (*scriptspb.GetOrgProjectsResponse, error) {
+	if req.OrgId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "org_id is required")
+	}
+	orgID, err := uuid.Parse(req.OrgId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid org_id: %v", err)
+	}
+
+	projects, err := h.service.GetOrgProjects(ctx, orgID)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	protoProjects := make([]*scriptspb.Project, len(projects))
+	for i, project := range projects {
+		protoProjects[i] = convertProjectToProto(project)
+	}
+	return &scriptspb.GetOrgProjectsResponse{Projects: protoProjects}, nil
 }
 
 // CreateOutlineUnit is not yet implemented and always returns codes.Unimplemented.
@@ -568,6 +601,15 @@ func (h *ScriptsHandler) BatchCreateElements(ctx context.Context, req *scriptspb
 	}, nil
 }
 
+// orgIDString renders an optional org UUID as a string, empty when nil (the
+// proto's zero value for an unset/personal project).
+func orgIDString(id *uuid.UUID) string {
+	if id == nil {
+		return ""
+	}
+	return id.String()
+}
+
 // convertProjectToProto maps a domain Project to the scripts proto Project message.
 func convertProjectToProto(project *domain.Project) *scriptspb.Project {
 	return &scriptspb.Project{
@@ -586,6 +628,7 @@ func convertProjectToProto(project *domain.Project) *scriptspb.Project {
 			Seconds: project.UpdatedAt.Unix(),
 			Nanos:   int32(project.UpdatedAt.Nanosecond()),
 		},
+		OrgId: orgIDString(project.OrgID),
 	}
 }
 

@@ -21,6 +21,8 @@ type ProjectRepository interface {
 	CreateProjectTx(ctx context.Context, tx *sql.Tx, project *domain.Project) error
 	GetProjectByID(ctx context.Context, projectID uuid.UUID) (*domain.Project, error)
 	GetProjectsByOwner(ctx context.Context, ownerID uuid.UUID, offset, limit int) ([]*domain.Project, int64, error)
+	// GetProjectsByOrg lists the projects owned by an organization.
+	GetProjectsByOrg(ctx context.Context, orgID uuid.UUID) ([]*domain.Project, error)
 	UpdateProject(ctx context.Context, project *domain.Project) error
 	SoftDeleteProject(ctx context.Context, projectID uuid.UUID) error
 	// SoftDeleteProjectTx is the transaction-scoped variant of SoftDeleteProject,
@@ -156,9 +158,18 @@ func NewProjectRepository(db *sql.DB) ProjectRepository {
 // CreateProject creates a new project in the database
 // projectInsert is the shared SQL used by CreateProject and CreateProjectTx.
 const projectInsert = `
-	INSERT INTO projects (project_id, title, description, owner_id, category, status, created_at, updated_at)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	INSERT INTO projects (project_id, title, description, owner_id, category, status, created_at, updated_at, org_id)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `
+
+// nullableUUID renders a *uuid.UUID as a value suitable for a nullable SQL
+// parameter: the UUID when set, otherwise nil (→ SQL NULL).
+func nullableUUID(id *uuid.UUID) interface{} {
+	if id == nil {
+		return nil
+	}
+	return *id
+}
 
 // CreateProjectTx inserts a project inside the given transaction. The service
 // layer calls this alongside outbox.EnqueueTx to keep the project row and its
@@ -173,6 +184,7 @@ func (r *projectRepository) CreateProjectTx(ctx context.Context, tx *sql.Tx, pro
 		project.Status,
 		project.CreatedAt,
 		project.UpdatedAt,
+		nullableUUID(project.OrgID),
 	)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
@@ -193,6 +205,7 @@ func (r *projectRepository) CreateProject(ctx context.Context, project *domain.P
 		project.Status,
 		project.CreatedAt,
 		project.UpdatedAt,
+		nullableUUID(project.OrgID),
 	)
 
 	if err != nil {
@@ -208,7 +221,7 @@ func (r *projectRepository) CreateProject(ctx context.Context, project *domain.P
 // GetProjectByID retrieves a project by ID
 func (r *projectRepository) GetProjectByID(ctx context.Context, projectID uuid.UUID) (*domain.Project, error) {
 	query := `
-		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at
+		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at, org_id
 		FROM projects
 		WHERE project_id = $1 AND deleted_at IS NULL
 	`
@@ -225,6 +238,7 @@ func (r *projectRepository) GetProjectByID(ctx context.Context, projectID uuid.U
 		&project.CreatedAt,
 		&project.UpdatedAt,
 		&project.DeletedAt,
+		&project.OrgID,
 	)
 
 	if err != nil {
@@ -239,8 +253,9 @@ func (r *projectRepository) GetProjectByID(ctx context.Context, projectID uuid.U
 
 // GetProjectsByOwner retrieves projects by owner with pagination
 func (r *projectRepository) GetProjectsByOwner(ctx context.Context, ownerID uuid.UUID, offset, limit int) ([]*domain.Project, int64, error) {
-	// Get total count
-	countQuery := `SELECT COUNT(*) FROM projects WHERE owner_id = $1 AND deleted_at IS NULL`
+	// Personal projects only: org-owned projects (org_id IS NOT NULL) are listed
+	// through GetProjectsByOrg, not a user's personal project list.
+	countQuery := `SELECT COUNT(*) FROM projects WHERE owner_id = $1 AND org_id IS NULL AND deleted_at IS NULL`
 	var total int64
 	err := r.db.QueryRowContext(ctx, countQuery, ownerID).Scan(&total)
 	if err != nil {
@@ -251,7 +266,7 @@ func (r *projectRepository) GetProjectsByOwner(ctx context.Context, ownerID uuid
 	query := `
 		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at
 		FROM projects
-		WHERE owner_id = $1 AND deleted_at IS NULL
+		WHERE owner_id = $1 AND org_id IS NULL AND deleted_at IS NULL
 		ORDER BY created_at DESC
 		OFFSET $2 LIMIT $3
 	`
@@ -284,6 +299,44 @@ func (r *projectRepository) GetProjectsByOwner(ctx context.Context, ownerID uuid
 	}
 
 	return projects, total, rows.Err()
+}
+
+// GetProjectsByOrg lists the live projects owned by an organization.
+func (r *projectRepository) GetProjectsByOrg(ctx context.Context, orgID uuid.UUID) ([]*domain.Project, error) {
+	query := `
+		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at, org_id
+		FROM projects
+		WHERE org_id = $1 AND deleted_at IS NULL
+		ORDER BY created_at DESC
+	`
+	rows, err := r.db.QueryContext(ctx, query, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get org projects: %w", err)
+	}
+	defer rows.Close()
+
+	var projects []*domain.Project
+	for rows.Next() {
+		var project domain.Project
+		if err := rows.Scan(
+			&project.ID,
+			&project.Title,
+			&project.Description,
+			&project.OwnerID,
+			&project.Category,
+			&project.Status,
+			&project.IsStarred,
+			&project.CreatedAt,
+			&project.UpdatedAt,
+			&project.DeletedAt,
+			&project.OrgID,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan org project: %w", err)
+		}
+		projects = append(projects, &project)
+	}
+
+	return projects, rows.Err()
 }
 
 // UpdateProject updates an existing project

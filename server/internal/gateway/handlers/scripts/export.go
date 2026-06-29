@@ -60,7 +60,7 @@ func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient)
+	resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
 	if authErr != nil {
 		apierror.WriteStatus(w, http.StatusForbidden, apierror.CodePermissionDenied, "forbidden")
 		return
