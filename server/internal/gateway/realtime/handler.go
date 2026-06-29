@@ -141,6 +141,7 @@ func (h *Handler) HandleWS(w http.ResponseWriter, r *http.Request) {
 		userID:    userID,
 		name:      name,
 		avatarURL: avatarURL,
+		limiter:   newTokenBucket(editBucketCapacity, editBucketRefill, time.Now()),
 		send:      make(chan []byte, sendBuffer),
 	}
 
@@ -208,6 +209,11 @@ func (h *Handler) readPump(ctx context.Context, ws *websocket.Conn, c *conn, pro
 		_, data, err := ws.Read(ctx)
 		if err != nil {
 			return
+		}
+		// Per-connection budget: drop frames from a socket that floods us. The
+		// sender's autosave + reconnect resync recover anything dropped.
+		if !c.limiter.allow(time.Now()) {
+			continue
 		}
 		in, ok := parseInbound(data)
 		if !ok {

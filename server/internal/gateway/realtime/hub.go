@@ -29,6 +29,9 @@ type conn struct {
 	elementID string
 	label     string
 
+	// limiter caps inbound frames; touched only by this conn's read pump.
+	limiter *tokenBucket
+
 	send chan []byte
 }
 
