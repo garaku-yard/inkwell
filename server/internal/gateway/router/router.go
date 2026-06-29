@@ -15,6 +15,7 @@ import (
 	"inkwell/server/internal/gateway/handlers/scripts"
 	"inkwell/server/internal/gateway/handlers/workspace"
 	"inkwell/server/internal/gateway/middleware"
+	"inkwell/server/internal/gateway/realtime"
 	redisPkg "inkwell/server/pkg/redis"
 
 	"github.com/go-chi/chi/v5"
@@ -102,6 +103,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	}
 	aiSettingsHandler := aisettings.NewAISettingsHandler(clients, cfg.OpenAICompatibleHosts)
 	notificationsHandler := notifications.NewNotificationsHandler(clients)
+	realtimeHandler := realtime.NewHandler(clients, cfg.AllowedOrigins)
 
 	// Auth middleware — shared across all protected route groups.
 	identityServiceURL := cfg.IdentityService.Host + ":" + cfg.IdentityService.Port
@@ -154,6 +156,10 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			r.Post("/sync/projects/{projectId}", scriptsHandler.SyncProject)
 			// Vault sync — path-keyed file reconcile for vault projects.
 			r.Post("/sync/vault/projects/{projectId}", scriptsHandler.SyncVault)
+
+			// Real-time editing — WebSocket per project. Auth runs via the group
+			// middleware; the handler then checks project access before upgrading.
+			r.Get("/ws/projects/{projectId}", realtimeHandler.HandleWS)
 
 			// Projects
 			r.Route("/projects", func(r chi.Router) {

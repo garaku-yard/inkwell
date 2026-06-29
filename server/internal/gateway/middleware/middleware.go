@@ -164,3 +164,11 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
 }
+
+// Unwrap exposes the underlying ResponseWriter so http.ResponseController can
+// reach capabilities this wrapper doesn't implement directly — notably the
+// Hijacker a WebSocket upgrade needs. Without it, the logging wrapper would
+// hide the connection from the upgrade path.
+func (rw *responseWriter) Unwrap() http.ResponseWriter {
+	return rw.ResponseWriter
+}
