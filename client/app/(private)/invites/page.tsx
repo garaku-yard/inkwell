@@ -181,45 +181,45 @@ export default function InvitesPage() {
   const OrgInviteCard = ({ invite }: { invite: IncomingOrgInvite }) => {
     const isProcessing = processingInvites.has(invite.token)
     return (
-      <Card className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-200 border-border/50 h-full flex flex-col overflow-hidden">
-        <CardHeader className="pb-3 flex-shrink-0 relative">
-          <div className="absolute top-0 left-0 right-0 h-1 rounded-t-lg bg-primary" />
-          <div className="flex items-start justify-between mb-3 pt-1">
-            <Badge variant="outline" className="text-xs font-medium bg-yellow-50 text-yellow-700 border-yellow-200">
+      <Card className="group hover:shadow-md transition-shadow border-border/60 flex flex-col">
+        <CardContent className="flex flex-1 flex-col gap-3 p-4">
+          <div className="flex items-center justify-between">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Building2 className="h-4 w-4" />
+            </span>
+            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs font-medium">
               Pending
             </Badge>
-            <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/50 flex items-center gap-1">
-              <Building2 className="h-3 w-3" />
-              Organization
-            </Badge>
           </div>
-          <h3 className="font-semibold text-base line-clamp-2 text-foreground mb-2 min-h-[2.5rem] group-hover:text-primary transition-colors">
-            {invite.org_name}
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            You&apos;ve been invited as <span className="font-medium capitalize text-foreground">{invite.role}</span>.
-          </p>
-        </CardHeader>
-        <CardContent className="pt-0 mt-auto bg-gradient-to-t from-muted/30 to-transparent flex-shrink-0">
-          <div className="flex gap-2 w-full">
+
+          <div>
+            <h3 className="font-semibold text-base leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+              {invite.org_name}
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Organization · invited as <span className="font-medium capitalize text-foreground">{invite.role}</span>
+            </p>
+          </div>
+
+          <div className="mt-auto flex gap-2 pt-1">
             <Button
               variant="outline"
               size="sm"
-              className="flex-1 text-muted-foreground hover:text-red-600 hover:border-red-200 hover:bg-red-50 border-border/50 bg-transparent transition-colors"
+              className="flex-1 text-muted-foreground hover:text-red-600 hover:border-red-200 hover:bg-red-50"
               onClick={() => handleOrgInviteAction(invite.token, false)}
               disabled={isProcessing}
             >
               {isProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
-              <span className="ml-1 hidden sm:inline">Decline</span>
+              <span className="ml-1">Decline</span>
             </Button>
             <Button
               size="sm"
-              className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm"
+              className="flex-1 bg-green-600 hover:bg-green-700"
               onClick={() => handleOrgInviteAction(invite.token, true)}
               disabled={isProcessing}
             >
               {isProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-              <span className="ml-1 hidden sm:inline">Accept</span>
+              <span className="ml-1">Accept</span>
             </Button>
           </div>
         </CardContent>

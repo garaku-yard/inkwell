@@ -9,11 +9,14 @@
  * row; everywhere else just renders the cluster directly.
  */
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { UserIcon, Inbox, Moon, Sun, Settings, Briefcase, LogOut, LogIn } from "lucide-react"
 
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
+import { getPendingInvites } from "@/services/invites"
+import { listIncomingOrgInvites } from "@/services/organization"
 import { NotificationBell } from "@/components/notifications/NotificationBell"
 import { Button } from "@/components/ui/button"
 import {
@@ -34,6 +37,29 @@ interface AppHeaderActionsProps {
 export function AppHeaderActions({ inviteCount = 0 }: AppHeaderActionsProps) {
   const { isAuthenticated, isCloudLinked, logout, user } = useAuth()
   const { theme, toggleTheme } = useTheme()
+
+  // Self-fetch the pending invitation count (project + org invites) so the
+  // inbox badge shows on every surface, not just the dashboard. The prop seeds
+  // the initial value to avoid a flash. Both calls degrade to [] on the desktop
+  // build or a service hiccup.
+  const [pendingCount, setPendingCount] = useState(inviteCount)
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setPendingCount(0)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const [projectInvites, orgInvites] = await Promise.all([
+        getPendingInvites().catch(() => []),
+        listIncomingOrgInvites().catch(() => []),
+      ])
+      if (!cancelled) setPendingCount(projectInvites.length + orgInvites.length)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated])
 
   if (!isAuthenticated) {
     return (
@@ -65,11 +91,13 @@ export function AppHeaderActions({ inviteCount = 0 }: AppHeaderActionsProps) {
       <NotificationBell />
 
       {/* Invites inbox */}
-      <Link href="/invites" aria-label="Invitations">
+      <Link href="/invites" aria-label={pendingCount > 0 ? `Invitations (${pendingCount} pending)` : "Invitations"}>
         <Button variant="ghost" size="icon" className="relative h-8 w-8">
           <Inbox className="h-4 w-4" />
-          {inviteCount > 0 && (
-            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-teal-500" aria-hidden="true" />
+          {pendingCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-teal-500 px-1 text-[10px] font-semibold leading-none text-white">
+              {pendingCount > 9 ? "9+" : pendingCount}
+            </span>
           )}
         </Button>
       </Link>
