@@ -47,6 +47,7 @@ import type {
   KnowledgeStorage,
   LocationStorage,
   NotificationsStorage,
+  OrganizationStorage,
   ProjectStorage,
   SceneStorage,
   SettingsStorage,
@@ -72,6 +73,7 @@ export type Capability =
   | "ai.knowledge" // Vault-as-knowledge RAG for the AI chat (desktop only).
   | "notifications" // Server-side notification prefs + delivery (remote only).
   | "sync" // Local↔cloud project sync (desktop only; needs a linked account).
+  | "organizations" // Hosted team orgs — members, seats, org-owned projects (remote only).
 
 // ─── Root Storage ────────────────────────────────────────────────────────
 
@@ -87,6 +89,7 @@ export interface Storage {
   locations: LocationStorage
   beatBoard: BeatBoardStorage
   workspaces: WorkspaceStorage
+  organizations: OrganizationStorage
   collaboration: CollaborationStorage
   notifications: NotificationsStorage
   settings: SettingsStorage

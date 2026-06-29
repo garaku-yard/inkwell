@@ -16,6 +16,7 @@ import { characters } from "./characters"
 import { locations } from "./locations"
 import { beatBoard } from "./beat-board"
 import { workspaces } from "./workspaces"
+import { organizations } from "./organizations"
 import { collaboration } from "./collaboration"
 import { notifications } from "./notifications"
 import { settings } from "./settings"
@@ -37,6 +38,7 @@ const REMOTE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   "admin",
   "ai.byo",
   "notifications",
+  "organizations",
 ])
 
 // ─── Root Storage ─────────────────────────────────────────────────────────
@@ -53,6 +55,7 @@ export function createRemoteStorage(): Storage {
     locations,
     beatBoard,
     workspaces,
+    organizations,
     collaboration,
     notifications,
     settings,

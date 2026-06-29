@@ -37,6 +37,7 @@ import { characters } from "./characters"
 import { locations } from "./locations"
 import { beatBoard } from "./beat-board"
 import { workspaces } from "./workspaces"
+import { organizations } from "./organizations"
 import { collaboration } from "./collaboration"
 import { notifications } from "./notifications"
 import { settings } from "./settings"
@@ -72,6 +73,7 @@ export function createLocalStorage(): Storage {
     locations,
     beatBoard,
     workspaces,
+    organizations,
     collaboration,
     notifications,
     settings,

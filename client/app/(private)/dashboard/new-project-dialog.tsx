@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Check, ChevronsUpDown, Plus, X, AlertCircle } from "lucide-react"
 import { CollaboratorRoles, CollaboratorRole, collaboratorRoleOptions } from "@/models/constants/collaboratorRoles"
@@ -24,6 +24,7 @@ import { getStorage } from "@/lib/storage"
 import { isTauri } from "@tauri-apps/api/core"
 
 import { createProject, addCollaborator, Project, createScene } from "@/services/project"
+import { listCategories, type Category } from "@/services/workspace"
 
 interface NewProjectDialogProps {
   open: boolean
@@ -45,8 +46,17 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
   const router = useRouter()
   const { user } = useAuth()
   const userId = user?.id
-  const { activeWorkspace } = useWorkspace()
-  const workspaceCategories = activeWorkspace?.categories ?? []
+  const { activeWorkspace, activeOrg } = useWorkspace()
+  // In org context there is no per-workspace category bundle — an org is a flat
+  // pool spanning every format — so offer all categories. Otherwise scope the
+  // picker to the active personal workspace's categories.
+  const [allCategories, setAllCategories] = useState<Category[]>([])
+  useEffect(() => {
+    if (open && activeOrg && allCategories.length === 0) {
+      listCategories().then(setAllCategories).catch(() => {})
+    }
+  }, [open, activeOrg, allCategories.length])
+  const workspaceCategories = activeOrg ? allCategories : (activeWorkspace?.categories ?? [])
 
   const handleAddCollaborator = () => {
     const trimmed = collaboratorInput.trim()
@@ -110,6 +120,7 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
         description: description || categoryLabel || "New Project",
         owner_id: userId,
         category: effectiveCategory,
+        org_id: activeOrg?.id,
       })
 
       if (pickedVaultPath) {

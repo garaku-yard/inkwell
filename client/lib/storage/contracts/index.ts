@@ -26,6 +26,7 @@ import type {
   WorkspaceMember,
   WorkspacesResponse,
 } from "@/services/workspace"
+import type { Organization, OrgMember, OrgRole } from "@/services/organization"
 import type {
   CreateElementRequest,
   UpdateElementRequest,
@@ -55,6 +56,7 @@ export * from "./characters"
 export * from "./locations"
 export * from "./beat-board"
 export * from "./workspaces"
+export * from "./organizations"
 export * from "./collaboration"
 export * from "./notifications"
 export * from "./settings"
@@ -85,6 +87,9 @@ export type {
   Lane,
   Location,
   MyBilling,
+  Organization,
+  OrgMember,
+  OrgRole,
   OutlineItem,
   PaymentGateway,
   Project,

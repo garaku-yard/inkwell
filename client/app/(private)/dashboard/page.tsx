@@ -12,6 +12,7 @@ import {
   ArrowDownUp,
   Folder,
   Briefcase,
+  Building2,
   FilePlus2Icon,
   Archive,
 } from "lucide-react"
@@ -47,7 +48,7 @@ function DashboardPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isAuthenticated, isLoading: authLoading, user } = useAuth()
-  const { needsOnboarding, activeWorkspace } = useWorkspace()
+  const { needsOnboarding, activeWorkspace, activeOrg } = useWorkspace()
   const { toast } = useToast()
   const userId = user?.id
 
@@ -110,7 +111,7 @@ function DashboardPageContent() {
     handleArchiveProject,
     handleProjectClick,
     refetch,
-  } = useProjects({ userId, isAuthenticated, authLoading, activeFilter, searchQuery, activeWorkspace })
+  } = useProjects({ userId, isAuthenticated, authLoading, activeFilter, searchQuery, activeWorkspace, activeOrg })
 
   useEffect(() => {
     if (!authLoading && isAuthenticated && needsOnboarding) {
@@ -228,7 +229,12 @@ function DashboardPageContent() {
             )}
             <div className="flex items-center justify-between mb-8">
               <div>
-                {activeWorkspace?.name && (
+                {activeOrg ? (
+                  <span className="-mb-1 flex items-center gap-1.5 px-0 py-0.5 text-xs uppercase tracking-widest text-muted-foreground">
+                    <Building2 className="h-3 w-3" />
+                    {activeOrg.name}
+                  </span>
+                ) : activeWorkspace?.name ? (
                   <Button
                     asChild
                     variant="link"
@@ -239,8 +245,8 @@ function DashboardPageContent() {
                       {activeWorkspace.name}
                     </Link>
                   </Button>
-                )}
-                <h2 className="text-3xl font-bold">My Projects</h2>
+                ) : null}
+                <h2 className="text-3xl font-bold">{activeOrg ? "Projects" : "My Projects"}</h2>
               </div>
               <div className="flex items-center gap-2">
                 <Button onClick={() => setIsNewProjectDialogOpen(true)}>
@@ -352,9 +358,11 @@ function DashboardPageContent() {
                     <p className="text-muted-foreground mt-2">
                       {searchQuery
                         ? "Try a different search term"
-                        : activeWorkspace?.name
-                          ? `No projects in ${activeWorkspace.name} yet. Create your first project to get started.`
-                          : "No projects yet. Create your first project to get started."}
+                        : activeOrg
+                          ? `No projects in ${activeOrg.name} yet. Create the first one for your team.`
+                          : activeWorkspace?.name
+                            ? `No projects in ${activeWorkspace.name} yet. Create your first project to get started.`
+                            : "No projects yet. Create your first project to get started."}
                     </p>
                   </div>
                 )}

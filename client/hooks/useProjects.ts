@@ -13,6 +13,7 @@ import {
   type Project,
 } from "@/services/project"
 import { getPendingInvites } from "@/services/invites"
+import { listOrgProjects, type Organization } from "@/services/organization"
 import type { Workspace } from "@/services/workspace"
 
 /** Options passed to the `useProjects` hook by the dashboard page. */
@@ -33,6 +34,10 @@ interface UseProjectsOptions {
   /** The selected workspace; when set, only projects whose category matches a
    *  workspace category slug are shown. `null` shows all projects. */
   activeWorkspace: Workspace | null;
+  /** The active organization. When set, the dashboard lists the org's shared
+   *  project pool instead of the user's personal + collaborated projects, and
+   *  the workspace category filter does not apply. */
+  activeOrg: Organization | null;
 }
 
 /**
@@ -52,6 +57,7 @@ export function useProjects({
   activeFilter,
   searchQuery,
   activeWorkspace,
+  activeOrg,
 }: UseProjectsOptions) {
   const router = useRouter()
   const [projects, setProjects] = useState<(Project & { collaborator_count?: number })[]>([])
@@ -68,6 +74,15 @@ export function useProjects({
       setIsLoading(true)
       const fetchDashboardData = async () => {
         try {
+          // Org context: show only the org's shared project pool. Personal
+          // context: owned + collaborated projects.
+          if (activeOrg) {
+            const orgProjects = await listOrgProjects(activeOrg.id)
+            setProjects(orgProjects)
+            setInviteCount(0)
+            return
+          }
+
           // Fetch owned + shared projects in parallel so the "Collaborations"
           // filter has data to work with. Shared projects fail silently — the
           // collab service may be down — rather than empty the dashboard.
@@ -102,14 +117,16 @@ export function useProjects({
     } else {
       setIsLoading(false)
     }
-  }, [isAuthenticated, userId, authLoading])
+  }, [isAuthenticated, userId, authLoading, activeOrg])
 
   useEffect(() => {
     void refetch()
   }, [refetch])
 
   const filteredProjects = useMemo(() => {
-    const workspaceSlugs = activeWorkspace?.categories?.map((c) => c.slug) ?? []
+    // In org context the project list is already the org's pool — the personal
+    // workspace category filter does not apply.
+    const workspaceSlugs = activeOrg ? [] : (activeWorkspace?.categories?.map((c) => c.slug) ?? [])
     let result = workspaceSlugs.length > 0
       ? projects.filter((p) => workspaceSlugs.includes(p.category))
       : projects
@@ -147,7 +164,7 @@ export function useProjects({
     if (!searchQuery) return result
 
     return result.filter((p) => p.title.toLowerCase().includes(searchQuery.toLowerCase()))
-  }, [projects, activeFilter, searchQuery, userId, activeWorkspace])
+  }, [projects, activeFilter, searchQuery, userId, activeWorkspace, activeOrg])
 
   /** Prepends a newly created project to the local list without a refetch. */
   const handleProjectCreated = (newProject: Project) => {

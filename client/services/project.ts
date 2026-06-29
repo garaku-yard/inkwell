@@ -26,6 +26,8 @@ export interface Project {
   status: string
   is_starred: boolean
   collaborator_count?: number
+  /** Owning organization; absent for personal projects. */
+  org_id?: string
   created_at: string
   updated_at: string
 }
@@ -35,6 +37,8 @@ export interface CreateProjectRequest {
   description?: string
   owner_id: string
   category?: ProjectCategory
+  /** When set, the project is created inside this organization. */
+  org_id?: string
 }
 
 export interface UpdateProjectRequest {
