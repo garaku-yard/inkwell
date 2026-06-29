@@ -8,7 +8,8 @@ import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
-import { EditorHeader } from "./shared/EditorHeader"
+import { ProjectShell } from "./shared/ProjectShell"
+import { EditorToolbar } from "./shared/EditorToolbar"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
 import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
@@ -425,8 +426,13 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Pages sidebar — shared rail with list + comments. */}
+    <ProjectShell
+      projectId={projectData.id}
+      title={projectData.title}
+      category={projectData.category}
+      current="editor"
+      sidebar={
+      /* Pages sidebar — shared rail with list + comments. */
       <EditorSidebar
         headerIcon={Files}
         headerLabel="Pages"
@@ -447,18 +453,15 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
         onDeleteComment={onDeleteComment}
         onToggleCommentResolved={onToggleCommentResolved}
       />
-
-      {/* Main editor */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <EditorHeader
+      }
+      toolbar={
+        <EditorToolbar
           title={projectData.title}
-          subtitle="Comic Script"
-          statRight={`${pages.length} pages · ${totalPanels} panels`}
+          projectId={projectData.id}
+          category={projectData.category}
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
-          projectId={projectData.id}
-          category={projectData.category}
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",
@@ -482,9 +485,10 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
             },
           ]}
         />
-
+      }
+    >
         <div
-          className="flex flex-1 overflow-hidden"
+          className="flex h-full overflow-hidden"
           onFocus={(e) => {
             const id = (e.target as HTMLElement)?.id
             if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
@@ -509,7 +513,6 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
           />
           <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
-      </div>
-    </div>
+    </ProjectShell>
   )
 }

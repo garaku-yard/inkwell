@@ -15,7 +15,8 @@ import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
-import { EditorHeader } from "./shared/EditorHeader"
+import { ProjectShell } from "./shared/ProjectShell"
+import { EditorToolbar } from "./shared/EditorToolbar"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
 import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
@@ -546,8 +547,13 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Chapter sidebar — shared rail with list + comments. */}
+    <ProjectShell
+      projectId={projectData.id}
+      title={projectData.title}
+      category={projectData.category}
+      current="editor"
+      sidebar={
+      /* Chapter sidebar — shared rail with list + comments. */
       <EditorSidebar
         headerIcon={BookOpen}
         headerLabel="Chapters"
@@ -570,18 +576,15 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         onDeleteComment={onDeleteComment}
         onToggleCommentResolved={onToggleCommentResolved}
       />
-
-      {/* Main editor */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <EditorHeader
+      }
+      toolbar={
+        <EditorToolbar
           title={projectData.title}
-          subtitle={projectData.category === "memoir" ? "Memoir" : "Novel"}
-          statRight={`${totalWords.toLocaleString()} words`}
+          projectId={projectData.id}
+          category={projectData.category}
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
-          projectId={projectData.id}
-          category={projectData.category}
           importItems={[
             {
               label: "Markdown / Text (.md, .txt)",
@@ -620,8 +623,9 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
             },
           ]}
         />
-
-        <div className="flex flex-1 overflow-hidden">
+      }
+    >
+        <div className="flex h-full overflow-hidden">
           <PagedSheets
             pages={pages}
             renderBlock={renderBlock}
@@ -641,7 +645,6 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           />
           <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
-      </div>
-    </div>
+    </ProjectShell>
   )
 }

@@ -9,7 +9,8 @@ import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
-import { EditorHeader } from "./shared/EditorHeader"
+import { ProjectShell } from "./shared/ProjectShell"
+import { EditorToolbar } from "./shared/EditorToolbar"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
 import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
@@ -457,8 +458,13 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Poem/song sidebar — shared rail with list + comments. */}
+    <ProjectShell
+      projectId={projectData.id}
+      title={projectData.title}
+      category={projectData.category}
+      current="editor"
+      sidebar={
+      /* Poem/song sidebar — shared rail with list + comments. */
       <EditorSidebar
         headerIcon={isLyrics ? Music : Feather}
         headerLabel={isLyrics ? "Songs" : "Poems"}
@@ -482,18 +488,15 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
         onDeleteComment={onDeleteComment}
         onToggleCommentResolved={onToggleCommentResolved}
       />
-
-      {/* Main editor */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <EditorHeader
+      }
+      toolbar={
+        <EditorToolbar
           title={projectData.title}
-          subtitle={isLyrics ? "Lyrics" : "Poetry"}
-          statRight={`${totalLines} lines`}
+          projectId={projectData.id}
+          category={projectData.category}
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
-          projectId={projectData.id}
-          category={projectData.category}
           importItems={[
             {
               label: "Plain Text (.txt)",
@@ -524,7 +527,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
               }),
             },
           ]}
-          extras={
+          leading={
             <>
               <Button
                 variant="ghost"
@@ -553,9 +556,10 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
             </>
           }
         />
-
+      }
+    >
         <div
-          className="flex flex-1 overflow-hidden"
+          className="flex h-full overflow-hidden"
           onFocus={(e) => {
             const id = (e.target as HTMLElement)?.id
             if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
@@ -580,7 +584,6 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
           />
           <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
-      </div>
-    </div>
+    </ProjectShell>
   )
 }

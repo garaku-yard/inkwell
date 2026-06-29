@@ -3,7 +3,8 @@
 import type React from "react"
 import { useState, useRef, useCallback, useMemo, useEffect } from "react"
 import { useDebouncedCallback } from "use-debounce"
-import { EditorHeader } from "./shared/EditorHeader"
+import { ProjectShell } from "./shared/ProjectShell"
+import { EditorToolbar } from "./shared/EditorToolbar"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { PagedSheets, type SheetMetrics } from "./shared/PagedSheets"
 import { paginate } from "@/lib/editor/paginate"
@@ -455,7 +456,12 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   )
 
   return (
-    <div className="flex h-screen">
+    <ProjectShell
+      projectId={project.id}
+      title={project.title}
+      category={project.category}
+      current="editor"
+      sidebar={
       <SidePanel
         ref={sidePanelRef}
         project={project}
@@ -470,15 +476,15 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         onDeleteComment={handleDeleteComment}
         onToggleCommentResolved={handleToggleCommentResolved}
       />
-      <div className="flex flex-col flex-1 min-w-0">
-      <EditorHeader
+      }
+      toolbar={
+      <EditorToolbar
         title={project.title}
-        subtitle="Screenplay"
+        projectId={project.id}
+        category={project.category}
         saveStatus={isSaving ? "saving" : "saved"}
         onToggleAI={toggleAIChat}
         isAIOpen={isAIChatOpen}
-        projectId={project.id}
-        category={project.category}
         importItems={[
           {
             label: "Final Draft (.fdx)",
@@ -509,8 +515,9 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           },
         ]}
       />
-
-      <div className="flex flex-1 overflow-hidden">
+      }
+    >
+      <div className="flex h-full overflow-hidden">
         <div className={cn("relative flex-1 flex flex-col overflow-hidden", isAIChatOpen && "border-r")}>
           <PagedSheets
             pages={pages}
@@ -540,7 +547,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           currentElement={activeElementId || undefined}
         />
       </div>
-      </div>
-    </div>
+    </ProjectShell>
   )
 }

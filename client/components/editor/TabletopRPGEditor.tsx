@@ -8,7 +8,8 @@ import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
-import { EditorHeader } from "./shared/EditorHeader"
+import { ProjectShell } from "./shared/ProjectShell"
+import { EditorToolbar } from "./shared/EditorToolbar"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
 import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
@@ -729,8 +730,14 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sections sidebar — shared rail (sections + h2 subheadings) + comments. */}
+    <>
+    <ProjectShell
+      projectId={projectData.id}
+      title={projectData.title}
+      category={projectData.category}
+      current="editor"
+      sidebar={
+      /* Sections sidebar — shared rail (sections + h2 subheadings) + comments. */
       <EditorSidebar
         headerIcon={Library}
         headerLabel="Contents"
@@ -751,18 +758,15 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         onDeleteComment={onDeleteComment}
         onToggleCommentResolved={onToggleCommentResolved}
       />
-
-      {/* Editor */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <EditorHeader
+      }
+      toolbar={
+        <EditorToolbar
           title={projectData.title}
-          subtitle="Tabletop RPG"
-          statRight={`${totalWords.toLocaleString()} words`}
+          projectId={projectData.id}
+          category={projectData.category}
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
-          projectId={projectData.id}
-          category={projectData.category}
           importItems={[
             {
               label: "Markdown / Text (.md, .txt)",
@@ -789,9 +793,10 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
             },
           ]}
         />
-
+      }
+    >
         <div
-          className="flex flex-1 overflow-hidden"
+          className="flex h-full overflow-hidden"
           onFocus={(e) => {
             const id = (e.target as HTMLElement)?.id
             if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
@@ -816,7 +821,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
           />
           <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
         </div>
-      </div>
+    </ProjectShell>
       {slashMenu && (
         <SlashMenu
           query={slashMenu.query}
@@ -832,6 +837,6 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
           if (templatePickerFor) loadStatBlockTemplate(templatePickerFor, body)
         }}
       />
-    </div>
+    </>
   )
 }
