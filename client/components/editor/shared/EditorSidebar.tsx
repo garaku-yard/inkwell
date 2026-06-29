@@ -47,6 +47,9 @@ export interface EditorSidebarItem {
   /** Extra text the search box matches against (e.g. body content), so a
    *  consumer can search more than the title. Falls back to the title. */
   searchText?: string
+  /** Optional trailing node on the title row (e.g. live-presence pips marking
+   *  who is editing this item). Purely decorative; ignored for search. */
+  adornment?: React.ReactNode
 }
 
 /** A small stat badge shown under the header (e.g. count, word total). */
@@ -219,6 +222,9 @@ export function EditorSidebar({
                       >
                         {item.title}
                       </span>
+                      {item.adornment && (
+                        <span className="ml-auto shrink-0 self-center">{item.adornment}</span>
+                      )}
                     </div>
                     {(item.meta || cc > 0) && (
                       <div className="mt-0.5 flex items-center gap-2 pl-4">

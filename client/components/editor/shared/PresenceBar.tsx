@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getApiBaseUrl } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import type { Peer } from "@/lib/realtime/protocol"
+import { hueFor, initials } from "@/lib/realtime/presence-ui"
 
 /** How many avatars to show before collapsing the rest into a "+N" chip. */
 const MAX_AVATARS = 4
@@ -20,23 +21,6 @@ const MAX_AVATARS = 4
 function avatarSrc(url?: string): string | undefined {
   if (!url) return undefined
   return /^https?:\/\//.test(url) ? url : `${getApiBaseUrl()}${url}`
-}
-
-/** Up-to-two-letter initials from a display name. */
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return "?"
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
-
-/** A stable hue (0–359) derived from the user id, so a person's colour is consistent. */
-function hueFor(userId: string): number {
-  let hash = 0
-  for (let i = 0; i < userId.length; i++) {
-    hash = (hash * 31 + userId.charCodeAt(i)) | 0
-  }
-  return Math.abs(hash) % 360
 }
 
 interface PresenceBarProps {

@@ -11,6 +11,8 @@ import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { ProjectShell } from "./shared/ProjectShell"
 import { useProjectPresence } from "@/lib/realtime/PresenceContext"
+import { PresencePips } from "./shared/PresencePips"
+import type { Peer } from "@/lib/realtime/protocol"
 import { EditorToolbar } from "./shared/EditorToolbar"
 import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
@@ -149,7 +151,22 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const activeElements = activePassage?.elements ?? []
 
   // Live collaboration (no-op on the desktop build — no realtime capability).
-  const { setFocus: reportFocus, sendEdit, subscribeEdits, subscribeResync } = useProjectPresence()
+  const { peers, setFocus: reportFocus, sendEdit, subscribeEdits, subscribeResync } =
+    useProjectPresence()
+
+  // Who is editing which passage right now — keyed by the passage id each peer
+  // reports as its focus. Drives the soft-lock pips in the rail and the banner
+  // on the active passage.
+  const peersByPassage = useMemo(() => {
+    const map = new Map<string, Peer[]>()
+    for (const p of peers) {
+      if (!p.elementId) continue
+      const list = map.get(p.elementId)
+      if (list) list.push(p)
+      else map.set(p.elementId, [p])
+    }
+    return map
+  }, [peers])
 
   // Report which passage this client is editing so collaborators' presence bar
   // reads "editing <passage>".
@@ -236,6 +253,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
         if (i === 0) bits.push("Start")
         if (wc > 0) bits.push(`${wc}w`)
         if (outLinks > 0) bits.push(`${outLinks} link${outLinks !== 1 ? "s" : ""}`)
+        const here = peersByPassage.get(passage.id)
         return {
           id: passage.id,
           title: passage.scene_heading || "Untitled",
@@ -243,9 +261,10 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           meta: bits.length ? bits.join(" · ") : undefined,
           searchText: `${passage.scene_heading} ${(passage.elements ?? []).map((e) => e.content).join(" ")}`,
           commentTargetIds: [passage.id, ...(passage.elements ?? []).map((e) => e.id)],
+          adornment: here && here.length ? <PresencePips peers={here} /> : undefined,
         }
       }),
-    [passages],
+    [passages, peersByPassage],
   )
 
   // Build a set of all passage names for link validation
@@ -773,8 +792,17 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const renderBlock = (b: IFBlock) => {
     if (b.kind === "passageHead") {
       const isStart = passages.findIndex((p) => p.id === b.passage.id) === 0
+      const here = peersByPassage.get(b.passage.id)
       return (
         <div>
+          {here && here.length > 0 && (
+            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-0.5 text-xs text-muted-foreground">
+              <PresencePips peers={here} />
+              <span>
+                {here.map((p) => p.name).join(", ")} {here.length === 1 ? "is" : "are"} also editing
+              </span>
+            </div>
+          )}
           <div className="mb-1">
             {isStart && (
               <span className="text-[10px] font-bold uppercase tracking-wider text-primary mb-2 block">
