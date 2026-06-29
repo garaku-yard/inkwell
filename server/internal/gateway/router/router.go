@@ -103,7 +103,14 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	}
 	aiSettingsHandler := aisettings.NewAISettingsHandler(clients, cfg.OpenAICompatibleHosts)
 	notificationsHandler := notifications.NewNotificationsHandler(clients)
-	realtimeHandler := realtime.NewHandler(clients, cfg.AllowedOrigins)
+	// Realtime fan-out rides Redis pub/sub when Redis is available, so editors
+	// on different gateway instances see each other; otherwise it runs
+	// local-only (single instance loses nothing but cross-instance delivery).
+	var realtimeFanout *realtime.Fanout
+	if redisClient != nil {
+		realtimeFanout = realtime.NewFanout(redisClient.Raw())
+	}
+	realtimeHandler := realtime.NewHandler(clients, cfg.AllowedOrigins, realtimeFanout)
 
 	// Auth middleware — shared across all protected route groups.
 	identityServiceURL := cfg.IdentityService.Host + ":" + cfg.IdentityService.Port

@@ -95,6 +95,15 @@ func (c *Client) IncrBy(ctx context.Context, key string, n int64, ttl time.Durat
 	return incr.Val(), nil
 }
 
+// Raw returns the underlying go-redis client for callers that need operations
+// beyond this wrapper's curated surface — notably pub/sub. Reserved for
+// subsystems (e.g. the realtime fan-out) whose needs are too specialised to
+// belong on the shared wrapper; ordinary key/value callers should use the
+// methods above.
+func (c *Client) Raw() *redis.Client {
+	return c.rdb
+}
+
 // Close gracefully closes the connection.
 func (c *Client) Close() error {
 	return c.rdb.Close()

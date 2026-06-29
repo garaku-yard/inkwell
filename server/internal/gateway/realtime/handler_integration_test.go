@@ -39,7 +39,7 @@ func (identityStub) GetUser(_ context.Context, in *identity.GetUserRequest, _ ..
 // the X-Test-User header as the authenticated user id.
 func presenceTestServer(t *testing.T) *nethttptest.Server {
 	t.Helper()
-	h := NewHandler(&grpcclient.Registry{Scripts: scriptsStub{}, Identity: identityStub{}}, nil)
+	h := NewHandler(&grpcclient.Registry{Scripts: scriptsStub{}, Identity: identityStub{}}, nil, nil)
 	r := chi.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

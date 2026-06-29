@@ -40,10 +40,18 @@ type Handler struct {
 }
 
 // NewHandler builds a realtime Handler. allowedOrigins are the gateway's
-// configured origins; their hosts become the WebSocket Origin allowlist.
-func NewHandler(clients *grpcclient.Registry, allowedOrigins []string) *Handler {
+// configured origins; their hosts become the WebSocket Origin allowlist. A
+// non-nil fanout enables cross-instance fan-out over Redis: the hub mirrors its
+// broadcasts through it, and a subscriber loop delivers other instances' frames
+// to the local room. Pass nil for single-instance / no-Redis deployments.
+func NewHandler(clients *grpcclient.Registry, allowedOrigins []string, fanout *Fanout) *Handler {
+	hub := NewHub()
+	if fanout != nil {
+		hub.pub = fanout
+		go fanout.Run(context.Background(), hub.deliverRemote)
+	}
 	return &Handler{
-		hub:            NewHub(),
+		hub:            hub,
 		clients:        clients,
 		originPatterns: toOriginPatterns(allowedOrigins),
 	}

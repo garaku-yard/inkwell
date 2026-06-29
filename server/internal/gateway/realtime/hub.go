@@ -41,13 +41,21 @@ func (c *conn) peer() Peer {
 	}
 }
 
+// publisher propagates a room frame to other gateway instances. It is satisfied
+// by *Fanout; the hub holds it as an interface so it stays Redis-agnostic and
+// testable, and treats a nil publisher as "single instance — local fan-out only".
+type publisher interface {
+	Publish(projectID string, data []byte)
+}
+
 // Hub holds the live rooms, one per project. A room is the set of connections
-// currently editing that project. It is the in-process fan-out; cross-instance
-// fan-out (Redis pub/sub) is added in a later stage.
+// currently editing that project. It is the in-process fan-out; when a publisher
+// is set it also mirrors every broadcast to the other gateway instances.
 type Hub struct {
 	mu     sync.RWMutex
 	rooms  map[string]map[*conn]struct{}
 	connID atomic.Uint64 // monotonic source of per-connection ids
+	pub    publisher     // cross-instance fan-out; nil ⇒ local-only
 }
 
 // NewHub returns an empty Hub.
@@ -104,10 +112,21 @@ func (h *Hub) setFocus(c *conn, elementID, label string) Peer {
 	return c.peer()
 }
 
-// broadcast queues msg to every connection in the project room except the
+// broadcast delivers msg to the local room (sender excluded) and, when a
+// publisher is set, mirrors it to the other gateway instances. This is the
+// single choke point every room frame passes through, so presence and edits
+// fan out cross-instance uniformly.
+func (h *Hub) broadcast(projectID string, sender *conn, msg []byte) {
+	h.deliverLocal(projectID, sender, msg)
+	if h.pub != nil {
+		h.pub.Publish(projectID, msg)
+	}
+}
+
+// deliverLocal queues msg to every connection in the project room except the
 // sender. It never blocks: a connection whose send buffer is full is skipped
 // (it will re-sync on reconnect) rather than stalling the whole room.
-func (h *Hub) broadcast(projectID string, sender *conn, msg []byte) {
+func (h *Hub) deliverLocal(projectID string, sender *conn, msg []byte) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for c := range h.rooms[projectID] {
@@ -120,6 +139,13 @@ func (h *Hub) broadcast(projectID string, sender *conn, msg []byte) {
 			// buffer full — drop; the client re-syncs from the DB on reconnect.
 		}
 	}
+}
+
+// deliverRemote fans a frame that arrived from another instance out to the local
+// room. There is no local sender to exclude (the author is on the origin
+// instance), and it is never re-published — that would loop.
+func (h *Hub) deliverRemote(projectID string, msg []byte) {
+	h.deliverLocal(projectID, nil, msg)
 }
 
 // RoomSize reports how many connections are in a project room. Exposed for
