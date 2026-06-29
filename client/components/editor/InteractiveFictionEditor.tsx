@@ -10,6 +10,7 @@ import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { ProjectShell } from "./shared/ProjectShell"
+import { useProjectPresence } from "@/lib/realtime/PresenceContext"
 import { EditorToolbar } from "./shared/EditorToolbar"
 import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
@@ -144,6 +145,13 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
 
   const activePassage = passages.find(p => p.id === activePassageId) ?? null
   const activeElements = activePassage?.elements ?? []
+
+  // Report which passage this client is editing so collaborators' presence bar
+  // reads "editing <passage>". No-op on the desktop build (no realtime).
+  const { setFocus: reportFocus } = useProjectPresence()
+  useEffect(() => {
+    if (activePassageId) reportFocus(activePassageId, activePassage?.scene_heading || "Untitled")
+  }, [activePassageId, activePassage?.scene_heading, reportFocus])
 
   const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
     if (focusedElementId) {

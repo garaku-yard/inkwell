@@ -23,7 +23,9 @@ import { SyncControl } from "@/components/sync/SyncControl"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { PresenceProvider, useProjectPresence } from "@/lib/realtime/PresenceContext"
 import { ProjectNavMenu } from "./ProjectNavMenu"
+import { PresenceBar } from "./PresenceBar"
 
 export interface ProjectShellChapter {
   id: string
@@ -87,6 +89,7 @@ export function ProjectShell({
     onChapterSelect ?? (() => router.push(`/projects/editor?id=${projectId}`))
 
   return (
+    <PresenceProvider projectId={projectId}>
     <div className="flex h-screen bg-background">
       {/* Left rail — the editor's own sidebar when supplied, otherwise the
           built-in list rail (mirrors the editor's, list-only for navigation). */}
@@ -149,6 +152,7 @@ export function ProjectShell({
           </div>
           <div className={cn("flex items-center justify-end gap-2")}>
             {headerActions}
+            <HeaderPresence />
             <SyncControl projectId={projectId} />
             <AppHeaderActions />
           </div>
@@ -157,5 +161,13 @@ export function ProjectShell({
         <div className="min-h-0 flex-1">{children}</div>
       </div>
     </div>
+    </PresenceProvider>
   )
+}
+
+/** The header's live-presence avatars, reading the shared connection. Split out
+ *  so it sits inside the PresenceProvider that wraps the shell. */
+function HeaderPresence() {
+  const { peers } = useProjectPresence()
+  return <PresenceBar peers={peers} />
 }

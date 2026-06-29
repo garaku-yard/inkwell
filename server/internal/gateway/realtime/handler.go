@@ -2,6 +2,7 @@ package realtime
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
+	"inkwell/server/pkg/grpc/identity"
 )
 
 const (
@@ -22,6 +24,9 @@ const (
 	// dead peers quickly.
 	heartbeat = 30 * time.Second
 	writeWait = 10 * time.Second
+	// identityTimeout bounds the profile lookup so a slow identity service can't
+	// stall the handshake — we fall back to a generic name on timeout.
+	identityTimeout = 3 * time.Second
 )
 
 // Handler upgrades project editing sessions to WebSockets and joins them to the
@@ -65,8 +70,10 @@ func toOriginPatterns(allowed []string) []string {
 }
 
 // HandleWS authorizes the caller, upgrades to a WebSocket, joins the project
-// room, and relays inbound frames to the rest of the room. The message protocol
-// and presence arrive in Stage 2 — for now inbound frames are relayed verbatim.
+// room, and exchanges presence with the rest of the room: the joiner receives
+// the current roster, everyone else receives a peer_join; focus changes are
+// relayed both ways. Unrecognised frames (Stage 3 element edits) are relayed
+// verbatim.
 func (h *Handler) HandleWS(w http.ResponseWriter, r *http.Request) {
 	userID, ok := contextx.UserIDFrom(r.Context())
 	if !ok || userID == "" {
@@ -88,6 +95,8 @@ func (h *Handler) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	name, avatarURL := h.lookupIdentity(r.Context(), userID)
+
 	acceptOpts := &websocket.AcceptOptions{}
 	if len(h.originPatterns) > 0 {
 		acceptOpts.OriginPatterns = h.originPatterns
@@ -102,9 +111,21 @@ func (h *Handler) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return // Accept has already written the failure
 	}
 
-	c := &conn{userID: userID, send: make(chan []byte, sendBuffer)}
-	h.hub.join(projectID, c)
+	c := &conn{
+		id:        h.hub.nextConnID(),
+		userID:    userID,
+		name:      name,
+		avatarURL: avatarURL,
+		send:      make(chan []byte, sendBuffer),
+	}
+
+	// Join under one lock, capturing who is already here; tell the joiner about
+	// them and tell them about the joiner.
+	roster := h.hub.join(projectID, c)
 	defer h.hub.leave(projectID, c)
+	c.send <- encodeRoster(roster)
+	h.hub.broadcast(projectID, c, encodePeer(TypePeerJoin, c.peer()))
+	defer h.hub.broadcast(projectID, c, encodeLeave(c.id))
 
 	// The request context is tied to the handshake; use a fresh one for the
 	// connection lifetime, cancelled when either pump exits.
@@ -116,15 +137,56 @@ func (h *Handler) HandleWS(w http.ResponseWriter, r *http.Request) {
 	h.readPump(ctx, ws, c, projectID)
 }
 
-// readPump relays every inbound frame to the rest of the project room until the
-// peer disconnects or errors.
+// lookupIdentity resolves a display name and avatar for the connecting user.
+// Failures (or a slow identity service) degrade to a generic name rather than
+// blocking the handshake.
+func (h *Handler) lookupIdentity(ctx context.Context, userID string) (name, avatarURL string) {
+	fallback := "Someone"
+	if len(userID) >= 8 {
+		fallback = "User " + userID[:8]
+	}
+	lookupCtx, cancel := context.WithTimeout(ctx, identityTimeout)
+	defer cancel()
+	resp, err := h.clients.Identity.GetUser(lookupCtx, &identity.GetUserRequest{UserId: userID})
+	if err != nil || resp.GetUser() == nil {
+		return fallback, ""
+	}
+	u := resp.GetUser()
+	name = strings.TrimSpace(fmt.Sprintf("%s %s", u.GetFirstName(), u.GetLastName()))
+	if name == "" {
+		name = u.GetUsername()
+	}
+	if name == "" {
+		name = fallback
+	}
+	return name, u.GetAvatarUrl()
+}
+
+// readPump processes inbound frames until the peer disconnects or errors. Focus
+// frames update presence and are relayed (with server-stamped identity);
+// server-authoritative presence types from a client are ignored; everything
+// else is relayed to the room verbatim for forward compatibility.
 func (h *Handler) readPump(ctx context.Context, ws *websocket.Conn, c *conn, projectID string) {
 	for {
 		_, data, err := ws.Read(ctx)
 		if err != nil {
 			return
 		}
-		h.hub.broadcast(projectID, c, data)
+		in, ok := parseInbound(data)
+		if !ok {
+			continue
+		}
+		switch in.Type {
+		case TypeFocus:
+			peer := h.hub.setFocus(c, in.ElementID, in.Label)
+			h.hub.broadcast(projectID, c, encodePeer(TypeFocus, peer))
+		case TypeRoster, TypePeerJoin, TypePeerLeave:
+			// Presence is server-authoritative — never relay a client's claim.
+			continue
+		default:
+			// Unknown to this stage (e.g. Stage 3 edits) — relay as-is.
+			h.hub.broadcast(projectID, c, data)
+		}
 	}
 }
 
