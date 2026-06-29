@@ -333,6 +333,32 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 					r.Delete("/members/{userId}", workspaceHandler.RemoveMember)
 				})
 			})
+
+			// Organizations — first-class team entity (distinct from personal
+			// workspaces). Member mutations are gated on the caller's resolved
+			// org role inside each handler.
+			r.Route("/organizations", func(r chi.Router) {
+				r.Get("/", workspaceHandler.ListOrganizations)
+				r.Post("/", workspaceHandler.CreateOrganization)
+
+				r.Post("/invites/{token}/accept", workspaceHandler.AcceptOrgInvite)
+				r.Post("/invites/{token}/decline", workspaceHandler.DeclineOrgInvite)
+
+				r.Route("/{orgId}", func(r chi.Router) {
+					r.Get("/", workspaceHandler.GetOrganization)
+					r.Patch("/", workspaceHandler.UpdateOrganization)
+					r.Put("/", workspaceHandler.UpdateOrganization)
+					r.Delete("/", workspaceHandler.DeleteOrganization)
+
+					r.Get("/seats", workspaceHandler.OrgSeats)
+
+					r.Get("/members", workspaceHandler.ListOrgMembers)
+					r.Post("/members/invite", workspaceHandler.InviteOrgMember)
+					r.Patch("/members/{userId}/role", workspaceHandler.UpdateOrgMemberRole)
+					r.Put("/members/{userId}/role", workspaceHandler.UpdateOrgMemberRole)
+					r.Delete("/members/{userId}", workspaceHandler.RemoveOrgMember)
+				})
+			})
 		})
 	})
 

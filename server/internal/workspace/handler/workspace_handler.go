@@ -275,6 +275,10 @@ func (h *WorkspaceHandler) handleError(err error) error {
 		return status.Error(codes.PermissionDenied, "only the owner can perform this action")
 	case domain.ErrCannotRemoveOwner:
 		return status.Error(codes.FailedPrecondition, "cannot remove the workspace owner")
+	case domain.ErrOrgNotFound:
+		return status.Error(codes.NotFound, "organization not found")
+	case domain.ErrOrgSlugTaken:
+		return status.Error(codes.AlreadyExists, "organization name already taken")
 	default:
 		return status.Error(codes.Internal, "internal server error")
 	}

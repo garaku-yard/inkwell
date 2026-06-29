@@ -39,6 +39,33 @@ message WorkspaceMember {
   common.Timestamp created_at = 7;
 }
 
+// Organization is a first-class team entity (distinct from a personal
+// workspace). It owns projects directly and bills its own seats. Members
+// connect their personal account to the org via OrgMember rows.
+message Organization {
+  string id          = 1;
+  string name        = 2;
+  string slug        = 3;
+  string owner_id    = 4;
+  string avatar_url  = 5;
+  string description = 6;
+  // member_role is the requesting user's role in this org, populated by the
+  // user-scoped reads (list/get). Empty when the caller context is unknown.
+  string member_role = 7;
+  common.Timestamp created_at = 8;
+  common.Timestamp updated_at = 9;
+}
+
+message OrgMember {
+  string id         = 1;
+  string org_id     = 2;
+  string user_id    = 3;
+  string role       = 4; // owner | admin | editor | viewer
+  string invited_by = 5;
+  common.Timestamp joined_at  = 6;
+  common.Timestamp created_at = 7;
+}
+
 // ─── Category RPCs ───────────────────────────────────────────────────────────
 
 message ListCategoriesRequest {}
@@ -202,6 +229,142 @@ message DeclineInviteResponse {
   bool success = 1;
 }
 
+// ─── Organization RPCs ───────────────────────────────────────────────────────
+
+message CreateOrganizationRequest {
+  string owner_id    = 1;
+  string name        = 2;
+  string description = 3;
+}
+
+message CreateOrganizationResponse {
+  Organization organization = 1;
+}
+
+message GetOrganizationRequest {
+  string org_id  = 1;
+  string user_id = 2; // optional; when set, fills Organization.member_role
+}
+
+message GetOrganizationResponse {
+  Organization organization = 1;
+}
+
+message ListOrganizationsForUserRequest {
+  string user_id = 1;
+}
+
+message ListOrganizationsForUserResponse {
+  repeated Organization organizations = 1;
+}
+
+message UpdateOrganizationRequest {
+  string org_id      = 1;
+  string name        = 2;
+  string description  = 3;
+  string avatar_url  = 4;
+}
+
+message UpdateOrganizationResponse {
+  Organization organization = 1;
+}
+
+message DeleteOrganizationRequest {
+  string org_id  = 1;
+  string user_id = 2; // must be owner
+}
+
+message DeleteOrganizationResponse {
+  bool success = 1;
+}
+
+// ─── Organization members ────────────────────────────────────────────────────
+
+message AddOrgMemberRequest {
+  string org_id     = 1;
+  string user_id    = 2;
+  string role       = 3;
+  string invited_by = 4;
+}
+
+message AddOrgMemberResponse {
+  OrgMember member = 1;
+}
+
+message GetOrgMemberRequest {
+  string org_id  = 1;
+  string user_id = 2;
+}
+
+message GetOrgMemberResponse {
+  OrgMember member = 1;
+}
+
+message RemoveOrgMemberRequest {
+  string org_id  = 1;
+  string user_id = 2;
+}
+
+message RemoveOrgMemberResponse {
+  bool success = 1;
+}
+
+message UpdateOrgMemberRoleRequest {
+  string org_id  = 1;
+  string user_id = 2;
+  string role    = 3;
+}
+
+message UpdateOrgMemberRoleResponse {
+  OrgMember member = 1;
+}
+
+message ListOrgMembersRequest {
+  string org_id = 1;
+}
+
+message ListOrgMembersResponse {
+  repeated OrgMember members = 1;
+}
+
+message CountOrgSeatsRequest {
+  string org_id = 1;
+}
+
+message CountOrgSeatsResponse {
+  int32 seats = 1;
+}
+
+// ─── Organization invites ────────────────────────────────────────────────────
+
+message InviteOrgMemberRequest {
+  string org_id     = 1;
+  string email      = 2;
+  string role       = 3;
+  string invited_by = 4;
+}
+
+message InviteOrgMemberResponse {
+  string invite_token = 1;
+}
+
+message AcceptOrgInviteRequest {
+  string token   = 1;
+  string user_id = 2;
+}
+
+message AcceptOrgInviteResponse {
+  Organization organization = 1;
+}
+
+message DeclineOrgInviteRequest {
+  string token = 1;
+}
+
+message DeclineOrgInviteResponse {
+  bool success = 1;
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 service WorkspaceService {
@@ -231,4 +394,24 @@ service WorkspaceService {
   rpc InviteMember(InviteMemberRequest) returns (InviteMemberResponse);
   rpc AcceptInvite(AcceptInviteRequest) returns (AcceptInviteResponse);
   rpc DeclineInvite(DeclineInviteRequest) returns (DeclineInviteResponse);
+
+  // Organizations (first-class team entity)
+  rpc CreateOrganization(CreateOrganizationRequest) returns (CreateOrganizationResponse);
+  rpc GetOrganization(GetOrganizationRequest) returns (GetOrganizationResponse);
+  rpc ListOrganizationsForUser(ListOrganizationsForUserRequest) returns (ListOrganizationsForUserResponse);
+  rpc UpdateOrganization(UpdateOrganizationRequest) returns (UpdateOrganizationResponse);
+  rpc DeleteOrganization(DeleteOrganizationRequest) returns (DeleteOrganizationResponse);
+
+  // Organization members
+  rpc AddOrgMember(AddOrgMemberRequest) returns (AddOrgMemberResponse);
+  rpc GetOrgMember(GetOrgMemberRequest) returns (GetOrgMemberResponse);
+  rpc RemoveOrgMember(RemoveOrgMemberRequest) returns (RemoveOrgMemberResponse);
+  rpc UpdateOrgMemberRole(UpdateOrgMemberRoleRequest) returns (UpdateOrgMemberRoleResponse);
+  rpc ListOrgMembers(ListOrgMembersRequest) returns (ListOrgMembersResponse);
+  rpc CountOrgSeats(CountOrgSeatsRequest) returns (CountOrgSeatsResponse);
+
+  // Organization invites
+  rpc InviteOrgMember(InviteOrgMemberRequest) returns (InviteOrgMemberResponse);
+  rpc AcceptOrgInvite(AcceptOrgInviteRequest) returns (AcceptOrgInviteResponse);
+  rpc DeclineOrgInvite(DeclineOrgInviteRequest) returns (DeclineOrgInviteResponse);
 }

@@ -48,6 +48,30 @@ type WorkspaceRepository interface {
 	GetInviteByToken(ctx context.Context, token string) (*domain.WorkspaceInvite, error)
 	MarkInviteAccepted(ctx context.Context, token string) error
 	MarkInviteDeclined(ctx context.Context, token string) error
+
+	// Organizations
+	CreateOrganization(ctx context.Context, o *domain.Organization) error
+	GetOrganizationByID(ctx context.Context, id uuid.UUID) (*domain.Organization, error)
+	GetOrganizationsForUser(ctx context.Context, userID uuid.UUID) ([]domain.Organization, error)
+	UpdateOrganization(ctx context.Context, o *domain.Organization) error
+	DeleteOrganization(ctx context.Context, id uuid.UUID) error
+	OrgSlugExists(ctx context.Context, slug string) (bool, error)
+
+	// Organization members
+	AddOrgMember(ctx context.Context, m *domain.OrgMember) error
+	GetOrgMember(ctx context.Context, orgID, userID uuid.UUID) (*domain.OrgMember, error)
+	UpdateOrgMemberRole(ctx context.Context, orgID, userID uuid.UUID, role domain.MemberRole) error
+	RemoveOrgMember(ctx context.Context, orgID, userID uuid.UUID) error
+	ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]domain.OrgMember, error)
+	// CountOrgSeats returns the number of members in a single organization — the
+	// billable seat count for that org's per-seat subscription.
+	CountOrgSeats(ctx context.Context, orgID uuid.UUID) (int, error)
+
+	// Organization invites
+	CreateOrgInvite(ctx context.Context, inv *domain.OrgInvite) error
+	GetOrgInviteByToken(ctx context.Context, token string) (*domain.OrgInvite, error)
+	MarkOrgInviteAccepted(ctx context.Context, token string) error
+	MarkOrgInviteDeclined(ctx context.Context, token string) error
 }
 
 type postgresWorkspaceRepository struct {

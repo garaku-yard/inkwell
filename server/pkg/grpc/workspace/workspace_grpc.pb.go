@@ -36,6 +36,20 @@ const (
 	WorkspaceService_InviteMember_FullMethodName             = "/workspace.WorkspaceService/InviteMember"
 	WorkspaceService_AcceptInvite_FullMethodName             = "/workspace.WorkspaceService/AcceptInvite"
 	WorkspaceService_DeclineInvite_FullMethodName            = "/workspace.WorkspaceService/DeclineInvite"
+	WorkspaceService_CreateOrganization_FullMethodName       = "/workspace.WorkspaceService/CreateOrganization"
+	WorkspaceService_GetOrganization_FullMethodName          = "/workspace.WorkspaceService/GetOrganization"
+	WorkspaceService_ListOrganizationsForUser_FullMethodName = "/workspace.WorkspaceService/ListOrganizationsForUser"
+	WorkspaceService_UpdateOrganization_FullMethodName       = "/workspace.WorkspaceService/UpdateOrganization"
+	WorkspaceService_DeleteOrganization_FullMethodName       = "/workspace.WorkspaceService/DeleteOrganization"
+	WorkspaceService_AddOrgMember_FullMethodName             = "/workspace.WorkspaceService/AddOrgMember"
+	WorkspaceService_GetOrgMember_FullMethodName             = "/workspace.WorkspaceService/GetOrgMember"
+	WorkspaceService_RemoveOrgMember_FullMethodName          = "/workspace.WorkspaceService/RemoveOrgMember"
+	WorkspaceService_UpdateOrgMemberRole_FullMethodName      = "/workspace.WorkspaceService/UpdateOrgMemberRole"
+	WorkspaceService_ListOrgMembers_FullMethodName           = "/workspace.WorkspaceService/ListOrgMembers"
+	WorkspaceService_CountOrgSeats_FullMethodName            = "/workspace.WorkspaceService/CountOrgSeats"
+	WorkspaceService_InviteOrgMember_FullMethodName          = "/workspace.WorkspaceService/InviteOrgMember"
+	WorkspaceService_AcceptOrgInvite_FullMethodName          = "/workspace.WorkspaceService/AcceptOrgInvite"
+	WorkspaceService_DeclineOrgInvite_FullMethodName         = "/workspace.WorkspaceService/DeclineOrgInvite"
 )
 
 // WorkspaceServiceClient is the client API for WorkspaceService service.
@@ -64,6 +78,23 @@ type WorkspaceServiceClient interface {
 	InviteMember(ctx context.Context, in *InviteMemberRequest, opts ...grpc.CallOption) (*InviteMemberResponse, error)
 	AcceptInvite(ctx context.Context, in *AcceptInviteRequest, opts ...grpc.CallOption) (*AcceptInviteResponse, error)
 	DeclineInvite(ctx context.Context, in *DeclineInviteRequest, opts ...grpc.CallOption) (*DeclineInviteResponse, error)
+	// Organizations (first-class team entity)
+	CreateOrganization(ctx context.Context, in *CreateOrganizationRequest, opts ...grpc.CallOption) (*CreateOrganizationResponse, error)
+	GetOrganization(ctx context.Context, in *GetOrganizationRequest, opts ...grpc.CallOption) (*GetOrganizationResponse, error)
+	ListOrganizationsForUser(ctx context.Context, in *ListOrganizationsForUserRequest, opts ...grpc.CallOption) (*ListOrganizationsForUserResponse, error)
+	UpdateOrganization(ctx context.Context, in *UpdateOrganizationRequest, opts ...grpc.CallOption) (*UpdateOrganizationResponse, error)
+	DeleteOrganization(ctx context.Context, in *DeleteOrganizationRequest, opts ...grpc.CallOption) (*DeleteOrganizationResponse, error)
+	// Organization members
+	AddOrgMember(ctx context.Context, in *AddOrgMemberRequest, opts ...grpc.CallOption) (*AddOrgMemberResponse, error)
+	GetOrgMember(ctx context.Context, in *GetOrgMemberRequest, opts ...grpc.CallOption) (*GetOrgMemberResponse, error)
+	RemoveOrgMember(ctx context.Context, in *RemoveOrgMemberRequest, opts ...grpc.CallOption) (*RemoveOrgMemberResponse, error)
+	UpdateOrgMemberRole(ctx context.Context, in *UpdateOrgMemberRoleRequest, opts ...grpc.CallOption) (*UpdateOrgMemberRoleResponse, error)
+	ListOrgMembers(ctx context.Context, in *ListOrgMembersRequest, opts ...grpc.CallOption) (*ListOrgMembersResponse, error)
+	CountOrgSeats(ctx context.Context, in *CountOrgSeatsRequest, opts ...grpc.CallOption) (*CountOrgSeatsResponse, error)
+	// Organization invites
+	InviteOrgMember(ctx context.Context, in *InviteOrgMemberRequest, opts ...grpc.CallOption) (*InviteOrgMemberResponse, error)
+	AcceptOrgInvite(ctx context.Context, in *AcceptOrgInviteRequest, opts ...grpc.CallOption) (*AcceptOrgInviteResponse, error)
+	DeclineOrgInvite(ctx context.Context, in *DeclineOrgInviteRequest, opts ...grpc.CallOption) (*DeclineOrgInviteResponse, error)
 }
 
 type workspaceServiceClient struct {
@@ -244,6 +275,146 @@ func (c *workspaceServiceClient) DeclineInvite(ctx context.Context, in *DeclineI
 	return out, nil
 }
 
+func (c *workspaceServiceClient) CreateOrganization(ctx context.Context, in *CreateOrganizationRequest, opts ...grpc.CallOption) (*CreateOrganizationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateOrganizationResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_CreateOrganization_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) GetOrganization(ctx context.Context, in *GetOrganizationRequest, opts ...grpc.CallOption) (*GetOrganizationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOrganizationResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_GetOrganization_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) ListOrganizationsForUser(ctx context.Context, in *ListOrganizationsForUserRequest, opts ...grpc.CallOption) (*ListOrganizationsForUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOrganizationsForUserResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_ListOrganizationsForUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) UpdateOrganization(ctx context.Context, in *UpdateOrganizationRequest, opts ...grpc.CallOption) (*UpdateOrganizationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateOrganizationResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_UpdateOrganization_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) DeleteOrganization(ctx context.Context, in *DeleteOrganizationRequest, opts ...grpc.CallOption) (*DeleteOrganizationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteOrganizationResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_DeleteOrganization_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) AddOrgMember(ctx context.Context, in *AddOrgMemberRequest, opts ...grpc.CallOption) (*AddOrgMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AddOrgMemberResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_AddOrgMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) GetOrgMember(ctx context.Context, in *GetOrgMemberRequest, opts ...grpc.CallOption) (*GetOrgMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOrgMemberResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_GetOrgMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) RemoveOrgMember(ctx context.Context, in *RemoveOrgMemberRequest, opts ...grpc.CallOption) (*RemoveOrgMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveOrgMemberResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_RemoveOrgMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) UpdateOrgMemberRole(ctx context.Context, in *UpdateOrgMemberRoleRequest, opts ...grpc.CallOption) (*UpdateOrgMemberRoleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateOrgMemberRoleResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_UpdateOrgMemberRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) ListOrgMembers(ctx context.Context, in *ListOrgMembersRequest, opts ...grpc.CallOption) (*ListOrgMembersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOrgMembersResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_ListOrgMembers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) CountOrgSeats(ctx context.Context, in *CountOrgSeatsRequest, opts ...grpc.CallOption) (*CountOrgSeatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CountOrgSeatsResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_CountOrgSeats_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) InviteOrgMember(ctx context.Context, in *InviteOrgMemberRequest, opts ...grpc.CallOption) (*InviteOrgMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InviteOrgMemberResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_InviteOrgMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) AcceptOrgInvite(ctx context.Context, in *AcceptOrgInviteRequest, opts ...grpc.CallOption) (*AcceptOrgInviteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AcceptOrgInviteResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_AcceptOrgInvite_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workspaceServiceClient) DeclineOrgInvite(ctx context.Context, in *DeclineOrgInviteRequest, opts ...grpc.CallOption) (*DeclineOrgInviteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeclineOrgInviteResponse)
+	err := c.cc.Invoke(ctx, WorkspaceService_DeclineOrgInvite_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkspaceServiceServer is the server API for WorkspaceService service.
 // All implementations must embed UnimplementedWorkspaceServiceServer
 // for forward compatibility.
@@ -270,6 +441,23 @@ type WorkspaceServiceServer interface {
 	InviteMember(context.Context, *InviteMemberRequest) (*InviteMemberResponse, error)
 	AcceptInvite(context.Context, *AcceptInviteRequest) (*AcceptInviteResponse, error)
 	DeclineInvite(context.Context, *DeclineInviteRequest) (*DeclineInviteResponse, error)
+	// Organizations (first-class team entity)
+	CreateOrganization(context.Context, *CreateOrganizationRequest) (*CreateOrganizationResponse, error)
+	GetOrganization(context.Context, *GetOrganizationRequest) (*GetOrganizationResponse, error)
+	ListOrganizationsForUser(context.Context, *ListOrganizationsForUserRequest) (*ListOrganizationsForUserResponse, error)
+	UpdateOrganization(context.Context, *UpdateOrganizationRequest) (*UpdateOrganizationResponse, error)
+	DeleteOrganization(context.Context, *DeleteOrganizationRequest) (*DeleteOrganizationResponse, error)
+	// Organization members
+	AddOrgMember(context.Context, *AddOrgMemberRequest) (*AddOrgMemberResponse, error)
+	GetOrgMember(context.Context, *GetOrgMemberRequest) (*GetOrgMemberResponse, error)
+	RemoveOrgMember(context.Context, *RemoveOrgMemberRequest) (*RemoveOrgMemberResponse, error)
+	UpdateOrgMemberRole(context.Context, *UpdateOrgMemberRoleRequest) (*UpdateOrgMemberRoleResponse, error)
+	ListOrgMembers(context.Context, *ListOrgMembersRequest) (*ListOrgMembersResponse, error)
+	CountOrgSeats(context.Context, *CountOrgSeatsRequest) (*CountOrgSeatsResponse, error)
+	// Organization invites
+	InviteOrgMember(context.Context, *InviteOrgMemberRequest) (*InviteOrgMemberResponse, error)
+	AcceptOrgInvite(context.Context, *AcceptOrgInviteRequest) (*AcceptOrgInviteResponse, error)
+	DeclineOrgInvite(context.Context, *DeclineOrgInviteRequest) (*DeclineOrgInviteResponse, error)
 	mustEmbedUnimplementedWorkspaceServiceServer()
 }
 
@@ -330,6 +518,48 @@ func (UnimplementedWorkspaceServiceServer) AcceptInvite(context.Context, *Accept
 }
 func (UnimplementedWorkspaceServiceServer) DeclineInvite(context.Context, *DeclineInviteRequest) (*DeclineInviteResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeclineInvite not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) CreateOrganization(context.Context, *CreateOrganizationRequest) (*CreateOrganizationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateOrganization not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) GetOrganization(context.Context, *GetOrganizationRequest) (*GetOrganizationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOrganization not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) ListOrganizationsForUser(context.Context, *ListOrganizationsForUserRequest) (*ListOrganizationsForUserResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListOrganizationsForUser not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) UpdateOrganization(context.Context, *UpdateOrganizationRequest) (*UpdateOrganizationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateOrganization not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) DeleteOrganization(context.Context, *DeleteOrganizationRequest) (*DeleteOrganizationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteOrganization not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) AddOrgMember(context.Context, *AddOrgMemberRequest) (*AddOrgMemberResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddOrgMember not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) GetOrgMember(context.Context, *GetOrgMemberRequest) (*GetOrgMemberResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOrgMember not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) RemoveOrgMember(context.Context, *RemoveOrgMemberRequest) (*RemoveOrgMemberResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveOrgMember not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) UpdateOrgMemberRole(context.Context, *UpdateOrgMemberRoleRequest) (*UpdateOrgMemberRoleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateOrgMemberRole not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) ListOrgMembers(context.Context, *ListOrgMembersRequest) (*ListOrgMembersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListOrgMembers not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) CountOrgSeats(context.Context, *CountOrgSeatsRequest) (*CountOrgSeatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CountOrgSeats not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) InviteOrgMember(context.Context, *InviteOrgMemberRequest) (*InviteOrgMemberResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method InviteOrgMember not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) AcceptOrgInvite(context.Context, *AcceptOrgInviteRequest) (*AcceptOrgInviteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AcceptOrgInvite not implemented")
+}
+func (UnimplementedWorkspaceServiceServer) DeclineOrgInvite(context.Context, *DeclineOrgInviteRequest) (*DeclineOrgInviteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeclineOrgInvite not implemented")
 }
 func (UnimplementedWorkspaceServiceServer) mustEmbedUnimplementedWorkspaceServiceServer() {}
 func (UnimplementedWorkspaceServiceServer) testEmbeddedByValue()                          {}
@@ -658,6 +888,258 @@ func _WorkspaceService_DeclineInvite_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkspaceService_CreateOrganization_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateOrganizationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).CreateOrganization(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_CreateOrganization_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).CreateOrganization(ctx, req.(*CreateOrganizationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_GetOrganization_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOrganizationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).GetOrganization(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_GetOrganization_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).GetOrganization(ctx, req.(*GetOrganizationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_ListOrganizationsForUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOrganizationsForUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).ListOrganizationsForUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_ListOrganizationsForUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).ListOrganizationsForUser(ctx, req.(*ListOrganizationsForUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_UpdateOrganization_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateOrganizationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).UpdateOrganization(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_UpdateOrganization_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).UpdateOrganization(ctx, req.(*UpdateOrganizationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_DeleteOrganization_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteOrganizationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).DeleteOrganization(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_DeleteOrganization_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).DeleteOrganization(ctx, req.(*DeleteOrganizationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_AddOrgMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddOrgMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).AddOrgMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_AddOrgMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).AddOrgMember(ctx, req.(*AddOrgMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_GetOrgMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOrgMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).GetOrgMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_GetOrgMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).GetOrgMember(ctx, req.(*GetOrgMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_RemoveOrgMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveOrgMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).RemoveOrgMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_RemoveOrgMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).RemoveOrgMember(ctx, req.(*RemoveOrgMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_UpdateOrgMemberRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateOrgMemberRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).UpdateOrgMemberRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_UpdateOrgMemberRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).UpdateOrgMemberRole(ctx, req.(*UpdateOrgMemberRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_ListOrgMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOrgMembersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).ListOrgMembers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_ListOrgMembers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).ListOrgMembers(ctx, req.(*ListOrgMembersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_CountOrgSeats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CountOrgSeatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).CountOrgSeats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_CountOrgSeats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).CountOrgSeats(ctx, req.(*CountOrgSeatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_InviteOrgMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InviteOrgMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).InviteOrgMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_InviteOrgMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).InviteOrgMember(ctx, req.(*InviteOrgMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_AcceptOrgInvite_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AcceptOrgInviteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).AcceptOrgInvite(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_AcceptOrgInvite_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).AcceptOrgInvite(ctx, req.(*AcceptOrgInviteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkspaceService_DeclineOrgInvite_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeclineOrgInviteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceServiceServer).DeclineOrgInvite(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceService_DeclineOrgInvite_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceServiceServer).DeclineOrgInvite(ctx, req.(*DeclineOrgInviteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkspaceService_ServiceDesc is the grpc.ServiceDesc for WorkspaceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -732,6 +1214,62 @@ var WorkspaceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeclineInvite",
 			Handler:    _WorkspaceService_DeclineInvite_Handler,
+		},
+		{
+			MethodName: "CreateOrganization",
+			Handler:    _WorkspaceService_CreateOrganization_Handler,
+		},
+		{
+			MethodName: "GetOrganization",
+			Handler:    _WorkspaceService_GetOrganization_Handler,
+		},
+		{
+			MethodName: "ListOrganizationsForUser",
+			Handler:    _WorkspaceService_ListOrganizationsForUser_Handler,
+		},
+		{
+			MethodName: "UpdateOrganization",
+			Handler:    _WorkspaceService_UpdateOrganization_Handler,
+		},
+		{
+			MethodName: "DeleteOrganization",
+			Handler:    _WorkspaceService_DeleteOrganization_Handler,
+		},
+		{
+			MethodName: "AddOrgMember",
+			Handler:    _WorkspaceService_AddOrgMember_Handler,
+		},
+		{
+			MethodName: "GetOrgMember",
+			Handler:    _WorkspaceService_GetOrgMember_Handler,
+		},
+		{
+			MethodName: "RemoveOrgMember",
+			Handler:    _WorkspaceService_RemoveOrgMember_Handler,
+		},
+		{
+			MethodName: "UpdateOrgMemberRole",
+			Handler:    _WorkspaceService_UpdateOrgMemberRole_Handler,
+		},
+		{
+			MethodName: "ListOrgMembers",
+			Handler:    _WorkspaceService_ListOrgMembers_Handler,
+		},
+		{
+			MethodName: "CountOrgSeats",
+			Handler:    _WorkspaceService_CountOrgSeats_Handler,
+		},
+		{
+			MethodName: "InviteOrgMember",
+			Handler:    _WorkspaceService_InviteOrgMember_Handler,
+		},
+		{
+			MethodName: "AcceptOrgInvite",
+			Handler:    _WorkspaceService_AcceptOrgInvite_Handler,
+		},
+		{
+			MethodName: "DeclineOrgInvite",
+			Handler:    _WorkspaceService_DeclineOrgInvite_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

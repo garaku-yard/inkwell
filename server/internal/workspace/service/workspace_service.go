@@ -41,6 +41,26 @@ type WorkspaceService interface {
 	InviteMember(ctx context.Context, workspaceID uuid.UUID, email string, role domain.InviteRole, invitedBy uuid.UUID) (string, error)
 	AcceptInvite(ctx context.Context, token string, userID uuid.UUID) (*domain.Workspace, error)
 	DeclineInvite(ctx context.Context, token string) error
+
+	// Organizations
+	CreateOrganization(ctx context.Context, ownerID uuid.UUID, name, description string) (*domain.Organization, error)
+	GetOrganization(ctx context.Context, orgID, userID uuid.UUID) (*domain.Organization, error)
+	ListOrganizationsForUser(ctx context.Context, userID uuid.UUID) ([]domain.Organization, error)
+	UpdateOrganization(ctx context.Context, orgID uuid.UUID, name, description, avatarURL string) (*domain.Organization, error)
+	DeleteOrganization(ctx context.Context, orgID, userID uuid.UUID) error
+
+	// Organization members
+	AddOrgMember(ctx context.Context, orgID, userID, invitedBy uuid.UUID, role domain.MemberRole) (*domain.OrgMember, error)
+	GetOrgMember(ctx context.Context, orgID, userID uuid.UUID) (*domain.OrgMember, error)
+	RemoveOrgMember(ctx context.Context, orgID, userID uuid.UUID) error
+	UpdateOrgMemberRole(ctx context.Context, orgID, userID uuid.UUID, role domain.MemberRole) (*domain.OrgMember, error)
+	ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]domain.OrgMember, error)
+	CountOrgSeats(ctx context.Context, orgID uuid.UUID) (int, error)
+
+	// Organization invites
+	InviteOrgMember(ctx context.Context, orgID uuid.UUID, email string, role domain.InviteRole, invitedBy uuid.UUID) (string, error)
+	AcceptOrgInvite(ctx context.Context, token string, userID uuid.UUID) (*domain.Organization, error)
+	DeclineOrgInvite(ctx context.Context, token string) error
 }
 
 type workspaceService struct {
