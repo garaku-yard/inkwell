@@ -21,6 +21,8 @@ import { useExportToast } from "@/lib/export/use-export-toast"
 import { parseMarkdownToTtrpg } from "@/lib/import/markdown-ttrpg"
 import { importIntoProject } from "@/lib/import/import-into-project"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import { RemoteCarets } from "./shared/RemoteCarets"
+import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   EditorSidebar,
@@ -139,6 +141,15 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const [focusedElementId, setFocusedElementId] = useState<string | null>(null)
   const activeSectionId = useScrollSpy({ refs: sectionRefs, orderedIds: sections.map((s) => s.id) })
 
+  // Live co-editing + remote carets (no-op on the desktop build).
+  const writeSurfaceRef = useRef<HTMLDivElement | null>(null)
+  const { broadcastEdit, subscribeCarets } = useEditorRealtime({
+    projectId: projectData.id,
+    userId: user?.id,
+    setScenes: setSections,
+    surfaceRef: writeSurfaceRef,
+  })
+
   const totalWords = sections.reduce((acc, s) =>
     acc + (s.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0), 0)
 
@@ -183,7 +194,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       })))
     }
     scheduleSave(id, content, isScene)
-  }, [scheduleSave])
+    broadcastEdit(id, content, isScene)
+  }, [scheduleSave, broadcastEdit])
 
   const handleAddSection = async () => {
     if (!user?.id) return
@@ -706,6 +718,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       return (
         <div ref={(el) => { sectionRefs.current.set(b.section.id, el) }}>
           <StableContentEditable
+            id={`head-${b.section.id}`}
             value={b.section.scene_heading ?? ""}
             onValueChange={(next) => handleContentChange(b.section.id, next, true)}
             className="text-3xl font-black uppercase tracking-wider outline-none mb-8 pb-3 border-b-2 border-foreground empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
@@ -796,7 +809,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       }
     >
         <div
-          className="flex h-full overflow-hidden"
+          ref={writeSurfaceRef}
+          className="relative flex h-full overflow-hidden"
           onFocus={(e) => {
             const id = (e.target as HTMLElement)?.id
             if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
@@ -820,6 +834,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
             }
           />
           <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
+          <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
         </div>
     </ProjectShell>
       {slashMenu && (

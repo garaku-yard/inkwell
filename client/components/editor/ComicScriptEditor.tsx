@@ -17,6 +17,8 @@ import { createComicKeymap, type ComicElementType as KeymapComicElementType } fr
 import { exportProjectToText } from "@/lib/export/text-export"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import { RemoteCarets } from "./shared/RemoteCarets"
+import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   EditorSidebar,
@@ -94,6 +96,15 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
   const [focusedElementId, setFocusedElementId] = useState<string | null>(null)
   const activePageId = useScrollSpy({ refs: pageRefs, orderedIds: pages.map((p) => p.id) })
 
+  // Live co-editing + remote carets (no-op on the desktop build).
+  const writeSurfaceRef = useRef<HTMLDivElement | null>(null)
+  const { broadcastEdit, subscribeCarets } = useEditorRealtime({
+    projectId: projectData.id,
+    userId: user?.id,
+    setScenes: setPages,
+    surfaceRef: writeSurfaceRef,
+  })
+
   const totalPanels = pages.reduce((acc, p) => acc + panelCount(p.elements ?? []), 0)
 
   const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
@@ -133,7 +144,8 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
       })))
     }
     scheduleSave(id, content, isScene)
-  }, [scheduleSave])
+    broadcastEdit(id, content, isScene)
+  }, [scheduleSave, broadcastEdit])
 
   const handleAddPage = async () => {
     if (!user?.id) return
@@ -397,6 +409,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
       return (
         <div ref={(el) => { pageRefs.current.set(b.page.id, el) }} className="mb-6">
           <StableContentEditable
+            id={`head-${b.page.id}`}
             value={b.page.scene_heading ?? ""}
             onValueChange={(next) => handleContentChange(b.page.id, next, true)}
             className="text-sm font-bold uppercase tracking-widest outline-none inline-block empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
@@ -488,7 +501,8 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
       }
     >
         <div
-          className="flex h-full overflow-hidden"
+          ref={writeSurfaceRef}
+          className="relative flex h-full overflow-hidden"
           onFocus={(e) => {
             const id = (e.target as HTMLElement)?.id
             if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
@@ -512,6 +526,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
             }
           />
           <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
+          <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
         </div>
     </ProjectShell>
   )

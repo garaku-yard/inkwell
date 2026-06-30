@@ -22,6 +22,8 @@ import { parsePlainTextToPoetry, parseChordProToPoetry } from "@/lib/import/poet
 import { importIntoProject } from "@/lib/import/import-into-project"
 import { type ParsedProject } from "@/lib/import/types"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import { RemoteCarets } from "./shared/RemoteCarets"
+import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   EditorSidebar,
@@ -86,6 +88,15 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     orderedIds: scenes.map((s) => s.id),
   })
 
+  // Live co-editing + remote carets (no-op on the desktop build).
+  const writeSurfaceRef = useRef<HTMLDivElement | null>(null)
+  const { broadcastEdit, subscribeCarets } = useEditorRealtime({
+    projectId: projectData.id,
+    userId: user?.id,
+    setScenes,
+    surfaceRef: writeSurfaceRef,
+  })
+
   const totalLines = scenes.reduce((acc, s) => acc + countLines(s.elements ?? []), 0)
 
   const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
@@ -125,7 +136,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
       })))
     }
     scheduleSave(id, content, isScene)
-  }, [scheduleSave])
+    broadcastEdit(id, content, isScene)
+  }, [scheduleSave, broadcastEdit])
 
   const handleAddPoem = async () => {
     if (!user?.id) return
@@ -372,6 +384,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
       return (
         <div key={b.key} ref={(el) => { poemRefs.current.set(b.scene.id, el) }}>
           <StableContentEditable
+            id={`head-${b.scene.id}`}
             value={b.scene.scene_heading ?? ""}
             onValueChange={(next) => handleContentChange(b.scene.id, next, true)}
             className={cn(
@@ -559,7 +572,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
       }
     >
         <div
-          className="flex h-full overflow-hidden"
+          ref={writeSurfaceRef}
+          className="relative flex h-full overflow-hidden"
           onFocus={(e) => {
             const id = (e.target as HTMLElement)?.id
             if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
@@ -583,6 +597,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
             }
           />
           <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
+          <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
         </div>
     </ProjectShell>
   )

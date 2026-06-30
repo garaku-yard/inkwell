@@ -26,6 +26,8 @@ import { useExportToast } from "@/lib/export/use-export-toast"
 import { parseMarkdownToProse } from "@/lib/import/markdown-prose"
 import { importIntoProject } from "@/lib/import/import-into-project"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import { RemoteCarets } from "./shared/RemoteCarets"
+import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   createScene,
@@ -103,6 +105,15 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     orderedIds: scenes.map((s) => s.id),
   })
 
+  // Live co-editing + remote carets (no-op on the desktop build).
+  const writeSurfaceRef = useRef<HTMLDivElement | null>(null)
+  const { broadcastEdit, subscribeCarets } = useEditorRealtime({
+    projectId: projectData.id,
+    userId: user?.id,
+    setScenes,
+    surfaceRef: writeSurfaceRef,
+  })
+
   // Track the last-focused block so the right-edge tool rail knows where to act:
   // an empty focused line is transformed into the chosen type, otherwise a new
   // block of that type is inserted after it (screenplay-style). With nothing
@@ -156,7 +167,8 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
       })))
     }
     scheduleSave(id, content, isScene)
-  }, [scheduleSave])
+    broadcastEdit(id, content, isScene)
+  }, [scheduleSave, broadcastEdit])
 
   const handleAddChapter = async () => {
     if (!user?.id) return
@@ -518,6 +530,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
             Chapter {b.chapterIdx + 1}
           </p>
           <StableContentEditable
+            id={`head-${b.scene.id}`}
             value={b.scene.scene_heading ?? ""}
             onValueChange={(next) => handleContentChange(b.scene.id, next, true)}
             className="text-center text-2xl font-semibold leading-tight outline-none mb-12 min-h-[2rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
@@ -625,7 +638,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         />
       }
     >
-        <div className="flex h-full overflow-hidden">
+        <div ref={writeSurfaceRef} className="relative flex h-full overflow-hidden">
           <PagedSheets
             pages={pages}
             renderBlock={renderBlock}
@@ -644,6 +657,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
             }
           />
           <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
+          <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
         </div>
     </ProjectShell>
   )

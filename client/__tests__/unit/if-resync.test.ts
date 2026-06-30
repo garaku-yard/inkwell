@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { mergeResyncedScenes } from "@/components/editor/if/resync"
+import { mergeResyncedScenes } from "@/components/editor/shared/resync"
 import type { Scene } from "@/services/project"
 
 /** Minimal Scene factory for the merge tests. */
