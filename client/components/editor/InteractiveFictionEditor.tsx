@@ -33,6 +33,8 @@ import {
 } from "./shared/EditorSidebar"
 import { useEditorComments } from "./shared/useEditorComments"
 import { PagedSheets } from "./shared/PagedSheets"
+import { RemoteCarets } from "./shared/RemoteCarets"
+import { useCaretReporter } from "./shared/useCaretReporter"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { paginate } from "@/lib/editor/paginate"
 import {
@@ -151,8 +153,21 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const activeElements = activePassage?.elements ?? []
 
   // Live collaboration (no-op on the desktop build — no realtime capability).
-  const { peers, setFocus: reportFocus, sendEdit, subscribeEdits, subscribeResync } =
-    useProjectPresence()
+  const {
+    peers,
+    connected,
+    setFocus: reportFocus,
+    sendEdit,
+    sendCaret,
+    subscribeEdits,
+    subscribeCarets,
+    subscribeResync,
+  } = useProjectPresence()
+
+  // Surface for the floating remote carets; also scopes which selections we
+  // report (only carets inside the writing surface, not the sidebar/chat).
+  const writeSurfaceRef = useRef<HTMLDivElement | null>(null)
+  useCaretReporter({ containerRef: writeSurfaceRef, sendCaret, enabled: connected })
 
   // Who is editing which passage right now — keyed by the passage id each peer
   // reports as its focus. Drives the soft-lock pips in the rail and the banner
@@ -1114,7 +1129,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             rail riding the margin. */}
         {view === "write" && (
           <div
-            className="flex flex-1 overflow-hidden"
+            ref={writeSurfaceRef}
+            className="relative flex flex-1 overflow-hidden"
             onFocus={(e) => {
               const id = (e.target as HTMLElement)?.id
               if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
@@ -1138,6 +1154,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                 </div>
               }
             />
+            <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
           </div>
         )}
         <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />

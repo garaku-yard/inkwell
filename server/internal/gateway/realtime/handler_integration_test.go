@@ -135,6 +135,39 @@ func TestEditFrameRelayedToRoom(t *testing.T) {
 	expectNoFrame(t, a, 200*time.Millisecond)
 }
 
+// TestCaretFrameRelayedToRoom drives a live cursor update: the sender's caret
+// reaches the other peer with server-stamped identity and is never echoed back
+// to the sender. Identity from the wire is ignored.
+func TestCaretFrameRelayedToRoom(t *testing.T) {
+	srv := presenceTestServer(t)
+	defer srv.Close()
+
+	a := dial(t, srv, "user-a")
+	defer a.Close(websocket.StatusNormalClosure, "")
+	readFrame(t, a) // A's roster (empty)
+
+	b := dial(t, srv, "user-b")
+	defer b.Close(websocket.StatusNormalClosure, "")
+	readFrame(t, b) // B's roster
+	readFrame(t, a) // A sees peer_join(B)
+
+	// A sends a caret with a spoofed identity; the gateway must overwrite it.
+	caret := `{"type":"caret","elementId":"el-7","offset":12,"connId":"SPOOF","userId":"SPOOF","name":"SPOOF"}`
+	if err := a.Write(context.Background(), websocket.MessageText, []byte(caret)); err != nil {
+		t.Fatalf("A write caret: %v", err)
+	}
+
+	got := readFrame(t, b)
+	if got["type"] != "caret" || got["elementId"] != "el-7" || got["offset"].(float64) != 12 {
+		t.Fatalf("B caret frame = %+v, want el-7/offset 12", got)
+	}
+	if got["userId"] != "user-a" || got["name"] != "user-a" {
+		t.Fatalf("B caret identity = %+v, want server-stamped user-a (wire identity must be ignored)", got)
+	}
+	// The sender must not receive its own caret.
+	expectNoFrame(t, a, 200*time.Millisecond)
+}
+
 // TestPresenceProtocolEndToEnd drives a full presence exchange over real
 // WebSocket connections: roster on join, peer_join broadcast, focus relay, and
 // peer_leave on disconnect.

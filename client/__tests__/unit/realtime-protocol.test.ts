@@ -19,6 +19,20 @@ describe("parseServerFrame", () => {
     expect(frame).toEqual({ type: "edit", elementId: "el-1", content: "hi", isScene: false })
   })
 
+  it("parses a caret frame with identity + offset", () => {
+    const frame = parseServerFrame(
+      '{"type":"caret","connId":"c1","userId":"u","name":"Ada","elementId":"el-1","offset":7}',
+    )
+    expect(frame).toEqual({
+      type: "caret",
+      connId: "c1",
+      userId: "u",
+      name: "Ada",
+      elementId: "el-1",
+      offset: 7,
+    })
+  })
+
   it("rejects garbage, unknown types, and typeless frames", () => {
     expect(parseServerFrame("not json")).toBeNull()
     expect(parseServerFrame('{"type":"bogus"}')).toBeNull()

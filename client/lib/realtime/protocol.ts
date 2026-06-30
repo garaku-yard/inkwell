@@ -61,8 +61,35 @@ export interface EditFrame {
   isScene: boolean
 }
 
+/**
+ * A peer's live cursor position, relayed from another client. Identity is
+ * stamped by the gateway. It is ephemeral overlay state (not part of the peer
+ * roster): receivers map `elementId` + `offset` to a screen position and draw a
+ * floating caret + name flag. An empty `elementId` clears that peer's caret.
+ */
+export interface CaretFrame {
+  type: "caret"
+  /** Unique per connection within the room — keys the rendered caret. */
+  connId: string
+  /** The authenticated account behind the connection (drives the caret colour). */
+  userId: string
+  /** Display name, shown on the caret's name flag. */
+  name: string
+  /** The element the caret sits in (empty clears the caret). Opaque to the
+   *  protocol — the editor decides how it maps to a DOM node. */
+  elementId: string
+  /** Character offset of the caret within elementId. */
+  offset: number
+}
+
 /** Any frame the gateway can push to a client. */
-export type ServerFrame = RosterFrame | PeerJoinFrame | PeerLeaveFrame | FocusFrame | EditFrame
+export type ServerFrame =
+  | RosterFrame
+  | PeerJoinFrame
+  | PeerLeaveFrame
+  | FocusFrame
+  | EditFrame
+  | CaretFrame
 
 /** The focus frame a client sends upstream; the gateway stamps identity. */
 export interface OutboundFocus {
@@ -73,6 +100,14 @@ export interface OutboundFocus {
 
 /** The edit frame a client sends upstream; relayed verbatim to the room. */
 export type OutboundEdit = EditFrame
+
+/** The caret frame a client sends upstream; the gateway stamps identity before
+ *  relaying. An empty elementId clears this client's caret for everyone. */
+export interface OutboundCaret {
+  type: "caret"
+  elementId: string
+  offset: number
+}
 
 /** Narrowing parse of an inbound frame; returns null on anything unrecognised. */
 export function parseServerFrame(data: string): ServerFrame | null {
@@ -90,6 +125,7 @@ export function parseServerFrame(data: string): ServerFrame | null {
     case "peer_leave":
     case "focus":
     case "edit":
+    case "caret":
       return raw as ServerFrame
     default:
       return null

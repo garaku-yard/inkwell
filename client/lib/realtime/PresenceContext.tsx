@@ -19,7 +19,9 @@ const EMPTY: RealtimePresence = {
   connected: false,
   setFocus: () => {},
   sendEdit: () => {},
+  sendCaret: () => {},
   subscribeEdits: () => () => {},
+  subscribeCarets: () => () => {},
   subscribeResync: () => () => {},
 }
 

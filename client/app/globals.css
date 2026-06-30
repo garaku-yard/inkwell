@@ -352,3 +352,24 @@ html.readable-text :where(code, pre, .font-mono, .cm-editor) {
   letter-spacing: normal;
   word-spacing: normal;
 }
+
+/* Remote-caret name flag (realtime co-editing). Shows on the collaborator's
+ * caret when it appears or moves, then fades to just the bar so a parked
+ * cursor stays unobtrusive. The flag is re-keyed on each move, replaying this. */
+@keyframes inkwell-caret-flag-fade {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.inkwell-remote-caret-flag {
+  animation: inkwell-caret-flag-fade 2.4s ease-in forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .inkwell-remote-caret-flag {
+    animation: none;
+  }
+}

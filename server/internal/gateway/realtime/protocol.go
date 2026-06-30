@@ -23,6 +23,12 @@ const (
 	// client's existing debounced autosave. Receivers apply it to every element
 	// except the one they are actively editing (the cursor-jump guard).
 	TypeEdit = "edit"
+	// TypeCaret carries a peer's live cursor position (which element + character
+	// offset). It is ephemeral overlay state — relayed to the room with
+	// server-stamped identity, but never written to the presence store (it would
+	// thrash Redis at typing frequency) and never changes focus. An empty
+	// ElementID clears the peer's caret (they left the editing surface).
+	TypeCaret = "caret"
 )
 
 // Peer is a single live editing session as seen by everyone else in the room.
@@ -48,11 +54,27 @@ type Peer struct {
 }
 
 // inbound is the subset of fields the gateway reads from a client frame. Only
-// focus is client-driven; identity is never trusted from the wire.
+// focus and caret are client-driven; identity is never trusted from the wire.
 type inbound struct {
 	Type      string `json:"type"`
 	ElementID string `json:"elementId"`
 	Label     string `json:"label"`
+	// Offset is the caret's character position within ElementID (caret frames
+	// only); zero for other frame types.
+	Offset int `json:"offset"`
+}
+
+// caretFrame carries a peer's live cursor for a TypeCaret message. Identity is
+// stamped by the gateway from the authenticated connection; ElementID + Offset
+// come from the client's last reported selection. It is deliberately separate
+// from Peer so a cursor move never touches the durable presence roster.
+type caretFrame struct {
+	Type      string `json:"type"`
+	ConnID    string `json:"connId"`
+	UserID    string `json:"userId"`
+	Name      string `json:"name"`
+	ElementID string `json:"elementId"`
+	Offset    int    `json:"offset"`
 }
 
 // rosterFrame is the payload of a TypeRoster message.
@@ -91,6 +113,20 @@ func encodePeer(msgType string, p Peer) []byte {
 // encodeLeave marshals a peer_leave frame for a departing connection.
 func encodeLeave(connID string) []byte {
 	b, _ := json.Marshal(leaveFrame{Type: TypePeerLeave, ConnID: connID})
+	return b
+}
+
+// encodeCaret marshals a caret frame for a connection's reported cursor,
+// stamping the connection's identity (never trusted from the wire).
+func encodeCaret(c *conn, elementID string, offset int) []byte {
+	b, _ := json.Marshal(caretFrame{
+		Type:      TypeCaret,
+		ConnID:    c.id,
+		UserID:    c.userID,
+		Name:      c.name,
+		ElementID: elementID,
+		Offset:    offset,
+	})
 	return b
 }
 

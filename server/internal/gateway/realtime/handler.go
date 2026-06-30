@@ -230,6 +230,12 @@ func (h *Handler) readPump(ctx context.Context, ws *websocket.Conn, c *conn, pro
 			// Live content change — relay verbatim; the DB stays source of truth
 			// via the sender's autosave. The sender is excluded by broadcast.
 			h.hub.broadcast(projectID, c, data)
+		case TypeCaret:
+			// Live cursor position — relay with server-stamped identity. Unlike
+			// focus, it is NOT written to the presence store (typing-frequency
+			// writes would thrash Redis) and never changes the connection's focus
+			// state. Fans out cross-instance through the same broadcast path.
+			h.hub.broadcast(projectID, c, encodeCaret(c, in.ElementID, in.Offset))
 		case TypeRoster, TypePeerJoin, TypePeerLeave:
 			// Presence is server-authoritative — never relay a client's claim.
 			continue

@@ -11,7 +11,13 @@
  */
 
 import { getApiBaseUrl } from "@/lib/api"
-import { parseServerFrame, type ServerFrame, type OutboundFocus, type OutboundEdit } from "./protocol"
+import {
+  parseServerFrame,
+  type ServerFrame,
+  type OutboundFocus,
+  type OutboundEdit,
+  type OutboundCaret,
+} from "./protocol"
 
 /** Callbacks the owner wires up; all optional. */
 export interface RealtimeHandlers {
@@ -112,7 +118,13 @@ export class RealtimeConnection {
     this.rawSend({ type: "edit", elementId, content, isScene })
   }
 
-  private rawSend(payload: OutboundFocus | OutboundEdit): void {
+  /** Broadcasts this client's cursor position. An empty elementId clears it.
+   *  Callers should throttle: it can fire on every keystroke / caret move. */
+  sendCaret(elementId: string, offset: number): void {
+    this.rawSend({ type: "caret", elementId, offset })
+  }
+
+  private rawSend(payload: OutboundFocus | OutboundEdit | OutboundCaret): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(payload))
     }
