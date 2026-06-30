@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic"
 import { PaneSpinner } from "@/components/shared/PaneSpinner"
+import { PresenceProvider } from "@/lib/realtime/PresenceContext"
 import type { FullProject } from "@/services/project"
 
 // Each editor is its own chunk, loaded only for the category being opened.
@@ -25,6 +26,18 @@ interface EditorFactoryProps {
 }
 
 export function EditorFactory({ projectData }: EditorFactoryProps) {
+  // The presence provider wraps the editor here, above every format component,
+  // so an editor's own `useProjectPresence()` resolves to the live connection
+  // (the editors render ProjectShell, whose provider sits below them). One
+  // connection per project surface; ProjectShell's inner provider reuses this.
+  return (
+    <PresenceProvider projectId={projectData.id}>
+      {renderEditor(projectData)}
+    </PresenceProvider>
+  )
+}
+
+function renderEditor(projectData: FullProject) {
   switch (projectData.category) {
     case "novel":
     case "memoir":

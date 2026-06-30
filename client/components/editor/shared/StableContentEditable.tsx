@@ -174,7 +174,12 @@ export function useStableContentEditable({
   useEffect(() => {
     if (!isMountedRef.current) return
     if (!ref.current) return
-    if (isFocusedRef.current) return
+    // Protect the caret only while the element is focused AND its window has
+    // focus. A focused element in a background window (e.g. the other pane in a
+    // side-by-side co-editing session) is not being typed into, so it should
+    // still pick up external value changes (a collaborator's live edit) instead
+    // of going stale until the user clicks away.
+    if (isFocusedRef.current && typeof document !== "undefined" && document.hasFocus()) return
     if (lastSyncedValue.current === value) return
     writeContent(ref.current, value, mode)
     lastSyncedValue.current = value

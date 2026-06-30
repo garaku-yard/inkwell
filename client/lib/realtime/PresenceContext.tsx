@@ -32,7 +32,17 @@ export function PresenceProvider({
   projectId: string | undefined
   children: ReactNode
 }) {
-  const presence = useRealtimePresence(projectId)
+  // A project surface can mount more than one PresenceProvider: the editor page
+  // wraps the whole editor (so the editor component itself can consume presence),
+  // and ProjectShell wraps its chrome (so the header avatars can). Only the
+  // outermost provider opens a socket — a nested one reuses the ancestor's live
+  // value rather than starting a second connection to the same room. Without
+  // this, an editor that *renders* ProjectShell would sit above ProjectShell's
+  // provider and silently resolve to the no-op EMPTY value.
+  const parent = useContext(PresenceContext)
+  const nested = parent !== EMPTY
+  const presence = useRealtimePresence(nested ? undefined : projectId)
+  if (nested) return <>{children}</>
   return <PresenceContext.Provider value={presence}>{children}</PresenceContext.Provider>
 }
 

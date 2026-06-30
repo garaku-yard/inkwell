@@ -201,7 +201,16 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   useEffect(() => {
     return subscribeEdits((edit) => {
       const domId = edit.isScene ? `head-${edit.elementId}` : `el-${edit.elementId}`
-      if (typeof document !== "undefined" && document.activeElement?.id === domId) return
+      // Cursor-jump guard: skip applying to the element the writer is *actively*
+      // editing. "Actively" means this window has focus AND that element is
+      // focused — a focused element in a background window (the other pane in a
+      // side-by-side session) isn't being typed into, so it must still update.
+      if (
+        typeof document !== "undefined" &&
+        document.hasFocus() &&
+        document.activeElement?.id === domId
+      )
+        return
       setPassages((prev) =>
         edit.isScene
           ? prev.map((p) => (p.id === edit.elementId ? { ...p, scene_heading: edit.content } : p))
