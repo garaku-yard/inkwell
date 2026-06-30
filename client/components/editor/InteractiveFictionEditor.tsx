@@ -10,7 +10,6 @@ import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { ProjectShell } from "./shared/ProjectShell"
-import { useProjectPresence } from "@/lib/realtime/PresenceContext"
 import { PresencePips } from "./shared/PresencePips"
 import type { Peer } from "@/lib/realtime/protocol"
 import { EditorToolbar } from "./shared/EditorToolbar"
@@ -18,7 +17,6 @@ import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createIFKeymap } from "./if/keymap"
 import { PassageAutocomplete } from "./if/PassageAutocomplete"
-import { mergeResyncedScenes } from "./shared/resync"
 import { deleteScriptElement } from "@/services/editor"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToTwee } from "@/lib/export/if-twee"
@@ -34,13 +32,12 @@ import {
 import { useEditorComments } from "./shared/useEditorComments"
 import { PagedSheets } from "./shared/PagedSheets"
 import { RemoteCarets } from "./shared/RemoteCarets"
-import { useCaretReporter } from "./shared/useCaretReporter"
+import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
-  getFullProject,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
@@ -152,22 +149,15 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const activePassage = passages.find(p => p.id === activePassageId) ?? null
   const activeElements = activePassage?.elements ?? []
 
-  // Live collaboration (no-op on the desktop build — no realtime capability).
-  const {
-    peers,
-    connected,
-    setFocus: reportFocus,
-    sendEdit,
-    sendCaret,
-    subscribeEdits,
-    subscribeCarets,
-    subscribeResync,
-  } = useProjectPresence()
-
-  // Surface for the floating remote carets; also scopes which selections we
-  // report (only carets inside the writing surface, not the sidebar/chat).
+  // Live collaboration: live edit sync + remote carets via the shared hook
+  // (no-op on the desktop build — no realtime capability).
   const writeSurfaceRef = useRef<HTMLDivElement | null>(null)
-  useCaretReporter({ containerRef: writeSurfaceRef, sendCaret, enabled: connected })
+  const { peers, broadcastEdit, reportFocus, subscribeCarets } = useEditorRealtime({
+    projectId: projectData.id,
+    userId: user?.id,
+    setScenes: setPassages,
+    surfaceRef: writeSurfaceRef,
+  })
 
   // Who is editing which passage right now — keyed by the passage id each peer
   // reports as its focus. Drives the soft-lock pips in the rail and the banner
@@ -188,73 +178,6 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   useEffect(() => {
     if (activePassageId) reportFocus(activePassageId, activePassage?.scene_heading || "Untitled")
   }, [activePassageId, activePassage?.scene_heading, reportFocus])
-
-  // Broadcast content changes on a short per-id debounce (separate from the
-  // longer autosave) so co-editors see typing land within a beat without a
-  // frame per keystroke. Per-id timers so switching elements never drops one.
-  const editTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
-  const broadcastEdit = useCallback((id: string, content: string, isScene: boolean) => {
-    const timers = editTimersRef.current
-    const pending = timers.get(id)
-    if (pending) clearTimeout(pending)
-    timers.set(id, setTimeout(() => {
-      timers.delete(id)
-      sendEdit(id, content, isScene)
-    }, 150))
-  }, [sendEdit])
-  useEffect(() => {
-    const timers = editTimersRef.current
-    return () => {
-      timers.forEach((t) => clearTimeout(t))
-      timers.clear()
-    }
-  }, [])
-
-  // Apply co-editors' content changes to local state — but never to the element
-  // the local writer is actively editing (their caret stays put; their content
-  // stays authoritative). StableContentEditable syncs the DOM for the rest.
-  useEffect(() => {
-    return subscribeEdits((edit) => {
-      const domId = edit.isScene ? `head-${edit.elementId}` : `el-${edit.elementId}`
-      // Cursor-jump guard: skip applying to the element the writer is *actively*
-      // editing. "Actively" means this window has focus AND that element is
-      // focused — a focused element in a background window (the other pane in a
-      // side-by-side session) isn't being typed into, so it must still update.
-      if (
-        typeof document !== "undefined" &&
-        document.hasFocus() &&
-        document.activeElement?.id === domId
-      )
-        return
-      setPassages((prev) =>
-        edit.isScene
-          ? prev.map((p) => (p.id === edit.elementId ? { ...p, scene_heading: edit.content } : p))
-          : prev.map((p) => ({
-              ...p,
-              elements: (p.elements ?? []).map((el) =>
-                el.id === edit.elementId ? { ...el, content: edit.content } : el,
-              ),
-            })),
-      )
-    })
-  }, [subscribeEdits])
-
-  // On reconnect we may have missed edits while offline. Refetch the project
-  // from the DB (source of truth) and reconcile, keeping only the node the
-  // writer is mid-keystroke on so the resync never clobbers their cursor.
-  useEffect(() => {
-    return subscribeResync(async () => {
-      if (!user?.id) return
-      try {
-        const fresh = await getFullProject(projectData.id, user.id)
-        const activeDomId =
-          typeof document !== "undefined" ? document.activeElement?.id : undefined
-        setPassages((prev) => mergeResyncedScenes(prev, fresh.scenes ?? [], activeDomId))
-      } catch {
-        // A failed refetch leaves local state as-is; the next reconnect retries.
-      }
-    })
-  }, [subscribeResync, user?.id, projectData.id])
 
   const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
     if (focusedElementId) {
