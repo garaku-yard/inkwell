@@ -110,6 +110,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const { broadcastEdit, subscribeCarets } = useEditorRealtime({
     projectId: projectData.id,
     userId: user?.id,
+    scenes,
     setScenes,
     surfaceRef: writeSurfaceRef,
   })

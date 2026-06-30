@@ -101,6 +101,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
   const { broadcastEdit, subscribeCarets } = useEditorRealtime({
     projectId: projectData.id,
     userId: user?.id,
+    scenes: pages,
     setScenes: setPages,
     surfaceRef: writeSurfaceRef,
   })

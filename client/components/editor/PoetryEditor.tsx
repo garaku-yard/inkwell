@@ -93,6 +93,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   const { broadcastEdit, subscribeCarets } = useEditorRealtime({
     projectId: projectData.id,
     userId: user?.id,
+    scenes,
     setScenes,
     surfaceRef: writeSurfaceRef,
   })

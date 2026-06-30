@@ -143,6 +143,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const { broadcastEdit, subscribeCarets } = useEditorRealtime({
     projectId: project.id,
     userId: user?.id,
+    scenes: project.scenes ?? [],
     setScenes,
     surfaceRef: writeSurfaceRef,
   })

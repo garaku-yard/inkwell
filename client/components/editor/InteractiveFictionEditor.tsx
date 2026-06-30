@@ -155,6 +155,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const { peers, broadcastEdit, reportFocus, subscribeCarets } = useEditorRealtime({
     projectId: projectData.id,
     userId: user?.id,
+    scenes: passages,
     setScenes: setPassages,
     surfaceRef: writeSurfaceRef,
   })

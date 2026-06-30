@@ -36,10 +36,17 @@ import { useCaretReporter } from "./useCaretReporter"
 /** How long live edits coalesce before going to the room (ms) — separate from
  *  the longer autosave debounce, so co-editors see typing land within a beat. */
 const EDIT_BROADCAST_DEBOUNCE_MS = 150
+/** Min gap between structure-refetch resyncs, so a collaborator adding several
+ *  elements in a burst triggers at most one refetch per window. */
+const RESYNC_THROTTLE_MS = 1500
 
 interface UseEditorRealtimeOptions {
   projectId: string
   userId: string | undefined
+  /** The editor's current document, used to tell whether an incoming edit
+   *  targets an element we already have (apply it) or a new one a collaborator
+   *  just created (refetch to pick up the structure — adds aren't broadcast). */
+  scenes: Scene[]
   /** Setter for the editor's document state (its `Scene[]`). */
   setScenes: Dispatch<SetStateAction<Scene[]>>
   /** The write surface element; scopes caret reporting and hosts the overlay. */
@@ -62,6 +69,7 @@ interface UseEditorRealtimeResult {
 export function useEditorRealtime({
   projectId,
   userId,
+  scenes,
   setScenes,
   surfaceRef,
 }: UseEditorRealtimeOptions): UseEditorRealtimeResult {
@@ -77,6 +85,32 @@ export function useEditorRealtime({
   } = useProjectPresence()
 
   useCaretReporter({ containerRef: surfaceRef, sendCaret, enabled: connected })
+
+  // Current document, read inside the (stable) edit subscriber without making it
+  // re-subscribe on every keystroke.
+  const scenesRef = useRef(scenes)
+  scenesRef.current = scenes
+
+  // Refetch the DB (source of truth) and reconcile, preserving the node the
+  // writer is mid-keystroke on. Used on reconnect AND when an edit arrives for
+  // an element we don't have yet (a collaborator created it — element adds
+  // aren't broadcast). Throttled so a burst of new elements refetches once.
+  const lastResyncRef = useRef(0)
+  const resyncFromDb = useCallback(async () => {
+    if (!userId) return
+    const now = Date.now()
+    if (now - lastResyncRef.current < RESYNC_THROTTLE_MS) return
+    lastResyncRef.current = now
+    try {
+      const fresh = await getFullProject(projectId, userId)
+      const activeDomId =
+        typeof document !== "undefined" ? document.activeElement?.id : undefined
+      setScenes((prev) => mergeResyncedScenes(prev, fresh.scenes ?? [], activeDomId))
+    } catch {
+      // A failed refetch leaves local state as-is; the next trigger retries.
+      lastResyncRef.current = 0
+    }
+  }, [projectId, userId, setScenes])
 
   // Per-id debounce so switching elements never drops the last edit.
   const editTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
@@ -115,6 +149,17 @@ export function useEditorRealtime({
       ) {
         return
       }
+      // If the edit targets something we don't have, a collaborator just created
+      // it (element/scene adds aren't broadcast) — refetch to pick up the new
+      // structure rather than dropping the edit on the floor.
+      const current = scenesRef.current
+      const exists = edit.isScene
+        ? current.some((s) => s.id === edit.elementId)
+        : current.some((s) => (s.elements ?? []).some((el) => el.id === edit.elementId))
+      if (!exists) {
+        void resyncFromDb()
+        return
+      }
       setScenes((prev) =>
         edit.isScene
           ? prev.map((s) => (s.id === edit.elementId ? { ...s, scene_heading: edit.content } : s))
@@ -126,23 +171,14 @@ export function useEditorRealtime({
             })),
       )
     })
-  }, [subscribeEdits, setScenes])
+  }, [subscribeEdits, setScenes, resyncFromDb])
 
-  // On reconnect, refetch the DB (source of truth) and reconcile, keeping only
-  // the node the writer is mid-keystroke on so a resync never yanks their caret.
+  // On reconnect we may have missed edits/structure while offline — refetch.
   useEffect(() => {
-    return subscribeResync(async () => {
-      if (!userId) return
-      try {
-        const fresh = await getFullProject(projectId, userId)
-        const activeDomId =
-          typeof document !== "undefined" ? document.activeElement?.id : undefined
-        setScenes((prev) => mergeResyncedScenes(prev, fresh.scenes ?? [], activeDomId))
-      } catch {
-        // A failed refetch leaves local state as-is; the next reconnect retries.
-      }
+    return subscribeResync(() => {
+      void resyncFromDb()
     })
-  }, [subscribeResync, userId, projectId, setScenes])
+  }, [subscribeResync, resyncFromDb])
 
   return { peers, connected, broadcastEdit, reportFocus: setFocus, subscribeCarets }
 }

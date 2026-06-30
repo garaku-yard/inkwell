@@ -146,6 +146,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const { broadcastEdit, subscribeCarets } = useEditorRealtime({
     projectId: projectData.id,
     userId: user?.id,
+    scenes: sections,
     setScenes: setSections,
     surfaceRef: writeSurfaceRef,
   })
