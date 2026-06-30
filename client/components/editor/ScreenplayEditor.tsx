@@ -7,6 +7,8 @@ import { ProjectShell } from "./shared/ProjectShell"
 import { EditorToolbar } from "./shared/EditorToolbar"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { PagedSheets, type SheetMetrics } from "./shared/PagedSheets"
+import { RemoteCarets } from "./shared/RemoteCarets"
+import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { paginate } from "@/lib/editor/paginate"
 import { SidePanel } from "./SidePanel"
 import { EditableElement } from "./EditableElement"
@@ -129,6 +131,22 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const elementRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
   const sidePanelRef = useRef<HTMLDivElement>(null)
 
+  // Live co-editing + remote carets (no-op on the desktop build). The shared
+  // hook works on a Scene[] setter, so adapt the FullProject state to one.
+  const writeSurfaceRef = useRef<HTMLDivElement | null>(null)
+  const setScenes = useCallback((value: React.SetStateAction<Scene[]>) => {
+    setProject((p) => ({
+      ...p,
+      scenes: typeof value === "function" ? (value as (s: Scene[]) => Scene[])(p.scenes ?? []) : value,
+    }))
+  }, [])
+  const { broadcastEdit, subscribeCarets } = useEditorRealtime({
+    projectId: project.id,
+    userId: user?.id,
+    setScenes,
+    surfaceRef: writeSurfaceRef,
+  })
+
   // Comments use the same shared model as the other five editors: a flat list
   // loaded once + reload-after-write. The inline EditableElement badge and the
   // SidePanel both derive from this list (see unresolvedCountByElement below).
@@ -233,8 +251,9 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const handleContentChange = useCallback(
     (id: string, content: string, isScene: boolean) => {
       debouncedSave(id, content, isScene)
+      broadcastEdit(id, content, isScene)
     },
-    [debouncedSave],
+    [debouncedSave, broadcastEdit],
   )
 
   const handleFinalizeUpdate = useCallback(
@@ -518,7 +537,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       }
     >
       <div className="flex h-full overflow-hidden">
-        <div className={cn("relative flex-1 flex flex-col overflow-hidden", isAIChatOpen && "border-r")}>
+        <div ref={writeSurfaceRef} className={cn("relative flex-1 flex flex-col overflow-hidden", isAIChatOpen && "border-r")}>
           <PagedSheets
             pages={pages}
             renderBlock={renderBlock}
@@ -531,6 +550,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             isEmpty={flattenedScriptItems.length === 0}
             emptyState={<ScreenplayEmptyState onAddNewScene={handleAddNewScene} />}
           />
+          <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
         </div>
         <AIChatPanel
           isOpen={isAIChatOpen}

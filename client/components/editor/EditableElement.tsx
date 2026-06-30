@@ -131,6 +131,7 @@ export const EditableElement = React.memo(
         <div
           ref={ref}
           {...contentEditableProps}
+          id={isScene ? `head-${element.id}` : `el-${element.id}`}
           data-id={element.id}
           data-screenplay-text
           data-placeholder={isScene ? "Scene heading..." : getPlaceholderText(type)}
