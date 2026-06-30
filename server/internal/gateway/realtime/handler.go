@@ -38,7 +38,7 @@ type Handler struct {
 	hub            *Hub
 	clients        *grpcclient.Registry
 	presence       *PresenceStore // cluster-wide roster; nil ⇒ local roster only
-	originPatterns []string        // host patterns for the WS Origin check (empty ⇒ skip)
+	originPatterns []string       // host patterns for the WS Origin check (empty ⇒ skip)
 }
 
 // NewHandler builds a realtime Handler. allowedOrigins are the gateway's

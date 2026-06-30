@@ -85,8 +85,8 @@ func TestDispatchDropsOwnInstanceEcho(t *testing.T) {
 
 	f.dispatch(channelFor("p1"), mine, deliver) // our own echo — dropped
 	f.dispatch(channelFor("p1"), theirs, deliver)
-	f.dispatch("rt:project:", theirs, deliver)  // empty project id — dropped
-	f.dispatch("garbage", theirs, deliver)      // not a project channel — dropped
+	f.dispatch("rt:project:", theirs, deliver)         // empty project id — dropped
+	f.dispatch("garbage", theirs, deliver)             // not a project channel — dropped
 	f.dispatch(channelFor("p1"), []byte("{"), deliver) // bad json — dropped
 
 	if len(delivered) != 1 {
