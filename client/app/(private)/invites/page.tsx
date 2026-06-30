@@ -46,22 +46,39 @@ export default function InvitesPage() {
   const { refetch: refetchWorkspaces, setActiveOrg } = useWorkspace()
 
   useEffect(() => {
-    setIsLoading(true)
-    Promise.all([
-      getPendingInvites().catch((err) => {
-        console.error("Failed to fetch invites:", err)
-        return [] as Invitation[]
-      }),
-      listIncomingOrgInvites().catch((err) => {
-        console.error("Failed to fetch org invites:", err)
-        return [] as IncomingOrgInvite[]
-      }),
-    ])
-      .then(([projectInvites, incomingOrg]) => {
-        setInvites(projectInvites)
-        setOrgInvites(incomingOrg)
-      })
-      .finally(() => setIsLoading(false))
+    let cancelled = false
+    const load = (showSpinner: boolean) => {
+      if (showSpinner) setIsLoading(true)
+      Promise.all([
+        getPendingInvites().catch((err) => {
+          console.error("Failed to fetch invites:", err)
+          return [] as Invitation[]
+        }),
+        listIncomingOrgInvites().catch((err) => {
+          console.error("Failed to fetch org invites:", err)
+          return [] as IncomingOrgInvite[]
+        }),
+      ])
+        .then(([projectInvites, incomingOrg]) => {
+          if (cancelled) return
+          setInvites(projectInvites)
+          setOrgInvites(incomingOrg)
+        })
+        .finally(() => {
+          if (!cancelled) setIsLoading(false)
+        })
+    }
+    load(true)
+    // Pick up invites that land while this page is already open — refresh on
+    // focus (no spinner flash) instead of requiring a manual reload.
+    const onFocus = () => load(false)
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onFocus)
+    return () => {
+      cancelled = true
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onFocus)
+    }
   }, [])
 
   const handleOrgInviteAction = async (token: string, accepted: boolean) => {

@@ -82,7 +82,10 @@ export function ProjectCard({
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 {meta.label}
               </span>
-              {!isOwner && (
+              {/* "Shared" whenever the project spans more than its owner: a
+                  collaborator viewing it (!isOwner), or the owner who has
+                  invited collaborators (collaborator_count > 0). */}
+              {(!isOwner || (project.collaborator_count ?? 0) > 0) && (
                 <Badge variant="secondary" className="text-xs h-4 px-1.5 flex items-center gap-1">
                   <Users className="h-2.5 w-2.5" />
                   Shared

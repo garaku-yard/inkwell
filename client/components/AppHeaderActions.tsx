@@ -49,15 +49,26 @@ export function AppHeaderActions({ inviteCount = 0 }: AppHeaderActionsProps) {
       return
     }
     let cancelled = false
-    void (async () => {
+    const refresh = async () => {
       const [projectInvites, orgInvites] = await Promise.all([
         getPendingInvites().catch(() => []),
         listIncomingOrgInvites().catch(() => []),
       ])
       if (!cancelled) setPendingCount(projectInvites.length + orgInvites.length)
-    })()
+    }
+    void refresh()
+    // An invite arrives out-of-band (someone else invites you), so there's no
+    // local signal to react to. Refresh when the window regains focus — so it
+    // appears the moment you switch back to Inkwell — and poll as a backstop.
+    const interval = setInterval(() => void refresh(), 45_000)
+    const onFocus = () => void refresh()
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onFocus)
     return () => {
       cancelled = true
+      clearInterval(interval)
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onFocus)
     }
   }, [isAuthenticated])
 

@@ -297,25 +297,25 @@ function DashboardPageContent() {
                 />
               </div>
 
-              <Tabs value={activeFilter} onValueChange={setActiveFilter} className="w-full sm:w-auto">
-                <TabsList className="w-full grid grid-cols-3 sm:grid-cols-5">
-                  <TabsTrigger value="lastUpdated" className="w-full sm:w-auto gap-1">
+              <Tabs value={activeFilter} onValueChange={setActiveFilter} className="w-full min-w-0 sm:w-auto">
+                <TabsList className="flex w-full justify-start overflow-x-auto [&::-webkit-scrollbar]:hidden sm:w-auto">
+                  <TabsTrigger value="lastUpdated" className="shrink-0 gap-1 whitespace-nowrap">
                     <ArrowDownUp className="h-4 w-4" />
                     Recent
                   </TabsTrigger>
-                  <TabsTrigger value="myProjects" className="w-full sm:w-auto gap-1">
+                  <TabsTrigger value="myProjects" className="shrink-0 gap-1 whitespace-nowrap">
                     <Folder className="h-4 w-4" />
                     My Projects
                   </TabsTrigger>
-                  <TabsTrigger value="collaborations" className="w-full sm:w-auto gap-1">
+                  <TabsTrigger value="collaborations" className="shrink-0 gap-1 whitespace-nowrap">
                     <Briefcase className="h-4 w-4" />
                     Collaborations
                   </TabsTrigger>
-                  <TabsTrigger value="starred" className="w-full sm:w-auto gap-1">
+                  <TabsTrigger value="starred" className="shrink-0 gap-1 whitespace-nowrap">
                     <Star className="h-4 w-4" />
                     Starred
                   </TabsTrigger>
-                  <TabsTrigger value="archived" className="w-full sm:w-auto gap-1">
+                  <TabsTrigger value="archived" className="shrink-0 gap-1 whitespace-nowrap">
                     <Archive className="h-4 w-4" />
                     Archived
                   </TabsTrigger>
