@@ -40,7 +40,9 @@ describe("AIChatPanel — smoke", () => {
         projectId="test-project-id"
       />,
     )
-    expect(await screen.findByText(/Writing Buddy/i)).toBeInTheDocument()
+    // Exact match: "Writing Buddy" is also a substring of the empty-state copy,
+    // so a regex would match two nodes. The header label is the stable anchor.
+    expect(await screen.findByText("Writing Buddy")).toBeInTheDocument()
   })
 
   it("shows the empty state when no providers are configured", async () => {
@@ -53,7 +55,7 @@ describe("AIChatPanel — smoke", () => {
       />,
     )
     await waitFor(() => {
-      expect(screen.getByText(/No AI providers configured yet/i)).toBeInTheDocument()
+      expect(screen.getByText(/Connect an AI provider/i)).toBeInTheDocument()
     })
   })
 })
