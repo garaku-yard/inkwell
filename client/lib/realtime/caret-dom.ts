@@ -79,8 +79,12 @@ export function rectForOffset(host: HTMLElement, offset: number): DOMRect | null
     // The last rect handles a caret sitting at a soft line wrap's end.
     return rects[rects.length - 1] as DOMRect
   }
-  // A collapsed range in an empty element yields no client rects; approximate
-  // with the host box so the caret shows at the element's start.
+  // No client rects means a collapsed range in an empty element. Only treat
+  // that as a real position when the caret is at the very start (offset 0); a
+  // non-zero offset against empty content means the text hasn't settled yet
+  // (a remote edit is mid-apply), so report null and let the caller keep the
+  // last position rather than snap the caret to the margin.
+  if (offset > 0) return null
   const hr = host.getBoundingClientRect()
   if (hr.width === 0 && hr.height === 0) return null
   return new DOMRect(hr.left, hr.top, 0, hr.height)

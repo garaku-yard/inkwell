@@ -47,6 +47,10 @@ export function RemoteCarets({
   // Per-connection move counter so the name flag's fade animation restarts only
   // when that caret actually moves, not on every unrelated recompute.
   const seqRef = useRef<Map<string, { sig: string; seq: number }>>(new Map())
+  // Last successfully-placed position per connection, so a caret we briefly
+  // can't resolve (content mid-apply, element offscreen) holds its spot instead
+  // of blinking to the margin.
+  const lastByConnRef = useRef<Map<string, PlacedCaret>>(new Map())
   const rafRef = useRef<number | null>(null)
 
   useEffect(() => subscribeCarets(setCarets), [subscribeCarets])
@@ -58,29 +62,38 @@ export function RemoteCarets({
       return
     }
     const cRect = container.getBoundingClientRect()
+    const prevByConn = lastByConnRef.current
     const out: PlacedCaret[] = []
     for (const c of carets) {
       const host = document.getElementById(c.elementId)
-      if (!host || !container.contains(host)) continue
-      const rect = rectForOffset(host, c.offset)
-      if (!rect) continue
-      const sig = `${c.elementId}:${c.offset}`
-      const prev = seqRef.current.get(c.connId)
-      const seq = prev && prev.sig === sig ? prev.seq : (prev?.seq ?? 0) + 1
-      seqRef.current.set(c.connId, { sig, seq })
-      out.push({
-        connId: c.connId,
-        name: c.name,
-        color: `hsl(${hueFor(c.userId)} 70% 45%)`,
-        left: rect.left - cRect.left,
-        top: rect.top - cRect.top,
-        height: rect.height || 18,
-        seq,
-      })
+      let entry: PlacedCaret | null = null
+      if (host && container.contains(host)) {
+        const rect = rectForOffset(host, c.offset)
+        if (rect) {
+          const sig = `${c.elementId}:${c.offset}`
+          const prev = seqRef.current.get(c.connId)
+          const seq = prev && prev.sig === sig ? prev.seq : (prev?.seq ?? 0) + 1
+          seqRef.current.set(c.connId, { sig, seq })
+          entry = {
+            connId: c.connId,
+            name: c.name,
+            color: `hsl(${hueFor(c.userId)} 70% 45%)`,
+            left: rect.left - cRect.left,
+            top: rect.top - cRect.top,
+            height: rect.height || 18,
+            seq,
+          }
+        }
+      }
+      // Couldn't place it this pass — keep the last known spot rather than jump.
+      if (!entry) entry = prevByConn.get(c.connId) ?? null
+      if (entry) out.push(entry)
     }
-    // Forget move-counters for carets that are gone.
+    const nextByConn = new Map(out.map((p) => [p.connId, p]))
+    lastByConnRef.current = nextByConn
+    // Forget bookkeeping for carets that are gone.
     for (const id of Array.from(seqRef.current.keys())) {
-      if (!carets.some((c) => c.connId === id)) seqRef.current.delete(id)
+      if (!nextByConn.has(id)) seqRef.current.delete(id)
     }
     setPlaced(out)
   }, [carets, containerRef])

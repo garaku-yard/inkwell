@@ -33,7 +33,13 @@ export function useCaretReporter({
 
   useEffect(() => {
     if (!enabled) return
-    const onSelectionChange = () => {
+    const report = () => {
+      // Only broadcast when this window actually has focus. A background window
+      // still fires selectionchange — but those are side-effects of applying a
+      // collaborator's edit (rewriting a focused element collapses its caret to
+      // the start), not the user moving the cursor. Reporting them would make
+      // our caret jump to offset 0 in everyone else's view.
+      if (typeof document !== "undefined" && !document.hasFocus()) return
       const host = editableHostFromSelection()
       const container = containerRef.current
       if (!host || !container || !container.contains(host)) {
@@ -48,7 +54,13 @@ export function useCaretReporter({
       reportedRef.current = host.id
       sendCaret(host.id, offset)
     }
-    document.addEventListener("selectionchange", onSelectionChange)
-    return () => document.removeEventListener("selectionchange", onSelectionChange)
+    document.addEventListener("selectionchange", report)
+    // Regaining window focus doesn't fire selectionchange, so re-announce the
+    // current caret then (it was suppressed while we were in the background).
+    window.addEventListener("focus", report)
+    return () => {
+      document.removeEventListener("selectionchange", report)
+      window.removeEventListener("focus", report)
+    }
   }, [containerRef, sendCaret, enabled])
 }
