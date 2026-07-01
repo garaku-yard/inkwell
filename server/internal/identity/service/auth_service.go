@@ -42,6 +42,7 @@ type AuthService interface {
 	// User management
 	GetUserProfile(ctx context.Context, userID uuid.UUID) (*UserProfileResponse, error)
 	GetUserByUsernameTag(ctx context.Context, username, userTag string) (*UserInfo, error)
+	GetUserByEmail(ctx context.Context, email string) (*UserInfo, error)
 	UpdateUserProfile(ctx context.Context, userID uuid.UUID, req *UpdateProfileRequest) error
 	ChangePassword(ctx context.Context, userID uuid.UUID, req *ChangePasswordRequest) error
 	DeleteAccount(ctx context.Context, userID uuid.UUID) error
@@ -877,6 +878,31 @@ func (s *authService) hashRefreshToken(token string) string {
 // GetUserByUsernameTag returns user information for a given username and tag
 func (s *authService) GetUserByUsernameTag(ctx context.Context, username, userTag string) (*UserInfo, error) {
 	user, err := s.userRepo.GetUserByUsernameAndTag(ctx, username, userTag)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to UserInfo
+	return &UserInfo{
+		ID:          user.ID,
+		Email:       user.Email,
+		Username:    user.Username,
+		UserTag:     user.UserTag,
+		FirstName:   user.FirstName,
+		LastName:    user.LastName,
+		AvatarURL:   user.AvatarURL,
+		Role:        user.Role,
+		IsActive:    user.IsActive,
+		IsVerified:  user.IsVerified,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		LastLoginAt: user.LastLoginAt,
+	}, nil
+}
+
+// GetUserByEmail returns user information for a given email address.
+func (s *authService) GetUserByEmail(ctx context.Context, email string) (*UserInfo, error) {
+	user, err := s.userRepo.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}

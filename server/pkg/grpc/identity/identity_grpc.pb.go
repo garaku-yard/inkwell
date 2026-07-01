@@ -25,6 +25,7 @@ const (
 	IdentityService_ValidateToken_FullMethodName         = "/identity.IdentityService/ValidateToken"
 	IdentityService_GetUser_FullMethodName               = "/identity.IdentityService/GetUser"
 	IdentityService_GetUserByUsernameTag_FullMethodName  = "/identity.IdentityService/GetUserByUsernameTag"
+	IdentityService_GetUserByEmail_FullMethodName        = "/identity.IdentityService/GetUserByEmail"
 	IdentityService_GetUsers_FullMethodName              = "/identity.IdentityService/GetUsers"
 	IdentityService_UpdateUser_FullMethodName            = "/identity.IdentityService/UpdateUser"
 	IdentityService_ChangePassword_FullMethodName        = "/identity.IdentityService/ChangePassword"
@@ -53,6 +54,7 @@ type IdentityServiceClient interface {
 	// User management
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
 	GetUserByUsernameTag(ctx context.Context, in *GetUserByUsernameTagRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
+	GetUserByEmail(ctx context.Context, in *GetUserByEmailRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
 	GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (*GetUsersResponse, error)
 	UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*UpdateUserResponse, error)
 	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ChangePasswordResponse, error)
@@ -132,6 +134,16 @@ func (c *identityServiceClient) GetUserByUsernameTag(ctx context.Context, in *Ge
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetUserResponse)
 	err := c.cc.Invoke(ctx, IdentityService_GetUserByUsernameTag_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *identityServiceClient) GetUserByEmail(ctx context.Context, in *GetUserByEmailRequest, opts ...grpc.CallOption) (*GetUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserResponse)
+	err := c.cc.Invoke(ctx, IdentityService_GetUserByEmail_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -272,6 +284,7 @@ type IdentityServiceServer interface {
 	// User management
 	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
 	GetUserByUsernameTag(context.Context, *GetUserByUsernameTagRequest) (*GetUserResponse, error)
+	GetUserByEmail(context.Context, *GetUserByEmailRequest) (*GetUserResponse, error)
 	GetUsers(context.Context, *GetUsersRequest) (*GetUsersResponse, error)
 	UpdateUser(context.Context, *UpdateUserRequest) (*UpdateUserResponse, error)
 	ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error)
@@ -314,6 +327,9 @@ func (UnimplementedIdentityServiceServer) GetUser(context.Context, *GetUserReque
 }
 func (UnimplementedIdentityServiceServer) GetUserByUsernameTag(context.Context, *GetUserByUsernameTagRequest) (*GetUserResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserByUsernameTag not implemented")
+}
+func (UnimplementedIdentityServiceServer) GetUserByEmail(context.Context, *GetUserByEmailRequest) (*GetUserResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetUserByEmail not implemented")
 }
 func (UnimplementedIdentityServiceServer) GetUsers(context.Context, *GetUsersRequest) (*GetUsersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUsers not implemented")
@@ -476,6 +492,24 @@ func _IdentityService_GetUserByUsernameTag_Handler(srv interface{}, ctx context.
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(IdentityServiceServer).GetUserByUsernameTag(ctx, req.(*GetUserByUsernameTagRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IdentityService_GetUserByEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserByEmailRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityServiceServer).GetUserByEmail(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityService_GetUserByEmail_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityServiceServer).GetUserByEmail(ctx, req.(*GetUserByEmailRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -726,6 +760,10 @@ var IdentityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUserByUsernameTag",
 			Handler:    _IdentityService_GetUserByUsernameTag_Handler,
+		},
+		{
+			MethodName: "GetUserByEmail",
+			Handler:    _IdentityService_GetUserByEmail_Handler,
 		},
 		{
 			MethodName: "GetUsers",

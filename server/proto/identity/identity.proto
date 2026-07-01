@@ -81,6 +81,10 @@ message GetUserByUsernameTagRequest {
   string user_tag = 2;
 }
 
+message GetUserByEmailRequest {
+  string email = 1;
+}
+
 message GetUserResponse {
   User user = 1;
 }
@@ -235,6 +239,7 @@ service IdentityService {
   // User management
   rpc GetUser(GetUserRequest) returns (GetUserResponse);
   rpc GetUserByUsernameTag(GetUserByUsernameTagRequest) returns (GetUserResponse);
+  rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserResponse);
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);

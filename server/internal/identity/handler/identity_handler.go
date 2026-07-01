@@ -207,6 +207,30 @@ func (h *IdentityHandler) GetUserByUsernameTag(ctx context.Context, req *identit
 	}, nil
 }
 
+// GetUserByEmail returns the user with the given email address, if one exists.
+func (h *IdentityHandler) GetUserByEmail(ctx context.Context, req *identitypb.GetUserByEmailRequest) (*identitypb.GetUserResponse, error) {
+	userInfo, err := h.authService.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		return nil, h.handleError(err)
+	}
+
+	return &identitypb.GetUserResponse{
+		User: &identitypb.User{
+			Id:        userInfo.ID.String(),
+			Email:     userInfo.Email,
+			Username:  userInfo.Username,
+			UserTag:   userInfo.UserTag,
+			FirstName: stringValue(userInfo.FirstName),
+			LastName:  stringValue(userInfo.LastName),
+			AvatarUrl: stringValue(userInfo.AvatarURL),
+			CreatedAt: timeToCommonTimestamp(userInfo.CreatedAt),
+			UpdatedAt: timeToCommonTimestamp(userInfo.UpdatedAt),
+			IsActive:  userInfo.IsActive,
+			Role:      userInfo.Role,
+		},
+	}, nil
+}
+
 // GetUsers is not yet implemented and always returns codes.Unimplemented.
 func (h *IdentityHandler) GetUsers(ctx context.Context, req *identitypb.GetUsersRequest) (*identitypb.GetUsersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "GetUsers not implemented")

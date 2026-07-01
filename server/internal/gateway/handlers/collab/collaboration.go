@@ -124,7 +124,7 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 			// Best-effort live nudge so an invited, registered user sees it
 			// without a refresh. The pending collaborator row carries a nil user
 			// id (it's keyed by email until accepted), so resolve the invitee's
-			// account from the invite target instead. A raw-email invite or an
+			// account from the invite target (email or username#tag) instead. An
 			// unknown user resolves to "" and is skipped — they get the email.
 			if h.notifier != nil {
 				h.notifier.NotifyInvite(h.resolveInviteeUserID(r.Context(), req.Email))
@@ -518,10 +518,21 @@ func (h *CollaborationHandler) resolveEmailOrUserTag(ctx context.Context, input 
 // get the live nudge, only the email + the badge's focus/poll refresh.
 func (h *CollaborationHandler) resolveInviteeUserID(ctx context.Context, input string) string {
 	input = strings.TrimSpace(input)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	// Raw email → look the account up directly.
+	if strings.Contains(input, "@") && !strings.HasPrefix(input, "@") {
+		resp, err := h.identityClient.GetUserByEmail(ctx, &identity.GetUserByEmailRequest{Email: input})
+		if err != nil || resp.GetUser() == nil {
+			return "" // no account for this email — they'll get the email invite
+		}
+		return resp.GetUser().GetId()
+	}
+
+	// @handle / username#tag / plain username → resolve by username + tag.
 	var username, tag string
 	switch {
-	case strings.Contains(input, "@") && !strings.HasPrefix(input, "@"):
-		return "" // raw email — not resolvable to an id here
 	case strings.HasPrefix(input, "@"):
 		username = strings.TrimPrefix(input, "@")
 		tag = username
@@ -531,9 +542,6 @@ func (h *CollaborationHandler) resolveInviteeUserID(ctx context.Context, input s
 	default:
 		username, tag = input, input
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
 	resp, err := h.identityClient.GetUserByUsernameTag(ctx, &identity.GetUserByUsernameTagRequest{
 		Username: username,
 		UserTag:  tag,
