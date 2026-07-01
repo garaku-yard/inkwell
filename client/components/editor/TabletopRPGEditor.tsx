@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo, useRef } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { ChevronRight, ChevronDown, Table, Pencil, Dice6, Library, Type, Pilcrow, Heading2, Boxes, Shield, StickyNote, ScrollText } from "lucide-react"
 import { StatBlockTemplatePicker } from "./ttrpg/StatBlockTemplatePicker"
 import { cn } from "@/lib/utils"
@@ -150,6 +150,35 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     setScenes: setSections,
     surfaceRef: writeSurfaceRef,
   })
+
+  // Every section needs at least one real `body` element to write into. A section
+  // with zero elements renders the "Start writing…" placeholder, whose input is a
+  // phantom: it isn't persisted and — crucially — isn't broadcast to co-editors, so
+  // typing there never syncs (and is lost on reload). Provision a real body element
+  // lazily for any empty section — new, imported, or created before this fix — so
+  // the write surface is always a wired element. Guarded so React StrictMode's
+  // double-effect (and a burst of re-renders) can't duplicate it.
+  const provisioningRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const uid = user?.id
+    if (!uid) return
+    for (const s of sections) {
+      if ((s.elements?.length ?? 0) > 0 || provisioningRef.current.has(s.id)) continue
+      provisioningRef.current.add(s.id)
+      void (async () => {
+        try {
+          const el = await createSceneElement(projectData.id, s.id, uid, {
+            element_type: "body",
+            content: "",
+            order_index: 0,
+          })
+          setSections((prev) => prev.map((x) => (x.id === s.id ? { ...x, elements: [el] } : x)))
+        } catch {
+          provisioningRef.current.delete(s.id) // allow a later retry
+        }
+      })()
+    }
+  }, [sections, user?.id, projectData.id])
 
   const totalWords = sections.reduce((acc, s) =>
     acc + (s.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0), 0)

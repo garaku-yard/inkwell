@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo, useRef } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { BookOpen, Pilcrow, Quote, Heading, Heading1, Heading2, Heading3, Clock, Asterisk, Hash, Type } from "lucide-react"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { PagedSheets } from "./shared/PagedSheets"
@@ -114,6 +114,35 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     setScenes,
     surfaceRef: writeSurfaceRef,
   })
+
+  // Every chapter needs at least one real `paragraph` element to write into. A
+  // chapter with zero elements renders the "Start writing…" placeholder, whose
+  // input is a phantom: it isn't persisted and — crucially — isn't broadcast to
+  // co-editors, so typing there never syncs (and is lost on reload). Provision a
+  // real paragraph lazily for any empty chapter — new, imported, or created before
+  // this fix — so the write surface is always a wired element. Guarded so React
+  // StrictMode's double-effect (and a burst of re-renders) can't duplicate it.
+  const provisioningRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const uid = user?.id
+    if (!uid) return
+    for (const s of scenes) {
+      if ((s.elements?.length ?? 0) > 0 || provisioningRef.current.has(s.id)) continue
+      provisioningRef.current.add(s.id)
+      void (async () => {
+        try {
+          const el = await createSceneElement(projectData.id, s.id, uid, {
+            element_type: "paragraph",
+            content: "",
+            order_index: 0,
+          })
+          setScenes((prev) => prev.map((x) => (x.id === s.id ? { ...x, elements: [el] } : x)))
+        } catch {
+          provisioningRef.current.delete(s.id) // allow a later retry
+        }
+      })()
+    }
+  }, [scenes, user?.id, projectData.id])
 
   // Track the last-focused block so the right-edge tool rail knows where to act:
   // an empty focused line is transformed into the chosen type, otherwise a new

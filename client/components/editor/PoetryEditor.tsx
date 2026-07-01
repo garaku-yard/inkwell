@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo, useRef } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { AlignCenter, AlignLeft, Music, Hash, Feather, Minus, Tag } from "lucide-react"
 import { syllable } from "syllable"
 import { Button } from "@/components/ui/button"
@@ -97,6 +97,35 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     setScenes,
     surfaceRef: writeSurfaceRef,
   })
+
+  // Every poem needs at least one real `line` element to write into. A poem with
+  // zero elements renders the "First line…" placeholder, whose input is a phantom:
+  // it isn't persisted and — crucially — isn't broadcast to co-editors, so typing
+  // there never syncs (and is lost on reload). Provision a real line lazily for any
+  // empty poem — new, imported, or created before this fix — so the write surface
+  // is always a wired element. Guarded so React StrictMode's double-effect (and a
+  // burst of re-renders) can't create duplicates.
+  const provisioningRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const uid = user?.id
+    if (!uid) return
+    for (const s of scenes) {
+      if ((s.elements?.length ?? 0) > 0 || provisioningRef.current.has(s.id)) continue
+      provisioningRef.current.add(s.id)
+      void (async () => {
+        try {
+          const el = await createSceneElement(projectData.id, s.id, uid, {
+            element_type: "line",
+            content: "",
+            order_index: 0,
+          })
+          setScenes((prev) => prev.map((x) => (x.id === s.id ? { ...x, elements: [el] } : x)))
+        } catch {
+          provisioningRef.current.delete(s.id) // allow a later retry
+        }
+      })()
+    }
+  }, [scenes, user?.id, projectData.id])
 
   const totalLines = scenes.reduce((acc, s) => acc + countLines(s.elements ?? []), 0)
 
