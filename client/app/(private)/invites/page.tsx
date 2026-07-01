@@ -24,6 +24,7 @@ import {
   type IncomingOrgInvite,
 } from "@/services/organization"
 import { useWorkspace } from "@/lib/WorkspaceContext"
+import { INVITES_CHANGED_EVENT, emitInvitesChanged } from "@/lib/realtime/user-notifications"
 
 const formatRelativeTime = (dateString: string) => {
   const date = new Date(dateString)
@@ -69,15 +70,18 @@ export default function InvitesPage() {
         })
     }
     load(true)
-    // Pick up invites that land while this page is already open — refresh on
-    // focus (no spinner flash) instead of requiring a manual reload.
-    const onFocus = () => load(false)
-    window.addEventListener("focus", onFocus)
-    document.addEventListener("visibilitychange", onFocus)
+    // Pick up invites that land while this page is already open: instantly via
+    // the user-notification socket's signal, plus focus as a backstop. No
+    // spinner flash on refresh.
+    const onChange = () => load(false)
+    window.addEventListener(INVITES_CHANGED_EVENT, onChange)
+    window.addEventListener("focus", onChange)
+    document.addEventListener("visibilitychange", onChange)
     return () => {
       cancelled = true
-      window.removeEventListener("focus", onFocus)
-      document.removeEventListener("visibilitychange", onFocus)
+      window.removeEventListener(INVITES_CHANGED_EVENT, onChange)
+      window.removeEventListener("focus", onChange)
+      document.removeEventListener("visibilitychange", onChange)
     }
   }, [])
 
@@ -88,10 +92,12 @@ export default function InvitesPage() {
         const org = await acceptOrgInvite(token)
         await refetchWorkspaces()
         setActiveOrg(org)
+        emitInvitesChanged()
         router.push("/dashboard")
       } else {
         await declineOrgInvite(token)
         setOrgInvites((prev) => prev.filter((i) => i.token !== token))
+        emitInvitesChanged()
       }
     } catch (error) {
       console.error(`Failed to ${accepted ? "accept" : "decline"} org invite:`, error)
@@ -113,6 +119,7 @@ export default function InvitesPage() {
         await declineInvite(invitationId)
       }
       setInvites((prevInvites) => prevInvites.filter((invite) => invite.id !== invitationId))
+      emitInvitesChanged() // keep the header badge in sync
       if (accepted) {
         router.push(`/projects/editor?id=${projectId}`)
       }

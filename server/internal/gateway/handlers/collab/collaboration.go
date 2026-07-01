@@ -18,6 +18,14 @@ import (
 	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
 
+// InviteNotifier pushes a real-time "new invitation" hint to the invited user
+// so it appears without a refresh. Satisfied by *notify.Hub; held here as an
+// interface so the handler stays decoupled and nil-safe — a notification is a
+// best-effort overlay and must never block (or fail) the actual invitation.
+type InviteNotifier interface {
+	NotifyInvite(userID string)
+}
+
 // CollaborationHandler routes collaboration HTTP requests to the collab gRPC
 // service. It also reaches the identity service to resolve display names for
 // collaborators and comment authors, and the scripts service to look up project
@@ -28,17 +36,19 @@ type CollaborationHandler struct {
 	scriptsClient   scripts.ScriptsServiceClient
 	billingClient   billingpb.BillingServiceClient
 	workspaceClient workspacepb.WorkspaceServiceClient
+	notifier        InviteNotifier
 }
 
 // NewCollaborationHandler creates a CollaborationHandler using the gRPC clients
-// in the provided registry.
-func NewCollaborationHandler(clients *grpcclient.Registry) *CollaborationHandler {
+// in the provided registry. notifier may be nil (no real-time push).
+func NewCollaborationHandler(clients *grpcclient.Registry, notifier InviteNotifier) *CollaborationHandler {
 	return &CollaborationHandler{
 		client:          clients.Collab,
 		identityClient:  clients.Identity,
 		scriptsClient:   clients.Scripts,
 		billingClient:   clients.Billing,
 		workspaceClient: clients.Workspace,
+		notifier:        notifier,
 	}
 }
 
@@ -109,6 +119,15 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 			}
 			if joinedAt := handlers.TimestampToString(resp.Collaborator.JoinedAt); joinedAt != "" {
 				response["joined_at"] = joinedAt
+			}
+
+			// Best-effort live nudge so an invited, registered user sees it
+			// without a refresh. The pending collaborator row carries a nil user
+			// id (it's keyed by email until accepted), so resolve the invitee's
+			// account from the invite target instead. A raw-email invite or an
+			// unknown user resolves to "" and is skipped — they get the email.
+			if h.notifier != nil {
+				h.notifier.NotifyInvite(h.resolveInviteeUserID(r.Context(), req.Email))
 			}
 			return &response, nil
 		},
@@ -490,6 +509,39 @@ func (h *CollaborationHandler) resolveEmailOrUserTag(ctx context.Context, input 
 
 	// Assume plain username
 	return h.getUserEmailByUsername(ctx, input)
+}
+
+// resolveInviteeUserID best-effort resolves the invited user's account id from
+// the invite target (the same parsing as resolveEmailOrUserTag), for the live
+// notification push. Returns "" for a raw email (there is no email→id lookup)
+// or an unknown user — the invitation still succeeds; that invitee just won't
+// get the live nudge, only the email + the badge's focus/poll refresh.
+func (h *CollaborationHandler) resolveInviteeUserID(ctx context.Context, input string) string {
+	input = strings.TrimSpace(input)
+	var username, tag string
+	switch {
+	case strings.Contains(input, "@") && !strings.HasPrefix(input, "@"):
+		return "" // raw email — not resolvable to an id here
+	case strings.HasPrefix(input, "@"):
+		username = strings.TrimPrefix(input, "@")
+		tag = username
+	case strings.Contains(input, "#"):
+		parts := strings.SplitN(input, "#", 2)
+		username, tag = parts[0], parts[1]
+	default:
+		username, tag = input, input
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	resp, err := h.identityClient.GetUserByUsernameTag(ctx, &identity.GetUserByUsernameTagRequest{
+		Username: username,
+		UserTag:  tag,
+	})
+	if err != nil || resp.GetUser() == nil {
+		return ""
+	}
+	return resp.GetUser().GetId()
 }
 
 // getUserEmailByUsername looks up a user's email by username via the identity service.

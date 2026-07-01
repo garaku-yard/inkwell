@@ -1,5 +1,6 @@
 import { WorkspaceProvider } from "@/lib/WorkspaceContext"
 import { SyncRunner } from "@/components/sync/SyncRunner"
+import { UserNotificationsListener } from "@/components/notifications/UserNotificationsListener"
 
 export default function PrivateLayout({
   children,
@@ -9,6 +10,7 @@ export default function PrivateLayout({
   return (
     <WorkspaceProvider>
       <SyncRunner />
+      <UserNotificationsListener />
       {children}
     </WorkspaceProvider>
   )

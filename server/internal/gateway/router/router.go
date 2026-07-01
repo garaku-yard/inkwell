@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -15,6 +16,7 @@ import (
 	"inkwell/server/internal/gateway/handlers/scripts"
 	"inkwell/server/internal/gateway/handlers/workspace"
 	"inkwell/server/internal/gateway/middleware"
+	"inkwell/server/internal/gateway/notify"
 	"inkwell/server/internal/gateway/realtime"
 	redisPkg "inkwell/server/pkg/redis"
 
@@ -93,7 +95,18 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	// Handlers
 	authHandler := auth.NewAuthHandler(clients, blocklist, cfg.Environment)
 	scriptsHandler := scripts.NewScriptsHandler(clients)
-	collaborationHandler := collab.NewCollaborationHandler(clients)
+
+	// User-level notification socket — pushes a small hint (a new invitation
+	// today) to a user's browser so it shows without a refresh. Fans out over
+	// Redis across gateway instances, or runs local-only without it.
+	notifyHub := notify.NewHub(nil)
+	if redisClient != nil {
+		notifyHub = notify.NewHub(redisClient.Raw())
+	}
+	go notifyHub.Run(context.Background())
+	notifyHandler := notify.NewHandler(notifyHub, cfg.AllowedOrigins)
+
+	collaborationHandler := collab.NewCollaborationHandler(clients, notifyHub)
 	workspaceHandler := workspace.NewWorkspaceHandler(clients)
 	billingHandler := billing.NewBillingHandler(clients)
 
@@ -168,6 +181,9 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			// Real-time editing — WebSocket per project. Auth runs via the group
 			// middleware; the handler then checks project access before upgrading.
 			r.Get("/ws/projects/{projectId}", realtimeHandler.HandleWS)
+			// User-level notification socket — pushes invites (and future
+			// notifications) to the authenticated user's own room.
+			r.Get("/ws/user", notifyHandler.HandleWS)
 
 			// Projects
 			r.Route("/projects", func(r chi.Router) {

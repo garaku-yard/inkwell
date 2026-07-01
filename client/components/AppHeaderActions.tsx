@@ -17,6 +17,7 @@ import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
 import { getPendingInvites } from "@/services/invites"
 import { listIncomingOrgInvites } from "@/services/organization"
+import { INVITES_CHANGED_EVENT } from "@/lib/realtime/user-notifications"
 import { NotificationBell } from "@/components/notifications/NotificationBell"
 import { Button } from "@/components/ui/button"
 import {
@@ -57,18 +58,20 @@ export function AppHeaderActions({ inviteCount = 0 }: AppHeaderActionsProps) {
       if (!cancelled) setPendingCount(projectInvites.length + orgInvites.length)
     }
     void refresh()
-    // An invite arrives out-of-band (someone else invites you), so there's no
-    // local signal to react to. Refresh when the window regains focus — so it
-    // appears the moment you switch back to Inkwell — and poll as a backstop.
-    const interval = setInterval(() => void refresh(), 45_000)
-    const onFocus = () => void refresh()
-    window.addEventListener("focus", onFocus)
-    document.addEventListener("visibilitychange", onFocus)
+    // Live: the user-notification socket fires this when an invite arrives, so
+    // the badge updates instantly. Focus + a slow poll are backstops for when
+    // the socket is unavailable (desktop build, reconnecting, self-host).
+    const onChange = () => void refresh()
+    const interval = setInterval(onChange, 45_000)
+    window.addEventListener(INVITES_CHANGED_EVENT, onChange)
+    window.addEventListener("focus", onChange)
+    document.addEventListener("visibilitychange", onChange)
     return () => {
       cancelled = true
       clearInterval(interval)
-      window.removeEventListener("focus", onFocus)
-      document.removeEventListener("visibilitychange", onFocus)
+      window.removeEventListener(INVITES_CHANGED_EVENT, onChange)
+      window.removeEventListener("focus", onChange)
+      document.removeEventListener("visibilitychange", onChange)
     }
   }, [isAuthenticated])
 
