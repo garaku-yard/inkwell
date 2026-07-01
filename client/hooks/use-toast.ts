@@ -4,6 +4,8 @@ import * as React from "react"
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
+/** How long a toast shows before it auto-dismisses (ms). */
+const TOAST_AUTO_DISMISS = 5000
 
 type ToasterToast = {
   id: string
@@ -120,14 +122,24 @@ export const reducer = (state: State, action: Action): State => {
   }
 }
 
-const listeners: Array<(state: State) => void> = []
-
-let memoryState: State = { toasts: [] }
+// Hold the toast store on globalThis so it stays a TRUE singleton even if this
+// "use client" module gets duplicated across Next.js client boundaries. It does:
+// the root layout's <Toaster> and a nested layout's toast() caller landed on
+// separate module instances, so a toast added by one never reached the other —
+// which is why toasts never appeared. globalThis is shared across all copies.
+interface ToastStore {
+  state: State
+  listeners: Array<(state: State) => void>
+}
+const store: ToastStore = ((globalThis as { __inkwellToastStore?: ToastStore }).__inkwellToastStore ??= {
+  state: { toasts: [] },
+  listeners: [],
+})
 
 function dispatch(action: Action) {
-  memoryState = reducer(memoryState, action)
-  listeners.forEach((listener) => {
-    listener(memoryState)
+  store.state = reducer(store.state, action)
+  store.listeners.forEach((listener) => {
+    listener(store.state)
   })
 }
 
@@ -154,6 +166,10 @@ function toast({ ...props }: Toast) {
     },
   })
 
+  // Auto-dismiss once, from here (module scope) rather than a component effect —
+  // so React StrictMode's dev double-mount can't fire it prematurely.
+  setTimeout(dismiss, TOAST_AUTO_DISMISS)
+
   return {
     id: id,
     dismiss,
@@ -162,17 +178,22 @@ function toast({ ...props }: Toast) {
 }
 
 function useToast() {
-  const [state, setState] = React.useState<State>(memoryState)
+  const [state, setState] = React.useState<State>(store.state)
 
   React.useEffect(() => {
-    listeners.push(setState)
+    store.listeners.push(setState)
+    setState(store.state) // sync any toast added between render and subscribe
     return () => {
-      const index = listeners.indexOf(setState)
+      const index = store.listeners.indexOf(setState)
       if (index > -1) {
-        listeners.splice(index, 1)
+        store.listeners.splice(index, 1)
       }
     }
-  }, [state])
+    // Subscribe once on mount. The original template used `[state]` here, which
+    // re-runs (unsubscribe→resubscribe) on every state change — so a dispatch
+    // that lands between a consumer's cleanup and re-subscribe is missed. That's
+    // why toasts never appeared. Empty deps keeps the listener stable.
+  }, [])
 
   return {
     ...state,

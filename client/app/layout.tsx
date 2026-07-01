@@ -18,6 +18,7 @@ import { StorageProvider } from "@/lib/storage/StorageProvider";
 import { DesktopMenuBridge } from "@/components/desktop-menu-bridge";
 import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcutsDialog";
 import { WindowTitlebar } from "@/components/window-titlebar";
+import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
 // Built-in fallback pair; every other font is opt-in via the
@@ -91,6 +92,7 @@ export default function RootLayout({
                 <WindowTitlebar />
                 <div id="main" className="min-h-0 flex-1">{children}</div>
               </div>
+              <Toaster />
             </AuthProvider>
           </ThemeProvider>
         </StorageProvider>
