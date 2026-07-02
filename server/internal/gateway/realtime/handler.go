@@ -37,8 +37,9 @@ const (
 type Handler struct {
 	hub            *Hub
 	clients        *grpcclient.Registry
-	presence       *PresenceStore // cluster-wide roster; nil ⇒ local roster only
-	originPatterns []string       // host patterns for the WS Origin check (empty ⇒ skip)
+	presence       *PresenceStore   // cluster-wide roster; nil ⇒ local roster only
+	sessions       *sessionRecorder // durable advisory locks; nil ⇒ live presence only
+	originPatterns []string         // host patterns for the WS Origin check (empty ⇒ skip)
 }
 
 // NewHandler builds a realtime Handler. allowedOrigins are the gateway's
@@ -52,6 +53,7 @@ func NewHandler(clients *grpcclient.Registry, allowedOrigins []string, cluster *
 	h := &Handler{
 		hub:            hub,
 		clients:        clients,
+		sessions:       newSessionRecorder(clients.Collab),
 		originPatterns: toOriginPatterns(allowedOrigins),
 	}
 	if cluster != nil {
@@ -161,6 +163,13 @@ func (h *Handler) HandleWS(w http.ResponseWriter, r *http.Request) {
 		defer presenceOp(func(ctx context.Context) error { return h.presence.Remove(ctx, projectID, c.id) })
 	}
 
+	// Open a durable edit session so this user's soft-lock survives a reconnect
+	// or a gateway restart (the presence store above is per-connection only). No
+	// focus yet — that arrives with the first focus frame. Best-effort: a blank
+	// id just means no persistence, and live presence is unaffected.
+	c.sessionID = h.sessions.record(projectID, userID, "")
+	defer h.sessions.end(c.sessionID)
+
 	c.send <- encodeRoster(roster)
 	h.hub.broadcast(projectID, c, encodePeer(TypePeerJoin, c.peer()))
 	defer h.hub.broadcast(projectID, c, encodeLeave(c.id))
@@ -226,6 +235,10 @@ func (h *Handler) readPump(ctx context.Context, ws *websocket.Conn, c *conn, pro
 			if h.presence != nil {
 				presenceOp(func(ctx context.Context) error { return h.presence.Update(ctx, projectID, peer) })
 			}
+			// Move the durable soft-lock to the newly focused element (and refresh
+			// its activity). Empty elementID clears the focus while keeping the
+			// session open.
+			h.sessions.record(c.projectID, c.userID, in.ElementID)
 		case TypeEdit:
 			// Live content change — relay verbatim; the DB stays source of truth
 			// via the sender's autosave. The sender is excluded by broadcast.
@@ -278,6 +291,9 @@ func (h *Handler) writePump(ctx context.Context, cancel context.CancelFunc, ws *
 					return h.presence.Refresh(opctx, c.projectID, c.id)
 				})
 			}
+			// Keep the durable session alive too, preserving its current focus
+			// (passing the live focus, not empty, so the heartbeat never clears it).
+			h.sessions.record(c.projectID, c.userID, h.hub.focusOf(c))
 		}
 	}
 }

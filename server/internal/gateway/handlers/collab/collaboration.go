@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
@@ -969,4 +971,92 @@ func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Requ
 			return &response, nil
 		},
 	}.ServeHTTP(w, r)
+}
+
+// editSessionResponse is the JSON shape for one durable advisory edit lock.
+type editSessionResponse struct {
+	SessionID    string `json:"session_id"`
+	UserID       string `json:"user_id"`
+	Name         string `json:"name"`
+	ElementID    string `json:"element_id,omitempty"`
+	StartedAt    string `json:"started_at"`
+	LastActivity string `json:"last_activity"`
+}
+
+// GetEditSessions lists the durable advisory edit locks for a project — who has
+// it open and which element each is focused on. Unlike the live presence roster
+// (delivered over the WebSocket), these are persisted, so the client can seed its
+// soft-lock markers on open and keep showing an editor across a brief reconnect
+// or a gateway restart. The caller must have access to the project.
+func (h *CollaborationHandler) GetEditSessions(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, []editSessionResponse]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]editSessionResponse, error) {
+			projectID := chi.URLParam(r, "projectId")
+			if projectID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project id is required")
+			}
+
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+
+			// Same access gate the WebSocket uses: owner / org member / active
+			// collaborator only.
+			if _, err := handlers.ResolveProjectAccess(ctx, userID, projectID, h.scriptsClient, h.client, h.workspaceClient); err != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "You do not have access to this project")
+			}
+
+			resp, err := h.client.GetActiveSessions(ctx, &collab.GetActiveSessionsRequest{ProjectId: projectID})
+			if err != nil {
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to load edit sessions")
+			}
+
+			// Resolve display names once per distinct user (a user rarely holds
+			// more than one session, but dedupe keeps identity lookups minimal).
+			names := make(map[string]string)
+			out := make([]editSessionResponse, 0, len(resp.Sessions))
+			for _, s := range resp.Sessions {
+				name, ok := names[s.UserId]
+				if !ok {
+					name = h.resolveDisplayName(r.Context(), s.UserId)
+					names[s.UserId] = name
+				}
+				out = append(out, editSessionResponse{
+					SessionID:    s.Id,
+					UserID:       s.UserId,
+					Name:         name,
+					ElementID:    s.ElementId,
+					StartedAt:    handlers.TimestampToString(s.StartedAt),
+					LastActivity: handlers.TimestampToString(s.LastActivity),
+				})
+			}
+			return &out, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// resolveDisplayName looks up a user's full name (falling back to username, then
+// a "User xxxxxxxx" stub) via the identity service. Failures degrade to the stub
+// rather than failing the request — a name is decorative here.
+func (h *CollaborationHandler) resolveDisplayName(ctx context.Context, userID string) string {
+	fallback := "Someone"
+	if len(userID) >= 8 {
+		fallback = "User " + userID[:8]
+	}
+	lookupCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	resp, err := h.identityClient.GetUser(lookupCtx, &identity.GetUserRequest{UserId: userID})
+	if err != nil || resp.GetUser() == nil {
+		return fallback
+	}
+	u := resp.GetUser()
+	if name := strings.TrimSpace(u.GetFirstName() + " " + u.GetLastName()); name != "" {
+		return name
+	}
+	if u.GetUsername() != "" {
+		return u.GetUsername()
+	}
+	return fallback
 }

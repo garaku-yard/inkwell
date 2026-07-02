@@ -201,6 +201,11 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 
 					r.Get("/collaborators", collaborationHandler.GetProjectCollaborators)
 					r.Post("/collaborators", collaborationHandler.AddCollaborator)
+
+					// Durable advisory edit locks — who has the project open and
+					// where. Seeds soft-lock markers on open (live updates still
+					// arrive over the /ws WebSocket).
+					r.Get("/edit-sessions", collaborationHandler.GetEditSessions)
 					r.Delete("/collaborators/{userId}", collaborationHandler.RemoveCollaborator)
 					r.Patch("/collaborators/{userId}/role", collaborationHandler.UpdateCollaboratorRole)
 

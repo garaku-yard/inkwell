@@ -29,6 +29,11 @@ type conn struct {
 	elementID string
 	label     string
 
+	// sessionID is the durable edit-session row id opened at join, used to close
+	// it on disconnect. Set and read only by the connection's HandleWS goroutine
+	// (never the pumps), so it needs no lock. Empty if the durable write failed.
+	sessionID string
+
 	// limiter caps inbound frames; touched only by this conn's read pump.
 	limiter *tokenBucket
 
@@ -129,6 +134,15 @@ func (h *Hub) setFocus(c *conn, elementID, label string) Peer {
 	c.elementID = elementID
 	c.label = label
 	return c.peer()
+}
+
+// focusOf returns the element a connection currently reports editing, read under
+// the lock. Used by the heartbeat to refresh the durable session without
+// clearing its focus.
+func (h *Hub) focusOf(c *conn) string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return c.elementID
 }
 
 // broadcast delivers msg to the local room (sender excluded) and, when a
