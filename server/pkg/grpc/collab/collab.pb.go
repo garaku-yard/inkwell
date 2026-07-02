@@ -272,16 +272,21 @@ func (x *Comment) GetIsResolved() bool {
 	return false
 }
 
-// Real-time editing session
+// Real-time editing session — a durable, advisory record that a user has a
+// project open for editing. It survives WebSocket reconnects and gateway
+// restarts (the ephemeral presence roster does not), so it powers "who has
+// this open" and soft-lock markers that persist across a reconnect. element_id
+// is the element the user is currently focused on, empty when idle.
 type EditSession struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ProjectId     string                 `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	ScreenplayId  string                 `protobuf:"bytes,3,opt,name=screenplay_id,json=screenplayId,proto3" json:"screenplay_id,omitempty"`
+	ScreenplayId  string                 `protobuf:"bytes,3,opt,name=screenplay_id,json=screenplayId,proto3" json:"screenplay_id,omitempty"` // legacy, unused by the advisory-lock path
 	UserId        string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	StartedAt     *common.Timestamp      `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	LastActivity  *common.Timestamp      `protobuf:"bytes,6,opt,name=last_activity,json=lastActivity,proto3" json:"last_activity,omitempty"`
 	IsActive      bool                   `protobuf:"varint,7,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
+	ElementId     string                 `protobuf:"bytes,8,opt,name=element_id,json=elementId,proto3" json:"element_id,omitempty"` // element the user is focused on (empty = idle)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -363,6 +368,13 @@ func (x *EditSession) GetIsActive() bool {
 		return x.IsActive
 	}
 	return false
+}
+
+func (x *EditSession) GetElementId() string {
+	if x != nil {
+		return x.ElementId
+	}
+	return ""
 }
 
 // Live editing operation
@@ -1623,12 +1635,17 @@ func (x *DeleteCommentResponse) GetSuccess() bool {
 	return false
 }
 
-// Real-time editing requests/responses
+// Real-time editing requests/responses. StartEditSession is an upsert: it
+// creates a (project, user) session if none is active, otherwise refreshes the
+// existing one — so the gateway calls it on join, on focus change, and on the
+// keep-alive heartbeat, always passing the currently focused element_id (empty
+// when idle).
 type StartEditSessionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	ScreenplayId  string                 `protobuf:"bytes,2,opt,name=screenplay_id,json=screenplayId,proto3" json:"screenplay_id,omitempty"`
+	ScreenplayId  string                 `protobuf:"bytes,2,opt,name=screenplay_id,json=screenplayId,proto3" json:"screenplay_id,omitempty"` // legacy, ignored by the advisory-lock path
 	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ElementId     string                 `protobuf:"bytes,4,opt,name=element_id,json=elementId,proto3" json:"element_id,omitempty"` // element the user is focused on (empty = idle)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1680,6 +1697,13 @@ func (x *StartEditSessionRequest) GetScreenplayId() string {
 func (x *StartEditSessionRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
+	}
+	return ""
+}
+
+func (x *StartEditSessionRequest) GetElementId() string {
+	if x != nil {
+		return x.ElementId
 	}
 	return ""
 }
@@ -1914,8 +1938,9 @@ func (x *SendEditOperationResponse) GetSuccess() bool {
 
 type GetActiveSessionsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ScreenplayId  string                 `protobuf:"bytes,1,opt,name=screenplay_id,json=screenplayId,proto3" json:"screenplay_id,omitempty"`
+	ScreenplayId  string                 `protobuf:"bytes,1,opt,name=screenplay_id,json=screenplayId,proto3" json:"screenplay_id,omitempty"` // legacy, ignored when project_id is set
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ProjectId     string                 `protobuf:"bytes,3,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"` // preferred: list active sessions for this project
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1960,6 +1985,13 @@ func (x *GetActiveSessionsRequest) GetScreenplayId() string {
 func (x *GetActiveSessionsRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
+	}
+	return ""
+}
+
+func (x *GetActiveSessionsRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
 	}
 	return ""
 }
@@ -2735,7 +2767,7 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\r \x01(\v2\x11.common.TimestampR\tupdatedAt\x12\x1f\n" +
 	"\vis_resolved\x18\x0e \x01(\bR\n" +
-	"isResolved\"\x81\x02\n" +
+	"isResolved\"\xa0\x02\n" +
 	"\vEditSession\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -2745,7 +2777,9 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\n" +
 	"started_at\x18\x05 \x01(\v2\x11.common.TimestampR\tstartedAt\x126\n" +
 	"\rlast_activity\x18\x06 \x01(\v2\x11.common.TimestampR\flastActivity\x12\x1b\n" +
-	"\tis_active\x18\a \x01(\bR\bisActive\"\xd5\x01\n" +
+	"\tis_active\x18\a \x01(\bR\bisActive\x12\x1d\n" +
+	"\n" +
+	"element_id\x18\b \x01(\tR\telementId\"\xd5\x01\n" +
 	"\rEditOperation\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x17\n" +
@@ -2846,12 +2880,14 @@ const file_collab_collab_proto_rawDesc = "" +
 	"comment_id\x18\x01 \x01(\tR\tcommentId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"1\n" +
 	"\x15DeleteCommentResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"v\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\x95\x01\n" +
 	"\x17StartEditSessionRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12#\n" +
 	"\rscreenplay_id\x18\x02 \x01(\tR\fscreenplayId\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\tR\x06userId\"I\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"element_id\x18\x04 \x01(\tR\telementId\"I\n" +
 	"\x18StartEditSessionResponse\x12-\n" +
 	"\asession\x18\x01 \x01(\v2\x13.collab.EditSessionR\asession\"O\n" +
 	"\x15EndEditSessionRequest\x12\x1d\n" +
@@ -2863,10 +2899,12 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\x18SendEditOperationRequest\x123\n" +
 	"\toperation\x18\x01 \x01(\v2\x15.collab.EditOperationR\toperation\"5\n" +
 	"\x19SendEditOperationResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"X\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"w\n" +
 	"\x18GetActiveSessionsRequest\x12#\n" +
 	"\rscreenplay_id\x18\x01 \x01(\tR\fscreenplayId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"L\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x03 \x01(\tR\tprojectId\"L\n" +
 	"\x19GetActiveSessionsResponse\x12/\n" +
 	"\bsessions\x18\x01 \x03(\v2\x13.collab.EditSessionR\bsessions\"\x9d\x01\n" +
 	"\x15UpdatePresenceRequest\x12\x17\n" +

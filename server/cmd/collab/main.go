@@ -84,6 +84,12 @@ func main() {
 		WithLogger(slog.Default().With("component", "collab_outbox"))
 	go poller.Run(pollerCtx)
 
+	// Stale edit-session sweeper — closes durable advisory locks abandoned
+	// without a clean disconnect (crashed client / killed gateway). Reads
+	// already ignore stale rows via the staleness cutoff; this just keeps the
+	// active set from growing unbounded.
+	go runEditSessionSweeper(pollerCtx, collabService)
+
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),
 	)
@@ -114,6 +120,31 @@ func main() {
 	poller.Wait()
 	grpcServer.GracefulStop()
 	slog.Info("collaboration service stopped")
+}
+
+// runEditSessionSweeper periodically closes edit sessions abandoned without a
+// clean disconnect, until ctx is cancelled. Failures are logged and retried on
+// the next tick — the sweep is best-effort hygiene, never critical path.
+func runEditSessionSweeper(ctx context.Context, svc *service.CollaborationService) {
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			sweepCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			closed, err := svc.SweepStaleEditSessions(sweepCtx)
+			cancel()
+			if err != nil {
+				slog.Warn("edit-session sweep failed", "error", err)
+				continue
+			}
+			if closed > 0 {
+				slog.Info("closed stale edit sessions", "count", closed)
+			}
+		}
+	}
 }
 
 func loggingInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {

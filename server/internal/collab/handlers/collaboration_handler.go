@@ -477,8 +477,36 @@ func (h *CollaborationHandler) DeleteComment(ctx context.Context, req *collab_pb
 	}, nil
 }
 
-// StartEditSession opens a collaborative editing session for a user on a specific
-// project and screenplay, recording the start time and marking the session active.
+// toPBEditSession maps a durable edit session to its protobuf form. The legacy
+// screenplay_id is left empty; is_active is always true because only active
+// sessions are ever returned.
+func toPBEditSession(session *domain.EditSession) *collab_pb.EditSession {
+	elementID := ""
+	if session.ElementID.Valid {
+		elementID = session.ElementID.UUID.String()
+	}
+	return &collab_pb.EditSession{
+		Id:        session.ID.String(),
+		ProjectId: session.ProjectID.String(),
+		UserId:    session.UserID.String(),
+		ElementId: elementID,
+		StartedAt: &common.Timestamp{
+			Seconds: session.StartedAt.Unix(),
+			Nanos:   int32(session.StartedAt.Nanosecond()),
+		},
+		LastActivity: &common.Timestamp{
+			Seconds: session.LastActivity.Unix(),
+			Nanos:   int32(session.LastActivity.Nanosecond()),
+		},
+		IsActive: true,
+	}
+}
+
+// StartEditSession upserts the caller's durable edit session for a project and
+// records the element they are focused on. Despite the name it is idempotent —
+// the realtime gateway calls it on join, on focus change, and on the heartbeat,
+// always passing the current element_id (empty when idle). Authorization is
+// enforced by the gateway before the socket opens, so this trusts the caller.
 func (h *CollaborationHandler) StartEditSession(ctx context.Context, req *collab_pb.StartEditSessionRequest) (*collab_pb.StartEditSessionResponse, error) {
 	projectID, err := parseUUID(req.ProjectId)
 	if err != nil {
@@ -490,49 +518,33 @@ func (h *CollaborationHandler) StartEditSession(ctx context.Context, req *collab
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	screenplayID, err := parseUUID(req.ScreenplayId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid screenplay ID: %v", err)
+	// element_id is optional (empty = no current focus).
+	var elementID uuid.NullUUID
+	if req.ElementId != "" {
+		parsed, perr := parseUUID(req.ElementId)
+		if perr != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid element ID: %v", perr)
+		}
+		elementID = uuid.NullUUID{UUID: parsed, Valid: true}
 	}
 
-	session, err := h.service.StartEditSession(ctx, userID, projectID, screenplayID)
+	session, err := h.service.RecordEditFocus(ctx, projectID, userID, elementID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to start edit session: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to record edit session: %v", err)
 	}
 
-	return &collab_pb.StartEditSessionResponse{
-		Session: &collab_pb.EditSession{
-			Id:           session.ID.String(),
-			ProjectId:    session.ProjectID.String(),
-			ScreenplayId: session.ScreenplayID.String(),
-			UserId:       session.UserID.String(),
-			StartedAt: &common.Timestamp{
-				Seconds: session.StartedAt.Unix(),
-				Nanos:   int32(session.StartedAt.Nanosecond()),
-			},
-			LastActivity: &common.Timestamp{
-				Seconds: session.LastActivity.Unix(),
-				Nanos:   int32(session.LastActivity.Nanosecond()),
-			},
-			IsActive: session.IsActive,
-		},
-	}, nil
+	return &collab_pb.StartEditSessionResponse{Session: toPBEditSession(session)}, nil
 }
 
-// EndEditSession closes an active editing session, marking it inactive.
+// EndEditSession closes an active editing session, stamping ended_at. It is
+// idempotent — closing an already-ended or missing session succeeds.
 func (h *CollaborationHandler) EndEditSession(ctx context.Context, req *collab_pb.EndEditSessionRequest) (*collab_pb.EndEditSessionResponse, error) {
 	sessionID, err := parseUUID(req.SessionId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid session ID: %v", err)
 	}
 
-	userID, err := parseUUID(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
-	}
-
-	err = h.service.EndEditSession(ctx, userID, sessionID)
-	if err != nil {
+	if err := h.service.EndEditSession(ctx, sessionID); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to end edit session: %v", err)
 	}
 
@@ -551,35 +563,23 @@ func (h *CollaborationHandler) SendEditOperation(ctx context.Context, req *colla
 	}, nil
 }
 
-// GetActiveSessions returns all currently active editing sessions for a screenplay.
+// GetActiveSessions returns the currently active, non-stale edit sessions for a
+// project (the durable advisory locks). The request's project_id is authoritative;
+// the legacy screenplay_id is ignored.
 func (h *CollaborationHandler) GetActiveSessions(ctx context.Context, req *collab_pb.GetActiveSessionsRequest) (*collab_pb.GetActiveSessionsResponse, error) {
-	screenplayID, err := parseUUID(req.ScreenplayId)
+	projectID, err := parseUUID(req.ProjectId)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid screenplay ID: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project ID: %v", err)
 	}
 
-	sessions, err := h.service.GetActiveEditSessions(ctx, screenplayID)
+	sessions, err := h.service.ListActiveEditSessions(ctx, projectID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get active sessions: %v", err)
 	}
 
 	pbSessions := make([]*collab_pb.EditSession, len(sessions))
 	for i, session := range sessions {
-		pbSessions[i] = &collab_pb.EditSession{
-			Id:           session.ID.String(),
-			ProjectId:    session.ProjectID.String(),
-			ScreenplayId: session.ScreenplayID.String(),
-			UserId:       session.UserID.String(),
-			StartedAt: &common.Timestamp{
-				Seconds: session.StartedAt.Unix(),
-				Nanos:   int32(session.StartedAt.Nanosecond()),
-			},
-			LastActivity: &common.Timestamp{
-				Seconds: session.LastActivity.Unix(),
-				Nanos:   int32(session.LastActivity.Nanosecond()),
-			},
-			IsActive: session.IsActive,
-		}
+		pbSessions[i] = toPBEditSession(session)
 	}
 
 	return &collab_pb.GetActiveSessionsResponse{

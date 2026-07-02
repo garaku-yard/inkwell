@@ -726,92 +726,113 @@ func (r *PostgresCollaborationRepository) DeleteComment(ctx context.Context, id 
 	return nil
 }
 
-// Edit session operations
+// Edit session operations (durable advisory locks).
+//
+// Columns follow the actual schema — session_id, project_id, user_id,
+// element_id, started_at, last_activity_at, ended_at — and a session is active
+// while ended_at IS NULL. (The legacy screenplay_id column is left NULL by this
+// path.) An earlier version of this code queried non-existent last_activity /
+// is_active columns and never ran successfully; these methods are the corrected,
+// project-and-element-scoped implementation.
+//
+// All timestamps are written and compared using the database clock (NOW()), so
+// activity/staleness comparisons never mix Go-local time with the DB's, which —
+// against a `timestamp without time zone` column — would otherwise be off by the
+// gateway host's UTC offset.
+const editSessionColumns = `session_id, project_id, user_id, element_id, started_at, last_activity_at`
+
+// CreateEditSession inserts a new active session, stamping started_at and
+// last_activity_at from the database clock (NOW()) and reading them back so the
+// returned domain object is accurate. ended_at defaults to NULL.
 func (r *PostgresCollaborationRepository) CreateEditSession(ctx context.Context, session *domain.EditSession) error {
 	query := `
-		INSERT INTO edit_sessions (session_id, project_id, screenplay_id, user_id, started_at, last_activity, is_active)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`
+		INSERT INTO edit_sessions (session_id, project_id, user_id, element_id, started_at, last_activity_at)
+		VALUES ($1, $2, $3, $4, NOW(), NOW())
+		RETURNING started_at, last_activity_at`
 
-	_, err := r.db.ExecContext(ctx, query,
+	return r.db.QueryRowContext(ctx, query,
 		session.ID,
 		session.ProjectID,
-		session.ScreenplayID,
 		session.UserID,
-		session.StartedAt,
-		session.LastActivity,
-		session.IsActive,
-	)
-	return err
+		session.ElementID,
+	).Scan(&session.StartedAt, &session.LastActivity)
 }
 
-func (r *PostgresCollaborationRepository) GetActiveEditSession(ctx context.Context, userID, screenplayID uuid.UUID) (*domain.EditSession, error) {
+// GetActiveEditSessionForUser returns the caller's current active session for a
+// project (the most recent, if somehow more than one exists), or
+// ErrEditSessionNotFound. It backs the get-or-create upsert.
+func (r *PostgresCollaborationRepository) GetActiveEditSessionForUser(ctx context.Context, projectID, userID uuid.UUID) (*domain.EditSession, error) {
 	query := `
-		SELECT session_id, project_id, screenplay_id, user_id, started_at, last_activity, is_active
+		SELECT ` + editSessionColumns + `
 		FROM edit_sessions
-		WHERE user_id = $1 AND screenplay_id = $2 AND is_active = true`
+		WHERE project_id = $1 AND user_id = $2 AND ended_at IS NULL
+		ORDER BY last_activity_at DESC
+		LIMIT 1`
 
 	session := &domain.EditSession{}
-	err := r.db.QueryRowContext(ctx, query, userID, screenplayID).Scan(
+	err := r.db.QueryRowContext(ctx, query, projectID, userID).Scan(
 		&session.ID,
 		&session.ProjectID,
-		&session.ScreenplayID,
 		&session.UserID,
+		&session.ElementID,
 		&session.StartedAt,
 		&session.LastActivity,
-		&session.IsActive,
 	)
-
 	if err == sql.ErrNoRows {
 		return nil, domain.ErrEditSessionNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-
 	return session, nil
 }
 
-func (r *PostgresCollaborationRepository) GetScreenplayEditSessions(ctx context.Context, screenplayID uuid.UUID) ([]*domain.EditSession, error) {
+// ListActiveProjectEditSessions returns every active session for a project whose
+// last activity is within staleAfter of now, most recent first. The staleness
+// filter (evaluated against the DB clock) means a crashed client that never wrote
+// ended_at stops appearing once its heartbeat lapses, without waiting for the
+// sweep to close the row.
+func (r *PostgresCollaborationRepository) ListActiveProjectEditSessions(ctx context.Context, projectID uuid.UUID, staleAfter time.Duration) ([]*domain.EditSession, error) {
 	query := `
-		SELECT session_id, project_id, screenplay_id, user_id, started_at, last_activity, is_active
+		SELECT ` + editSessionColumns + `
 		FROM edit_sessions
-		WHERE screenplay_id = $1 AND is_active = true
-		ORDER BY last_activity DESC`
+		WHERE project_id = $1 AND ended_at IS NULL
+		  AND last_activity_at > NOW() - make_interval(secs => $2)
+		ORDER BY last_activity_at DESC`
 
-	rows, err := r.db.QueryContext(ctx, query, screenplayID)
+	rows, err := r.db.QueryContext(ctx, query, projectID, staleAfter.Seconds())
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var sessions []*domain.EditSession
+	sessions := make([]*domain.EditSession, 0)
 	for rows.Next() {
 		session := &domain.EditSession{}
-		err := rows.Scan(
+		if err := rows.Scan(
 			&session.ID,
 			&session.ProjectID,
-			&session.ScreenplayID,
 			&session.UserID,
+			&session.ElementID,
 			&session.StartedAt,
 			&session.LastActivity,
-			&session.IsActive,
-		)
-		if err != nil {
+		); err != nil {
 			return nil, err
 		}
 		sessions = append(sessions, session)
 	}
-
-	return sessions, nil
+	return sessions, rows.Err()
 }
 
-func (r *PostgresCollaborationRepository) UpdateEditSessionActivity(ctx context.Context, sessionID uuid.UUID) error {
-	query := `UPDATE edit_sessions SET last_activity = $1 WHERE session_id = $2`
-	result, err := r.db.ExecContext(ctx, query, time.Now(), sessionID)
+// UpdateEditSessionFocus moves a session's focused element and bumps its last
+// activity (this doubles as the heartbeat). Passing an invalid NullUUID clears
+// the focus. Returns ErrEditSessionNotFound if the session is gone or ended.
+func (r *PostgresCollaborationRepository) UpdateEditSessionFocus(ctx context.Context, sessionID uuid.UUID, elementID uuid.NullUUID) error {
+	query := `UPDATE edit_sessions SET element_id = $1, last_activity_at = NOW() WHERE session_id = $2 AND ended_at IS NULL`
+	result, err := r.db.ExecContext(ctx, query, elementID, sessionID)
 	if err != nil {
 		return err
 	}
-
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err
@@ -819,26 +840,29 @@ func (r *PostgresCollaborationRepository) UpdateEditSessionActivity(ctx context.
 	if rowsAffected == 0 {
 		return domain.ErrEditSessionNotFound
 	}
-
 	return nil
 }
 
+// EndEditSession marks a session inactive by stamping ended_at. It is idempotent
+// — ending an already-ended (or missing) session is a no-op, not an error — so
+// the disconnect path never has to distinguish a double-close.
 func (r *PostgresCollaborationRepository) EndEditSession(ctx context.Context, sessionID uuid.UUID) error {
-	query := `UPDATE edit_sessions SET is_active = false WHERE session_id = $1`
-	result, err := r.db.ExecContext(ctx, query, sessionID)
-	if err != nil {
-		return err
-	}
+	query := `UPDATE edit_sessions SET ended_at = NOW() WHERE session_id = $1 AND ended_at IS NULL`
+	_, err := r.db.ExecContext(ctx, query, sessionID)
+	return err
+}
 
-	rowsAffected, err := result.RowsAffected()
+// SweepStaleEditSessions closes every active session whose last activity is older
+// than staleAfter (evaluated against the DB clock) — hygiene for sessions
+// abandoned without a clean disconnect (crash, killed process). Returns the
+// number of sessions closed.
+func (r *PostgresCollaborationRepository) SweepStaleEditSessions(ctx context.Context, staleAfter time.Duration) (int64, error) {
+	query := `UPDATE edit_sessions SET ended_at = NOW() WHERE ended_at IS NULL AND last_activity_at < NOW() - make_interval(secs => $1)`
+	result, err := r.db.ExecContext(ctx, query, staleAfter.Seconds())
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if rowsAffected == 0 {
-		return domain.ErrEditSessionNotFound
-	}
-
-	return nil
+	return result.RowsAffected()
 }
 
 // Edit operation operations

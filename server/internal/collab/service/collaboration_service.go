@@ -435,52 +435,67 @@ func (s *CollaborationService) DeleteComment(ctx context.Context, userID, commen
 	return s.repo.DeleteComment(ctx, commentID)
 }
 
-// Edit session operations
-func (s *CollaborationService) StartEditSession(ctx context.Context, userID, projectID, screenplayID uuid.UUID) (*domain.EditSession, error) {
-	// Check if user has editor permission for this project
-	if err := s.CheckPermission(ctx, userID, projectID, "editor"); err != nil {
+// editSessionStaleAfter is how long a session may go without a heartbeat before
+// reads treat it as dead (and the sweep closes it). It tolerates two missed 30s
+// heartbeats plus slack, matching the ephemeral presence store's 90s TTL.
+const editSessionStaleAfter = 90 * time.Second
+
+// Edit session operations (durable advisory locks).
+
+// RecordEditFocus upserts the caller's durable edit session for a project and
+// records the element they are currently focused on. It is the single entry
+// point the realtime gateway calls on join (elementID invalid = no focus yet),
+// on focus change, and on the keep-alive heartbeat — creating the session on the
+// first call and refreshing its focus + activity thereafter.
+//
+// Authorization is the caller's responsibility: the realtime gateway has already
+// run ResolveProjectAccess before opening the socket, so this does not re-check
+// permissions (doing so would wrongly drop a project owner who holds no
+// collaborator row).
+func (s *CollaborationService) RecordEditFocus(ctx context.Context, projectID, userID uuid.UUID, elementID uuid.NullUUID) (*domain.EditSession, error) {
+	existing, err := s.repo.GetActiveEditSessionForUser(ctx, projectID, userID)
+	if err == nil {
+		if uerr := s.repo.UpdateEditSessionFocus(ctx, existing.ID, elementID); uerr != nil {
+			return nil, uerr
+		}
+		existing.ElementID = elementID
+		// last_activity_at was bumped to NOW() by UpdateEditSessionFocus; the
+		// gateway ignores the returned timestamp and the REST path re-reads from
+		// the DB, so an approximate value here is fine.
+		existing.LastActivity = time.Now()
+		return existing, nil
+	}
+	if !errors.Is(err, domain.ErrEditSessionNotFound) {
 		return nil, err
 	}
 
-	// Check if user already has an active session
-	existingSession, err := s.repo.GetActiveEditSession(ctx, userID, screenplayID)
-	if err == nil {
-		// Update existing session activity
-		if err := s.repo.UpdateEditSessionActivity(ctx, existingSession.ID); err != nil {
-			return nil, err
-		}
-		return existingSession, nil
-	}
-
+	// started_at / last_activity_at are stamped by the DB (NOW()) inside
+	// CreateEditSession and read back onto the struct.
 	session := &domain.EditSession{
-		ID:           uuid.New(),
-		ProjectID:    projectID,
-		ScreenplayID: screenplayID,
-		UserID:       userID,
-		StartedAt:    time.Now(),
-		LastActivity: time.Now(),
-		IsActive:     true,
+		ID:        uuid.New(),
+		ProjectID: projectID,
+		UserID:    userID,
+		ElementID: elementID,
 	}
-
 	if err := s.repo.CreateEditSession(ctx, session); err != nil {
 		return nil, err
 	}
-
 	return session, nil
 }
 
-func (s *CollaborationService) EndEditSession(ctx context.Context, userID, sessionID uuid.UUID) error {
-	// Get session to verify ownership
-	session, err := s.repo.GetActiveEditSession(ctx, userID, uuid.UUID{})
-	if err != nil {
-		return err
-	}
-
-	if session.UserID != userID {
-		return domain.ErrUnauthorized
-	}
-
+// EndEditSession closes a session by id. It is idempotent (ending an already
+// ended or missing session is a no-op), matching the best-effort disconnect
+// path — the gateway holds the session id it was handed at join, so no
+// ownership re-check is needed.
+func (s *CollaborationService) EndEditSession(ctx context.Context, sessionID uuid.UUID) error {
 	return s.repo.EndEditSession(ctx, sessionID)
+}
+
+// SweepStaleEditSessions closes sessions abandoned without a clean disconnect.
+// Reads already ignore stale rows; this keeps the active set from growing
+// unbounded. Returns the number of sessions closed.
+func (s *CollaborationService) SweepStaleEditSessions(ctx context.Context) (int64, error) {
+	return s.repo.SweepStaleEditSessions(ctx, editSessionStaleAfter)
 }
 
 // User presence operations
@@ -543,8 +558,11 @@ func (s *CollaborationService) UpdateComment(ctx context.Context, userID, commen
 	return s.repo.UpdateComment(ctx, commentID, content)
 }
 
-func (s *CollaborationService) GetActiveEditSessions(ctx context.Context, screenplayID uuid.UUID) ([]*domain.EditSession, error) {
-	return s.repo.GetScreenplayEditSessions(ctx, screenplayID)
+// ListActiveEditSessions returns the currently active, non-stale edit sessions
+// for a project. Stale rows (no heartbeat within editSessionStaleAfter) are
+// filtered out so a crashed client doesn't show as a phantom lock.
+func (s *CollaborationService) ListActiveEditSessions(ctx context.Context, projectID uuid.UUID) ([]*domain.EditSession, error) {
+	return s.repo.ListActiveProjectEditSessions(ctx, projectID, editSessionStaleAfter)
 }
 
 func (s *CollaborationService) SetUserOffline(ctx context.Context, userID, projectID uuid.UUID) error {

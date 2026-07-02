@@ -46,15 +46,22 @@ type Comment struct {
 	UpdatedAt       time.Time  `json:"updated_at" db:"updated_at"`
 }
 
-// EditSession represents a real-time editing session
+// EditSession is a durable, advisory record that a user has a project open for
+// editing. Unlike the ephemeral presence roster (which lives only for the length
+// of a WebSocket connection), an EditSession is persisted, so soft-lock markers
+// and "who has this open" survive a reconnect or a gateway restart. A session is
+// active while its ended_at is NULL; ElementID is the element the user is
+// currently focused on, invalid (NULL) when idle.
+//
+// The columns match migration 000001 (last_activity_at, ended_at) plus 000003
+// (element_id). The legacy screenplay_id column is left NULL by this path.
 type EditSession struct {
-	ID           uuid.UUID `json:"id" db:"session_id"`
-	ProjectID    uuid.UUID `json:"project_id" db:"project_id"`
-	ScreenplayID uuid.UUID `json:"screenplay_id" db:"screenplay_id"`
-	UserID       uuid.UUID `json:"user_id" db:"user_id"`
-	StartedAt    time.Time `json:"started_at" db:"started_at"`
-	LastActivity time.Time `json:"last_activity" db:"last_activity"`
-	IsActive     bool      `json:"is_active" db:"is_active"`
+	ID           uuid.UUID     `json:"id" db:"session_id"`
+	ProjectID    uuid.UUID     `json:"project_id" db:"project_id"`
+	UserID       uuid.UUID     `json:"user_id" db:"user_id"`
+	ElementID    uuid.NullUUID `json:"element_id" db:"element_id"`
+	StartedAt    time.Time     `json:"started_at" db:"started_at"`
+	LastActivity time.Time     `json:"last_activity" db:"last_activity_at"`
 }
 
 // EditOperation represents a real-time edit operation

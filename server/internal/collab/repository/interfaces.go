@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"time"
+
 	"inkwell/server/internal/collab/domain"
 
 	"github.com/google/uuid"
@@ -46,12 +48,17 @@ type CollaborationRepository interface {
 	ResolveComment(ctx context.Context, id uuid.UUID) error
 	DeleteComment(ctx context.Context, id uuid.UUID) error
 
-	// Edit session operations
+	// Edit session operations (durable advisory locks). A session is active
+	// while its ended_at is NULL; reads filter out sessions whose last activity
+	// is older than a caller-supplied staleness window so a crashed client that
+	// never wrote ended_at doesn't linger as a phantom lock. All timestamps use
+	// the database clock (NOW()) so comparisons never mix Go-local and DB time.
 	CreateEditSession(ctx context.Context, session *domain.EditSession) error
-	GetActiveEditSession(ctx context.Context, userID, screenplayID uuid.UUID) (*domain.EditSession, error)
-	GetScreenplayEditSessions(ctx context.Context, screenplayID uuid.UUID) ([]*domain.EditSession, error)
-	UpdateEditSessionActivity(ctx context.Context, sessionID uuid.UUID) error
+	GetActiveEditSessionForUser(ctx context.Context, projectID, userID uuid.UUID) (*domain.EditSession, error)
+	ListActiveProjectEditSessions(ctx context.Context, projectID uuid.UUID, staleAfter time.Duration) ([]*domain.EditSession, error)
+	UpdateEditSessionFocus(ctx context.Context, sessionID uuid.UUID, elementID uuid.NullUUID) error
 	EndEditSession(ctx context.Context, sessionID uuid.UUID) error
+	SweepStaleEditSessions(ctx context.Context, staleAfter time.Duration) (int64, error)
 
 	// Edit operation operations
 	CreateEditOperation(ctx context.Context, operation *domain.EditOperation) error

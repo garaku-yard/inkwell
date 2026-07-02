@@ -36,15 +36,20 @@ message Comment {
   bool is_resolved = 14;
 }
 
-// Real-time editing session
+// Real-time editing session — a durable, advisory record that a user has a
+// project open for editing. It survives WebSocket reconnects and gateway
+// restarts (the ephemeral presence roster does not), so it powers "who has
+// this open" and soft-lock markers that persist across a reconnect. element_id
+// is the element the user is currently focused on, empty when idle.
 message EditSession {
   string id = 1;
   string project_id = 2;
-  string screenplay_id = 3;
+  string screenplay_id = 3; // legacy, unused by the advisory-lock path
   string user_id = 4;
   common.Timestamp started_at = 5;
   common.Timestamp last_activity = 6;
   bool is_active = 7;
+  string element_id = 8; // element the user is focused on (empty = idle)
 }
 
 // Live editing operation
@@ -180,11 +185,16 @@ message DeleteCommentResponse {
   bool success = 1;
 }
 
-// Real-time editing requests/responses
+// Real-time editing requests/responses. StartEditSession is an upsert: it
+// creates a (project, user) session if none is active, otherwise refreshes the
+// existing one — so the gateway calls it on join, on focus change, and on the
+// keep-alive heartbeat, always passing the currently focused element_id (empty
+// when idle).
 message StartEditSessionRequest {
   string project_id = 1;
-  string screenplay_id = 2;
+  string screenplay_id = 2; // legacy, ignored by the advisory-lock path
   string user_id = 3;
+  string element_id = 4; // element the user is focused on (empty = idle)
 }
 
 message StartEditSessionResponse {
@@ -209,8 +219,9 @@ message SendEditOperationResponse {
 }
 
 message GetActiveSessionsRequest {
-  string screenplay_id = 1;
+  string screenplay_id = 1; // legacy, ignored when project_id is set
   string user_id = 2;
+  string project_id = 3; // preferred: list active sessions for this project
 }
 
 message GetActiveSessionsResponse {
