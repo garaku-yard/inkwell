@@ -28,6 +28,7 @@ import { importIntoProject } from "@/lib/import/import-into-project"
 import { StableContentEditable } from "./shared/StableContentEditable"
 import { RemoteCarets } from "./shared/RemoteCarets"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
+import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   createScene,
@@ -105,14 +106,18 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     orderedIds: scenes.map((s) => s.id),
   })
 
-  // Live co-editing + remote carets (no-op on the desktop build).
+  // Live co-editing + remote carets + soft-lock markers (no-op on the desktop
+  // build). focusId reports the chapter in view so collaborators see "editing X"
+  // and peersByElement keys live + durable locks by chapter for the rail pips.
   const writeSurfaceRef = useRef<HTMLDivElement | null>(null)
-  const { broadcastEdit, subscribeCarets } = useEditorRealtime({
+  const { broadcastEdit, subscribeCarets, peersByElement } = useEditorRealtime({
     projectId: projectData.id,
     userId: user?.id,
     scenes,
     setScenes,
     surfaceRef: writeSurfaceRef,
+    focusId: activeChapterId,
+    focusLabel: scenes.find((s) => s.id === activeChapterId)?.scene_heading || "Untitled",
   })
 
   // Every chapter needs at least one real `paragraph` element to write into. A
@@ -176,15 +181,17 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     () =>
       scenes.map((scene, i) => {
         const chWords = (scene.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0)
+        const here = peersByElement.get(scene.id)
         return {
           id: scene.id,
           title: scene.scene_heading || "Untitled",
           index: i + 1,
           meta: chWords > 0 ? `${chWords.toLocaleString()}w` : undefined,
           commentTargetIds: [scene.id, ...(scene.elements ?? []).map((e) => e.id)],
+          adornment: here && here.length ? <PresencePips peers={here} /> : undefined,
         }
       }),
-    [scenes],
+    [scenes, peersByElement],
   )
 
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {

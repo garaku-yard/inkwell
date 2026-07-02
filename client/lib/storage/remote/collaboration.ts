@@ -62,6 +62,23 @@ export const collaboration: CollaborationStorage = {
     }))
   },
 
+  getEditSessions: async (projectId) => {
+    const rows = await apiClient<Array<{
+      session_id: string
+      user_id: string
+      name?: string
+      element_id?: string
+      last_activity: string
+    }>>(`projects/${projectId}/edit-sessions`, { method: "GET" })
+    return rows.map((r) => ({
+      sessionId: r.session_id,
+      userId: r.user_id,
+      name: (r.name || "").trim() || `User ${r.user_id.slice(0, 8)}`,
+      elementId: r.element_id || "",
+      lastActivity: r.last_activity,
+    }))
+  },
+
   updateCollaboratorRole: async (collaboratorId, role) => {
     const response = await apiClient<{
       id: string

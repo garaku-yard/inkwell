@@ -19,6 +19,7 @@ import { useExportToast } from "@/lib/export/use-export-toast"
 import { StableContentEditable } from "./shared/StableContentEditable"
 import { RemoteCarets } from "./shared/RemoteCarets"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
+import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   EditorSidebar,
@@ -98,12 +99,14 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
 
   // Live co-editing + remote carets (no-op on the desktop build).
   const writeSurfaceRef = useRef<HTMLDivElement | null>(null)
-  const { broadcastEdit, subscribeCarets } = useEditorRealtime({
+  const { broadcastEdit, subscribeCarets, peersByElement } = useEditorRealtime({
     projectId: projectData.id,
     userId: user?.id,
     scenes: pages,
     setScenes: setPages,
     surfaceRef: writeSurfaceRef,
+    focusId: activePageId,
+    focusLabel: pages.find((p) => p.id === activePageId)?.scene_heading || "Page",
   })
 
   const totalPanels = pages.reduce((acc, p) => acc + panelCount(p.elements ?? []), 0)
@@ -124,15 +127,17 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
     () =>
       pages.map((page, i) => {
         const pc = panelCount(page.elements ?? [])
+        const here = peersByElement.get(page.id)
         return {
           id: page.id,
           title: page.scene_heading || `Page ${i + 1}`,
           index: i + 1,
           meta: pc > 0 ? `${pc} panel${pc !== 1 ? "s" : ""}` : undefined,
           commentTargetIds: [page.id, ...(page.elements ?? []).map((e) => e.id)],
+          adornment: here && here.length ? <PresencePips peers={here} /> : undefined,
         }
       }),
-    [pages],
+    [pages, peersByElement],
   )
 
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {

@@ -24,6 +24,7 @@ import { type ParsedProject } from "@/lib/import/types"
 import { StableContentEditable } from "./shared/StableContentEditable"
 import { RemoteCarets } from "./shared/RemoteCarets"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
+import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   EditorSidebar,
@@ -90,12 +91,14 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
 
   // Live co-editing + remote carets (no-op on the desktop build).
   const writeSurfaceRef = useRef<HTMLDivElement | null>(null)
-  const { broadcastEdit, subscribeCarets } = useEditorRealtime({
+  const { broadcastEdit, subscribeCarets, peersByElement } = useEditorRealtime({
     projectId: projectData.id,
     userId: user?.id,
     scenes,
     setScenes,
     surfaceRef: writeSurfaceRef,
+    focusId: activePoemId,
+    focusLabel: scenes.find((s) => s.id === activePoemId)?.scene_heading || "Untitled",
   })
 
   // Every poem needs at least one real `line` element to write into. A poem with
@@ -145,15 +148,17 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     () =>
       scenes.map((scene, i) => {
         const lc = countLines(scene.elements ?? [])
+        const here = peersByElement.get(scene.id)
         return {
           id: scene.id,
           title: scene.scene_heading || "Untitled",
           index: i + 1,
           meta: lc > 0 ? `${lc} ${lc === 1 ? "line" : "lines"}` : undefined,
           commentTargetIds: [scene.id, ...(scene.elements ?? []).map((e) => e.id)],
+          adornment: here && here.length ? <PresencePips peers={here} /> : undefined,
         }
       }),
-    [scenes],
+    [scenes, peersByElement],
   )
 
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {

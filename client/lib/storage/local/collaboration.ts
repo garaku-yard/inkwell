@@ -6,6 +6,7 @@ import { reject } from "./shared"
 export const collaboration: CollaborationStorage = {
   addCollaborator: () => reject("collaboration"),
   listCollaborators: async () => [],
+  getEditSessions: async () => [],
   updateCollaboratorRole: () => reject("collaboration"),
   removeCollaborator: () => reject("collaboration"),
   addComment: () => reject("collaboration"),

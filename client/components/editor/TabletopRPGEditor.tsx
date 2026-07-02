@@ -23,6 +23,7 @@ import { importIntoProject } from "@/lib/import/import-into-project"
 import { StableContentEditable } from "./shared/StableContentEditable"
 import { RemoteCarets } from "./shared/RemoteCarets"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
+import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   EditorSidebar,
@@ -143,12 +144,14 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
 
   // Live co-editing + remote carets (no-op on the desktop build).
   const writeSurfaceRef = useRef<HTMLDivElement | null>(null)
-  const { broadcastEdit, subscribeCarets } = useEditorRealtime({
+  const { broadcastEdit, subscribeCarets, peersByElement } = useEditorRealtime({
     projectId: projectData.id,
     userId: user?.id,
     scenes: sections,
     setScenes: setSections,
     surfaceRef: writeSurfaceRef,
+    focusId: activeSectionId,
+    focusLabel: sections.find((s) => s.id === activeSectionId)?.scene_heading || "Untitled",
   })
 
   // Every section needs at least one real `body` element to write into. A section
@@ -197,21 +200,25 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
 
   const sidebarItems = useMemo<EditorSidebarItem[]>(
     () =>
-      sections.map((section, i) => ({
-        id: section.id,
-        title: section.scene_heading || "Untitled",
-        index: i + 1,
-        commentTargetIds: [section.id, ...(section.elements ?? []).map((e) => e.id)],
-        subItems: (section.elements ?? [])
-          .filter((el) => el.element_type === "h2")
-          .map((h) => ({
-            id: h.id,
-            title: h.content || "Subsection",
-            onSelect: () =>
-              document.getElementById(`el-${h.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }),
-          })),
-      })),
-    [sections],
+      sections.map((section, i) => {
+        const here = peersByElement.get(section.id)
+        return {
+          id: section.id,
+          title: section.scene_heading || "Untitled",
+          index: i + 1,
+          commentTargetIds: [section.id, ...(section.elements ?? []).map((e) => e.id)],
+          adornment: here && here.length ? <PresencePips peers={here} /> : undefined,
+          subItems: (section.elements ?? [])
+            .filter((el) => el.element_type === "h2")
+            .map((h) => ({
+              id: h.id,
+              title: h.content || "Subsection",
+              onSelect: () =>
+                document.getElementById(`el-${h.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }),
+            })),
+        }
+      }),
+    [sections, peersByElement],
   )
 
   const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {

@@ -11,7 +11,6 @@ import { useToast } from "@/hooks/use-toast"
 import { AIChatPanel } from "./AIChatPanel"
 import { ProjectShell } from "./shared/ProjectShell"
 import { PresencePips } from "./shared/PresencePips"
-import type { Peer } from "@/lib/realtime/protocol"
 import { EditorToolbar } from "./shared/EditorToolbar"
 import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
@@ -149,36 +148,20 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const activePassage = passages.find(p => p.id === activePassageId) ?? null
   const activeElements = activePassage?.elements ?? []
 
-  // Live collaboration: live edit sync + remote carets via the shared hook
-  // (no-op on the desktop build — no realtime capability).
+  // Live collaboration via the shared hook (no-op on the desktop build): live
+  // edit sync, remote carets, focus reporting, and soft-lock markers. Passing
+  // focusId makes the hook report the active passage and key peersByElement (live
+  // + durable advisory locks) by passage — the pips in the rail and the banner.
   const writeSurfaceRef = useRef<HTMLDivElement | null>(null)
-  const { peers, broadcastEdit, reportFocus, subscribeCarets } = useEditorRealtime({
+  const { broadcastEdit, subscribeCarets, peersByElement: peersByPassage } = useEditorRealtime({
     projectId: projectData.id,
     userId: user?.id,
     scenes: passages,
     setScenes: setPassages,
     surfaceRef: writeSurfaceRef,
+    focusId: activePassageId,
+    focusLabel: activePassage?.scene_heading || "Untitled",
   })
-
-  // Who is editing which passage right now — keyed by the passage id each peer
-  // reports as its focus. Drives the soft-lock pips in the rail and the banner
-  // on the active passage.
-  const peersByPassage = useMemo(() => {
-    const map = new Map<string, Peer[]>()
-    for (const p of peers) {
-      if (!p.elementId) continue
-      const list = map.get(p.elementId)
-      if (list) list.push(p)
-      else map.set(p.elementId, [p])
-    }
-    return map
-  }, [peers])
-
-  // Report which passage this client is editing so collaborators' presence bar
-  // reads "editing <passage>".
-  useEffect(() => {
-    if (activePassageId) reportFocus(activePassageId, activePassage?.scene_heading || "Untitled")
-  }, [activePassageId, activePassage?.scene_heading, reportFocus])
 
   const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
     if (focusedElementId) {

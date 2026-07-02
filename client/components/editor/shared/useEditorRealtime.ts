@@ -22,10 +22,11 @@
  * label) stays in each editor, which can use the returned `peers`/`reportFocus`.
  */
 
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import type { Dispatch, RefObject, SetStateAction } from "react"
 
 import { useProjectPresence } from "@/lib/realtime/PresenceContext"
+import { useDurableSessions } from "@/lib/realtime/useDurableSessions"
 import type { Peer } from "@/lib/realtime/protocol"
 import type { CaretSubscriber } from "@/hooks/useRealtimePresence"
 import { getFullProject, type Scene } from "@/services/project"
@@ -51,19 +52,34 @@ interface UseEditorRealtimeOptions {
   setScenes: Dispatch<SetStateAction<Scene[]>>
   /** The write surface element; scopes caret reporting and hosts the overlay. */
   surfaceRef: RefObject<HTMLElement | null>
+  /** The scene the local user is currently working in. Reported as presence
+   *  focus (so collaborators read "editing X" and get a durable soft-lock on it)
+   *  and used as the key space for {@link UseEditorRealtimeResult.peersByElement}.
+   *  Omit (or pass null) to not report focus. */
+  focusId?: string | null
+  /** Human-readable label for `focusId` — e.g. the scene heading — shown in the
+   *  "editing X" presence tooltip. */
+  focusLabel?: string
 }
 
 interface UseEditorRealtimeResult {
-  /** Other people in the room (for soft-lock UI); empty on the desktop build. */
+  /** Other people connected to the room right now (live presence); empty on the
+   *  desktop build. */
   peers: Peer[]
   /** Whether the realtime socket is connected. */
   connected: boolean
   /** Broadcast a live content change; call from the editor's change handler. */
   broadcastEdit: (elementId: string, content: string, isScene: boolean) => void
-  /** Report the element/section this client is editing (presence "editing X"). */
+  /** Report the element/section this client is editing (presence "editing X").
+   *  Usually unnecessary — pass `focusId` instead and the hook reports it. */
   reportFocus: (elementId: string, label?: string) => void
   /** Pass to `<RemoteCarets subscribeCarets=...>`. */
   subscribeCarets: (handler: CaretSubscriber) => () => void
+  /** Collaborators grouped by the scene/element id each is focused on — the data
+   *  behind soft-lock pips. Merges live peers with durable advisory locks (users
+   *  who have the project open but aren't connected this instant), deduped by
+   *  user so a live session wins over a durable one. */
+  peersByElement: Map<string, Peer[]>
 }
 
 export function useEditorRealtime({
@@ -72,6 +88,8 @@ export function useEditorRealtime({
   scenes,
   setScenes,
   surfaceRef,
+  focusId,
+  focusLabel,
 }: UseEditorRealtimeOptions): UseEditorRealtimeResult {
   const {
     peers,
@@ -85,6 +103,37 @@ export function useEditorRealtime({
   } = useProjectPresence()
 
   useCaretReporter({ containerRef: surfaceRef, sendCaret, enabled: connected })
+
+  // Report the active scene as this client's focus, so collaborators see
+  // "editing X" and the gateway records a durable soft-lock on it. Centralised
+  // here so every editor reports focus the same way.
+  useEffect(() => {
+    if (focusId) setFocus(focusId, focusLabel)
+  }, [focusId, focusLabel, setFocus])
+
+  // Durable advisory locks — who has this project open (and where) per the
+  // persisted edit sessions. Survives a reconnect, so it seeds the soft-lock
+  // markers on open and covers collaborators the live roster hasn't delivered yet.
+  const durablePeers = useDurableSessions(projectId)
+
+  // Collaborators keyed by the scene/element they are focused on. Live peers win;
+  // durable sessions fill in for anyone not connected right now, deduped by user
+  // so nobody shows twice.
+  const peersByElement = useMemo(() => {
+    const map = new Map<string, Peer[]>()
+    const liveUserIds = new Set(peers.map((p) => p.userId))
+    const add = (p: Peer) => {
+      if (!p.elementId) return
+      const list = map.get(p.elementId)
+      if (list) list.push(p)
+      else map.set(p.elementId, [p])
+    }
+    for (const p of peers) add(p)
+    for (const p of durablePeers) {
+      if (!liveUserIds.has(p.userId)) add(p)
+    }
+    return map
+  }, [peers, durablePeers])
 
   // Current document, read inside the (stable) edit subscriber without making it
   // re-subscribe on every keystroke.
@@ -180,5 +229,5 @@ export function useEditorRealtime({
     })
   }, [subscribeResync, resyncFromDb])
 
-  return { peers, connected, broadcastEdit, reportFocus: setFocus, subscribeCarets }
+  return { peers, connected, broadcastEdit, reportFocus: setFocus, subscribeCarets, peersByElement }
 }

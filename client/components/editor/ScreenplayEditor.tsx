@@ -140,12 +140,24 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       scenes: typeof value === "function" ? (value as (s: Scene[]) => Scene[])(p.scenes ?? []) : value,
     }))
   }, [])
+  // The scene the caret sits in — derived from the focused element (which may be
+  // a scene heading or one of its elements) — reported as focus so screenplay
+  // users take part in presence "editing X" and durable soft-locks. Screenplay's
+  // surface is paginated (no scene rail), so it has no per-scene pips of its own;
+  // the header presence bar shows who else is in the room.
+  const activeScene = activeElementId
+    ? (project.scenes ?? []).find(
+        (s) => s.id === activeElementId || (s.elements ?? []).some((el) => el.id === activeElementId),
+      )
+    : undefined
   const { broadcastEdit, subscribeCarets } = useEditorRealtime({
     projectId: project.id,
     userId: user?.id,
     scenes: project.scenes ?? [],
     setScenes,
     surfaceRef: writeSurfaceRef,
+    focusId: activeScene?.id,
+    focusLabel: activeScene?.scene_heading || "Untitled",
   })
 
   // Comments use the same shared model as the other five editors: a flat list
