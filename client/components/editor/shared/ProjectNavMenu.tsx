@@ -13,7 +13,9 @@
  * Per CLAUDE.md, vault projects don't carry beats / outline / analytics
  * the same way story-shaped projects do. A vault project has only the
  * Editor destination, so the nav hides entirely there (a lone, always-
- * active pill would be pointless).
+ * active pill would be pointless). A board project is the mirror image —
+ * it IS the beat board and has no format editor / outline / analytics — so
+ * it hides the nav too.
  */
 
 import Link from "next/link"
@@ -34,9 +36,9 @@ interface ProjectNavMenuProps {
 }
 
 export function ProjectNavMenu({ projectId, category, current = "editor" }: ProjectNavMenuProps) {
-  // A vault project has nowhere else to go — skip the nav rather than
-  // render a single inert pill.
-  if (category === "vault") return null
+  // A vault or board project is single-surface — nowhere else to go — so skip
+  // the nav rather than render a single inert pill.
+  if (category === "vault" || category === "board") return null
 
   const items: { key: NavKey; label: string; href: string }[] = [
     { key: "editor", label: "Editor", href: `/projects/editor?id=${projectId}` },

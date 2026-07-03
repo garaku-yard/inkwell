@@ -125,9 +125,10 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
 
       if (pickedVaultPath) {
         await getStorage().vault.openVault(newProject.id, pickedVaultPath)
-      } else {
+      } else if (effectiveCategory !== "board") {
         // Scenes/elements projects start with an empty first scene so the
-        // editor has somewhere to type into. Vault doesn't use scenes.
+        // editor has somewhere to type into. Vault uses on-disk notes and a
+        // board is a freeform beat-board canvas — neither needs a seed scene.
         try {
           await createScene(newProject.id, userId, {
             scene_heading: "",
@@ -151,7 +152,10 @@ export function NewProjectDialog({ open, onOpenChange, onProjectCreated }: NewPr
 
       onProjectCreated(newProject)
       onOpenChange(false)
-      router.push(`/projects/editor?id=${newProject.id}`)
+      // A board opens on the beat-board canvas (its home); everything else opens
+      // the format editor.
+      const surface = effectiveCategory === "board" ? "beat-board" : "editor"
+      router.push(`/projects/${surface}?id=${newProject.id}`)
 
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unknown error occurred.")

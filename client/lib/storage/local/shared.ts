@@ -416,6 +416,7 @@ export const BUILTIN_CATEGORIES: Category[] = [
   { id: "cat-memoir", slug: "memoir", name: "Memoir", description: "Memoirs and personal narratives.", icon: "User" },
   { id: "cat-lyrics", slug: "lyrics", name: "Lyrics", description: "Song lyrics and compositions.", icon: "Music" },
   { id: "cat-vault", slug: "vault", name: "Vault", description: "Markdown notes linked with [[wikilinks]].", icon: "Notebook" },
+  { id: "cat-board", slug: "board", name: "Board", description: "A freeform canvas of beat cards and drawings.", icon: "Shapes" },
 ]
 
 export function slugifyCategory(slug: string): Category {

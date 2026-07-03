@@ -239,12 +239,16 @@ export function useProjects({
   }
 
   /**
-   * Navigates to the editor page for a project.
+   * Opens a project on its home surface. Board projects have no format editor —
+   * their home is the beat-board canvas — so they route there; everything else
+   * opens the editor.
    *
    * @param projectId - UUID of the project to open.
    */
   const handleProjectClick = (projectId: string) => {
-    router.push(`/projects/editor?id=${projectId}`)
+    const surface =
+      projects.find((p) => p.id === projectId)?.category === "board" ? "beat-board" : "editor"
+    router.push(`/projects/${surface}?id=${projectId}`)
   }
 
   /**

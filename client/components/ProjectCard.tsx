@@ -34,6 +34,7 @@ const CATEGORY_META: Record<string, { label: string; accent: string }> = {
   interactive_fiction: { label: "Interactive Fiction",accent: "bg-cyan-500" },
   ttrpg:               { label: "TTRPG",              accent: "bg-red-500" },
   vault:               { label: "Vault",              accent: "bg-slate-400" },
+  board:               { label: "Board",              accent: "bg-sky-500" },
 }
 
 const DEFAULT_META = { label: "Project", accent: "bg-primary" }

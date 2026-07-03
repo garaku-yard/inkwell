@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Film, BookOpen, Image, Feather, GitBranch, Dice6, User, Music, CheckCircle2, ArrowRight, Loader2 } from "lucide-react"
+import { Film, BookOpen, Image, Feather, GitBranch, Dice6, User, Music, Shapes, CheckCircle2, ArrowRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/AuthContext"
 import { useWorkspace } from "@/lib/WorkspaceContext"
@@ -18,6 +18,7 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   tabletop_rpg: Dice6,
   memoir: User,
   lyrics: Music,
+  board: Shapes,
 }
 
 export default function OnboardingPage() {

@@ -1,7 +1,7 @@
 "use client"
 
 import { Suspense, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { AlertCircle } from "lucide-react"
 import { EditorFactory } from "@/components/editor/EditorFactory"
 import { getFullProject } from "@/services/project"
@@ -14,9 +14,19 @@ import { useProjectLoader } from "@/hooks/useProjectLoader"
 
 function ProjectPageContent() {
   const { user } = useAuth()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get("id") ?? ""
   const { project, isLoading, error } = useProjectLoader(projectId, user?.id, getFullProject)
+
+  // A board has no format editor — its home is the beat-board canvas. The
+  // dashboard and new-project flows already route board projects there, but a
+  // stray link to the editor route would otherwise fall through EditorFactory's
+  // default and render a screenplay editor, so bounce it to the canvas.
+  const isBoard = project?.category === "board"
+  useEffect(() => {
+    if (isBoard) router.replace(`/projects/beat-board?id=${projectId}`)
+  }, [isBoard, projectId, router])
 
   // Mirror the project title into the native window chrome (desktop only;
   // no-op in the web build). Restored to plain "Inkwell" on unmount.
@@ -45,6 +55,12 @@ function ProjectPageContent() {
 
   if (!project) {
     return null
+  }
+
+  // Redirecting to the beat-board canvas (effect above) — don't flash the
+  // fallback screenplay editor in the meantime.
+  if (isBoard) {
+    return <PaneSpinner />
   }
 
   return <EditorFactory projectData={project} />

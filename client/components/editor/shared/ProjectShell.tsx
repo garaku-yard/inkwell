@@ -44,6 +44,7 @@ const FORMAT_NAMES: Record<string, string> = {
   interactive_fiction: "Interactive Fiction",
   ttrpg: "Tabletop RPG",
   vault: "Vault",
+  board: "Board",
 }
 
 interface ProjectShellProps {

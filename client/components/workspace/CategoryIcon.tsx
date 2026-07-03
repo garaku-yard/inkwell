@@ -1,4 +1,4 @@
-import { Clapperboard, BookOpen, MessageSquare, Feather, GitBranch, Dices, User, Music, PenLine } from "lucide-react"
+import { Clapperboard, BookOpen, MessageSquare, Feather, GitBranch, Dices, User, Music, PenLine, Shapes } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -11,6 +11,7 @@ export const CATEGORY_COLORS: Record<string, { bg: string; ring: string }> = {
   tabletop_rpg:        { bg: "#1f0505", ring: "#bf5555" },
   memoir:              { bg: "#071811", ring: "#3d9966" },
   lyrics:              { bg: "#1f0718", ring: "#bf5590" },
+  board:               { bg: "#0a1420", ring: "#5b8def" },
 }
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -22,6 +23,7 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   tabletop_rpg:        Dices,
   memoir:              User,
   lyrics:              Music,
+  board:               Shapes,
 }
 
 interface CategoryIconProps {

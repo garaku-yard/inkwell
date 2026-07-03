@@ -30,6 +30,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   tabletop_rpg: "Tabletop RPG",
   memoir: "Memoir",
   lyrics: "Lyrics",
+  board: "Board",
 }
 
 

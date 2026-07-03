@@ -16,6 +16,9 @@ export type ProjectCategory =
   | "memoir"
   | "lyrics"
   | "vault"
+  // A freeform planning surface (beat cards + drawings) that opens straight to
+  // the beat-board canvas — it has no format editor. See the beat-board page.
+  | "board"
 
 export interface Project {
   id: string
