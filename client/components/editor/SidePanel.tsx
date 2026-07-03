@@ -9,6 +9,8 @@ import type { FullProject, Scene, ProjectElement, Comment } from "@/services/pro
 import { SCRIPT_ELEMENT_CONFIG } from "@/lib/helpers/screenplay-config"
 import { Separator } from "@/components/ui/separator"
 import { CommentPanel } from "./CommentPanel"
+import { PresencePips } from "./shared/PresencePips"
+import type { Peer } from "@/lib/realtime/protocol"
 
 type ActiveScriptItem = (Scene & { isScene: true; comments?: Comment[] }) | (ProjectElement & { isScene: false; comments?: Comment[] })
 
@@ -21,6 +23,10 @@ interface SidePanelProps {
   totalElements: number
   onScrollToElement: (id: string) => void
   activeElementId: string | null
+  /** Collaborators grouped by the scene they're editing — live presence merged
+   *  with durable advisory locks, keyed by scene id (screenplay reports focus at
+   *  scene granularity). Drives the per-scene soft-lock pips. */
+  peersByScene?: Map<string, Peer[]>
   /** Flat comment list from the shared useEditorComments hook. */
   comments: Comment[]
   onAddComment: (elementId: string, isScene: boolean, content: string) => void
@@ -39,6 +45,7 @@ export const SidePanel = React.memo(
         totalElements,
         onScrollToElement,
         activeElementId,
+        peersByScene,
         comments,
         onAddComment,
         onUpdateComment,
@@ -142,6 +149,7 @@ export const SidePanel = React.memo(
                           <p className="text-xs text-muted-foreground mt-1">Scene {index + 1}</p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
+                          <PresencePips peers={peersByScene?.get(scene.id) ?? []} />
                           <Badge variant="outline" className="text-xs">
                             {scene.elements?.length || 0}
                           </Badge>
@@ -215,6 +223,7 @@ export const SidePanel = React.memo(
                               </span>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
+                              <PresencePips peers={peersByScene?.get(scene.id) ?? []} />
                               <Badge variant="outline" className="text-xs">
                                 {scene.elements?.length || 0}
                               </Badge>

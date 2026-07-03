@@ -143,14 +143,15 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   // The scene the caret sits in — derived from the focused element (which may be
   // a scene heading or one of its elements) — reported as focus so screenplay
   // users take part in presence "editing X" and durable soft-locks. Screenplay's
-  // surface is paginated (no scene rail), so it has no per-scene pips of its own;
-  // the header presence bar shows who else is in the room.
+  // writing surface is paginated (no scene rail on the page), so the soft-lock
+  // pips live in the SidePanel's scene lists (peersByElement, keyed by scene id);
+  // the header presence bar covers who else is in the room.
   const activeScene = activeElementId
     ? (project.scenes ?? []).find(
         (s) => s.id === activeElementId || (s.elements ?? []).some((el) => el.id === activeElementId),
       )
     : undefined
-  const { broadcastEdit, subscribeCarets } = useEditorRealtime({
+  const { broadcastEdit, subscribeCarets, peersByElement } = useEditorRealtime({
     projectId: project.id,
     userId: user?.id,
     scenes: project.scenes ?? [],
@@ -502,6 +503,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         totalElements={totalElements}
         onScrollToElement={scrollToElement}
         activeElementId={activeElementId}
+        peersByScene={peersByElement}
         comments={projectComments}
         onAddComment={handleAddComment}
         onUpdateComment={handleUpdateComment}
