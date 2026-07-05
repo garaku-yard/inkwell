@@ -1,5 +1,6 @@
 node_modules
 .next
+out
 .git
 .gitignore
 README.md
@@ -10,3 +11,8 @@ README.md
 coverage
 .eslintcache
 inkwell.png
+
+# Tauri/Rust desktop wrapper — never used by the web (Next) image build.
+# src-tauri/target alone is multi-GB of Rust artifacts; shipping it to the
+# daemon was ballooning the build context to >2GB.
+src-tauri
