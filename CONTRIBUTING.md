@@ -211,7 +211,8 @@ call `getStorage()`; never branch on platform in a component.
   **not** call it — that's what stops a pulled row echoing back as a local edit.
 - **Vault projects** (markdown + attachments on disk) sync through a separate
   **path-keyed** engine (`local/vault-sync.ts`), routed by `project.category`;
-  they use a content-hash manifest, not the outbox. See `SYNC_DESIGN.md`.
+  they use a content-hash manifest, not the outbox. See
+  [`.orbit/docs/reference/sync-engine.md`](.orbit/docs/reference/sync-engine.md).
 
 ### Protobuf
 
