@@ -34,6 +34,7 @@ never been written up as ADRs.
 | [0019](./0019-realtime-tiered-lww-then-crdt.md) | Real-time: tiered LWW + presence first, CRDT later | Accepted |
 | [0020](./0020-monetization-open-core-paddle.md) | Monetization: open-core, Paddle MoR, per-seat tiers | Accepted |
 | [0021](./0021-drive-backup-google-only.md) | Drive backup: Google-only, `drive.file`, one-way | Accepted |
+| [0022](./0022-drawing-per-shape-rows.md) | Drawing layer: one row per shape, JSON payload inside | Accepted |
 
 **Adding one:** next number, same five headings. If it reverses an earlier
 decision, set the old one's Status to `Superseded by NNNN` (that one edit to the
