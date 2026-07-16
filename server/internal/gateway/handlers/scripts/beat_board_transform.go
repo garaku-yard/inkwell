@@ -1,6 +1,7 @@
 package scripts
 
 import (
+	"encoding/json"
 	"time"
 
 	"inkwell/server/pkg/grpc/common"
@@ -61,12 +62,27 @@ type OutlineItemResponse struct {
 	Order       int32   `json:"order"`
 }
 
+// DrawingResponse is one shape on the drawing layer (decisions/0022).
+//
+// `data` is a nested JSON object to the client but a string everywhere behind
+// this boundary — the scripts service stores shapes opaquely. json.RawMessage
+// splices it through in both directions without parsing, so the gateway neither
+// validates a shape it has no opinion about nor re-encodes one lossily.
+type DrawingResponse struct {
+	ID        string          `json:"id"`
+	ProjectID string          `json:"projectId"`
+	Kind      string          `json:"kind"`
+	Data      json.RawMessage `json:"data"`
+	Order     int32           `json:"order"`
+}
+
 // BeatBoardDataResponse transforms a protobuf BeatBoardData to frontend-friendly JSON
 type BeatBoardDataResponse struct {
 	Beats        []BeatResponse        `json:"beats"`
 	Connections  []ConnectionResponse  `json:"connections"`
 	Lanes        []LaneResponse        `json:"lanes"`
 	OutlineItems []OutlineItemResponse `json:"outlineItems"`
+	Drawings     []DrawingResponse     `json:"drawings"`
 }
 
 // Helper function to convert common.Timestamp to time.Time
@@ -161,6 +177,29 @@ func transformOutlineItem(item *scriptspb.OutlineItem) *OutlineItemResponse {
 }
 
 // transformBeatBoardData converts protobuf BeatBoardData to BeatBoardDataResponse
+// transformDrawing converts a protobuf Drawing to DrawingResponse. An empty or
+// non-JSON `data` becomes `{}` rather than being spliced in raw: json.RawMessage
+// is copied verbatim into the response, so a malformed value there would make the
+// whole board's JSON unparseable — one bad shape must not break the load.
+func transformDrawing(d *scriptspb.Drawing) *DrawingResponse {
+	if d == nil {
+		return nil
+	}
+
+	data := json.RawMessage(d.Data)
+	if len(data) == 0 || !json.Valid(data) {
+		data = json.RawMessage(`{}`)
+	}
+
+	return &DrawingResponse{
+		ID:        d.Id,
+		ProjectID: d.ProjectId,
+		Kind:      d.Kind,
+		Data:      data,
+		Order:     d.Order,
+	}
+}
+
 func transformBeatBoardData(data *scriptspb.BeatBoardData) *BeatBoardDataResponse {
 	if data == nil {
 		return nil
@@ -171,6 +210,13 @@ func transformBeatBoardData(data *scriptspb.BeatBoardData) *BeatBoardDataRespons
 		Connections:  make([]ConnectionResponse, 0, len(data.Connections)),
 		Lanes:        make([]LaneResponse, 0, len(data.Lanes)),
 		OutlineItems: make([]OutlineItemResponse, 0, len(data.OutlineItems)),
+		Drawings:     make([]DrawingResponse, 0, len(data.Drawings)),
+	}
+
+	for _, d := range data.Drawings {
+		if transformed := transformDrawing(d); transformed != nil {
+			resp.Drawings = append(resp.Drawings, *transformed)
+		}
 	}
 
 	for _, beat := range data.Beats {

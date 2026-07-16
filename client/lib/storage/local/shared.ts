@@ -14,6 +14,8 @@ import type {
   Character,
   Connection,
   CurrentUser,
+  Drawing,
+  DrawingData,
   Lane,
   Location,
   OutlineItem,
@@ -69,6 +71,7 @@ export type SyncEntity =
   | "connection"
   | "lane"
   | "outline_item"
+  | "drawing"
 
 /** Records that one row changed locally, so the next sync pushes just this row.
  *  Gated on the project being sync-enabled via INSERT…SELECT…WHERE EXISTS, so a
@@ -126,6 +129,7 @@ export const SYNCED_PROJECT_CHILD_TABLES: ReadonlyArray<{ table: string; entity:
   { table: "connections", entity: "connection" },
   { table: "lanes", entity: "lane" },
   { table: "outline_items", entity: "outline_item" },
+  { table: "drawings", entity: "drawing" },
 ]
 
 /** Soft-deletes every live child row of a project across the synced child
@@ -303,6 +307,40 @@ export interface BeatRow {
   start_page: number | null
   end_page: number | null
   image_url: string | null
+}
+
+export interface DrawingRow {
+  id: string
+  project_id: string
+  kind: string
+  /** JSON — see DrawingData. Stored as text; parsed on the way out. */
+  data: string
+  order_index: number
+}
+
+/** A drawing's geometry+style is opaque JSON in the DB (decisions/0022). Parse
+ *  defensively: a row written by a newer build, or hand-edited, must not take the
+ *  whole board down — an unreadable shape degrades to an empty one the user can
+ *  delete, which beats an exception on load. */
+export function toDrawing(row: DrawingRow): Drawing {
+  let data: DrawingData = { points: [], color: "#000000", width: 2 }
+  try {
+    const parsed = JSON.parse(row.data) as Partial<DrawingData>
+    data = {
+      points: Array.isArray(parsed.points) ? parsed.points : [],
+      color: typeof parsed.color === "string" ? parsed.color : "#000000",
+      width: typeof parsed.width === "number" ? parsed.width : 2,
+      fill: parsed.fill ?? null,
+    }
+  } catch {
+    // Keep the default above; the shape renders as nothing rather than throwing.
+  }
+  return {
+    id: row.id,
+    kind: row.kind as Drawing["kind"],
+    data,
+    order: row.order_index,
+  }
 }
 
 export function toBeat(row: BeatRow): Beat {

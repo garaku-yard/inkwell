@@ -1,13 +1,14 @@
 /** Beat service — thin wrappers around the Storage abstraction for beat cards
  *  and connections on the beat board. */
 import { getStorage } from "@/lib/storage"
-import type { Lane, OutlineItem } from "./beat-board"
+import type { Drawing, Lane, OutlineItem } from "./beat-board"
 
 export interface BeatBoardData {
   beats: Beat[]
   connections: Connection[]
   lanes: Lane[]
   outlineItems: OutlineItem[]
+  drawings: Drawing[]
 }
 
 export interface Beat {

@@ -134,6 +134,11 @@ func (r *SyncRepository) ApplyChanges(ctx context.Context, q queryer, projectID,
 			return err
 		}
 	}
+	for _, d := range c.Drawings {
+		if err := r.upsertDrawing(ctx, q, projectID, d); err != nil {
+			return err
+		}
+	}
 	for _, oi := range c.OutlineItems {
 		if err := r.upsertOutlineItem(ctx, q, projectID, oi); err != nil {
 			return err
@@ -275,6 +280,22 @@ func (r *SyncRepository) upsertOutlineItem(ctx context.Context, q queryer, proje
 	return err
 }
 
+// upsertDrawing writes one shape. `data` is stored verbatim — the server never
+// looks inside a shape (decisions/0022), so there is nothing to validate here
+// beyond what the column already enforces.
+func (r *SyncRepository) upsertDrawing(ctx context.Context, q queryer, projectID uuid.UUID, d *domain.Drawing) error {
+	_, err := q.ExecContext(ctx, `
+		INSERT INTO drawings (drawing_id, project_id, kind, data, drawing_order, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, COALESCE($6, NOW()), NOW(), $7)
+		ON CONFLICT (drawing_id) DO UPDATE SET
+			kind = EXCLUDED.kind, data = EXCLUDED.data,
+			drawing_order = EXCLUDED.drawing_order, updated_at = NOW(),
+			deleted_at = EXCLUDED.deleted_at
+		WHERE drawings.project_id = $2`,
+		d.ID, projectID, d.Kind, d.Data, d.Order, nullableCreated(d.CreatedAt), d.DeletedAt)
+	return err
+}
+
 // ─── Pull (per-project delta, excluding just-pushed ids) ─────────────────────
 //
 // Returns every row for the project with updated_at > cursor (incl. tombstones),
@@ -317,6 +338,9 @@ func (r *SyncRepository) PullChanges(ctx context.Context, q queryer, projectID u
 	if out.OutlineItems, err = r.pullOutlineItems(ctx, q, projectID, cursor, ex.outlineItems); err != nil {
 		return nil, err
 	}
+	if out.Drawings, err = r.pullDrawings(ctx, q, projectID, cursor, ex.drawings); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 
@@ -331,6 +355,7 @@ type excluder struct {
 	connections  []uuid.UUID
 	lanes        []uuid.UUID
 	outlineItems []uuid.UUID
+	drawings     []uuid.UUID
 }
 
 func newExcluder(c *domain.SyncChanges) excluder {
@@ -364,6 +389,9 @@ func newExcluder(c *domain.SyncChanges) excluder {
 	}
 	for _, x := range c.OutlineItems {
 		e.outlineItems = append(e.outlineItems, x.ID)
+	}
+	for _, x := range c.Drawings {
+		e.drawings = append(e.drawings, x.ID)
 	}
 	return e
 }
@@ -549,6 +577,28 @@ func (r *SyncRepository) pullLanes(ctx context.Context, q queryer, projectID uui
 	return out, rows.Err()
 }
 
+func (r *SyncRepository) pullDrawings(ctx context.Context, q queryer, projectID uuid.UUID, cursor time.Time, exclude []uuid.UUID) ([]*domain.Drawing, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT drawing_id, project_id, kind, data, drawing_order, created_at, updated_at, deleted_at
+		FROM drawings
+		WHERE project_id = $1 AND updated_at > $2 AND drawing_id <> ALL($3::uuid[])
+		ORDER BY updated_at`,
+		projectID, cursor, idArray(exclude))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*domain.Drawing
+	for rows.Next() {
+		d := &domain.Drawing{}
+		if err := rows.Scan(&d.ID, &d.ProjectID, &d.Kind, &d.Data, &d.Order, &d.CreatedAt, &d.UpdatedAt, &d.DeletedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
 func (r *SyncRepository) pullOutlineItems(ctx context.Context, q queryer, projectID uuid.UUID, cursor time.Time, exclude []uuid.UUID) ([]*domain.OutlineItem, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT outline_item_id, project_id, beat_id, lane_id, item_order, timeline_position, width, created_at, updated_at, deleted_at
@@ -580,7 +630,7 @@ func (r *SyncRepository) PurgeTombstones(ctx context.Context, olderThan time.Dur
 	var total int64
 	tables := []string{
 		"scenes", "script_elements", "characters", "locations",
-		"beats", "beat_connections", "lanes", "outline_items", "projects",
+		"beats", "beat_connections", "lanes", "outline_items", "drawings", "projects",
 	}
 	for _, t := range tables {
 		res, err := r.db.ExecContext(ctx,

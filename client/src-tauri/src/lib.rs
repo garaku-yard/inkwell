@@ -89,6 +89,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0013_vault_backup_perf.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 14,
+      description: "beat-board drawing layer: one row per shape",
+      sql: include_str!("../migrations/0014_drawings.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 

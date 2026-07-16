@@ -816,3 +816,130 @@ func (h *ScriptsHandler) UploadBeatImage(w http.ResponseWriter, r *http.Request)
 		"imageUrl": relativePath,
 	})
 }
+
+// ─── Drawings (decisions/0022) ───────────────────────────────────────────────
+
+// CreateDrawing handles POST /projects/{projectId}/beat-board/drawings
+func (h *ScriptsHandler) CreateDrawing(w http.ResponseWriter, r *http.Request) {
+	type createDrawingBody struct {
+		Kind string `json:"kind"`
+		// Passed through untouched — the gateway has no opinion on a shape's
+		// geometry, so it never parses it.
+		Data  json.RawMessage `json:"data"`
+		Order int32           `json:"order"`
+	}
+
+	handlers.Endpoint[createDrawingBody, DrawingResponse]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		SuccessStatus: http.StatusCreated,
+		Decode: func(r *http.Request) (*createDrawingBody, error) {
+			var req createDrawingBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *createDrawingBody) (*DrawingResponse, error) {
+			projectID := chi.URLParam(r, "projectId")
+
+			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
+			if authErr != nil {
+				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+			}
+
+			data := "{}"
+			if len(req.Data) > 0 {
+				data = string(req.Data)
+			}
+
+			resp, err := h.scriptsClient.CreateDrawing(r.Context(), &scriptspb.CreateDrawingRequest{
+				ProjectId: projectID,
+				UserId:    resolvedID,
+				Kind:      req.Kind,
+				Data:      data,
+				Order:     req.Order,
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			return transformDrawing(resp.Drawing), nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// UpdateDrawing handles PATCH /drawings/{drawingId}
+func (h *ScriptsHandler) UpdateDrawing(w http.ResponseWriter, r *http.Request) {
+	type updateDrawingBody struct {
+		Kind  *string          `json:"kind,omitempty"`
+		Data  *json.RawMessage `json:"data,omitempty"`
+		Order *int32           `json:"order,omitempty"`
+	}
+
+	handlers.Endpoint[updateDrawingBody, DrawingResponse]{
+		Method: http.MethodPatch,
+		Auth:   true,
+		Decode: func(r *http.Request) (*updateDrawingBody, error) {
+			var req updateDrawingBody
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, errors.New("Invalid request body")
+			}
+			return &req, nil
+		},
+		Handle: func(r *http.Request, userID string, req *updateDrawingBody) (*DrawingResponse, error) {
+			drawingID := chi.URLParam(r, "drawingId")
+
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_DRAWING, drawingID)
+			if err != nil {
+				return nil, err
+			}
+
+			out := &scriptspb.UpdateDrawingRequest{
+				DrawingId: drawingID,
+				UserId:    resolvedID,
+				Kind:      req.Kind,
+				Order:     req.Order,
+			}
+			if req.Data != nil {
+				data := string(*req.Data)
+				out.Data = &data
+			}
+
+			resp, err := h.scriptsClient.UpdateDrawing(r.Context(), out)
+			if err != nil {
+				return nil, err
+			}
+
+			return transformDrawing(resp.Drawing), nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+// DeleteDrawing handles DELETE /drawings/{drawingId}
+func (h *ScriptsHandler) DeleteDrawing(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, struct{}]{
+		Method:        http.MethodDelete,
+		Auth:          true,
+		Decode:        handlers.NoBody[struct{}],
+		SuccessStatus: http.StatusNoContent,
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
+			drawingID := chi.URLParam(r, "drawingId")
+
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_DRAWING, drawingID)
+			if err != nil {
+				return nil, err
+			}
+
+			_, err = h.scriptsClient.DeleteDrawing(r.Context(), &scriptspb.DeleteDrawingRequest{
+				DrawingId: drawingID,
+				UserId:    resolvedID,
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			return nil, nil
+		},
+	}.ServeHTTP(w, r)
+}

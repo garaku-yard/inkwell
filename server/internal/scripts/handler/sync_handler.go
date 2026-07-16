@@ -206,6 +206,11 @@ func protoToSyncChanges(c *scriptspb.SyncChanges) *domain.SyncChanges {
 			out.OutlineItems = append(out.OutlineItems, d)
 		}
 	}
+	for _, x := range c.Drawings {
+		if d := syncProtoToDrawing(x); d != nil {
+			out.Drawings = append(out.Drawings, d)
+		}
+	}
 	return out
 }
 
@@ -333,6 +338,18 @@ func syncProtoToOutlineItem(o *scriptspb.OutlineItem) *domain.OutlineItem {
 	}
 }
 
+func syncProtoToDrawing(d *scriptspb.Drawing) *domain.Drawing {
+	id, err := uuid.Parse(d.Id)
+	if err != nil {
+		return nil
+	}
+	pid, _ := uuid.Parse(d.ProjectId)
+	return &domain.Drawing{
+		ID: id, ProjectID: pid, Kind: d.Kind, Data: d.Data, Order: d.Order,
+		CreatedAt: goTime(d.CreatedAt), DeletedAt: goTimePtr(d.DeletedAt),
+	}
+}
+
 // ─── domain → proto (pull) ───────────────────────────────────────────────────
 
 func syncChangesToProto(c *domain.SyncChanges) *scriptspb.SyncChanges {
@@ -366,6 +383,9 @@ func syncChangesToProto(c *domain.SyncChanges) *scriptspb.SyncChanges {
 	}
 	for _, x := range c.OutlineItems {
 		out.OutlineItems = append(out.OutlineItems, syncOutlineItemToProto(x))
+	}
+	for _, x := range c.Drawings {
+		out.Drawings = append(out.Drawings, syncDrawingToProto(x))
 	}
 	return out
 }
@@ -462,5 +482,14 @@ func syncOutlineItemToProto(o *domain.OutlineItem) *scriptspb.OutlineItem {
 		TimelinePosition: o.TimelinePosition, Width: o.Width,
 		CreatedAt: protoTS(o.CreatedAt), UpdatedAt: protoTS(o.UpdatedAt),
 		DeletedAt: protoTSPtr(o.DeletedAt),
+	}
+}
+
+func syncDrawingToProto(d *domain.Drawing) *scriptspb.Drawing {
+	return &scriptspb.Drawing{
+		Id: d.ID.String(), ProjectId: d.ProjectID.String(),
+		Kind: d.Kind, Data: d.Data, Order: d.Order,
+		CreatedAt: protoTS(d.CreatedAt), UpdatedAt: protoTS(d.UpdatedAt),
+		DeletedAt: protoTSPtr(d.DeletedAt),
 	}
 }

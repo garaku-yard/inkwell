@@ -153,11 +153,30 @@ message OutlineItem {
   common.Timestamp deleted_at = 10; // tombstone for sync (nil = live)
 }
 
+// One shape on the beat-board drawing layer. Per-shape rather than one blob per
+// board, so a shape is what sync pushes and conflicts on — see
+// decisions/0022-drawing-per-shape-rows.md.
+message Drawing {
+  string id = 1;
+  string project_id = 2;
+  // pen | line | arrow | rect | ellipse. Deliberately a string: a new shape kind
+  // shouldn't cost a proto change and two migrations.
+  string kind = 3;
+  // Opaque JSON: geometry (points) + style. The server stores and returns it and
+  // never looks inside, so it stays a string end to end.
+  string data = 4;
+  int32 order = 5; // z-order within the layer
+  common.Timestamp created_at = 6;
+  common.Timestamp updated_at = 7;
+  common.Timestamp deleted_at = 8; // tombstone for sync (nil = live)
+}
+
 message BeatBoardData {
   repeated Beat beats = 1;
   repeated Connection connections = 2;
   repeated Lane lanes = 3;
   repeated OutlineItem outline_items = 4;
+  repeated Drawing drawings = 5;
 }
 
 // Project requests/responses
@@ -627,6 +646,41 @@ message DeleteOutlineItemResponse {
   bool success = 1;
 }
 
+message CreateDrawingRequest {
+  string project_id = 1;
+  string user_id = 2;
+  string kind = 3;
+  string data = 4;
+  int32 order = 5;
+}
+
+message CreateDrawingResponse {
+  Drawing drawing = 1;
+}
+
+message UpdateDrawingRequest {
+  string drawing_id = 1;
+  string user_id = 2;
+  optional string kind = 3;
+  // A shape is always edited whole (one gesture), so `data` is replaced, never
+  // merged — there is no partial update of a stroke.
+  optional string data = 4;
+  optional int32 order = 5;
+}
+
+message UpdateDrawingResponse {
+  Drawing drawing = 1;
+}
+
+message DeleteDrawingRequest {
+  string drawing_id = 1;
+  string user_id = 2;
+}
+
+message DeleteDrawingResponse {
+  bool success = 1;
+}
+
 // ResourceType identifies a beat-board or script sub-resource for
 // GetResourceProject. The gateway uses it to resolve which project owns a
 // resource so it can authorize a mutation against that project.
@@ -637,6 +691,7 @@ enum ResourceType {
   RESOURCE_TYPE_LANE = 3;
   RESOURCE_TYPE_OUTLINE_ITEM = 4;
   RESOURCE_TYPE_ELEMENT = 5;
+  RESOURCE_TYPE_DRAWING = 6;
 }
 
 message GetResourceProjectRequest {
@@ -674,6 +729,7 @@ message SyncChanges {
   repeated Connection connections = 7;
   repeated Lane lanes = 8;
   repeated OutlineItem outline_items = 9;
+  repeated Drawing drawings = 10;
 }
 
 message SyncProjectRequest {
@@ -784,6 +840,11 @@ service ScriptsService {
   rpc CreateOutlineItem(CreateOutlineItemRequest) returns (CreateOutlineItemResponse);
   rpc UpdateOutlineItem(UpdateOutlineItemRequest) returns (UpdateOutlineItemResponse);
   rpc DeleteOutlineItem(DeleteOutlineItemRequest) returns (DeleteOutlineItemResponse);
+
+  // Drawing layer (decisions/0022) — one row per shape.
+  rpc CreateDrawing(CreateDrawingRequest) returns (CreateDrawingResponse);
+  rpc UpdateDrawing(UpdateDrawingRequest) returns (UpdateDrawingResponse);
+  rpc DeleteDrawing(DeleteDrawingRequest) returns (DeleteDrawingResponse);
 
   // GetResourceProject resolves which project owns a sub-resource (beat, lane,
   // connection, outline item, or element). The gateway calls it to authorize

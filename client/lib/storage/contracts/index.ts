@@ -19,7 +19,7 @@ import type {
   UpdateProjectRequest,
 } from "@/services/project"
 import type { Beat, BeatBoardData, Connection } from "@/services/beat"
-import type { Lane, OutlineItem } from "@/services/beat-board"
+import type { Drawing, DrawingData, DrawingKind, Lane, OutlineItem } from "@/services/beat-board"
 import type {
   Category,
   Workspace,
@@ -87,6 +87,9 @@ export type {
   CreateElementRequest,
   CreateProjectRequest,
   DataDeletionRequest,
+  Drawing,
+  DrawingData,
+  DrawingKind,
   FullProject,
   GatewayConfig,
   Invitation,

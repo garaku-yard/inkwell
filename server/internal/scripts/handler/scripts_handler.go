@@ -918,6 +918,8 @@ func resourceKindFromProto(t scriptspb.ResourceType) (domain.ResourceKind, bool)
 		return domain.ResourceKindOutlineItem, true
 	case scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT:
 		return domain.ResourceKindElement, true
+	case scriptspb.ResourceType_RESOURCE_TYPE_DRAWING:
+		return domain.ResourceKindDrawing, true
 	default:
 		return domain.ResourceKindUnspecified, false
 	}

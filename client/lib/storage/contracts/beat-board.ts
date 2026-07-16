@@ -1,5 +1,5 @@
 import type { Beat, BeatBoardData, Connection } from "@/services/beat"
-import type { Lane, OutlineItem } from "@/services/beat-board"
+import type { Drawing, Lane, OutlineItem } from "@/services/beat-board"
 
 // ─── Beat board ───────────────────────────────────────────────────────────
 
@@ -22,4 +22,11 @@ export interface BeatBoardStorage {
   createOutlineItem(projectId: string, input: Partial<OutlineItem>): Promise<OutlineItem>
   updateOutlineItem(itemId: string, patch: Partial<OutlineItem>): Promise<void>
   deleteOutlineItem(itemId: string): Promise<void>
+
+  /** Drawing layer. One row per shape (decisions/0022), so each shape syncs,
+   *  conflicts and tombstones on its own rather than the whole layer being a
+   *  single last-write-wins cell. */
+  createDrawing(projectId: string, input: Partial<Drawing>): Promise<Drawing>
+  updateDrawing(drawingId: string, patch: Partial<Drawing>): Promise<Drawing>
+  deleteDrawing(drawingId: string): Promise<void>
 }

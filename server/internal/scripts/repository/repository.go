@@ -106,6 +106,16 @@ type LaneRepository interface {
 	DeleteLane(ctx context.Context, laneID uuid.UUID) error
 }
 
+// DrawingRepository defines the interface for beat-board drawing data access.
+// One row per shape — see decisions/0022-drawing-per-shape-rows.md.
+type DrawingRepository interface {
+	CreateDrawing(ctx context.Context, d *domain.Drawing) error
+	GetDrawing(ctx context.Context, drawingID uuid.UUID) (*domain.Drawing, error)
+	GetProjectDrawings(ctx context.Context, projectID uuid.UUID) ([]*domain.Drawing, error)
+	UpdateDrawing(ctx context.Context, d *domain.Drawing) error
+	DeleteDrawing(ctx context.Context, drawingID uuid.UUID) error
+}
+
 // OutlineItemRepository defines the interface for outline item data access
 type OutlineItemRepository interface {
 	CreateOutlineItem(ctx context.Context, item *domain.OutlineItem) error
@@ -127,6 +137,7 @@ type Repository struct {
 	Connection     ConnectionRepository
 	Lane           LaneRepository
 	OutlineItem    OutlineItemRepository
+	Drawing        DrawingRepository
 }
 
 // NewRepository creates a new repository instance
@@ -142,6 +153,7 @@ func NewRepository(db *sql.DB) *Repository {
 		Connection:     NewConnectionRepository(db),
 		Lane:           NewLaneRepository(db),
 		OutlineItem:    NewOutlineItemRepository(db),
+		Drawing:        NewDrawingRepository(db),
 	}
 }
 

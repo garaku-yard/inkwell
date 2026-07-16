@@ -123,3 +123,13 @@ export function pushOutlineItem(row: Row): Row {
     deleted_at: toTs(r(row, "deleted_at")),
   }
 }
+/** A drawing's `data` crosses the wire as the JSON string it is stored as — the
+ *  server never looks inside a shape (decisions/0022), so parsing it here only to
+ *  re-encode it would be work that can only lose information. */
+export function pushDrawing(row: Row): Row {
+  return {
+    id: r(row, "id"), project_id: r(row, "project_id"),
+    kind: r(row, "kind"), data: r(row, "data"), order: ri(row, "order_index"),
+    deleted_at: toTs(r(row, "deleted_at")),
+  }
+}

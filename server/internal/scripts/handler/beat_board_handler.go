@@ -733,11 +733,17 @@ func convertBeatBoardToProto(bb *domain.BeatBoardData) *scriptspb.BeatBoardData 
 		protoItems[i] = convertOutlineItemToProto(item)
 	}
 
+	protoDrawings := make([]*scriptspb.Drawing, len(bb.Drawings))
+	for i, d := range bb.Drawings {
+		protoDrawings[i] = convertDrawingToProto(d)
+	}
+
 	return &scriptspb.BeatBoardData{
 		Beats:        protoBeats,
 		Connections:  protoConns,
 		Lanes:        protoLanes,
 		OutlineItems: protoItems,
+		Drawings:     protoDrawings,
 	}
 }
 
@@ -747,4 +753,103 @@ func convertTimestampToProto(t time.Time) *common.Timestamp {
 		Seconds: t.Unix(),
 		Nanos:   int32(t.Nanosecond()),
 	}
+}
+
+// ─── Drawings (decisions/0022) ───────────────────────────────────────────────
+
+func convertDrawingToProto(d *domain.Drawing) *scriptspb.Drawing {
+	return &scriptspb.Drawing{
+		Id:        d.ID.String(),
+		ProjectId: d.ProjectID.String(),
+		Kind:      d.Kind,
+		Data:      d.Data,
+		Order:     d.Order,
+		CreatedAt: convertTimestampToProto(d.CreatedAt),
+		UpdatedAt: convertTimestampToProto(d.UpdatedAt),
+	}
+}
+
+// CreateDrawing adds a shape to a project's drawing layer.
+func (h *BeatBoardHandler) CreateDrawing(ctx context.Context, req *scriptspb.CreateDrawingRequest) (*scriptspb.CreateDrawingResponse, error) {
+	if req.ProjectId == "" {
+		return nil, status.Error(codes.InvalidArgument, "project_id is required")
+	}
+
+	projectID, err := uuid.Parse(req.ProjectId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
+	}
+
+	// userID is optional — an empty user_id is the collaborator bypass sentinel
+	// (the gateway confirms project access before forwarding the call).
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
+	}
+
+	d := &domain.Drawing{Kind: req.Kind, Data: req.Data, Order: req.Order}
+	created, err := h.service.CreateDrawing(ctx, projectID, userID, d)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	return &scriptspb.CreateDrawingResponse{Drawing: convertDrawingToProto(created)}, nil
+}
+
+// UpdateDrawing applies a partial update to a shape. Only the fields the request
+// actually set are forwarded, so re-ordering a shape to 0 isn't swallowed.
+func (h *BeatBoardHandler) UpdateDrawing(ctx context.Context, req *scriptspb.UpdateDrawingRequest) (*scriptspb.UpdateDrawingResponse, error) {
+	if req.DrawingId == "" {
+		return nil, status.Error(codes.InvalidArgument, "drawing_id is required")
+	}
+
+	drawingID, err := uuid.Parse(req.DrawingId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid drawing_id: %v", err)
+	}
+
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
+	}
+
+	patch := &domain.DrawingPatch{Kind: req.Kind, Data: req.Data, Order: req.Order}
+	updated, err := h.service.UpdateDrawing(ctx, drawingID, userID, patch)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	return &scriptspb.UpdateDrawingResponse{Drawing: convertDrawingToProto(updated)}, nil
+}
+
+// DeleteDrawing soft-deletes a shape.
+func (h *BeatBoardHandler) DeleteDrawing(ctx context.Context, req *scriptspb.DeleteDrawingRequest) (*scriptspb.DeleteDrawingResponse, error) {
+	if req.DrawingId == "" {
+		return nil, status.Error(codes.InvalidArgument, "drawing_id is required")
+	}
+
+	drawingID, err := uuid.Parse(req.DrawingId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid drawing_id: %v", err)
+	}
+
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
+	}
+
+	if err := h.service.DeleteDrawing(ctx, drawingID, userID); err != nil {
+		return nil, handleServiceError(err)
+	}
+
+	return &scriptspb.DeleteDrawingResponse{Success: true}, nil
 }

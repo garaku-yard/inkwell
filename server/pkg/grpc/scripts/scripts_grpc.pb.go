@@ -59,6 +59,9 @@ const (
 	ScriptsService_CreateOutlineItem_FullMethodName    = "/scripts.ScriptsService/CreateOutlineItem"
 	ScriptsService_UpdateOutlineItem_FullMethodName    = "/scripts.ScriptsService/UpdateOutlineItem"
 	ScriptsService_DeleteOutlineItem_FullMethodName    = "/scripts.ScriptsService/DeleteOutlineItem"
+	ScriptsService_CreateDrawing_FullMethodName        = "/scripts.ScriptsService/CreateDrawing"
+	ScriptsService_UpdateDrawing_FullMethodName        = "/scripts.ScriptsService/UpdateDrawing"
+	ScriptsService_DeleteDrawing_FullMethodName        = "/scripts.ScriptsService/DeleteDrawing"
 	ScriptsService_GetResourceProject_FullMethodName   = "/scripts.ScriptsService/GetResourceProject"
 	ScriptsService_SyncProject_FullMethodName          = "/scripts.ScriptsService/SyncProject"
 	ScriptsService_SyncVault_FullMethodName            = "/scripts.ScriptsService/SyncVault"
@@ -117,6 +120,10 @@ type ScriptsServiceClient interface {
 	CreateOutlineItem(ctx context.Context, in *CreateOutlineItemRequest, opts ...grpc.CallOption) (*CreateOutlineItemResponse, error)
 	UpdateOutlineItem(ctx context.Context, in *UpdateOutlineItemRequest, opts ...grpc.CallOption) (*UpdateOutlineItemResponse, error)
 	DeleteOutlineItem(ctx context.Context, in *DeleteOutlineItemRequest, opts ...grpc.CallOption) (*DeleteOutlineItemResponse, error)
+	// Drawing layer (decisions/0022) — one row per shape.
+	CreateDrawing(ctx context.Context, in *CreateDrawingRequest, opts ...grpc.CallOption) (*CreateDrawingResponse, error)
+	UpdateDrawing(ctx context.Context, in *UpdateDrawingRequest, opts ...grpc.CallOption) (*UpdateDrawingResponse, error)
+	DeleteDrawing(ctx context.Context, in *DeleteDrawingRequest, opts ...grpc.CallOption) (*DeleteDrawingResponse, error)
 	// GetResourceProject resolves which project owns a sub-resource (beat, lane,
 	// connection, outline item, or element). The gateway calls it to authorize
 	// mutations against the resource's real project. It is an internal lookup —
@@ -541,6 +548,36 @@ func (c *scriptsServiceClient) DeleteOutlineItem(ctx context.Context, in *Delete
 	return out, nil
 }
 
+func (c *scriptsServiceClient) CreateDrawing(ctx context.Context, in *CreateDrawingRequest, opts ...grpc.CallOption) (*CreateDrawingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateDrawingResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_CreateDrawing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) UpdateDrawing(ctx context.Context, in *UpdateDrawingRequest, opts ...grpc.CallOption) (*UpdateDrawingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateDrawingResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_UpdateDrawing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) DeleteDrawing(ctx context.Context, in *DeleteDrawingRequest, opts ...grpc.CallOption) (*DeleteDrawingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteDrawingResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_DeleteDrawing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *scriptsServiceClient) GetResourceProject(ctx context.Context, in *GetResourceProjectRequest, opts ...grpc.CallOption) (*GetResourceProjectResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetResourceProjectResponse)
@@ -624,6 +661,10 @@ type ScriptsServiceServer interface {
 	CreateOutlineItem(context.Context, *CreateOutlineItemRequest) (*CreateOutlineItemResponse, error)
 	UpdateOutlineItem(context.Context, *UpdateOutlineItemRequest) (*UpdateOutlineItemResponse, error)
 	DeleteOutlineItem(context.Context, *DeleteOutlineItemRequest) (*DeleteOutlineItemResponse, error)
+	// Drawing layer (decisions/0022) — one row per shape.
+	CreateDrawing(context.Context, *CreateDrawingRequest) (*CreateDrawingResponse, error)
+	UpdateDrawing(context.Context, *UpdateDrawingRequest) (*UpdateDrawingResponse, error)
+	DeleteDrawing(context.Context, *DeleteDrawingRequest) (*DeleteDrawingResponse, error)
 	// GetResourceProject resolves which project owns a sub-resource (beat, lane,
 	// connection, outline item, or element). The gateway calls it to authorize
 	// mutations against the resource's real project. It is an internal lookup —
@@ -767,6 +808,15 @@ func (UnimplementedScriptsServiceServer) UpdateOutlineItem(context.Context, *Upd
 }
 func (UnimplementedScriptsServiceServer) DeleteOutlineItem(context.Context, *DeleteOutlineItemRequest) (*DeleteOutlineItemResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteOutlineItem not implemented")
+}
+func (UnimplementedScriptsServiceServer) CreateDrawing(context.Context, *CreateDrawingRequest) (*CreateDrawingResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateDrawing not implemented")
+}
+func (UnimplementedScriptsServiceServer) UpdateDrawing(context.Context, *UpdateDrawingRequest) (*UpdateDrawingResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateDrawing not implemented")
+}
+func (UnimplementedScriptsServiceServer) DeleteDrawing(context.Context, *DeleteDrawingRequest) (*DeleteDrawingResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteDrawing not implemented")
 }
 func (UnimplementedScriptsServiceServer) GetResourceProject(context.Context, *GetResourceProjectRequest) (*GetResourceProjectResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetResourceProject not implemented")
@@ -1518,6 +1568,60 @@ func _ScriptsService_DeleteOutlineItem_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ScriptsService_CreateDrawing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateDrawingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).CreateDrawing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_CreateDrawing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).CreateDrawing(ctx, req.(*CreateDrawingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_UpdateDrawing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateDrawingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).UpdateDrawing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_UpdateDrawing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).UpdateDrawing(ctx, req.(*UpdateDrawingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_DeleteDrawing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteDrawingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).DeleteDrawing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_DeleteDrawing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).DeleteDrawing(ctx, req.(*DeleteDrawingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ScriptsService_GetResourceProject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetResourceProjectRequest)
 	if err := dec(in); err != nil {
@@ -1738,6 +1842,18 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteOutlineItem",
 			Handler:    _ScriptsService_DeleteOutlineItem_Handler,
+		},
+		{
+			MethodName: "CreateDrawing",
+			Handler:    _ScriptsService_CreateDrawing_Handler,
+		},
+		{
+			MethodName: "UpdateDrawing",
+			Handler:    _ScriptsService_UpdateDrawing_Handler,
+		},
+		{
+			MethodName: "DeleteDrawing",
+			Handler:    _ScriptsService_DeleteDrawing_Handler,
 		},
 		{
 			MethodName: "GetResourceProject",

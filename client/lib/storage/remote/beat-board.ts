@@ -5,6 +5,7 @@ import type {
   BeatBoardData,
   BeatBoardStorage,
   Connection,
+  Drawing,
   Lane,
   OutlineItem,
 } from "@/lib/storage"
@@ -54,5 +55,16 @@ export const beatBoard: BeatBoardStorage = {
   },
   deleteOutlineItem: async (itemId) => {
     await apiClient<void>(`outline-items/${itemId}`, { method: "DELETE" })
+  },
+
+  createDrawing: (projectId, input) =>
+    apiClient<Drawing>(`projects/${projectId}/beat-board/drawings`, {
+      method: "POST",
+      body: input,
+    }),
+  updateDrawing: (drawingId, patch) =>
+    apiClient<Drawing>(`drawings/${drawingId}`, { method: "PATCH", body: patch }),
+  deleteDrawing: async (drawingId) => {
+    await apiClient<void>(`drawings/${drawingId}`, { method: "DELETE" })
   },
 }

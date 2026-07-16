@@ -19,6 +19,7 @@ const (
 	ResourceKindLane
 	ResourceKindOutlineItem
 	ResourceKindElement
+	ResourceKindDrawing
 )
 
 // Beat represents a story beat in the beat board
@@ -96,6 +97,38 @@ type SyncChanges struct {
 	Connections  []*Connection
 	Lanes        []*Lane
 	OutlineItems []*OutlineItem
+	Drawings     []*Drawing
+}
+
+// Drawing is one shape on the beat-board drawing layer. Per-shape rather than a
+// blob per board so sync has a real unit to push and conflict on — see
+// decisions/0022-drawing-per-shape-rows.md.
+type Drawing struct {
+	ID        uuid.UUID `json:"id" db:"drawing_id"`
+	ProjectID uuid.UUID `json:"projectId" db:"project_id"`
+	// pen | line | arrow | rect | ellipse — free-form, so a new kind needs no
+	// migration on either database.
+	Kind string `json:"kind" db:"kind"`
+	// Opaque JSON (geometry + style). The server stores and returns it; nothing
+	// here parses it, so it stays a string.
+	Data      string     `json:"data" db:"data"`
+	Order     int32      `json:"order" db:"drawing_order"`
+	CreatedAt time.Time  `json:"createdAt" db:"created_at"`
+	UpdatedAt time.Time  `json:"updatedAt" db:"updated_at"`
+	DeletedAt *time.Time `json:"deletedAt,omitempty" db:"deleted_at"`
+}
+
+// DrawingPatch is a partial update to a shape. Fields are pointers so "absent"
+// and "set to the zero value" are distinguishable.
+//
+// The other beat-board updates use the zero value itself as the absent sentinel
+// (`if updates.Order != 0 { ... }`), which quietly makes 0 unsettable. For a
+// drawing that's a real defect and not a hypothetical one: `order` is a z-index
+// whose default *is* 0, so "send this shape to the back" would silently no-op.
+type DrawingPatch struct {
+	Kind  *string
+	Data  *string
+	Order *int32
 }
 
 // BeatBoardData represents all beat board data for a project
@@ -104,4 +137,5 @@ type BeatBoardData struct {
 	Connections  []*Connection  `json:"connections"`
 	Lanes        []*Lane        `json:"lanes"`
 	OutlineItems []*OutlineItem `json:"outlineItems"`
+	Drawings     []*Drawing     `json:"drawings"`
 }

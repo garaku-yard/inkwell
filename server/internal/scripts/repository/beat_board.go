@@ -492,3 +492,119 @@ func (r *outlineItemRepository) DeleteOutlineItem(ctx context.Context, itemID uu
 	}
 	return nil
 }
+
+// ─── Drawings (decisions/0022) ───────────────────────────────────────────────
+//
+// One row per shape. `data` is opaque JSON: nothing here parses it, so a shape
+// is stored and returned exactly as the client wrote it.
+
+// drawingRepository implements DrawingRepository
+type drawingRepository struct {
+	db *sql.DB
+}
+
+// NewDrawingRepository creates a new drawing repository
+func NewDrawingRepository(db *sql.DB) DrawingRepository {
+	return &drawingRepository{db: db}
+}
+
+func (r *drawingRepository) CreateDrawing(ctx context.Context, d *domain.Drawing) error {
+	query := `
+		INSERT INTO drawings (drawing_id, project_id, kind, data, drawing_order)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING created_at, updated_at`
+
+	err := r.db.QueryRowContext(ctx, query,
+		d.ID, d.ProjectID, d.Kind, d.Data, d.Order,
+	).Scan(&d.CreatedAt, &d.UpdatedAt)
+
+	if err != nil {
+		return fmt.Errorf("failed to create drawing: %w", err)
+	}
+	return nil
+}
+
+func (r *drawingRepository) GetDrawing(ctx context.Context, drawingID uuid.UUID) (*domain.Drawing, error) {
+	query := `
+		SELECT drawing_id, project_id, kind, data, drawing_order, created_at, updated_at
+		FROM drawings WHERE drawing_id = $1 AND deleted_at IS NULL`
+
+	d := &domain.Drawing{}
+	err := r.db.QueryRowContext(ctx, query, drawingID).Scan(
+		&d.ID, &d.ProjectID, &d.Kind, &d.Data, &d.Order, &d.CreatedAt, &d.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("drawing not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get drawing: %w", err)
+	}
+	return d, nil
+}
+
+func (r *drawingRepository) GetProjectDrawings(ctx context.Context, projectID uuid.UUID) ([]*domain.Drawing, error) {
+	// z-order, then created_at so shapes sharing a slot stack in the order they
+	// were drawn rather than an arbitrary one.
+	query := `
+		SELECT drawing_id, project_id, kind, data, drawing_order, created_at, updated_at
+		FROM drawings
+		WHERE project_id = $1 AND deleted_at IS NULL
+		ORDER BY drawing_order, created_at`
+
+	rows, err := r.db.QueryContext(ctx, query, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project drawings: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*domain.Drawing
+	for rows.Next() {
+		d := &domain.Drawing{}
+		if err := rows.Scan(&d.ID, &d.ProjectID, &d.Kind, &d.Data, &d.Order, &d.CreatedAt, &d.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan drawing: %w", err)
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+func (r *drawingRepository) UpdateDrawing(ctx context.Context, d *domain.Drawing) error {
+	query := `
+		UPDATE drawings SET
+			kind = $1, data = $2, drawing_order = $3, updated_at = NOW()
+		WHERE drawing_id = $4 AND deleted_at IS NULL`
+
+	result, err := r.db.ExecContext(ctx, query, d.Kind, d.Data, d.Order, d.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update drawing: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("drawing not found")
+	}
+	return nil
+}
+
+func (r *drawingRepository) DeleteDrawing(ctx context.Context, drawingID uuid.UUID) error {
+	// Soft-delete: the tombstone is what carries an erase to the other devices.
+	query := `UPDATE drawings SET deleted_at = NOW(), updated_at = NOW() WHERE drawing_id = $1 AND deleted_at IS NULL`
+
+	result, err := r.db.ExecContext(ctx, query, drawingID)
+	if err != nil {
+		return fmt.Errorf("failed to delete drawing: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("drawing not found")
+	}
+	return nil
+}

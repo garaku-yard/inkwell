@@ -21,6 +21,7 @@ import {
   pushBeat,
   pushCharacter,
   pushConnection,
+  pushDrawing,
   pushElement,
   pushLane,
   pushLocation,
@@ -43,6 +44,7 @@ interface Changes {
   connections?: Row[]
   lanes?: Row[]
   outline_items?: Row[]
+  drawings?: Row[]
 }
 interface SyncResponse {
   changes?: Changes
@@ -72,6 +74,7 @@ const ENTITY_MAP: Record<
   connection: { table: "connections", push: pushConnection, key: "connections" },
   lane: { table: "lanes", push: pushLane, key: "lanes" },
   outline_item: { table: "outline_items", push: pushOutlineItem, key: "outline_items" },
+  drawing: { table: "drawings", push: pushDrawing, key: "drawings" },
 }
 
 /** Builds the push from the rows marked dirty in sync_outbox up to maxSeq.
@@ -144,6 +147,7 @@ async function applyChanges(c: Changes | undefined): Promise<void> {
   for (const x of c.lanes ?? []) await applyLane(db, x)
   for (const x of c.connections ?? []) await applyConnection(db, x)
   for (const x of c.outline_items ?? []) await applyOutlineItem(db, x)
+  for (const x of c.drawings ?? []) await applyDrawing(db, x)
 }
 
 const g = (row: Row, key: string) => (row[key] as string | undefined) ?? ""
@@ -255,6 +259,20 @@ async function applyOutlineItem(db: DB, o: Row): Promise<void> {
     [g(o, "id"), g(o, "project_id"), g(o, "beat_id"), g(o, "lane_id"), gn(o, "order"),
       (o["timeline_position"] as number | undefined) ?? null, (o["width"] as number | undefined) ?? null,
       gts(o, "updated_at") ?? now(), gts(o, "deleted_at")],
+  )
+}
+
+/** `data` is stored and shipped as an opaque JSON string; it lands verbatim.
+ *  created_at is only set on insert — a pulled edit must not rewrite when the
+ *  shape was first drawn, since z-order ties break on it. */
+async function applyDrawing(db: DB, d: Row): Promise<void> {
+  await db.execute(
+    `INSERT INTO drawings (id, project_id, kind, data, order_index, created_at, updated_at, deleted_at)
+     VALUES (?,?,?,?,?,?,?,?)
+     ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, data=excluded.data,
+       order_index=excluded.order_index, updated_at=excluded.updated_at, deleted_at=excluded.deleted_at`,
+    [g(d, "id"), g(d, "project_id"), g(d, "kind") || "pen", g(d, "data") || "{}", gn(d, "order"),
+      gts(d, "updated_at") ?? now(), gts(d, "updated_at") ?? now(), gts(d, "deleted_at")],
   )
 }
 

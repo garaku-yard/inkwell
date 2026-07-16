@@ -34,6 +34,10 @@ type BeatBoardService interface {
 	CreateOutlineItem(ctx context.Context, projectID, userID uuid.UUID, item *domain.OutlineItem) (*domain.OutlineItem, error)
 	UpdateOutlineItem(ctx context.Context, itemID, userID uuid.UUID, updates *domain.OutlineItem) (*domain.OutlineItem, error)
 	DeleteOutlineItem(ctx context.Context, itemID, userID uuid.UUID) error
+
+	CreateDrawing(ctx context.Context, projectID, userID uuid.UUID, d *domain.Drawing) (*domain.Drawing, error)
+	UpdateDrawing(ctx context.Context, drawingID, userID uuid.UUID, updates *domain.DrawingPatch) (*domain.Drawing, error)
+	DeleteDrawing(ctx context.Context, drawingID, userID uuid.UUID) error
 }
 
 type beatBoardService struct {
@@ -89,7 +93,8 @@ func (s *beatBoardService) GetProjectBeatBoard(ctx context.Context, projectID, u
 	connsCh := make(chan []*domain.Connection, 1)
 	lanesCh := make(chan []*domain.Lane, 1)
 	itemsCh := make(chan []*domain.OutlineItem, 1)
-	errCh := make(chan error, 4)
+	drawingsCh := make(chan []*domain.Drawing, 1)
+	errCh := make(chan error, 5)
 
 	go func() {
 		beats, err := s.repo.Beat.GetProjectBeats(ctx, projectID)
@@ -127,9 +132,18 @@ func (s *beatBoardService) GetProjectBeatBoard(ctx context.Context, projectID, u
 		itemsCh <- items
 	}()
 
+	go func() {
+		drawings, err := s.repo.Drawing.GetProjectDrawings(ctx, projectID)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		drawingsCh <- drawings
+	}()
+
 	// Collect results
 	beatBoard := &domain.BeatBoardData{}
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 5; i++ {
 		select {
 		case beats := <-beatsCh:
 			beatBoard.Beats = beats
@@ -139,6 +153,8 @@ func (s *beatBoardService) GetProjectBeatBoard(ctx context.Context, projectID, u
 			beatBoard.Lanes = lanes
 		case items := <-itemsCh:
 			beatBoard.OutlineItems = items
+		case drawings := <-drawingsCh:
+			beatBoard.Drawings = drawings
 		case err := <-errCh:
 			return nil, fmt.Errorf("failed to fetch beat board data: %w", err)
 		}
@@ -457,4 +473,75 @@ func (s *beatBoardService) verifyProjectAccess(ctx context.Context, projectID, u
 	}
 
 	return fmt.Errorf("user does not have access to this project")
+}
+
+// ─── Drawings (decisions/0022) ───────────────────────────────────────────────
+
+// CreateDrawing adds one shape to a project's drawing layer.
+func (s *beatBoardService) CreateDrawing(ctx context.Context, projectID, userID uuid.UUID, d *domain.Drawing) (*domain.Drawing, error) {
+	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+		return nil, err
+	}
+
+	d.ID = uuid.New()
+	d.ProjectID = projectID
+	if d.Kind == "" {
+		d.Kind = "pen"
+	}
+	if d.Data == "" {
+		d.Data = "{}"
+	}
+
+	if err := s.repo.Drawing.CreateDrawing(ctx, d); err != nil {
+		return nil, fmt.Errorf("failed to create drawing: %w", err)
+	}
+	return d, nil
+}
+
+// UpdateDrawing applies a partial update. Only the fields present on the patch
+// are touched — see domain.DrawingPatch for why this doesn't use the zero-value
+// sentinel the neighbouring updates do.
+func (s *beatBoardService) UpdateDrawing(ctx context.Context, drawingID, userID uuid.UUID, updates *domain.DrawingPatch) (*domain.Drawing, error) {
+	d, err := s.repo.Drawing.GetDrawing(ctx, drawingID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.verifyProjectAccess(ctx, d.ProjectID, userID); err != nil {
+		return nil, err
+	}
+
+	if updates != nil {
+		if updates.Kind != nil {
+			d.Kind = *updates.Kind
+		}
+		if updates.Data != nil {
+			d.Data = *updates.Data
+		}
+		if updates.Order != nil {
+			d.Order = *updates.Order
+		}
+	}
+
+	if err := s.repo.Drawing.UpdateDrawing(ctx, d); err != nil {
+		return nil, fmt.Errorf("failed to update drawing: %w", err)
+	}
+	return d, nil
+}
+
+// DeleteDrawing soft-deletes a shape; the tombstone carries the erase to other devices.
+func (s *beatBoardService) DeleteDrawing(ctx context.Context, drawingID, userID uuid.UUID) error {
+	d, err := s.repo.Drawing.GetDrawing(ctx, drawingID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.verifyProjectAccess(ctx, d.ProjectID, userID); err != nil {
+		return err
+	}
+
+	if err := s.repo.Drawing.DeleteDrawing(ctx, drawingID); err != nil {
+		return fmt.Errorf("failed to delete drawing: %w", err)
+	}
+	return nil
 }

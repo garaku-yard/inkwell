@@ -7,10 +7,12 @@ import {
   now,
   toBeat,
   toConnection,
+  toDrawing,
   toLane,
   toOutlineItem,
   type BeatRow,
   type ConnectionRow,
+  type DrawingRow,
   type LaneRow,
   type OutlineItemRow,
   type SyncEntity,
@@ -38,7 +40,7 @@ async function markRowDirty(
 export const beatBoard: BeatBoardStorage = {
   getBoard: async (projectId) => {
     const db = await getDb()
-    const [beatRows, connRows, laneRows, itemRows] = await Promise.all([
+    const [beatRows, connRows, laneRows, itemRows, drawingRows] = await Promise.all([
       db.select<BeatRow[]>(
         "SELECT * FROM beats WHERE project_id = ? AND deleted_at IS NULL ORDER BY act, order_index",
         [projectId],
@@ -55,12 +57,19 @@ export const beatBoard: BeatBoardStorage = {
         "SELECT * FROM outline_items WHERE project_id = ? AND deleted_at IS NULL ORDER BY order_index",
         [projectId],
       ),
+      // z-order, then created_at so shapes drawn in the same slot stack in the
+      // order they were made rather than an arbitrary one.
+      db.select<DrawingRow[]>(
+        "SELECT * FROM drawings WHERE project_id = ? AND deleted_at IS NULL ORDER BY order_index, created_at",
+        [projectId],
+      ),
     ])
     const board: BeatBoardData = {
       beats: beatRows.map(toBeat),
       connections: connRows.map(toConnection),
       lanes: laneRows.map(toLane),
       outlineItems: itemRows.map(toOutlineItem),
+      drawings: drawingRows.map(toDrawing),
     }
     return board
   },
@@ -282,5 +291,73 @@ export const beatBoard: BeatBoardStorage = {
       [ts, ts, itemId],
     )
     await markRowDirty(db, "outline_item", "outline_items", itemId, "delete")
+  },
+
+  // ─── Drawing layer (decisions/0022) ─────────────────────────────────────
+  //
+  // One row per shape. `data` is JSON (geometry + style) written whole on every
+  // update: a shape is small and always edited as a unit — a stroke is one
+  // gesture — so there's nothing to gain from picking it apart into columns.
+
+  createDrawing: async (projectId, input) => {
+    const db = await getDb()
+    const id = newId()
+    const ts = now()
+    await db.execute(
+      `INSERT INTO drawings (id, project_id, kind, data, order_index, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        projectId,
+        input.kind ?? "pen",
+        JSON.stringify(input.data ?? { points: [], color: "#000000", width: 2 }),
+        input.order ?? 0,
+        ts,
+        ts,
+      ],
+    )
+    await markDirty(db, "drawing", projectId, id)
+    const rows = await db.select<DrawingRow[]>("SELECT * FROM drawings WHERE id = ?", [id])
+    return toDrawing(rows[0])
+  },
+
+  updateDrawing: async (drawingId, patch) => {
+    const db = await getDb()
+    const sets: string[] = []
+    const args: (string | number | null)[] = []
+    if (patch.kind !== undefined) {
+      sets.push("kind = ?")
+      args.push(patch.kind)
+    }
+    if (patch.data !== undefined) {
+      sets.push("data = ?")
+      args.push(JSON.stringify(patch.data))
+    }
+    if (patch.order !== undefined) {
+      sets.push("order_index = ?")
+      args.push(patch.order)
+    }
+    if (sets.length > 0) {
+      sets.push("updated_at = ?")
+      args.push(now())
+      args.push(drawingId)
+      await db.execute(`UPDATE drawings SET ${sets.join(", ")} WHERE id = ?`, args)
+      await markRowDirty(db, "drawing", "drawings", drawingId)
+    }
+    const rows = await db.select<DrawingRow[]>("SELECT * FROM drawings WHERE id = ?", [drawingId])
+    if (!rows[0]) throw new Error(`drawing ${drawingId} not found`)
+    return toDrawing(rows[0])
+  },
+
+  deleteDrawing: async (drawingId) => {
+    const db = await getDb()
+    const ts = now()
+    // Soft-delete: the tombstone is what carries an erase to other devices.
+    await db.execute("UPDATE drawings SET deleted_at = ?, updated_at = ? WHERE id = ?", [
+      ts,
+      ts,
+      drawingId,
+    ])
+    await markRowDirty(db, "drawing", "drawings", drawingId, "delete")
   },
 }

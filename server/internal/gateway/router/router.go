@@ -218,6 +218,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 						r.Put("/lanes/order", scriptsHandler.UpdateLaneOrder)
 						r.Patch("/lanes/order", scriptsHandler.UpdateLaneOrder)
 						r.Post("/outline-items", scriptsHandler.CreateOutlineItem)
+						r.Post("/drawings", scriptsHandler.CreateDrawing)
 					})
 				})
 			})
@@ -261,6 +262,12 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 				r.Put("/{itemId}", scriptsHandler.UpdateOutlineItem)
 				r.Patch("/{itemId}", scriptsHandler.UpdateOutlineItem)
 				r.Delete("/{itemId}", scriptsHandler.DeleteOutlineItem)
+			})
+
+			// Drawings (beat-board drawing layer)
+			r.Route("/drawings", func(r chi.Router) {
+				r.Patch("/{drawingId}", scriptsHandler.UpdateDrawing)
+				r.Delete("/{drawingId}", scriptsHandler.DeleteDrawing)
 			})
 
 			// Collaboration (global — not scoped to a project)
