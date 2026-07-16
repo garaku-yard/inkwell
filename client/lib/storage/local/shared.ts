@@ -6,6 +6,8 @@
 
 import Database from "@tauri-apps/plugin-sql"
 
+import categoriesData from "@/lib/categories.json"
+
 import type {
   Beat,
   Category,
@@ -404,20 +406,24 @@ export function toWorkspace(row: WorkspaceRow): Workspace {
 
 // ─── Built-in categories ─────────────────────────────────────────────────
 
-/** Desktop categories are baked-in constants — no category table. Matches
- *  what the workspace-service would return in the hosted build. */
-export const BUILTIN_CATEGORIES: Category[] = [
-  { id: "cat-screenplay", slug: "screenplay", name: "Screenplay", description: "Film and TV scripts.", icon: "Film" },
-  { id: "cat-novel", slug: "novel", name: "Prose", description: "Novels, novellas, short fiction.", icon: "BookOpen" },
-  { id: "cat-poetry", slug: "poetry", name: "Poetry", description: "Poems and verse.", icon: "Feather" },
-  { id: "cat-comic", slug: "comic_script", name: "Comic Script", description: "Comic book scripts.", icon: "BookImage" },
-  { id: "cat-ttrpg", slug: "tabletop_rpg", name: "TTRPG", description: "Tabletop RPG content.", icon: "Dice3" },
-  { id: "cat-if", slug: "interactive_fiction", name: "Interactive Fiction", description: "Choice-based stories.", icon: "GitFork" },
-  { id: "cat-memoir", slug: "memoir", name: "Memoir", description: "Memoirs and personal narratives.", icon: "User" },
-  { id: "cat-lyrics", slug: "lyrics", name: "Lyrics", description: "Song lyrics and compositions.", icon: "Music" },
-  { id: "cat-vault", slug: "vault", name: "Vault", description: "Markdown notes linked with [[wikilinks]].", icon: "Notebook" },
-  { id: "cat-board", slug: "board", name: "Board", description: "A freeform canvas of beat cards and drawings.", icon: "Shapes" },
-]
+/** Desktop categories come from the authoritative list in `lib/categories.json`
+ *  — the same file the workspace-service seeds the hosted build from, so the two
+ *  can't say different things about the same slug. (They used to: the web called
+ *  `novel` "Novel" while the desktop called it "Prose".)
+ *
+ *  The desktop shows every category, `hosted` or not — that flag only controls
+ *  what the *server* exposes, and vault is desktop-only because a vault is a
+ *  folder of real files.
+ *
+ *  `id` is synthesised here. Nothing reads it (every consumer keys by slug) and
+ *  the hosted build's ids are database UUIDs, so it can't mean anything shared. */
+export const BUILTIN_CATEGORIES: Category[] = categoriesData.categories.map((c) => ({
+  id: `cat-${c.slug}`,
+  slug: c.slug,
+  name: c.name,
+  description: c.description,
+  icon: c.icon,
+}))
 
 export function slugifyCategory(slug: string): Category {
   const found = BUILTIN_CATEGORIES.find((c) => c.slug === slug)

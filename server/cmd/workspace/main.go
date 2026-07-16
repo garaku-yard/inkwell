@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
+	"inkwell/server/internal/workspace"
 	"inkwell/server/internal/workspace/config"
 	"inkwell/server/internal/workspace/handler"
 	"inkwell/server/internal/workspace/repository"
@@ -49,6 +50,13 @@ func main() {
 
 	if err := database.RunMigrations(db, "internal/workspace/migrations"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	// Bring the hosted category list in line with the shared file. Migration
+	// 000001 seeded it once and then drifted from the desktop's copy; upserting
+	// on boot means the file is the only place a category is described.
+	if err := workspace.SeedCategories(context.Background(), db); err != nil {
+		log.Fatalf("Failed to seed categories: %v", err)
 	}
 
 	repo := repository.NewWorkspaceRepository(db)

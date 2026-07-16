@@ -1,0 +1,88 @@
+{
+  "_comment": [
+    "THE authoritative category list. Edit here and nowhere else.",
+    "server/internal/workspace/categories.json is a synced copy (the two build",
+    "contexts are ./client and ./server, so neither can import the other's file).",
+    "After editing, run `task categories:sync`; the drift test fails if they differ.",
+    "",
+    "hosted=false means desktop-only: the workspace-service never seeds it, so it",
+    "cannot appear on the web build. A vault is a folder of real files on disk, so",
+    "it has no meaning without a local filesystem.",
+    "",
+    "`icon` is currently unread — CategoryIcon resolves icons by slug. It is kept",
+    "for the API contract (the categories table column) and because a future",
+    "consumer would expect it. That it went unread is exactly why it drifted."
+  ],
+  "categories": [
+    {
+      "slug": "screenplay",
+      "name": "Screenplay",
+      "description": "Film and TV scripts.",
+      "icon": "Film",
+      "hosted": true
+    },
+    {
+      "slug": "novel",
+      "name": "Prose",
+      "description": "Novels, novellas, short fiction.",
+      "icon": "BookOpen",
+      "hosted": true
+    },
+    {
+      "slug": "poetry",
+      "name": "Poetry",
+      "description": "Poems and verse.",
+      "icon": "Feather",
+      "hosted": true
+    },
+    {
+      "slug": "comic_script",
+      "name": "Comic Script",
+      "description": "Comic book scripts.",
+      "icon": "BookImage",
+      "hosted": true
+    },
+    {
+      "slug": "tabletop_rpg",
+      "name": "TTRPG",
+      "description": "Tabletop RPG content.",
+      "icon": "Dice3",
+      "hosted": true
+    },
+    {
+      "slug": "interactive_fiction",
+      "name": "Interactive Fiction",
+      "description": "Choice-based stories.",
+      "icon": "GitFork",
+      "hosted": true
+    },
+    {
+      "slug": "memoir",
+      "name": "Memoir",
+      "description": "Memoirs and personal narratives.",
+      "icon": "User",
+      "hosted": true
+    },
+    {
+      "slug": "lyrics",
+      "name": "Lyrics",
+      "description": "Song lyrics and compositions.",
+      "icon": "Music",
+      "hosted": true
+    },
+    {
+      "slug": "vault",
+      "name": "Vault",
+      "description": "Markdown notes linked with [[wikilinks]].",
+      "icon": "Notebook",
+      "hosted": false
+    },
+    {
+      "slug": "board",
+      "name": "Board",
+      "description": "A freeform canvas of beat cards, lanes and connections.",
+      "icon": "Shapes",
+      "hosted": true
+    }
+  ]
+}

@@ -359,6 +359,12 @@ tasks:
     cmds:
       - npm test
 
+  categories:sync:
+    desc: Copy the authoritative category list to the server (client/lib/categories.json is the source)
+    cmds:
+      - cp client/lib/categories.json server/internal/workspace/categories.json
+      - 'echo "✅ Synced. The workspace-service embeds this at build time; restart it to reseed."'
+
   # ====================
   # Code Quality
   # ====================
