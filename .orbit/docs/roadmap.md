@@ -9,11 +9,14 @@
 
 ## Near-term — finish what's built
 
-- **Two-device sync verification.** Both sync engines (DB-row + path-keyed vault)
-  are built and **server-verified** (SQL + curl round-trips incl. binary bytes),
-  but the **two-device app-level round-trip through two live Tauri webviews** is
-  still pending for both. This is the last gate before sync is called done.
-  Mechanics: [reference/sync-engine.md](./reference/sync-engine.md).
+- **Two-device sync verification.** The **DB-row engine is now verified
+  app-level** through two live Tauri webviews (2026-07-16) — fresh-device pull,
+  both edit directions, tombstone propagation, and the stale-device no-clobber
+  regression. The **path-keyed vault engine is still unverified app-level**: it
+  is server-verified only, and its fresh-device pull goes through a native folder
+  picker that the WebDriver harness can't drive. That is the remaining gate before
+  sync is called done. Mechanics + method:
+  [reference/sync-engine.md](./reference/sync-engine.md).
 - **Monetization go-live.** Open-core billing is **built but inert** — Free/Pro/
   Business tiers, quota enforcement, per-seat sync, Paddle checkout + webhooks,
   managed-AI metering. Remaining is operator work: real `PADDLE_*` creds +

@@ -203,8 +203,38 @@ single-user-few-devices. The exact/watermark GC is explicitly not built.
 
 ## Verification status
 
-Server side verified live (SQL against real Postgres + full HTTP→gRPC→service→repo
-via curl: upsert-by-id/path, fresh-device full pull with exact **binary** byte
-round-trip, incremental delta, tombstone propagation, cross-user 403, keyset
-tiebreaker). **Remaining: the two-device app-level round-trip on a running desktop
-build** — both engines, the same open gate. Tracked in [roadmap.md](../roadmap.md).
+**Server side** verified live (SQL against real Postgres + full
+HTTP→gRPC→service→repo via curl: upsert-by-id/path, fresh-device full pull with
+exact **binary** byte round-trip, incremental delta, tombstone propagation,
+cross-user 403, keyset tiebreaker).
+
+**Row engine — verified app-level 2026-07-16**, two live Tauri webviews against
+the local docker stack. Confirmed end-to-end, each assertion checked in the UI
+*and* in both local SQLite files *and* in server Postgres:
+
+- **Fresh-device pull** — device B ("From cloud" → Add) received a project it had
+  never seen, landing with the *same client UUID* as device A's local row.
+- **A→B and B→A edits** — heading + paragraph text propagated both directions.
+- **Tombstones** — an element deleted on B soft-deleted on the server
+  (`deleted_at` set, row retained) and applied on A carrying the *server's*
+  timestamp, confirming the single-authoritative-clock rule.
+- **The regression that motivated [0014](../decisions/0014-sync-incremental-outbox.md)** —
+  with A stale (server ahead, A's `sync_outbox` empty), A syncing pushed nothing
+  and *pulled* B's edit. All three copies converged; nothing was clobbered. Under
+  the old full-snapshot push this exact sequence destroyed B's edit.
+
+**Method** (worth repeating, non-obvious): two `tauri-driver` instances on
+separate ports, each launched with its own `XDG_CONFIG_HOME`/`XDG_DATA_HOME` —
+that env split is what makes two "devices" on one machine, since the SQLite file
+resolves under the app-config dir. The OS keychain is *not* isolated by that split
+(it's per-user), so both devices share the bearer token — which is the correct
+same-account-two-devices shape anyway. Two gotchas cost real time: WebDriver
+screenshots **hang** on this transparent/undecorated window under Xvfb (assert on
+DOM text instead), and WebKitWebDriver's `element/text` returns `""` for these
+buttons (match on `innerText` via `execute/sync`).
+
+**Remaining: the vault (path-keyed) engine app-level.** Still server-verified
+only. Its fresh-device pull requires choosing a destination folder through a
+native dialog, which the WebDriver harness cannot drive — verifying it needs
+either a seeded local vault project or a test seam around the folder pick.
+Tracked in [roadmap.md](../roadmap.md).
