@@ -30,9 +30,12 @@ export interface SyncProjectState {
 
 /**
  * Desktop-only bidirectional sync between the local SQLite store and the cloud
- * scripts-service. Opt-in per project; a sync is a full-snapshot push followed
- * by applying the server's pulled delta. No-ops without a linked cloud account.
- * The remote (web) build does not implement sync — it *is* the cloud client.
+ * scripts-service. Opt-in per project; a sync pushes only the rows changed
+ * locally since the last sync (drained from `sync_outbox`), then applies the
+ * server's pulled delta. Pushing only dirty rows is what makes multi-device safe
+ * — the full-snapshot push this once described was removed for silently losing
+ * cross-device edits. No-ops without a linked cloud account. The remote (web)
+ * build does not implement sync — it *is* the cloud client.
  */
 export interface SyncStorage {
   /** Whether sync can run right now (a cloud account is linked). */
