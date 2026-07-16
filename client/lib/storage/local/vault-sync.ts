@@ -205,6 +205,30 @@ async function vaultPathOrThrow(db: DB, projectId: string): Promise<string> {
 
 // ─── classify: disk vs manifest → push items ───────────────────────────────────
 
+/** Decide whether a stat/read failure is benign.
+ *
+ *  A file that genuinely disappeared between the walk and the read is a race —
+ *  skipping it is right, the next sync catches it. Every *other* failure
+ *  (permission denied, unreadable, plugin command not allowed) is not benign:
+ *  swallowing it drops the file from the push while the sync still reports
+ *  success, i.e. a green "Synced" that synced nothing. That is exactly how the
+ *  missing `fs:allow-stat`/`fs:allow-read-file` capabilities went unnoticed
+ *  from the engine's first commit — every file silently vanished from every
+ *  push. So: skip only if the file is really gone; otherwise surface it and let
+ *  the caller record an error status. */
+async function rethrowUnlessVanished(f: { rel: string; abs: string }, err: unknown): Promise<void> {
+  let stillThere: boolean
+  try {
+    stillThere = await exists(f.abs)
+  } catch {
+    // Can't even ask — treat as a real failure rather than assume it's a race.
+    stillThere = true
+  }
+  if (stillThere) {
+    throw new Error(`Vault file "${f.rel}" could not be read: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
 async function classifyChanges(
   vaultRoot: string,
   manifest: Map<string, ManifestEntry>,
@@ -225,8 +249,9 @@ async function classifyChanges(
       const info = await stat(f.abs)
       size = info.size ?? 0
       mtime = info.mtime ? String(info.mtime.getTime()) : ""
-    } catch {
-      continue // vanished mid-walk; next sync catches it
+    } catch (err) {
+      await rethrowUnlessVanished(f, err) // vanished mid-walk; next sync catches it
+      continue
     }
     if (size > MAX_PUSH_FILE_BYTES) {
       skipped.push(f.rel)
@@ -241,7 +266,8 @@ async function classifyChanges(
     let bytes: Uint8Array
     try {
       bytes = await readFile(f.abs)
-    } catch {
+    } catch (err) {
+      await rethrowUnlessVanished(f, err)
       continue
     }
     const hash = await sha256Hex(bytes)
