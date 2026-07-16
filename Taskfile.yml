@@ -226,6 +226,17 @@ tasks:
     cmds:
       - "{{.DOCKER_COMPOSE}} ps"
 
+  docker:prune:
+    desc: Reclaim disk from dangling images left behind by rebuilds (safe - keeps volumes/data)
+    # Every `docker compose build` orphans the previous image as an untagged
+    # layer and nothing collects them. A day of rebuilding left 39 of them =
+    # 13.2GB, which is how this repo fills a disk. `image prune` (no -a) only
+    # touches dangling images: tagged images and, crucially, VOLUMES — which hold
+    # the dev databases — are untouched. Never add --volumes here.
+    cmds:
+      - docker image prune -f
+      - 'echo "💡 Also worth a look when space is tight: client/.next, client/src-tauri/target/debug/incremental, npm cache clean --force"'
+
   docker:clean:
     desc: Stop containers and remove volumes (WARNING deletes all data!)
     cmds:

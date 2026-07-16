@@ -43,6 +43,22 @@ task docker:rebuild:<svc># rebuild + restart one service (e.g. :gateway, :script
 Web client → `http://localhost:3000`, gateway → `:8080`. The client reads
 `NEXT_PUBLIC_API_URL` (default `http://localhost:8080`).
 
+### Disk hygiene — run `task docker:prune` after rebuilding
+
+Every `docker compose build` orphans the previous image as an untagged layer, and
+nothing collects them. They are invisible until the disk is full: one day of
+rebuilding services left **39 dangling images = 13.2 GB**. `task docker:prune`
+drops them; it's dangling-only, so tagged images and volumes are untouched.
+
+**Never `docker system prune --volumes`.** The volumes hold the dev databases, and
+with the stack down they all look "unused" — that flag deletes your local projects.
+Use `task docker:clean` only when you actually mean "wipe the data".
+
+Other safe reclaims when space is tight: `client/.next`,
+`client/src-tauri/target/debug/incremental`, `npm cache clean --force`. A full
+`cargo clean` frees ~12 GB of `src-tauri/target` at the cost of a ~10–15 min
+rebuild.
+
 ### Ports (from `docker-compose.yml`)
 
 | Component | Host port | | Component | Host port |
