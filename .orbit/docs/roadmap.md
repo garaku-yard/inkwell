@@ -9,14 +9,19 @@
 
 ## Near-term — finish what's built
 
-- **Two-device sync verification.** The **DB-row engine is now verified
-  app-level** through two live Tauri webviews (2026-07-16) — fresh-device pull,
-  both edit directions, tombstone propagation, and the stale-device no-clobber
-  regression. The **path-keyed vault engine is still unverified app-level**: it
-  is server-verified only, and its fresh-device pull goes through a native folder
-  picker that the WebDriver harness can't drive. That is the remaining gate before
-  sync is called done. Mechanics + method:
-  [reference/sync-engine.md](./reference/sync-engine.md).
+- **Two-device sync verification — done (2026-07-16), and it earned its keep.**
+  Both engines are now verified app-level through two live Tauri webviews. The row
+  engine passed (fresh-device pull, both edit directions, tombstones, and the
+  stale-device no-clobber regression). The vault engine **failed**: `stat`,
+  `readFile` and `writeFile` were never granted in the Tauri capability manifest,
+  so every file silently dropped out of every push behind a green "Synced" —
+  broken since the engine's first commit, invisible to server-side curl
+  verification. Fixed, guarded by a test, and re-verified byte-for-byte.
+  Details + method: [reference/sync-engine.md](./reference/sync-engine.md).
+  - *Still uncovered:* the native folder picker (WebDriver automation maps no X
+    window, so the GTK dialog can't be driven). Both devices' `vault_path` was
+    seeded the way `pullProject` writes it; the dialog contributes only that one
+    string. Worth a real human click before calling vault sync shippable.
 - **Monetization go-live.** Open-core billing is **built but inert** — Free/Pro/
   Business tiers, quota enforcement, per-seat sync, Paddle checkout + webhooks,
   managed-AI metering. Remaining is operator work: real `PADDLE_*` creds +

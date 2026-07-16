@@ -233,8 +233,36 @@ screenshots **hang** on this transparent/undecorated window under Xvfb (assert o
 DOM text instead), and WebKitWebDriver's `element/text` returns `""` for these
 buttons (match on `innerText` via `execute/sync`).
 
-**Remaining: the vault (path-keyed) engine app-level.** Still server-verified
-only. Its fresh-device pull requires choosing a destination folder through a
-native dialog, which the WebDriver harness cannot drive — verifying it needs
-either a seeded local vault project or a test seam around the folder pick.
-Tracked in [roadmap.md](../roadmap.md).
+**Vault engine — verified app-level 2026-07-16, and it was broken.** The first
+app-level run found that **vault file sync had never worked on a real desktop
+build**, from the engine's first commit (`9eb56f2`) until now.
+
+`vault-sync.ts` calls `stat`, `readFile` and `writeFile` from the fs plugin, but
+`src-tauri/capabilities/default.json` granted only the *text*-file and directory
+variants; `fs:default` doesn't help (it is `create-app-specific-dirs` +
+`read-app-specific-dirs-recursive` + `deny-default` — app dirs only, and no
+`stat`/`read-file` command). Every call was denied, every call site swallowed the
+error (`catch { continue }`), so **every file silently dropped out of every push
+while the UI reported a green "Synced just now"**. Server-side curl verification
+could never have caught it: curl doesn't run the client. Fixed by granting
+`fs:allow-stat` / `fs:allow-read-file` / `fs:allow-write-file`, plus:
+- `classifyChanges` now only skips a file that has genuinely vanished (a real
+  race); any other stat/read failure is surfaced so the sync records an error
+  instead of reporting success. The swallow is what let this hide for a month.
+- `__tests__/unit/tauri-fs-capabilities.test.ts` pins the contract — every fs API
+  the frontend imports must have its `fs:allow-*` permission. TypeScript cannot
+  check this, so nothing else would.
+
+Verified after the fix, two devices, byte-level: A pushed a nested vault (markdown
++ a binary attachment) → B pulled it onto an empty folder **byte-identical**
+(matching sha256 on the binary) → B's on-disk edits (modify + create + delete)
+propagated back through the server to A, which converged byte-for-byte and removed
+the deleted file. Path-keyed tombstones confirmed server-side.
+
+**Caveat on scope.** The native folder picker is *not* covered: under
+WebKitWebDriver automation the app maps no X window, so the GTK dialog can't be
+driven (XTEST has nothing to target). Both devices' `vault_path` were seeded
+directly, mirroring what `pullProject`'s vault branch INSERTs — the picker's only
+contribution is that one path string (`openVault` is literally
+`UPDATE projects SET vault_path = ?`). So the engine is verified; the dialog →
+`vault_path` hand-off is still only verified by reading it.
