@@ -43,7 +43,7 @@ jobs:
         run: go test -race -count=1 ./...
 
   client:
-    name: Client — typecheck, lint, build
+    name: Client — typecheck, lint, test, build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -65,6 +65,13 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # The suite gates more than component smoke: it holds the contracts
+      # TypeScript can't check — the Tauri fs capability manifest and the
+      # client/server category list. Both are plain JSON, so without this step a
+      # broken contract compiles, lints, builds, and ships.
+      - name: Test
+        run: npm test
 
       - name: Build
         env:
