@@ -80,7 +80,7 @@
     {
       "slug": "board",
       "name": "Board",
-      "description": "A freeform canvas of beat cards, lanes and connections.",
+      "description": "A freeform canvas of beat cards, lanes and drawings.",
       "icon": "Shapes",
       "hosted": true
     }

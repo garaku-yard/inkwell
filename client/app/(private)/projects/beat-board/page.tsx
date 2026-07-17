@@ -16,6 +16,8 @@ import { useAuth } from "@/lib/AuthContext"
 import { getCategoryStructure } from "@/lib/helpers/category-structure"
 import { useProjectLoader } from "@/hooks/useProjectLoader"
 import { useBeatBoardData } from "@/components/beat-board/useBeatBoardData"
+import { useDrawing } from "@/components/beat-board/useDrawing"
+import { DrawingToolbar } from "@/components/beat-board/DrawingToolbar"
 import { useBeatImageUpload } from "@/components/beat-board/useBeatImageUpload"
 import { useBeatDrag } from "@/components/beat-board/useBeatDrag"
 import { useBeatResize } from "@/components/beat-board/useBeatResize"
@@ -45,6 +47,8 @@ function BeatBoardPageContent() {
     setLanes,
     outlineItems,
     setOutlineItems,
+    drawings,
+    setDrawings,
     isLoading: boardLoading,
     error: boardError,
   } = useBeatBoardData(project?.id)
@@ -63,6 +67,7 @@ function BeatBoardPageContent() {
   const [editingField, setEditingField] = useState<{ beatId: string; field: keyof Beat } | null>(null)
   const [colorPickerOpen, setColorPickerOpen] = useState<string | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
+  const drawing = useDrawing({ projectId: project?.id, boardRef, drawings, setDrawings })
   // HTML5 drag-and-drop is distinct from the per-frame mouse drag the
   // useBeatDrag hook manages — this tracks which beat the user grabbed
   // for the timeline drop, while useBeatDrag tracks position changes
@@ -223,6 +228,11 @@ function BeatBoardPageContent() {
   };
 
   const handleBoardDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // With a drawing tool in hand, a double-click is two strokes, not a request
+    // for a beat card. The drawing layer swallows the pointer events, but the
+    // dblclick still bubbles to the board.
+    if (drawing.tool !== "select") return;
+
     const target = e.target as HTMLElement;
     const isBeatCard = target.closest('[data-beat-card]');
 
@@ -271,8 +281,18 @@ function BeatBoardPageContent() {
           totalPages={TOTAL_PAGES} structure={structure} defaultExpanded={structure.linear}
         />
       </div>
+      {/* The toolbar is a sibling of the canvas, not a child: the canvas is the
+          scroll container, so a toolbar inside it would slide away with the
+          board. This wrapper is what its `absolute` positions against. */}
+      <div className="relative flex flex-1 min-h-0">
+      <DrawingToolbar
+        tool={drawing.tool} setTool={drawing.setTool}
+        color={drawing.color} setColor={drawing.setColor}
+        width={drawing.width} setWidth={drawing.setWidth}
+      />
       <BeatCanvas
         boardRef={boardRef} beats={beats} connections={connections} isLoading={isLoading}
+        drawings={drawings} drawing={drawing}
         editingField={editingField} colorPickerOpen={colorPickerOpen} draggedBeat={draggedBeat}
         movingBeatId={drag.movingBeatId} isResizing={resize.isResizing}
         onMouseDownOnBeat={drag.onBeatMouseDown}
@@ -295,6 +315,7 @@ function BeatBoardPageContent() {
         onBoardDoubleClick={handleBoardDoubleClick}
         onImageDrop={handleImageDrop}
       />
+      </div>
     </div>
     </ProjectShell>
   )

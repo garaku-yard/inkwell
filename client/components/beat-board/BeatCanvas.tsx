@@ -1,13 +1,18 @@
 import type React from "react";
 import { ClipboardList } from "lucide-react";
 import type { Beat, Connection } from "@/services/beat";
+import type { Drawing } from "@/services/beat-board";
 import { BeatCard } from "./BeatCard";
+import { DrawingLayer } from "./DrawingLayer";
+import type { UseDrawingResult } from "./useDrawing";
 import type { ConnectionSide } from "@/app/(private)/projects/beat-board/page";
 
 interface BeatCanvasProps {
   boardRef: React.RefObject<HTMLDivElement | null>;
   beats: Beat[];
   connections: Connection[];
+  drawings: Drawing[];
+  drawing: UseDrawingResult;
   isLoading: boolean;
   editingField: { beatId: string; field: keyof Beat } | null;
   colorPickerOpen: string | null;
@@ -37,7 +42,7 @@ interface BeatCanvasProps {
 
 const GRID_SIZE = 20;
 
-export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }: BeatCanvasProps) {
+export function BeatCanvas({ boardRef, beats, connections, drawings, drawing, isLoading, ...props }: BeatCanvasProps) {
 
   const getConnectionPoint = (beat: Beat, side: "top" | "right" | "bottom" | "left") => {
     const { width, height, position } = beat;
@@ -88,12 +93,12 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
         e.preventDefault();
       }}
     >
-      {!isLoading && beats.length === 0 && (
+      {!isLoading && beats.length === 0 && drawings.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center text-muted-foreground p-8 rounded-lg border border-border bg-card/60 backdrop-blur-sm">
             <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground/50" />
             <h2 className="mt-4 text-lg font-medium text-foreground">Your Beat Board is Empty</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Double-click to create a beat or drop an image to create a visual beat.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Double-click to create a beat, drop an image, or pick a drawing tool to sketch.</p>
           </div>
         </div>
       )}
@@ -119,6 +124,18 @@ export function BeatCanvas({ boardRef, beats, connections, isLoading, ...props }
           <ConnectionHandle beatId={beat.id} side="left" position={{ top: "50%", left: "-6px", transform: "translateY(-50%)" }} />
         </BeatCard>
       ))}
+      {/* Sits above the cards so a stroke can cross one, which is what marking up
+          a board means. It only takes the pointer when a tool is actually
+          selected, so with Select the cards behave exactly as they always did. */}
+      <DrawingLayer
+        drawings={drawings}
+        draft={drawing.draft}
+        tool={drawing.tool}
+        onPointerDown={drawing.onPointerDown}
+        onPointerMove={drawing.onPointerMove}
+        onPointerUp={drawing.onPointerUp}
+        eraseShape={drawing.eraseShape}
+      />
     </div>
   );
 }

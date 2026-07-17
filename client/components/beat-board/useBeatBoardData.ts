@@ -6,7 +6,7 @@ import {
   type Beat,
   type Connection,
 } from "@/services/beat"
-import type { Lane, OutlineItem } from "@/services/beat-board"
+import type { Drawing, Lane, OutlineItem } from "@/services/beat-board"
 
 interface UseBeatBoardDataResult {
   beats: Beat[]
@@ -17,6 +17,8 @@ interface UseBeatBoardDataResult {
   setLanes: React.Dispatch<React.SetStateAction<Lane[]>>
   outlineItems: OutlineItem[]
   setOutlineItems: React.Dispatch<React.SetStateAction<OutlineItem[]>>
+  drawings: Drawing[]
+  setDrawings: React.Dispatch<React.SetStateAction<Drawing[]>>
   isLoading: boolean
   error: string | null
 }
@@ -31,6 +33,7 @@ export function useBeatBoardData(projectId: string | undefined): UseBeatBoardDat
   const [connections, setConnections] = useState<Connection[]>([])
   const [lanes, setLanes] = useState<Lane[]>([])
   const [outlineItems, setOutlineItems] = useState<OutlineItem[]>([])
+  const [drawings, setDrawings] = useState<Drawing[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,6 +49,7 @@ export function useBeatBoardData(projectId: string | undefined): UseBeatBoardDat
         setConnections(data.connections || [])
         setLanes(data.lanes || [])
         setOutlineItems(data.outlineItems || [])
+        setDrawings(data.drawings || [])
       })
       .catch((err) => {
         if (cancelled) return
@@ -69,6 +73,8 @@ export function useBeatBoardData(projectId: string | undefined): UseBeatBoardDat
     setLanes,
     outlineItems,
     setOutlineItems,
+    drawings,
+    setDrawings,
     isLoading,
     error,
   }
