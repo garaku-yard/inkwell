@@ -27,11 +27,19 @@ import { pushProject, toTs, type Row, type Ts } from "./sync-mappers"
 
 // ─── tuning ──────────────────────────────────────────────────────────────────
 
-/** A file larger than this is skipped (not pushed): base64 inflates ~33%, and a
- *  single push request is capped at 32 MiB server-side. Surfaced, never silent. */
+/** These budgets exist to keep every request under the transport's ceiling,
+ *  which is `grpclimits.MaxMessageBytes` = 32 MiB (server/pkg/grpclimits).
+ *
+ *  That number used to be a fiction: nothing configured gRPC at all, so the real
+ *  cap was grpc-go's 4 MiB default and any vault with more than 4 MiB of changed
+ *  files could never sync — every retry rebuilt the same oversized message and
+ *  failed identically (Orbit #151). The ceiling is now actually set, so these
+ *  budgets mean what they say. Raising any of them requires raising it too:
+ *  batching always emits at least one file, so a lone MAX_PUSH_FILE_BYTES file
+ *  has to fit on its own. */
 const MAX_PUSH_FILE_BYTES = 20 * 1024 * 1024
 /** Per-push-batch budgets — many changed files are split across requests so no
- *  single push exceeds the server's body cap. */
+ *  single push exceeds the ceiling above. */
 const PUSH_BATCH_MAX_FILES = 150
 const PUSH_BATCH_MAX_BYTES = 12 * 1024 * 1024
 /** Backstop against a runaway push/pull loop. */

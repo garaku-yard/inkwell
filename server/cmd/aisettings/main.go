@@ -28,6 +28,7 @@ import (
 	"inkwell/server/pkg/crypto"
 	"inkwell/server/pkg/database"
 	aisettingspb "inkwell/server/pkg/grpc/aisettings"
+	"inkwell/server/pkg/grpclimits"
 )
 
 func main() {
@@ -115,7 +116,7 @@ func main() {
 
 	h := handler.New(svc)
 
-	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(loggingInterceptor))
+	grpcServer := grpc.NewServer(append(grpclimits.ServerOptions(), grpc.UnaryInterceptor(loggingInterceptor))...)
 	aisettingspb.RegisterAISettingsServiceServer(grpcServer, h)
 	reflection.Register(grpcServer)
 

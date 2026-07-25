@@ -18,6 +18,7 @@ import (
 	"inkwell/server/pkg/events"
 	billingpb "inkwell/server/pkg/grpc/billing"
 	scriptspb "inkwell/server/pkg/grpc/scripts"
+	"inkwell/server/pkg/grpclimits"
 	"inkwell/server/pkg/outbox"
 	"inkwell/server/pkg/quota"
 	"inkwell/server/pkg/quota/billingadapter"
@@ -136,9 +137,10 @@ func main() {
 		}
 	}()
 
-	grpcServer := grpc.NewServer(
+	grpcServer := grpc.NewServer(append(
+		grpclimits.ServerOptions(),
 		grpc.UnaryInterceptor(loggingInterceptor),
-	)
+	)...)
 
 	scriptspb.RegisterScriptsServiceServer(grpcServer, scriptsHandler)
 	reflection.Register(grpcServer)

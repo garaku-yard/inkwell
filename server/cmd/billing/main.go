@@ -17,6 +17,7 @@ import (
 	"inkwell/server/pkg/database"
 	"inkwell/server/pkg/events"
 	billingpb "inkwell/server/pkg/grpc/billing"
+	"inkwell/server/pkg/grpclimits"
 	"inkwell/server/pkg/outbox"
 	"inkwell/server/pkg/paddle"
 	redisclient "inkwell/server/pkg/redis"
@@ -125,9 +126,10 @@ func main() {
 	// Drain buffered usage events to the durable log off the request path.
 	go svc.RunUsageFlusher(pollerCtx)
 
-	grpcServer := grpc.NewServer(
+	grpcServer := grpc.NewServer(append(
+		grpclimits.ServerOptions(),
 		grpc.UnaryInterceptor(loggingInterceptor),
-	)
+	)...)
 
 	billingpb.RegisterBillingServiceServer(grpcServer, billingHandler)
 	reflection.Register(grpcServer)

@@ -21,6 +21,7 @@ import (
 	notificationspb "inkwell/server/pkg/grpc/notifications"
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 	workspacepb "inkwell/server/pkg/grpc/workspace"
+	"inkwell/server/pkg/grpclimits"
 )
 
 // Registry holds one gRPC client per downstream service.
@@ -87,6 +88,9 @@ func dial(target, name string) (*grpc.ClientConn, error) {
 		target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(breakerInterceptor(cb, name)),
+		// Without this a vault pull page (up to 16 MiB) is rejected on receipt
+		// by the 4 MiB default. See grpclimits.
+		grpclimits.DialOption(),
 	)
 }
 

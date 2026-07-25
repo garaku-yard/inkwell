@@ -24,6 +24,7 @@ import (
 	"inkwell/server/pkg/env"
 	"inkwell/server/pkg/events"
 	identitypb "inkwell/server/pkg/grpc/identity"
+	"inkwell/server/pkg/grpclimits"
 	"inkwell/server/pkg/outbox"
 )
 
@@ -98,9 +99,10 @@ func main() {
 	accountReaper := reaper.New(authService, reaperInterval, retention)
 	go accountReaper.Run(pollerCtx)
 
-	grpcServer := grpc.NewServer(
+	grpcServer := grpc.NewServer(append(
+		grpclimits.ServerOptions(),
 		grpc.UnaryInterceptor(loggingInterceptor),
-	)
+	)...)
 
 	identitypb.RegisterIdentityServiceServer(grpcServer, identityHandler)
 	reflection.Register(grpcServer)

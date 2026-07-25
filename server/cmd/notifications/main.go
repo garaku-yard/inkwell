@@ -26,6 +26,7 @@ import (
 	"inkwell/server/pkg/database"
 	identitypb "inkwell/server/pkg/grpc/identity"
 	notificationspb "inkwell/server/pkg/grpc/notifications"
+	"inkwell/server/pkg/grpclimits"
 )
 
 func main() {
@@ -100,7 +101,7 @@ func main() {
 		log.Println("KAFKA_BROKERS not set — in-app delivery disabled (preferences still served)")
 	}
 
-	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(loggingInterceptor))
+	grpcServer := grpc.NewServer(append(grpclimits.ServerOptions(), grpc.UnaryInterceptor(loggingInterceptor))...)
 	notificationspb.RegisterNotificationsServiceServer(grpcServer, h)
 	reflection.Register(grpcServer)
 

@@ -17,6 +17,7 @@ import (
 	"inkwell/server/pkg/database"
 	"inkwell/server/pkg/events"
 	"inkwell/server/pkg/grpc/collab"
+	"inkwell/server/pkg/grpclimits"
 	"inkwell/server/pkg/outbox"
 
 	"github.com/joho/godotenv"
@@ -90,9 +91,10 @@ func main() {
 	// active set from growing unbounded.
 	go runEditSessionSweeper(pollerCtx, collabService)
 
-	grpcServer := grpc.NewServer(
+	grpcServer := grpc.NewServer(append(
+		grpclimits.ServerOptions(),
 		grpc.UnaryInterceptor(loggingInterceptor),
-	)
+	)...)
 
 	collab.RegisterCollaborationServiceServer(grpcServer, handler)
 	reflection.Register(grpcServer)
