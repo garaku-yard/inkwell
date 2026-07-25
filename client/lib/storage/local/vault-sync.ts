@@ -17,12 +17,12 @@
  *  This module owns no sync_state I/O — ./sync wraps runVaultSync with status,
  *  cursor, and last_synced_at bookkeeping, so the dependency stays one-way. */
 
-import { exists, mkdir, readDir, readFile, remove, stat, writeFile } from "@tauri-apps/plugin-fs"
+import { exists, mkdir, readFile, remove, stat, writeFile } from "@tauri-apps/plugin-fs"
 
 import { apiClient } from "@/lib/api"
 import { allowFsDir } from "@/lib/tauri-scope"
 import { getDb, now } from "./shared"
-import { joinPath, normaliseRelPath, vault } from "./vault"
+import { joinPath, normaliseRelPath, vault, walkVaultFiles } from "./vault"
 import { pushProject, toTs, type Row, type Ts } from "./sync-mappers"
 
 // ─── tuning ──────────────────────────────────────────────────────────────────
@@ -103,29 +103,9 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
 
 // ─── filesystem walk (all non-hidden files, not just .md) ──────────────────────
 
-async function walkAllFiles(
-  folder: string,
-  relPrefix = "",
-): Promise<Array<{ rel: string; abs: string }>> {
-  const out: Array<{ rel: string; abs: string }> = []
-  let entries: Awaited<ReturnType<typeof readDir>>
-  try {
-    entries = await readDir(folder)
-  } catch {
-    return out
-  }
-  for (const entry of entries) {
-    if (entry.name.startsWith(".")) continue // skip .obsidian / .git / dotfiles
-    const childRel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name
-    const childAbs = joinPath(folder, entry.name)
-    if (entry.isDirectory) {
-      out.push(...(await walkAllFiles(childAbs, childRel)))
-    } else if (entry.isFile) {
-      out.push({ rel: childRel, abs: childAbs })
-    }
-  }
-  return out
-}
+/** The walk lives in ./vault so the folder picker's warning and this engine
+ *  agree on what the vault contains — see walkVaultFiles. */
+const walkAllFiles = walkVaultFiles
 
 const isMarkdown = (rel: string) => rel.toLowerCase().endsWith(".md")
 

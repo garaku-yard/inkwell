@@ -56,10 +56,26 @@ export interface VaultTag {
   count: number
 }
 
+/** What a folder already holds, from the sync engine's point of view. Choosing
+ *  a folder makes it the vault root, and anything already inside it becomes
+ *  vault content — so a non-empty folder means those files get merged in and,
+ *  once the project syncs, uploaded. The picker uses this to say so first. */
+export interface VaultFolderPreview {
+  /** Files the engine would treat as vault content (dotfiles excluded). */
+  fileCount: number
+  /** A few vault-relative paths, so a warning can name what it found rather
+   *  than quoting a bare number the user can't check. */
+  sample: string[]
+}
+
 export interface VaultStorage {
   /** Attach a vault folder to an existing vault project. Idempotent — callers
    *  can re-run this to change the folder later. */
   openVault(projectId: string, folderPath: string): Promise<void>
+  /** Inspects a folder the user is about to choose, without attaching it.
+   *  Callers must warn before adopting a non-empty folder: see
+   *  {@link VaultFolderPreview}. */
+  inspectFolder(folderPath: string): Promise<VaultFolderPreview>
   /** Returns the absolute vault path stored for the project, or null when
    *  the user hasn't chosen a folder yet. */
   getVaultPath(projectId: string): Promise<string | null>

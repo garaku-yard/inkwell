@@ -12,6 +12,7 @@ const rejectVault = <T>(): Promise<T> =>
 // affordances behind a Tauri runtime check.
 export const vault: VaultStorage = {
   openVault: () => rejectVault(),
+  inspectFolder: () => rejectVault(),
   getVaultPath: async () => null,
   listNotes: () => rejectVault(),
   readNote: () => rejectVault(),

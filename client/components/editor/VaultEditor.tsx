@@ -26,6 +26,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { type VaultNote } from "@/lib/storage"
+import { pickVaultFolder } from "@/lib/vault/pick-vault-folder"
+import { getSyncState } from "@/services/sync"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useTheme } from "@/lib/ThemeContext"
@@ -510,9 +512,20 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
       setError("Folder selection is only available in the desktop app.")
       return
     }
-    const { open } = await import("@tauri-apps/plugin-dialog")
-    const picked = await open({ directory: true, multiple: false })
-    if (!picked || typeof picked !== "string") return
+    // Pointing a local project at a folder full of notes is the ordinary way to
+    // open an existing vault, so only warn when the contents would actually
+    // leave the machine — i.e. this project already syncs.
+    let willUpload = false
+    try {
+      willUpload = (await getSyncState(projectId)).enabled
+    } catch {
+      willUpload = false
+    }
+    const picked = await pickVaultFolder({
+      title: "Choose the vault folder",
+      willUpload,
+    })
+    if (picked === null) return
     await flushPending()
     await storage.vault.openVault(projectId, picked)
     setVaultPath(picked)

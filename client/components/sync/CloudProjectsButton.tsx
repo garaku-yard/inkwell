@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog"
 import { getStorage, type CloudProject } from "@/lib/storage"
 import { isSyncAvailable, listCloudProjects, pullCloudProject } from "@/services/sync"
+import { pickVaultFolder } from "@/lib/vault/pick-vault-folder"
 
 export function CloudProjectsButton({ onPulled }: { onPulled?: () => void }) {
   // capabilities is a stable Set bound at boot — safe to read at render.
@@ -57,13 +58,14 @@ export function CloudProjectsButton({ onPulled }: { onPulled?: () => void }) {
     // pulling. The user can cancel the folder picker to abort.
     let vaultFolder: string | undefined
     if (p.category === "vault") {
-      const { open } = await import("@tauri-apps/plugin-dialog")
-      const picked = await open({
-        directory: true,
-        multiple: false,
-        title: `Choose a folder for "${p.title || "vault"}"`,
+      // A pull turns sync on, so whatever is already in the chosen folder gets
+      // uploaded. pickVaultFolder warns when it isn't empty; null means the
+      // user backed out of the picker or that warning.
+      const picked = await pickVaultFolder({
+        title: `Choose an empty folder for "${p.title || "vault"}"`,
+        willUpload: true,
       })
-      if (typeof picked !== "string") return // cancelled
+      if (picked === null) return
       vaultFolder = picked
     }
 

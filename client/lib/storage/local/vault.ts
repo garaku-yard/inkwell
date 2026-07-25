@@ -187,6 +187,41 @@ async function reindexNoteLinks(
   }
 }
 
+/** Recursively walks `folder` and returns every non-hidden file, yielding the
+ *  relative path from the top-level folder (forward-slash separated) plus the
+ *  matching absolute path.
+ *
+ *  This is the definition of "what counts as vault content" — the sync engine
+ *  pushes exactly this set, and `inspectFolder` warns about exactly this set.
+ *  It lives here rather than in vault-sync.ts because vault-sync already
+ *  imports from this module; the other direction would be a cycle. Both must
+ *  keep using this one function: the moment the picker's idea of the vault and
+ *  the engine's diverge, a folder can be uploaded that the user was never
+ *  warned about. */
+export async function walkVaultFiles(
+  folder: string,
+  relPrefix = "",
+): Promise<Array<{ rel: string; abs: string }>> {
+  const out: Array<{ rel: string; abs: string }> = []
+  let entries: Awaited<ReturnType<typeof readDir>>
+  try {
+    entries = await readDir(folder)
+  } catch {
+    return out
+  }
+  for (const entry of entries) {
+    if (entry.name.startsWith(".")) continue // skip .obsidian / .git / dotfiles
+    const childRel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name
+    const childAbs = joinPath(folder, entry.name)
+    if (entry.isDirectory) {
+      out.push(...(await walkVaultFiles(childAbs, childRel)))
+    } else if (entry.isFile) {
+      out.push({ rel: childRel, abs: childAbs })
+    }
+  }
+  return out
+}
+
 /** Recursively walks `folder` and returns every `.md` file it finds,
  *  yielding the relative path from the top-level folder (forward-slash
  *  separated) plus the matching absolute path. Hidden files starting
@@ -295,6 +330,14 @@ export const vault: VaultStorage = {
       "UPDATE projects SET vault_path = ?, updated_at = ? WHERE id = ?",
       [folderPath, ts, projectId],
     )
+  },
+
+  inspectFolder: async (folderPath) => {
+    // Reading a folder the user only *pointed at* still needs the scope, and
+    // it may sit anywhere on disk. Read-only: nothing is attached yet.
+    await allowFsDir(folderPath, false)
+    const found = await walkVaultFiles(folderPath)
+    return { fileCount: found.length, sample: found.slice(0, 5).map((f) => f.rel) }
   },
 
   getVaultPath: async (projectId) => {
