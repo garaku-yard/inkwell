@@ -77,6 +77,10 @@ function shapePath(d: Drawing): React.ReactElement | null {
  * With the select tool it is `pointer-events: none`, so cards, connection
  * handles and double-click-to-add all behave exactly as before — the layer is
  * only in the way when a drawing tool is actually chosen.
+ *
+ * It fills its parent, which must be the canvas surface (sized to the whole
+ * board) rather than the scroll container — inside the scroll container it
+ * would be viewport-sized and clip every shape past the first screen.
  */
 export function DrawingLayer({
   drawings, draft, tool, onPointerDown, onPointerMove, onPointerUp, eraseShape,
@@ -94,10 +98,6 @@ export function DrawingLayer({
         // untouched by the drawing feature existing.
         pointerEvents: active ? "auto" : "none",
         cursor: erasing ? "pointer" : active ? "crosshair" : "default",
-        // The canvas scrolls; the layer must cover the scrollable extent, not
-        // just the viewport, or shapes get clipped when the board is larger.
-        minWidth: "100%",
-        minHeight: "100%",
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

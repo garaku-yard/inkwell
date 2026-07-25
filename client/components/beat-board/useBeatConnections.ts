@@ -5,6 +5,7 @@ import {
   createConnection,
   type Connection,
 } from "@/services/beat"
+import { toCanvasPoint } from "./canvasGeometry"
 
 export type ConnectionSide = "top" | "right" | "bottom" | "left"
 
@@ -12,7 +13,7 @@ interface UseBeatConnectionsOptions {
   projectId: string
   connections: Connection[]
   setConnections: React.Dispatch<React.SetStateAction<Connection[]>>
-  boardRef: React.RefObject<HTMLDivElement | null>
+  surfaceRef: React.RefObject<HTMLDivElement | null>
 }
 
 interface UseBeatConnectionsResult {
@@ -35,7 +36,7 @@ interface UseBeatConnectionsResult {
 export function useBeatConnections({
   projectId,
   setConnections,
-  boardRef,
+  surfaceRef,
 }: UseBeatConnectionsOptions): UseBeatConnectionsResult {
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectionStart, setConnectionStart] = useState<{
@@ -72,11 +73,14 @@ export function useBeatConnections({
 
   const onMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!isConnecting || !connectionStart || !boardRef.current) return
-      const boardRect = boardRef.current.getBoundingClientRect()
-      setTempConnection({ x: e.clientX - boardRect.left, y: e.clientY - boardRect.top })
+      if (!isConnecting || !connectionStart || !surfaceRef.current) return
+      // The arrow is drawn in canvas coordinates alongside the beats, so its
+      // loose end has to be converted the same way they are. Measured from the
+      // scroll container it ignored the scroll offset and the arrow trailed the
+      // cursor by however far the board was scrolled.
+      setTempConnection(toCanvasPoint(surfaceRef.current, e.clientX, e.clientY))
     },
-    [isConnecting, connectionStart, boardRef],
+    [isConnecting, connectionStart, surfaceRef],
   )
 
   const onMouseUp = useCallback(() => {

@@ -2,11 +2,12 @@ import type React from "react"
 import { useCallback, useState } from "react"
 
 import type { Beat } from "@/services/beat"
+import { toCanvasPoint } from "./canvasGeometry"
 
 interface UseBeatDragOptions {
   beats: Beat[]
   setBeats: React.Dispatch<React.SetStateAction<Beat[]>>
-  boardRef: React.RefObject<HTMLDivElement | null>
+  surfaceRef: React.RefObject<HTMLDivElement | null>
   snapToGrid: (value: number) => number
   /** Called once on mouse-up with the final position. The parent's
    *  debouncedUpdateBeat persists it. */
@@ -32,7 +33,7 @@ interface UseBeatDragResult {
 export function useBeatDrag({
   beats,
   setBeats,
-  boardRef,
+  surfaceRef,
   snapToGrid,
   onCommit,
 }: UseBeatDragOptions): UseBeatDragResult {
@@ -54,10 +55,14 @@ export function useBeatDrag({
 
   const onMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!movingBeatId || !boardRef.current) return
-      const boardRect = boardRef.current.getBoundingClientRect()
-      const newX = snapToGrid(e.clientX - boardRect.left - dragOffset.x)
-      const newY = snapToGrid(e.clientY - boardRect.top - dragOffset.y)
+      if (!movingBeatId || !surfaceRef.current) return
+      // Against the surface, not the scroll container: measuring from the
+      // container ignored the scroll offset, so grabbing a card on a scrolled
+      // board threw it back by however far the board was scrolled. dragOffset
+      // is a client-to-client delta, so it needs no conversion.
+      const point = toCanvasPoint(surfaceRef.current, e.clientX, e.clientY)
+      const newX = snapToGrid(point.x - dragOffset.x)
+      const newY = snapToGrid(point.y - dragOffset.y)
       setBeats((prev) =>
         prev.map((beat) =>
           beat.id === movingBeatId
@@ -66,7 +71,7 @@ export function useBeatDrag({
         ),
       )
     },
-    [movingBeatId, boardRef, dragOffset, setBeats, snapToGrid],
+    [movingBeatId, surfaceRef, dragOffset, setBeats, snapToGrid],
   )
 
   const onMouseUp = useCallback(() => {

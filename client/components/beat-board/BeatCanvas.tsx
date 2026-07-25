@@ -4,11 +4,14 @@ import type { Beat, Connection } from "@/services/beat";
 import type { Drawing } from "@/services/beat-board";
 import { BeatCard } from "./BeatCard";
 import { DrawingLayer } from "./DrawingLayer";
+import { canvasExtent } from "./canvasGeometry";
 import type { UseDrawingResult } from "./useDrawing";
 import type { ConnectionSide } from "@/app/(private)/projects/beat-board/page";
 
 interface BeatCanvasProps {
-  boardRef: React.RefObject<HTMLDivElement | null>;
+  /** The canvas surface, not the scroll container — everything in canvas
+   *  coordinates is positioned against this. */
+  surfaceRef: React.RefObject<HTMLDivElement | null>;
   beats: Beat[];
   connections: Connection[];
   drawings: Drawing[];
@@ -42,7 +45,9 @@ interface BeatCanvasProps {
 
 const GRID_SIZE = 20;
 
-export function BeatCanvas({ boardRef, beats, connections, drawings, drawing, isLoading, ...props }: BeatCanvasProps) {
+export function BeatCanvas({ surfaceRef, beats, connections, drawings, drawing, isLoading, ...props }: BeatCanvasProps) {
+
+  const extent = canvasExtent(beats, drawings);
 
   const getConnectionPoint = (beat: Beat, side: "top" | "right" | "bottom" | "left") => {
     const { width, height, position } = beat;
@@ -81,12 +86,7 @@ export function BeatCanvas({ boardRef, beats, connections, drawings, drawing, is
 
   return (
     <div
-      ref={boardRef}
-      className="flex-1 relative overflow-auto cursor-default select-none beat-board-background bg-secondary"
-      style={{
-        backgroundImage: `radial-gradient(circle, var(--grid-color, #e5e7eb) 1px, transparent 1px)`,
-        backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
-      }}
+      className="flex-1 relative overflow-auto cursor-default select-none bg-secondary"
       onDoubleClick={props.onBoardDoubleClick}
       onDrop={props.onImageDrop}
       onDragOver={(e) => {
@@ -102,40 +102,60 @@ export function BeatCanvas({ boardRef, beats, connections, drawings, drawing, is
           </div>
         </div>
       )}
-      <svg className="absolute inset-0 w-full h-full text-muted-foreground" style={{ zIndex: 1 }}>
-        <defs>
-          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" />
-          </marker>
-        </defs>
-        {connections.map(renderArrow)}
-        {props.isConnecting && props.tempConnection && props.connectionStart && (() => {
-          const startBeat = beats.find(b => b.id === props.connectionStart?.beatId);
-          if (!startBeat) return null;
-          const startPoint = getConnectionPoint(startBeat, props.connectionStart.side);
-          return <line x1={startPoint.x} y1={startPoint.y} x2={props.tempConnection.x} y2={props.tempConnection.y} className="stroke-primary" strokeWidth="2" strokeDasharray="5,5" />;
-        })()}
-      </svg>
-      {beats.map((beat) => (
-        <BeatCard key={beat.id} beat={beat} {...props}>
-          <ConnectionHandle beatId={beat.id} side="top" position={{ top: "-6px", left: "50%", transform: "translateX(-50%)" }} />
-          <ConnectionHandle beatId={beat.id} side="right" position={{ top: "50%", right: "-6px", transform: "translateY(-50%)" }} />
-          <ConnectionHandle beatId={beat.id} side="bottom" position={{ bottom: "-6px", left: "50%", transform: "translateX(-50%)" }} />
-          <ConnectionHandle beatId={beat.id} side="left" position={{ top: "50%", left: "-6px", transform: "translateY(-50%)" }} />
-        </BeatCard>
-      ))}
-      {/* Sits above the cards so a stroke can cross one, which is what marking up
-          a board means. It only takes the pointer when a tool is actually
-          selected, so with Select the cards behave exactly as they always did. */}
-      <DrawingLayer
-        drawings={drawings}
-        draft={drawing.draft}
-        tool={drawing.tool}
-        onPointerDown={drawing.onPointerDown}
-        onPointerMove={drawing.onPointerMove}
-        onPointerUp={drawing.onPointerUp}
-        eraseShape={drawing.eraseShape}
-      />
+      {/* The canvas proper. The scrolling div above is only a window onto it:
+          this element is sized to the whole board, so the layers inside cover
+          the scrollable extent instead of stopping at the first screen. The dot
+          grid lives here too — beats snap to it in canvas coordinates, so it
+          has to scroll with them rather than stay pinned to the window. */}
+      <div
+        ref={surfaceRef}
+        className="relative beat-board-background"
+        style={{
+          width: extent.width,
+          height: extent.height,
+          // Never smaller than the window, or a near-empty board would leave
+          // bare container showing past the canvas.
+          minWidth: "100%",
+          minHeight: "100%",
+          backgroundImage: `radial-gradient(circle, var(--grid-color, #e5e7eb) 1px, transparent 1px)`,
+          backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+        }}
+      >
+        <svg className="absolute inset-0 w-full h-full text-muted-foreground" style={{ zIndex: 1 }}>
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+              <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" />
+            </marker>
+          </defs>
+          {connections.map(renderArrow)}
+          {props.isConnecting && props.tempConnection && props.connectionStart && (() => {
+            const startBeat = beats.find(b => b.id === props.connectionStart?.beatId);
+            if (!startBeat) return null;
+            const startPoint = getConnectionPoint(startBeat, props.connectionStart.side);
+            return <line x1={startPoint.x} y1={startPoint.y} x2={props.tempConnection.x} y2={props.tempConnection.y} className="stroke-primary" strokeWidth="2" strokeDasharray="5,5" />;
+          })()}
+        </svg>
+        {beats.map((beat) => (
+          <BeatCard key={beat.id} beat={beat} {...props}>
+            <ConnectionHandle beatId={beat.id} side="top" position={{ top: "-6px", left: "50%", transform: "translateX(-50%)" }} />
+            <ConnectionHandle beatId={beat.id} side="right" position={{ top: "50%", right: "-6px", transform: "translateY(-50%)" }} />
+            <ConnectionHandle beatId={beat.id} side="bottom" position={{ bottom: "-6px", left: "50%", transform: "translateX(-50%)" }} />
+            <ConnectionHandle beatId={beat.id} side="left" position={{ top: "50%", left: "-6px", transform: "translateY(-50%)" }} />
+          </BeatCard>
+        ))}
+        {/* Sits above the cards so a stroke can cross one, which is what marking
+            up a board means. It only takes the pointer when a tool is actually
+            selected, so with Select the cards behave exactly as they always did. */}
+        <DrawingLayer
+          drawings={drawings}
+          draft={drawing.draft}
+          tool={drawing.tool}
+          onPointerDown={drawing.onPointerDown}
+          onPointerMove={drawing.onPointerMove}
+          onPointerUp={drawing.onPointerUp}
+          eraseShape={drawing.eraseShape}
+        />
+      </div>
     </div>
   );
 }

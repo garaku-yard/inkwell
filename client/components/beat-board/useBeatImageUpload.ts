@@ -2,15 +2,16 @@ import type React from "react"
 import { useCallback } from "react"
 
 import { createBeat, updateBeat, type Beat } from "@/services/beat"
+import { toCanvasPoint } from "./canvasGeometry"
 
 interface UseBeatImageUploadOptions {
   projectId: string
   beats: Beat[]
   setBeats: React.Dispatch<React.SetStateAction<Beat[]>>
-  /** Used to compute drop coordinates relative to the canvas + to
-   *  honour the canvas's scroll offset when the user drops below the
-   *  fold. */
-  boardRef: React.RefObject<HTMLDivElement | null>
+  /** The canvas surface — used to convert the drop point into canvas
+   *  coordinates, so an image dropped below the fold lands under the
+   *  cursor rather than back up at the top. */
+  surfaceRef: React.RefObject<HTMLDivElement | null>
   snapToGrid: (value: number) => number
 }
 
@@ -30,7 +31,7 @@ export function useBeatImageUpload({
   projectId,
   beats,
   setBeats,
-  boardRef,
+  surfaceRef,
   snapToGrid,
 }: UseBeatImageUploadOptions): UseBeatImageUploadResult {
   const uploadImageForBeat = useCallback(
@@ -64,11 +65,10 @@ export function useBeatImageUpload({
       const imageFile = files.find((file) => file.type.startsWith("image/"))
       if (!imageFile) return
 
-      const rect = boardRef.current?.getBoundingClientRect()
-      if (!rect) return
-
-      const x = snapToGrid(e.clientX - rect.left + (boardRef.current?.scrollLeft || 0))
-      const y = snapToGrid(e.clientY - rect.top + (boardRef.current?.scrollTop || 0))
+      if (!surfaceRef.current) return
+      const point = toCanvasPoint(surfaceRef.current, e.clientX, e.clientY)
+      const x = snapToGrid(point.x)
+      const y = snapToGrid(point.y)
 
       try {
         const imageUrl = await uploadImage(imageFile)
@@ -92,7 +92,7 @@ export function useBeatImageUpload({
         console.error("Failed to create beat with image:", err)
       }
     },
-    [beats.length, boardRef, projectId, setBeats, snapToGrid],
+    [beats.length, surfaceRef, projectId, setBeats, snapToGrid],
   )
 
   return { uploadImageForBeat, onImageDrop }

@@ -17,6 +17,7 @@ import { getCategoryStructure } from "@/lib/helpers/category-structure"
 import { useProjectLoader } from "@/hooks/useProjectLoader"
 import { useBeatBoardData } from "@/components/beat-board/useBeatBoardData"
 import { useDrawing } from "@/components/beat-board/useDrawing"
+import { toCanvasPoint } from "@/components/beat-board/canvasGeometry"
 import { DrawingToolbar } from "@/components/beat-board/DrawingToolbar"
 import { useBeatImageUpload } from "@/components/beat-board/useBeatImageUpload"
 import { useBeatDrag } from "@/components/beat-board/useBeatDrag"
@@ -66,8 +67,10 @@ function BeatBoardPageContent() {
 
   const [editingField, setEditingField] = useState<{ beatId: string; field: keyof Beat } | null>(null)
   const [colorPickerOpen, setColorPickerOpen] = useState<string | null>(null)
-  const boardRef = useRef<HTMLDivElement | null>(null)
-  const drawing = useDrawing({ projectId: project?.id, boardRef, drawings, setDrawings })
+  // The canvas surface inside the scroll container — the element every canvas
+  // coordinate is measured against. See canvasGeometry.toCanvasPoint.
+  const surfaceRef = useRef<HTMLDivElement | null>(null)
+  const drawing = useDrawing({ projectId: project?.id, surfaceRef, drawings, setDrawings })
   // HTML5 drag-and-drop is distinct from the per-frame mouse drag the
   // useBeatDrag hook manages — this tracks which beat the user grabbed
   // for the timeline drop, while useBeatDrag tracks position changes
@@ -88,7 +91,7 @@ function BeatBoardPageContent() {
   const drag = useBeatDrag({
     beats,
     setBeats,
-    boardRef,
+    surfaceRef,
     snapToGrid,
     onCommit: (beatId, position) => debouncedUpdateBeat(beatId, { position }),
   })
@@ -102,7 +105,7 @@ function BeatBoardPageContent() {
     projectId,
     connections,
     setConnections,
-    boardRef,
+    surfaceRef,
   })
 
   const onMouseMove = (e: React.MouseEvent) => {
@@ -237,18 +240,14 @@ function BeatBoardPageContent() {
     const isBeatCard = target.closest('[data-beat-card]');
 
     if (!isBeatCard) {
-      const rect = boardRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const x = snapToGrid(e.clientX - rect.left + (boardRef.current?.scrollLeft || 0));
-      const y = snapToGrid(e.clientY - rect.top + (boardRef.current?.scrollTop || 0));
-
-      handleAddBeat({ x, y });
+      if (!surfaceRef.current) return;
+      const point = toCanvasPoint(surfaceRef.current, e.clientX, e.clientY);
+      handleAddBeat({ x: snapToGrid(point.x), y: snapToGrid(point.y) });
     }
   };
 
   const { uploadImageForBeat: handleUploadImageForBeat, onImageDrop: handleImageDrop } =
-    useBeatImageUpload({ projectId, beats, setBeats, boardRef, snapToGrid })
+    useBeatImageUpload({ projectId, beats, setBeats, surfaceRef, snapToGrid })
 
   if (isLoading) return <PaneSpinner />
   if (error) return <div>{error}</div>;
@@ -291,7 +290,7 @@ function BeatBoardPageContent() {
         width={drawing.width} setWidth={drawing.setWidth}
       />
       <BeatCanvas
-        boardRef={boardRef} beats={beats} connections={connections} isLoading={isLoading}
+        surfaceRef={surfaceRef} beats={beats} connections={connections} isLoading={isLoading}
         drawings={drawings} drawing={drawing}
         editingField={editingField} colorPickerOpen={colorPickerOpen} draggedBeat={draggedBeat}
         movingBeatId={drag.movingBeatId} isResizing={resize.isResizing}

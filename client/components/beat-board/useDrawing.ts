@@ -8,6 +8,7 @@ import {
   type DrawingData,
   type DrawingKind,
 } from "@/services/beat-board"
+import { toCanvasPoint } from "./canvasGeometry"
 
 /** "select" is the normal board: the drawing layer is inert and cards behave as
  *  usual. Everything else takes the pointer. */
@@ -30,7 +31,7 @@ export interface UseDrawingResult {
 
 interface Options {
   projectId: string | undefined
-  boardRef: React.RefObject<HTMLDivElement | null>
+  surfaceRef: React.RefObject<HTMLDivElement | null>
   drawings: Drawing[]
   setDrawings: React.Dispatch<React.SetStateAction<Drawing[]>>
 }
@@ -50,7 +51,7 @@ const isDrawTool = (t: DrawTool): t is DrawingKind =>
  * sample — a stroke is one gesture, so it's one row and one sync push
  * (decisions/0022). Nothing is written while the pointer is down.
  */
-export function useDrawing({ projectId, boardRef, drawings, setDrawings }: Options): UseDrawingResult {
+export function useDrawing({ projectId, surfaceRef, drawings, setDrawings }: Options): UseDrawingResult {
   const [tool, setTool] = useState<DrawTool>("select")
   const [color, setColor] = useState("#1f2420")
   const [width, setWidth] = useState(3)
@@ -68,19 +69,11 @@ export function useDrawing({ projectId, boardRef, drawings, setDrawings }: Optio
     setDraft(d)
   }, [])
 
-  /** Screen → canvas coordinates. Must match how beats are placed
-   *  (clientX - rect.left + scrollLeft), or shapes drift from the cards they
-   *  annotate as soon as the board is scrolled. */
+  /** Screen → canvas coordinates, via the same helper every other gesture on
+   *  the board uses — shapes must land where the cards they annotate live. */
   const toCanvas = useCallback(
-    (e: React.PointerEvent) => {
-      const rect = boardRef.current?.getBoundingClientRect()
-      if (!rect) return { x: 0, y: 0 }
-      return {
-        x: e.clientX - rect.left + (boardRef.current?.scrollLeft ?? 0),
-        y: e.clientY - rect.top + (boardRef.current?.scrollTop ?? 0),
-      }
-    },
-    [boardRef],
+    (e: React.PointerEvent) => toCanvasPoint(surfaceRef.current, e.clientX, e.clientY),
+    [surfaceRef],
   )
 
   const onPointerDown = useCallback(
