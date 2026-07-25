@@ -105,7 +105,7 @@ Artefacts land under `client/src-tauri/target/release/bundle/`.
 By default Inkwell stores everything on your own machine:
 
 - Projects + beat boards + analytics cache → SQLite at
-  `~/.local/share/com.inkwell.app/inkwell.db` (Linux) or
+  `~/.config/com.inkwell.app/inkwell.db` (Linux) or
   `%APPDATA%\com.inkwell.app\inkwell.db` (Windows).
 - Vault notes → the `.md` files in the folder you picked.
 - AI provider keys → your OS keychain, never transmitted by Inkwell.

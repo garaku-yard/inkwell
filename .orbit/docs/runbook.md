@@ -26,9 +26,16 @@ npm run test:watch       # watch mode
 The desktop build talks to local SQLite + on-disk files through
 `client/lib/storage`; it needs no backend. Local data lands at:
 
-- Linux: `~/.local/share/com.inkwell.app/inkwell.db`
+- Linux: `~/.config/com.inkwell.app/inkwell.db`
 - Windows: `%APPDATA%\com.inkwell.app\inkwell.db`
 - Vault notes: the `.md` files in the folder the user picked.
+
+`tauri-plugin-sql` resolves a `sqlite:` URL against the app **config** dir, not
+the data dir — so on Linux that's `$XDG_CONFIG_HOME`, and isolating a second
+"device" on one machine means setting `XDG_CONFIG_HOME` (`XDG_DATA_HOME` alone
+isolates nothing; both profiles would share one database). The OS keychain is
+*not* isolated by that split, so both profiles share the bearer token — which is
+the correct same-account-two-devices shape.
 
 ## Hosted stack (optional)
 

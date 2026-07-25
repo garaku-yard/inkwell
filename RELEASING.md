@@ -56,7 +56,7 @@ to bump the version and push a tag.
 
 All three create a local SQLite DB on first launch:
 
-- Linux: `~/.local/share/com.inkwell.app/inkwell.db`
+- Linux: `~/.config/com.inkwell.app/inkwell.db`
 - Windows: `%APPDATA%\com.inkwell.app\inkwell.db`
 
 ## Troubleshooting
