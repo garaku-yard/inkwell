@@ -41,4 +41,12 @@ describe("storage contract", () => {
     expect(storage.capabilities.has("auth")).toBe(true)
     expect(storage.capabilities.has("ai.byo")).toBe(true)
   })
+
+  // Orgs themselves are gateway-backed on both builds (ADR 0023), but only the
+  // remote build owns the org *project pool* — the desktop must not offer to
+  // create a project into an org, since its projects table has no org column.
+  it("owns org-owned projects, unlike the desktop build", () => {
+    expect(storage.capabilities.has("organizations")).toBe(true)
+    expect(storage.capabilities.has("organizations.projects")).toBe(true)
+  })
 })
