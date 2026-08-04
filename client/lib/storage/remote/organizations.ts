@@ -17,6 +17,12 @@ import type { Project } from "@/services/project"
  *  to `[]` at this boundary so callers never trip over a null array (same class
  *  of bug as the empty-categories crash). */
 export const organizations: OrganizationStorage = {
+  // The web build authenticates with an httpOnly session cookie, so there is no
+  // separate "linked account" state to check — reaching this build at all means
+  // the account exists. The desktop wraps this impl with a real token check
+  // (see local/organizations.ts).
+  isAvailable: async () => true,
+
   list: async () => (await apiClient<Organization[] | null>("organizations")) ?? [],
   get: (orgId) => apiClient<Organization>(`organizations/${orgId}`),
   create: (input) =>

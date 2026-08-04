@@ -1,6 +1,8 @@
 # 0020 — Monetization: open-core, Paddle MoR, per-seat tiers
 
-**Status:** Accepted · locked 2026-06-19
+**Status:** Accepted · locked 2026-06-19 · **partially superseded by
+[0023](./0023-orgs-in-desktop-hybrid-storage.md)** — the org-tenancy/desktop
+boundary only; open-core, Paddle MoR and the per-seat tiers stand.
 
 ## Context
 

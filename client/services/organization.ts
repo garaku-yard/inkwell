@@ -48,6 +48,13 @@ export interface IncomingOrgInvite {
   role: OrgRole
 }
 
+/** Whether orgs can be used right now. Always true on the web build; on the
+ *  desktop it additionally requires a linked cloud account, since orgs are the
+ *  one desktop domain served by the gateway (ADR 0023). Check this alongside
+ *  the `organizations` capability before showing any org affordance. */
+export const isOrgAvailable = (): Promise<boolean> =>
+  getStorage().organizations.isAvailable()
+
 /** Lists every organization the authenticated user belongs to. */
 export const listOrganizations = (): Promise<Organization[]> =>
   getStorage().organizations.list()

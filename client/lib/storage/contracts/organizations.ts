@@ -9,11 +9,22 @@ import type {
 
 // ─── Organizations ──────────────────────────────────────────────────────────
 
-/** Organizations are a hosted-only, first-class team entity (distinct from a
- *  personal workspace). The local/desktop build rejects every method with
- *  NotSupportedError — the UI gates the org rail on the `organizations`
- *  capability. */
+/** Organizations are a first-class team entity (distinct from a personal
+ *  workspace) and always live on the gateway — an org is shared, multi-user
+ *  tenancy with seats and invites, so there is nothing coherent to model in a
+ *  single-user local database.
+ *
+ *  Both builds bind the same gateway-backed implementation: the desktop serves
+ *  this one domain remotely while everything else stays local SQLite
+ *  (ADR 0023). Because that makes orgs the only desktop domain requiring a
+ *  network *and* a linked account, the `organizations` capability alone is not
+ *  enough to show org UI — callers must also check {@link isAvailable}, the
+ *  same two-step gate `sync` uses. */
 export interface OrganizationStorage {
+  /** Whether orgs can be used right now (a cloud account is linked). Always
+   *  true on the web build, where the session cookie *is* the account. */
+  isAvailable(): Promise<boolean>
+
   list(): Promise<Organization[]>
   get(orgId: string): Promise<Organization>
   create(input: { name: string; description?: string }): Promise<Organization>

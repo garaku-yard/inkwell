@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { useWorkspace } from "@/lib/WorkspaceContext"
 import { createPersonalWorkspaces, listCategories, type Category } from "@/services/workspace"
+import { isOrgAvailable } from "@/services/organization"
+import { getStorage } from "@/lib/storage"
 import { CategoryIcon, CATEGORY_COLORS } from "./CategoryIcon"
 
 interface AddWorkspaceDialogProps {
@@ -29,6 +31,12 @@ export function AddWorkspaceDialog({ open, onOpenChange, onSwitchToOrg }: AddWor
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isFetching, setIsFetching] = useState(true)
+  // Orgs need the `organizations` capability *and* a linked account — on the
+  // desktop they are gateway-backed (ADR 0023), so a signed-out user has no
+  // way to create one. Offering the form and failing on submit is exactly the
+  // dead-end this gate exists to prevent.
+  const orgsSupported = getStorage().capabilities.has("organizations")
+  const [orgsAvailable, setOrgsAvailable] = useState(false)
 
   const ownedSlugs = new Set(
     (workspaces.personal ?? []).map((ws) => ws.categories?.[0]?.slug).filter(Boolean)
@@ -43,6 +51,17 @@ export function AddWorkspaceDialog({ open, onOpenChange, onSwitchToOrg }: AddWor
       .catch(console.error)
       .finally(() => setIsFetching(false))
   }, [open])
+
+  // Re-probed on every open: the desktop user may have linked an account since
+  // the dialog was last shown, and the capability set is bound once at boot.
+  useEffect(() => {
+    if (!open || !orgsSupported) return
+    let cancelled = false
+    isOrgAvailable()
+      .then((ok) => { if (!cancelled) setOrgsAvailable(ok) })
+      .catch(() => { if (!cancelled) setOrgsAvailable(false) })
+    return () => { cancelled = true }
+  }, [open, orgsSupported])
 
   const toggle = (slug: string) => {
     if (ownedSlugs.has(slug)) return
@@ -129,14 +148,23 @@ export function AddWorkspaceDialog({ open, onOpenChange, onSwitchToOrg }: AddWor
         )}
 
         <div className="flex items-center justify-between pt-2 border-t">
-          <button
-            type="button"
-            onClick={() => { onOpenChange(false); onSwitchToOrg() }}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Building2 className="h-4 w-4" />
-            Create an organization instead
-          </button>
+          {orgsSupported && orgsAvailable ? (
+            <button
+              type="button"
+              onClick={() => { onOpenChange(false); onSwitchToOrg() }}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Building2 className="h-4 w-4" />
+              Create an organization instead
+            </button>
+          ) : orgsSupported ? (
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Building2 className="h-4 w-4 shrink-0" />
+              Sign in to create an organization
+            </p>
+          ) : (
+            <span />
+          )}
           <Button
             onClick={handleCreate}
             disabled={selected.size === 0 || isSubmitting}

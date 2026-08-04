@@ -1,9 +1,13 @@
 /**
  * Local Storage implementation — backed by SQLite via `tauri-plugin-sql`.
  *
- * This is what the desktop build uses: every call reads/writes the user's
- * on-disk `inkwell.db` inside the Tauri appdata dir. There is no network
+ * This is what the desktop build uses: nearly every call reads/writes the
+ * user's on-disk `inkwell.db` inside the Tauri appdata dir, with no network
  * involvement, no central account, and no collaboration.
+ *
+ * The one deliberate exception is `organizations`, which is served by the
+ * gateway even here (ADR 0023) — an org is shared multi-user tenancy and has no
+ * meaningful single-user local form. See `./organizations.ts`.
  *
  * ## Capabilities
  *
@@ -54,11 +58,17 @@ import { sync } from "./sync"
  *  (no real login), `collaboration`, `realtime`, `admin`. BYO AI
  *  providers are supported because we have the OS keychain and a direct
  *  client-side adapter library. `sync` is desktop-only and gated further on a
- *  linked account at runtime (see SyncStorage.isAvailable). */
+ *  linked account at runtime (see SyncStorage.isAvailable).
+ *
+ *  `organizations` is the one capability here that is *not* served by SQLite:
+ *  the desktop delegates that domain to the gateway (ADR 0023). Like `sync` it
+ *  is gated further on a linked account at runtime — see
+ *  OrganizationStorage.isAvailable. */
 const LOCAL_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   "ai.byo",
   "ai.knowledge",
   "sync",
+  "organizations",
 ])
 
 /** Returns a Storage backed by local SQLite via `tauri-plugin-sql`. */
