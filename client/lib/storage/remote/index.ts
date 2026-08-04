@@ -39,9 +39,6 @@ const REMOTE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   "ai.byo",
   "notifications",
   "organizations",
-  // The gateway owns the org project pool, so only this build can create a
-  // project *into* an org. The desktop deliberately omits it (ADR 0023).
-  "organizations.projects",
 ])
 
 // ─── Root Storage ─────────────────────────────────────────────────────────

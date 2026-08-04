@@ -75,10 +75,9 @@ export type Capability =
   | "sync" // Local↔cloud project sync (desktop only; needs a linked account).
   | "organizations" // Team orgs — members, seats, invites. Gateway-backed on
   // both builds (ADR 0023); gate org UI on OrganizationStorage.isAvailable too.
-  | "organizations.projects" // Creating/holding *org-owned projects*. Remote only:
-  // an org project lives in the org's server-side pool (ADR 0018 Option B), and the
-  // desktop's project domain is local SQLite with no org column, so the desktop can
-  // administer an org but cannot put projects in one.
+  // Org-owned *projects* need no capability of their own: the remote build keeps
+  // them in the org's server-side pool, the desktop keeps them in local SQLite
+  // tagged with the org (ADR 0024). Both builds can create one.
 
 // ─── Root Storage ────────────────────────────────────────────────────────
 

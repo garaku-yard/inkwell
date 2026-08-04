@@ -3,6 +3,7 @@ import { getAuthToken } from "@/lib/api"
 import type { OrganizationStorage } from "@/lib/storage"
 import { UnauthenticatedError } from "../errors"
 import { organizations as gatewayOrganizations } from "../remote/organizations"
+import { getDb, toProject, type ProjectRow } from "./shared"
 
 // ─── Organizations — the one domain the desktop serves remotely ──────────────
 // An org is shared, multi-user tenancy (members, seats, invites); there is
@@ -42,7 +43,19 @@ export const organizations: OrganizationStorage = {
   list: async () => (linked() ? gatewayOrganizations.list() : []),
   listMembers: async (orgId) => (linked() ? gatewayOrganizations.listMembers(orgId) : []),
   listIncomingInvites: async () => (linked() ? gatewayOrganizations.listIncomingInvites() : []),
-  listProjects: async (orgId) => (linked() ? gatewayOrganizations.listProjects(orgId) : []),
+  // Read from this disk, not the gateway (ADR 0024). An org project is created
+  // and edited locally like any other, so the org's pool *on this device* is
+  // exactly the local rows carrying its id — and it must work signed out and
+  // offline, same as the rest of the desktop. Projects other members created
+  // appear once sync carries them down; that is sync's job, not this call's.
+  listProjects: async (orgId) => {
+    const db = await getDb()
+    const rows = await db.select<ProjectRow[]>(
+      "SELECT * FROM projects WHERE deleted_at IS NULL AND org_id = ? ORDER BY updated_at DESC",
+      [orgId],
+    )
+    return rows.map(toProject)
+  },
   seats: async (orgId) =>
     linked() ? gatewayOrganizations.seats(orgId) : { members: 0, pending: 0, total: 0 },
 

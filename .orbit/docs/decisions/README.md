@@ -30,12 +30,13 @@ never been written up as ADRs.
 | [0015](./0015-sync-time-based-gc.md) | Sync: time-based tombstone GC, not watermark | Accepted |
 | [0016](./0016-iw-portable-project-file.md) | `.iw` portable project file — import/export only | Accepted |
 | [0017](./0017-optional-desktop-login.md) | Optional desktop login; keychain token auth | Accepted |
-| [0018](./0018-org-model-option-b.md) | First-class orgs, Option B (org owns projects) | Accepted |
+| [0018](./0018-org-model-option-b.md) | First-class orgs, Option B (org owns projects) | Partially superseded by [0024](./0024-org-projects-held-locally.md) |
 | [0019](./0019-realtime-tiered-lww-then-crdt.md) | Real-time: tiered LWW + presence first, CRDT later | Accepted |
 | [0020](./0020-monetization-open-core-paddle.md) | Monetization: open-core, Paddle MoR, per-seat tiers | Partially superseded by [0023](./0023-orgs-in-desktop-hybrid-storage.md) |
 | [0021](./0021-drive-backup-google-only.md) | Drive backup: Google-only, `drive.file`, one-way | Accepted |
 | [0022](./0022-drawing-per-shape-rows.md) | Drawing layer: one row per shape, JSON payload inside | Accepted |
 | [0023](./0023-orgs-in-desktop-hybrid-storage.md) | Orgs in the desktop build; hybrid local+remote `Storage` | Accepted |
+| [0024](./0024-org-projects-held-locally.md) | Org-owned projects are held locally on the desktop | Accepted |
 
 **Adding one:** next number, same five headings. If it reverses an earlier
 decision, set the old one's Status to `Superseded by NNNN` (that one edit to the

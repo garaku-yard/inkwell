@@ -167,14 +167,21 @@ async function isVaultProject(db: DB, projectId: string): Promise<boolean> {
 }
 
 async function applyProject(db: DB, p: Row): Promise<void> {
+  // org_id round-trips (migration 0015). Push already sends it — the outbox
+  // selects the whole row — so omitting it here would strip the org tag off any
+  // project that came back down, quietly turning an org project personal on the
+  // device that pulled it. A payload without the field leaves it NULL, which is
+  // the correct reading for a personal project and for anything a server that
+  // predates the column returns.
   await db.execute(
-    `INSERT INTO projects (id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?)
+    `INSERT INTO projects (id, title, description, owner_id, category, status, is_starred, org_id, created_at, updated_at, deleted_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT(id) DO UPDATE SET title=excluded.title, description=excluded.description,
        category=excluded.category, status=excluded.status, is_starred=excluded.is_starred,
-       updated_at=excluded.updated_at, deleted_at=excluded.deleted_at`,
+       org_id=excluded.org_id, updated_at=excluded.updated_at, deleted_at=excluded.deleted_at`,
     [g(p, "id"), g(p, "title"), g(p, "description"), g(p, "owner_id"), g(p, "category"),
-      g(p, "status"), p["is_starred"] ? 1 : 0, gts(p, "created_at") ?? now(), gts(p, "updated_at") ?? now(), gts(p, "deleted_at")],
+      g(p, "status"), p["is_starred"] ? 1 : 0, g(p, "org_id") || null,
+      gts(p, "created_at") ?? now(), gts(p, "updated_at") ?? now(), gts(p, "deleted_at")],
   )
 }
 async function applyScene(db: DB, s: Row): Promise<void> {

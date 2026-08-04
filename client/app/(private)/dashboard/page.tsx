@@ -19,7 +19,6 @@ import {
 import { useAuth } from "@/lib/AuthContext"
 import { useWorkspace } from "@/lib/WorkspaceContext"
 import { useProjects } from "@/hooks/useProjects"
-import { getStorage } from "@/lib/storage"
 import { AppHeader } from "@/components/AppHeader"
 import { ProjectCard } from "@/components/ProjectCard"
 import { WorkspaceSwitcher } from "@/components/workspace/WorkspaceSwitcher"
@@ -53,13 +52,6 @@ function DashboardPageContent() {
   const { toast } = useToast()
   const userId = user?.id
 
-  // An org's projects live in the org's server-side pool (ADR 0018 Option B).
-  // The desktop can administer an org (ADR 0023) but its project domain is local
-  // SQLite with no org column — so creating one here would silently produce a
-  // *personal* project that never appears in the org list it was made from.
-  // Withhold the affordances rather than let that happen.
-  const orgProjectsUnsupported =
-    Boolean(activeOrg) && !getStorage().capabilities.has("organizations.projects")
 
   const [searchQuery, setSearchQuery] = useState("")
   const [activeFilter, setActiveFilter] = useState("lastUpdated")
@@ -258,8 +250,6 @@ function DashboardPageContent() {
                 <h2 className="text-3xl font-bold">{activeOrg ? "Projects" : "My Projects"}</h2>
               </div>
               <div className="flex items-center gap-2">
-                {orgProjectsUnsupported ? null : (
-                  <>
                 <Button onClick={() => setIsNewProjectDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   New Project
@@ -294,8 +284,6 @@ function DashboardPageContent() {
                   onChange={handleIwSelected}
                 />
                 <CloudProjectsButton onPulled={refetch} />
-                  </>
-                )}
               </div>
             </div>
 
@@ -371,9 +359,7 @@ function DashboardPageContent() {
                     <p className="text-muted-foreground mt-2">
                       {searchQuery
                         ? "Try a different search term"
-                        : orgProjectsUnsupported
-                          ? `${activeOrg?.name ?? "This organisation"}'s projects live on the hosted app — the desktop keeps its projects on this device. You can still manage members, invites and seats here.`
-                          : activeOrg
+                        : activeOrg
                           ? `No projects in ${activeOrg.name} yet. Create the first one for your team.`
                           : activeWorkspace?.name
                             ? `No projects in ${activeWorkspace.name} yet. Create your first project to get started.`

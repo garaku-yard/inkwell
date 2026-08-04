@@ -95,6 +95,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0014_drawings.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 15,
+      description: "org-owned projects held locally: projects.org_id",
+      sql: include_str!("../migrations/0015_project_org.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 

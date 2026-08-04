@@ -1,6 +1,8 @@
 # 0018 — First-class organizations, Option B (org owns projects)
 
-**Status:** Accepted
+**Status:** Accepted · **storage assumption partially superseded by
+[0024](./0024-org-projects-held-locally.md)** — the org still owns its projects;
+the desktop now holds them locally rather than only server-side.
 
 ## Context
 

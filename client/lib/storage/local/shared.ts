@@ -153,6 +153,8 @@ export async function softDeleteProjectChildren(
 export interface ProjectRow {
   id: string
   workspace_id: string | null
+  /** Owning organization, or NULL for a personal project (migration 0015). */
+  org_id: string | null
   title: string
   description: string
   owner_id: string
@@ -172,6 +174,9 @@ export function toProject(row: ProjectRow): Project {
     category: row.category as Project["category"],
     status: row.status,
     is_starred: row.is_starred === 1,
+    // Absent rather than null for a personal project: `Project.org_id` is
+    // optional, and callers test truthiness to decide "is this an org project".
+    ...(row.org_id ? { org_id: row.org_id } : {}),
     created_at: row.created_at,
     updated_at: row.updated_at,
   }

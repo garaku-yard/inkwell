@@ -21,14 +21,19 @@ export const projects: ProjectStorage = {
     const id = newId()
     const ts = now()
     await db.execute(
-      `INSERT INTO projects (id, title, description, owner_id, category, status, is_starred, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'draft', 0, ?, ?)`,
+      `INSERT INTO projects (id, title, description, owner_id, category, status, is_starred, org_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'draft', 0, ?, ?, ?)`,
       [
         id,
         input.title,
         input.description ?? "",
         input.owner_id,
         input.category ?? "screenplay",
+        // Persisted rather than dropped (migration 0015). Before that column
+        // existed this argument went nowhere, so creating a project while an
+        // org was selected produced a personal one that never showed up in the
+        // org it was made from.
+        input.org_id ?? null,
         ts,
         ts,
       ],
@@ -78,8 +83,12 @@ export const projects: ProjectStorage = {
     // projects once a cloud account is linked (the working identity's id differs
     // from the seeded LOCAL_USER_ID the rows were created under). owner_id is a
     // sync artifact only — the server overrides it on push.
+    // org_id IS NULL keeps org-owned projects out of the personal lists. This DB
+    // is single-user so every row is "yours", but an org project belongs to a
+    // workspace of its own — without this filter it would appear in both places
+    // (migration 0015).
     const rows = await db.select<ProjectRow[]>(
-      "SELECT * FROM projects WHERE deleted_at IS NULL ORDER BY updated_at DESC",
+      "SELECT * FROM projects WHERE deleted_at IS NULL AND org_id IS NULL ORDER BY updated_at DESC",
     )
     const list = rows.map(toProject)
     return { projects: list, total: list.length }
