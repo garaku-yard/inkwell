@@ -90,7 +90,12 @@ export default function RootLayout({
               <KeyboardShortcutsDialog />
               <div className="flex h-screen flex-col">
                 <WindowTitlebar />
-                <div id="main" className="min-h-0 flex-1">{children}</div>
+                {/* overflow-hidden is load-bearing: `body { overflow: hidden }`
+                    stops scrollbars but not focus-driven scrolling, so a child
+                    that overshoots this box (an errant h-screen, say) could
+                    scroll the whole column and take the titlebar with it. The
+                    clip keeps any such overflow inside #main, below the bar. */}
+                <div id="main" className="min-h-0 flex-1 overflow-hidden">{children}</div>
               </div>
               <Toaster />
             </AuthProvider>

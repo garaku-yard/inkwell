@@ -95,7 +95,7 @@ export default function SharedPage() {
   }
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="h-full bg-background flex flex-col overflow-hidden">
       <AppHeader />
       <div className="flex flex-1 overflow-hidden">
         <WorkspaceSwitcher />

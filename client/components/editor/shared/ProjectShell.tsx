@@ -91,7 +91,11 @@ export function ProjectShell({
 
   return (
     <PresenceProvider projectId={projectId}>
-    <div className="flex h-screen bg-background">
+    {/* h-full, not h-screen: this renders inside the layout's #main, which is
+        the viewport *minus* the 36px window titlebar. Claiming 100vh here made
+        the shell 36px too tall — the overflow got clipped at the bottom, and
+        focusing any field scrolled the titlebar clean out of view. */}
+    <div className="flex h-full bg-background">
       {/* Left rail — the editor's own sidebar when supplied, otherwise the
           built-in list rail (mirrors the editor's, list-only for navigation). */}
       {sidebar ?? (

@@ -15,7 +15,7 @@ function AnalyticsOverviewContent() {
   if (isLoading) return <FullPageSpinner />
 
   if (error || !analytics) return (
-    <div className="flex h-screen items-center justify-center text-muted-foreground">
+    <div className="flex h-full items-center justify-center text-muted-foreground">
       {error ?? "No project data. Open analytics from a project."}
     </div>
   )
