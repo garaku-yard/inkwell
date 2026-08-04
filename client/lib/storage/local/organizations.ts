@@ -27,6 +27,12 @@ import { organizations as gatewayOrganizations } from "../remote/organizations"
 //     request that can only 401. These are defensive: the UI gates the
 //     affordances on `isAvailable` first, so a user should never reach them.
 
+/** Shown verbatim in org UI that renders `err.message`. Defensive: the
+ *  affordances are gated on `isAvailable` first, so reaching this means a
+ *  sign-out raced an in-flight action. */
+const SIGN_IN_FIRST =
+  "Sign in to your Inkwell account to use organizations."
+
 const linked = (): boolean => getAuthToken() !== null
 
 export const organizations: OrganizationStorage = {
@@ -42,45 +48,45 @@ export const organizations: OrganizationStorage = {
 
   // Reads that identify a specific org — no meaningful empty value.
   get: async (orgId) => {
-    if (!linked()) throw new UnauthenticatedError()
+    if (!linked()) throw new UnauthenticatedError(SIGN_IN_FIRST)
     return gatewayOrganizations.get(orgId)
   },
 
   // Writes.
   create: async (input) => {
-    if (!linked()) throw new UnauthenticatedError()
+    if (!linked()) throw new UnauthenticatedError(SIGN_IN_FIRST)
     return gatewayOrganizations.create(input)
   },
   update: async (orgId, patch) => {
-    if (!linked()) throw new UnauthenticatedError()
+    if (!linked()) throw new UnauthenticatedError(SIGN_IN_FIRST)
     return gatewayOrganizations.update(orgId, patch)
   },
   delete: async (orgId) => {
-    if (!linked()) throw new UnauthenticatedError()
+    if (!linked()) throw new UnauthenticatedError(SIGN_IN_FIRST)
     return gatewayOrganizations.delete(orgId)
   },
   invite: async (orgId, target, role) => {
-    if (!linked()) throw new UnauthenticatedError()
+    if (!linked()) throw new UnauthenticatedError(SIGN_IN_FIRST)
     return gatewayOrganizations.invite(orgId, target, role)
   },
   updateMemberRole: async (orgId, userId, role) => {
-    if (!linked()) throw new UnauthenticatedError()
+    if (!linked()) throw new UnauthenticatedError(SIGN_IN_FIRST)
     return gatewayOrganizations.updateMemberRole(orgId, userId, role)
   },
   removeMember: async (orgId, userId) => {
-    if (!linked()) throw new UnauthenticatedError()
+    if (!linked()) throw new UnauthenticatedError(SIGN_IN_FIRST)
     return gatewayOrganizations.removeMember(orgId, userId)
   },
   acceptInvite: async (token) => {
-    if (!linked()) throw new UnauthenticatedError()
+    if (!linked()) throw new UnauthenticatedError(SIGN_IN_FIRST)
     return gatewayOrganizations.acceptInvite(token)
   },
   declineInvite: async (token) => {
-    if (!linked()) throw new UnauthenticatedError()
+    if (!linked()) throw new UnauthenticatedError(SIGN_IN_FIRST)
     return gatewayOrganizations.declineInvite(token)
   },
   setSeats: async (orgId, seats) => {
-    if (!linked()) throw new UnauthenticatedError()
+    if (!linked()) throw new UnauthenticatedError(SIGN_IN_FIRST)
     return gatewayOrganizations.setSeats(orgId, seats)
   },
 }

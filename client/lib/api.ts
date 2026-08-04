@@ -249,6 +249,32 @@ const notifySessionExpired = () => {
  * envelope shape (`{code, message, fields}`) and falls back to the legacy
  * `{error}` shape or plain status-text when the body cannot be parsed.
  */
+/**
+ * `fetch`, but a *transport* failure becomes a typed {@link ApiError} instead
+ * of the platform's bare rejection. Only responses go through
+ * {@link parseApiError}; when the request never reaches a server at all —
+ * gateway down, wrong origin, DNS, offline, TLS — `fetch` rejects with a
+ * `TypeError` whose message is whatever the engine felt like ("Load failed" on
+ * WebKit, "Failed to fetch" on Chromium). UI that renders `err.message` then
+ * shows the user that string verbatim, which names neither the cause nor
+ * anything they can act on.
+ *
+ * The replacement names the origin actually being dialled, which is the one
+ * fact that makes this diagnosable — a desktop build points at whatever gateway
+ * URL it was built with or later overridden to.
+ */
+async function fetchOrUnavailable(url: string, config: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, config);
+  } catch {
+    throw new ApiError(
+      0,
+      "UNAVAILABLE",
+      `Can't reach the Inkwell server at ${getApiBaseUrl()}. Check your connection and try again.`,
+    );
+  }
+}
+
 async function parseApiError(response: Response): Promise<ApiError> {
   let body: unknown = null;
   try {
@@ -313,7 +339,7 @@ export async function apiClient<T>(
     config.body = JSON.stringify(body);
   }
 
-  let response = await fetch(buildUrl(endpoint), config);
+  let response = await fetchOrUnavailable(buildUrl(endpoint), config);
 
   // On a 401, a native client renews its access token from the refresh token
   // and retries the request once before treating the session as expired.
@@ -327,7 +353,7 @@ export async function apiClient<T>(
     const retryHeaders = new Headers(customHeaders);
     retryHeaders.set("Content-Type", "application/json");
     const retryCredentials = applyAuthTransport(retryHeaders); // picks up the new bearer
-    response = await fetch(buildUrl(endpoint), { ...config, credentials: retryCredentials, headers: retryHeaders });
+    response = await fetchOrUnavailable(buildUrl(endpoint), { ...config, credentials: retryCredentials, headers: retryHeaders });
   }
 
   if (response.status === 401) {
@@ -394,7 +420,7 @@ export async function apiStreamClient(
     config.body = JSON.stringify(body);
   }
 
-  const response = await fetch(buildUrl(endpoint), config);
+  const response = await fetchOrUnavailable(buildUrl(endpoint), config);
 
   if (response.status === 401) {
     notifySessionExpired();

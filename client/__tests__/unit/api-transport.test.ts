@@ -139,3 +139,58 @@ describe("api token refresh on 401", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
+
+describe("transport failures", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    setNativeClient(false)
+    setAuthToken(null)
+    setRefreshToken(null)
+    setApiBaseUrl(undefined)
+  })
+
+  // A request that never reaches a server rejects with whatever the engine
+  // decided to call it — "Load failed" on WebKit, "Failed to fetch" on
+  // Chromium. UI that renders err.message showed users that string verbatim.
+  it("turns an unreachable server into UNAVAILABLE naming the origin", async () => {
+    setApiBaseUrl("http://localhost:8080")
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Load failed")
+      }),
+    )
+
+    await expect(apiClient("organizations", { method: "POST", body: { name: "x" } })).rejects.toMatchObject({
+      name: "ApiError",
+      code: "UNAVAILABLE",
+    })
+
+    const err = (await apiClient("organizations").catch((e: unknown) => e)) as Error
+    expect(err.message).toContain("http://localhost:8080")
+    expect(err.message).not.toContain("Load failed")
+  })
+
+  // Server-authored copy is the useful kind (e.g. the Business-plan gate), so
+  // it must survive to the UI untouched rather than being replaced.
+  it("preserves the gateway's own message for a rejected request", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            code: "FAILED_PRECONDITION",
+            message: "Organization workspaces require the Business plan. Upgrade to create one.",
+          }),
+          { status: 403, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    )
+
+    const err = (await apiClient("organizations", { method: "POST" }).catch((e: unknown) => e)) as Error
+    expect(err.message).toBe(
+      "Organization workspaces require the Business plan. Upgrade to create one.",
+    )
+    expect(err).toMatchObject({ code: "FAILED_PRECONDITION", status: 403 })
+  })
+})

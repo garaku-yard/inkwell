@@ -28,8 +28,12 @@ export class NotSupportedError extends StorageError {
  *  maps HTTP 401 to this; the local implementation throws it when offline
  *  operations require a user record that doesn't exist yet. */
 export class UnauthenticatedError extends StorageError {
-  constructor() {
-    super("Not authenticated.")
+  /** @param message - Optional caller-supplied copy. Prefer passing something
+   *  that names the action being refused: this reaches the UI verbatim in
+   *  places that render `err.message`, and "Not authenticated." tells a user
+   *  neither what failed nor what to do about it. */
+  constructor(message = "Not authenticated.") {
+    super(message)
     this.name = "UnauthenticatedError"
   }
 }

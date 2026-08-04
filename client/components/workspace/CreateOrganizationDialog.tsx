@@ -50,7 +50,13 @@ export function CreateOrganizationDialog({ open, onOpenChange }: CreateOrganizat
       setName("")
       setDescription("")
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create organization.")
+      // The cases that actually occur here now arrive with actionable copy of
+      // their own — gateway unreachable (UNAVAILABLE, naming the origin), the
+      // Business-plan gate (FAILED_PRECONDITION), an expired session
+      // (UNAUTHENTICATED) — so surface that verbatim and only substitute text
+      // when something threw with none to give.
+      const message = err instanceof Error && err.message.trim() ? err.message.trim() : null
+      setError(message ?? "Couldn't create the organization. Try again.")
     } finally {
       setIsLoading(false)
     }
