@@ -2,6 +2,7 @@
 
 import { Palette, Type, Monitor, Moon, Sun, Check } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -29,7 +30,8 @@ const THEME_SWATCHES: Record<ThemeName, { light: string; dark: string }> = {
 }
 
 export function AppearanceSection() {
-  const { prefs, setColorMode, setTheme, setEditorFontFor, setUiFont, setEditorLineHeight, theme: resolvedMode } = useTheme()
+  const { prefs, setColorMode, setTheme, setEditorFontFor,
+    resetEditorFonts, setUiFont, setEditorLineHeight, theme: resolvedMode } = useTheme()
 
   const colorModes: { id: ColorMode; label: string; icon: React.ReactNode }[] = [
     { id: "light", label: "Light", icon: <Sun className="h-5 w-5" /> },
@@ -183,11 +185,25 @@ export function AppearanceSection() {
               writers can keep Courier locked to screenplay while
               choosing a serif for prose, a mono for IF, etc. */}
           <div className="space-y-3 pt-4 border-t border-border">
-            <div>
-              <Label>Editor Fonts</Label>
-              <p className="text-sm text-muted-foreground mt-1">
-                One pick per writing format. Defaults follow each format&apos;s typographic conventions.
-              </p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <Label>Editor Fonts</Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  One pick per writing format. Defaults follow each format&apos;s typographic conventions.
+                </p>
+              </div>
+              {/* Escape hatch: an older version stored a single editor font and
+                  mirrored it onto every format, so writers who never chose one
+                  ended up with a screenplay face on their novels. */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0 text-muted-foreground"
+                onClick={resetEditorFonts}
+              >
+                Reset to defaults
+              </Button>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
               {editorKinds.map((kind) => (

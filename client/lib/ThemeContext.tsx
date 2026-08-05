@@ -46,6 +46,9 @@ export const EDITOR_KIND_LABEL: Record<EditorKind, string> = {
 
 /** Format-conventional defaults. New users see typography that
  *  matches each format's industry expectations. */
+/** What every user had under the old single-font schema, chosen or not. */
+const LEGACY_EDITOR_FONT_DEFAULT = "courier"
+
 const EDITOR_FONT_DEFAULTS: Record<EditorKind, string> = {
   screenplay: "courier",
   comic: "courier",
@@ -192,6 +195,8 @@ interface ThemeContextType {
   setColorMode: (mode: ColorMode) => void
   setTheme: (theme: ThemeName) => void
   setEditorFontFor: (kind: EditorKind, font: string) => void
+  /** Restore every format to its conventional default face. */
+  resetEditorFonts: () => void
   setUiFont: (font: string) => void
   setEditorLineHeight: (lh: string) => void
   /** Patch one or more accessibility prefs; persists + applies immediately. */
@@ -225,10 +230,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         // not undefined.
         editorFonts: { ...EDITOR_FONT_DEFAULTS, ...(parsed?.editorFonts ?? {}) },
       }
-      // Migrate the old single-editor-font shape into per-kind prefs:
-      // if the user ever picked an editor font under the old schema,
-      // mirror it across every kind so they don't lose their choice.
-      if (parsed && typeof parsed.editorFont === "string" && !parsed.editorFonts) {
+      // Migrate the old single-editor-font shape into per-kind prefs: if the
+      // user ever picked an editor font under the old schema, mirror it across
+      // every kind so they don't lose their choice.
+      //
+      // Except when the stored value *is* the old default. Under the old schema
+      // everyone had "courier" whether they chose it or not, so mirroring it
+      // turned "never touched this" into seven deliberate-looking picks and
+      // buried the format conventions this panel promises — a prose manuscript
+      // and an interactive fiction both silently rendering in a screenplay
+      // typewriter face. A non-choice should fall through to the defaults.
+      if (
+        parsed &&
+        typeof parsed.editorFont === "string" &&
+        parsed.editorFont !== LEGACY_EDITOR_FONT_DEFAULT &&
+        !parsed.editorFonts
+      ) {
         for (const kind of Object.keys(EDITOR_FONT_DEFAULTS) as EditorKind[]) {
           loaded.editorFonts[kind] = parsed.editorFont
         }
@@ -274,6 +291,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       return next
     })
   }, [])
+  /** Put every format back on its conventional face. The escape hatch for
+   *  prefs the old migration already flattened — there is no way to tell those
+   *  apart from seven deliberate picks, so the writer says which it was. */
+  const resetEditorFonts = useCallback(
+    () => update({ editorFonts: { ...EDITOR_FONT_DEFAULTS } }),
+    [update],
+  )
+
   const setUiFont = useCallback((uiFont: string) => update({ uiFont }), [update])
   const setEditorLineHeight = useCallback((editorLineHeight: string) => update({ editorLineHeight }), [update])
   const setAccessibility = useCallback((patch: Partial<AccessibilityPrefs>) => update(patch), [update])
@@ -301,6 +326,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setColorMode,
       setTheme,
       setEditorFontFor,
+      resetEditorFonts,
       setUiFont,
       setEditorLineHeight,
       setAccessibility,
