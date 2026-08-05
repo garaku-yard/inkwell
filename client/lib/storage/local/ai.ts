@@ -11,11 +11,11 @@ import type {
   ProviderAdapter,
   ProviderKind,
   StreamChunk,
-  ToolSpec,
 } from "@/lib/ai/providers"
 import { deleteSecret, getSecret, setSecret } from "@/lib/secrets"
 import { getDb, newId } from "./shared"
 import { knowledge } from "./knowledge"
+import { findTool, parseToolArgs, TOOL_SPECS } from "./tools"
 
 // ─── AI (BYO keys, keychain-backed) ──────────────────────────────────────
 
@@ -119,26 +119,6 @@ const RETRIEVAL_K = 8
  *  keeps calling tools can't loop forever. */
 const MAX_TOOL_ITERATIONS = 4
 
-/** The single tool exposed to knowledge-enabled chats. */
-const READ_NOTE_TOOL: ToolSpec = {
-  name: "read_note",
-  description:
-    "Fetch the full markdown body of one of the writer's notes by its title. " +
-    "Use this when the retrieved excerpts are not enough and you need the " +
-    "complete note. Only notes in the project's wired knowledge scope are " +
-    "available.",
-  parameters: {
-    type: "object",
-    properties: {
-      title: {
-        type: "string",
-        description: "The note's title (its filename without the .md extension).",
-      },
-    },
-    required: ["title"],
-  },
-}
-
 /** Builds the system message that injects retrieved note excerpts. Returns
  *  null when retrieval found nothing, so the caller can skip the injection. */
 function buildKnowledgeSystem(chunks: RetrievedChunk[]): AdapterMessage | null {
@@ -156,16 +136,6 @@ function buildKnowledgeSystem(chunks: RetrievedChunk[]): AdapterMessage | null {
   return { role: "system", content }
 }
 
-/** Extracts the `title` argument from a `read_note` tool call. */
-function parseTitleArg(args: string): string {
-  try {
-    const parsed = JSON.parse(args || "{}") as { title?: unknown }
-    return typeof parsed.title === "string" ? parsed.title : ""
-  } catch {
-    return ""
-  }
-}
-
 interface RagStreamOptions {
   adapter: ProviderAdapter
   conversation: AdapterMessage[]
@@ -178,10 +148,13 @@ interface RagStreamOptions {
 
 /** Drives the call → execute → continue tool loop and flattens every
  *  adapter turn into the one NDJSON stream the chat panel consumes. Text
- *  deltas become `{"response":…}`; a `read_note` call surfaces a
- *  `{"tool":"read_note","arg":title}` line before its result is fed back;
- *  the final turn emits `{"done":true}`. Mid-stream failures emit
- *  `{"error":…}` as the last line, matching the gateway's contract. */
+ *  deltas become `{"response":…}`; each tool call surfaces a
+ *  `{"tool":name,"arg":summary}` line before its result is fed back; the
+ *  final turn emits `{"done":true}`. Mid-stream failures emit `{"error":…}`
+ *  as the last line, matching the gateway's contract.
+ *
+ *  Which tools exist and what they do is the registry's business (`./tools`),
+ *  not this loop's — it only sequences call, aside, execute, continue. */
 function ragStream(opts: RagStreamOptions): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
   return new ReadableStream<Uint8Array>({
@@ -198,7 +171,7 @@ function ragStream(opts: RagStreamOptions): ReadableStream<Uint8Array> {
             apiKey: opts.apiKey,
             baseUrl: opts.baseUrl,
             signal: opts.signal,
-            tools: [READ_NOTE_TOOL],
+            tools: TOOL_SPECS,
           })
           const reader = stream.getReader()
           const pendingCalls: NonNullable<StreamChunk["toolCall"]>[] = []
@@ -233,14 +206,12 @@ function ragStream(opts: RagStreamOptions): ReadableStream<Uint8Array> {
             toolCalls: pendingCalls,
           })
           for (const call of pendingCalls) {
+            const tool = findTool(call.name)
             let result: string
-            if (call.name === "read_note") {
-              const title = parseTitleArg(call.args)
-              emit({ tool: "read_note", arg: title })
-              const note = await knowledge.readNoteForTool(opts.projectId, title)
-              result = note
-                ? note.content
-                : `No note titled "${title}" is in this project's knowledge scope.`
+            if (tool) {
+              const args = parseToolArgs(call.args)
+              emit({ tool: tool.spec.name, arg: tool.summarize(args) })
+              result = await tool.run(args, { projectId: opts.projectId })
             } else {
               result = `Unknown tool: ${call.name}`
             }
