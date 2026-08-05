@@ -92,7 +92,7 @@ describe("tools/list", () => {
       tools: Array<{ name: string; annotations: { readOnlyHint: boolean } }>
     }
     const writes = tools.filter((t) => !t.annotations.readOnlyHint).map((t) => t.name)
-    expect(writes).toEqual(["create_scene", "append_to_scene", "add_beat"])
+    expect(writes).toEqual(["create_project", "create_scene", "append_to_scene", "add_beat"])
   })
 })
 

@@ -22,7 +22,16 @@ export interface FormatShape {
   /** How running text divides into elements: verse is written a line at a
    *  time, prose a paragraph at a time. */
   split: "paragraph" | "line"
+  /** Refines the type for one piece of text, where a format distinguishes
+   *  kinds of body. Returns null to keep {@link body}. */
+  classify?: (part: string) => string | null
 }
+
+/** A paragraph that is nothing but `[[links]]`. Interactive fiction stores
+ *  those as `choice` elements rather than prose — the same rule the twee
+ *  importer applies when reading a story in (`lib/import/twee.ts`), so text a
+ *  tool writes ends up in the same shape as text the writer imported. */
+const ONLY_LINKS = /^(\[\[[^\]]*\]\]\s*)+$/
 
 /** Formats whose projects hold scenes. `vault` (notes on disk) and `board`
  *  (a bare beat canvas) have none, so they are absent rather than guessed at. */
@@ -33,7 +42,11 @@ const SHAPES: Partial<Record<ProjectCategory, FormatShape>> = {
   comic_script: { body: "panel", split: "paragraph" },
   poetry: { body: "line", split: "line" },
   lyrics: { body: "line", split: "line" },
-  interactive_fiction: { body: "body", split: "paragraph" },
+  interactive_fiction: {
+    body: "body",
+    split: "paragraph",
+    classify: (part) => (ONLY_LINKS.test(part) ? "choice" : null),
+  },
   tabletop_rpg: { body: "body", split: "paragraph" },
 }
 

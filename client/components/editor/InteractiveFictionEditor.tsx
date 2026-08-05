@@ -146,6 +146,14 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const [focusedElementId, setFocusedElementId] = useState<string | null>(null)
 
   const activePassage = passages.find(p => p.id === activePassageId) ?? null
+
+  // Opening a project with no passages leaves nothing selected. If passages
+  // then appear — imported, or written by an agent through the MCP bridge —
+  // land on the first one instead of leaving the writer on an empty pane with
+  // a full sidebar.
+  useEffect(() => {
+    if (!activePassageId && passages.length > 0) setActivePassageId(passages[0].id)
+  }, [activePassageId, passages])
   const activeElements = activePassage?.elements ?? []
 
   // Live collaboration via the shared hook (no-op on the desktop build): live

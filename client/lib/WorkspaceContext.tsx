@@ -1,6 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react"
+import { useDataChanged } from "@/lib/live-refresh"
 import { useAuth } from "@/lib/AuthContext"
 import { listUserWorkspaces, type Workspace, type WorkspacesResponse } from "@/services/workspace"
 import { listOrganizations, type Organization } from "@/services/organization"
@@ -141,6 +142,13 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false)
     }
   }, [isAuthenticated])
+
+  // The MCP bridge can add a workspace from outside React (creating a project
+  // in a format no existing workspace holds), and the rail would keep showing
+  // the list it fetched at launch.
+  useDataChanged(() => {
+    if (isAuthenticated) void fetchWorkspaces()
+  })
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {

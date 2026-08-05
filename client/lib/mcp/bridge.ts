@@ -19,6 +19,7 @@
  * bridge state, not the writer's data, and would mean nothing to the chat.
  */
 
+import { announceDataChanged } from "@/lib/live-refresh"
 import { allTools, findTool, type ToolArgs } from "@/lib/storage/local/tools"
 
 /** The project subsequent calls act on. Null until the agent chooses one. */
@@ -98,7 +99,13 @@ async function callTool(params: Record<string, unknown>): Promise<McpResult> {
   }
 
   try {
-    return text(await tool.run(args, { projectId: chosenProject ?? "" }))
+    const result = text(await tool.run(args, { projectId: chosenProject ?? "" }))
+    if (tool.mutates) {
+      // The write landed in SQLite, which no hook is watching. Tell the open
+      // views so the writer sees it without reaching for a refresh.
+      announceDataChanged({ projectId: chosenProject ?? undefined, source: name })
+    }
+    return result
   } catch (err) {
     // A handler that throws is a bug or a broken database, not an answer.
     // Report it as a failed call so the agent sees it instead of a silence.

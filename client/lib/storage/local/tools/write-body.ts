@@ -33,7 +33,7 @@ export async function appendBody(
       projectId,
       sceneId,
       elementOrder: order,
-      elementType: shape.body,
+      elementType: shape.classify?.(content) ?? shape.body,
       content,
     })
     order += 1

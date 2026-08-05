@@ -12,6 +12,7 @@ import {
   setProjectArchived,
   type Project,
 } from "@/services/project"
+import { useDataChanged } from "@/lib/live-refresh"
 import { getPendingInvites } from "@/services/invites"
 import { listOrgProjects, type Organization } from "@/services/organization"
 import type { Workspace } from "@/services/workspace"
@@ -122,6 +123,12 @@ export function useProjects({
   useEffect(() => {
     void refetch()
   }, [refetch])
+
+  // A project created outside React (the MCP bridge writes straight to SQLite)
+  // would otherwise not appear until something else happened to refetch.
+  useDataChanged(() => {
+    void refetch()
+  })
 
   const filteredProjects = useMemo(() => {
     // In org context the project list is already the org's pool — the personal

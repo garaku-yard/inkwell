@@ -18,6 +18,13 @@ const h = vi.hoisted(() => ({
   orgAvailable: vi.fn(),
   orgList: vi.fn(),
   orgProjects: vi.fn(),
+  createProject: vi.fn(),
+  wsList: vi.fn(),
+  wsCreate: vi.fn(),
+}))
+
+vi.mock("@/lib/storage/local/workspaces", () => ({
+  workspaces: { list: h.wsList, createPersonal: h.wsCreate },
 }))
 
 vi.mock("@/lib/storage/local/knowledge", () => ({
@@ -31,6 +38,7 @@ vi.mock("@/lib/storage/local/projects", () => ({
   projects: {
     listOwned: async () => ({ projects: h.projects, total: h.projects.length }),
     getById: async () => ({ id: "proj1", title: "The Kettle", category: h.category }),
+    create: h.createProject,
   },
 }))
 
@@ -118,6 +126,12 @@ beforeEach(() => {
   h.orgList.mockResolvedValue([])
   h.orgProjects.mockReset()
   h.orgProjects.mockResolvedValue([])
+  h.createProject.mockReset()
+  h.createProject.mockImplementation(async (input) => ({ id: "new-project", ...input }))
+  h.wsList.mockReset()
+  h.wsList.mockResolvedValue({ personal: [{ categories: [{ slug: "novel" }] }], org: [] })
+  h.wsCreate.mockReset()
+  h.wsCreate.mockResolvedValue({ workspaces: [] })
 })
 
 describe("tool registry", () => {
@@ -129,6 +143,7 @@ describe("tool registry", () => {
       "read_scene",
       "search_notes",
       "read_note",
+      "create_project",
       "create_scene",
       "append_to_scene",
       "add_beat",
@@ -170,7 +185,12 @@ describe("tool registry", () => {
     const mutating = toolSpecsFor({ knowledge: true })
       .map((s) => s.name)
       .filter((name) => tool(name).mutates)
-    expect(mutating).toEqual(["create_scene", "append_to_scene", "add_beat"])
+    expect(mutating).toEqual([
+      "create_project",
+      "create_scene",
+      "append_to_scene",
+      "add_beat",
+    ])
   })
 })
 
@@ -315,6 +335,78 @@ describe("search_notes", () => {
   })
 })
 
+describe("create_project", () => {
+  it("creates the project and hands back the id the next call needs", async () => {
+    const out = await tool("create_project").run(
+      { title: "Attractor: Zero", category: "interactive_fiction" },
+      ctx,
+    )
+    expect(h.createProject).toHaveBeenCalledWith({
+      title: "Attractor: Zero",
+      description: undefined,
+      owner_id: expect.any(String),
+      category: "interactive_fiction",
+    })
+    expect(out).toContain("new-project")
+    expect(out).toContain("use_project")
+  })
+
+  it("adds a workspace when none can show the new project's format", async () => {
+    // The dashboard filters by the active workspace's categories, so a format
+    // no workspace holds would be created into invisibility.
+    const out = await tool("create_project").run(
+      { title: "The Long Room", category: "interactive_fiction" },
+      ctx,
+    )
+    expect(h.wsCreate).toHaveBeenCalledWith(expect.any(String), ["interactive_fiction"])
+    expect(out).toContain("workspace")
+  })
+
+  it("leaves the workspaces alone when one already holds the format", async () => {
+    await tool("create_project").run({ title: "Second Novel", category: "novel" }, ctx)
+    expect(h.wsCreate).not.toHaveBeenCalled()
+  })
+
+  it("still reports the project when the workspace can't be added", async () => {
+    h.wsCreate.mockRejectedValue(new Error("disk full"))
+    const out = await tool("create_project").run(
+      { title: "The Long Room", category: "poetry" },
+      ctx,
+    )
+    expect(out).toContain("new-project")
+    expect(out).toContain("may not show on the dashboard")
+  })
+
+  it("refuses a format a tool has no business creating", async () => {
+    // A vault is a folder on disk chosen through a native picker; the row
+    // alone would open onto nothing.
+    const out = await tool("create_project").run(
+      { title: "Notes", category: "vault" },
+      ctx,
+    )
+    expect(out).toContain("isn't a format a tool can create")
+    expect(h.createProject).not.toHaveBeenCalled()
+  })
+
+  it("refuses a format that doesn't exist", async () => {
+    await expect(
+      tool("create_project").run({ title: "X", category: "haiku" }, ctx),
+    ).resolves.toContain("isn't a format")
+    expect(h.createProject).not.toHaveBeenCalled()
+  })
+
+  it("asks for a title rather than creating an untitled project", async () => {
+    await expect(
+      tool("create_project").run({ category: "novel" }, ctx),
+    ).resolves.toBe("Give the project a title.")
+    expect(h.createProject).not.toHaveBeenCalled()
+  })
+
+  it("works without a project chosen, being account-scoped", () => {
+    expect(tool("create_project").scope).toBe("account")
+  })
+})
+
 describe("create_scene", () => {
   it("adds the scene after the last one and reports its id", async () => {
     const out = await tool("create_scene").run({ heading: "INT. HALL" }, ctx)
@@ -351,6 +443,18 @@ describe("create_scene", () => {
       ["line", "one"],
       ["line", "two"],
       ["line", "three"],
+    ])
+  })
+
+  it("writes an all-links paragraph as a choice, the way interactive fiction stores it", async () => {
+    h.category = "interactive_fiction"
+    await tool("create_scene").run(
+      { heading: "Landing", text: "The lift doors open.\n\n[[Go left]] [[Go right]]" },
+      ctx,
+    )
+    expect(h.createElement.mock.calls.map(([c]) => [c.elementType, c.content])).toEqual([
+      ["body", "The lift doors open."],
+      ["choice", "[[Go left]] [[Go right]]"],
     ])
   })
 

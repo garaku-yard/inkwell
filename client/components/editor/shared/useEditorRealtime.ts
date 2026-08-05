@@ -25,7 +25,9 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import type { Dispatch, RefObject, SetStateAction } from "react"
 
+import { useDataChanged } from "@/lib/live-refresh"
 import { useProjectPresence } from "@/lib/realtime/PresenceContext"
+import { mergeScenes } from "./mergeScenes"
 import { useDurableSessions } from "@/lib/realtime/useDurableSessions"
 import type { Peer } from "@/lib/realtime/protocol"
 import type { CaretSubscriber } from "@/hooks/useRealtimePresence"
@@ -103,6 +105,26 @@ export function useEditorRealtime({
   } = useProjectPresence()
 
   useCaretReporter({ containerRef: surfaceRef, sendCaret, enabled: connected })
+
+  // Writes that arrive from outside React — the MCP bridge acting on this
+  // project (ADR 0025) — reach SQLite without passing through any hook, so the
+  // open editor would sit on the scenes it loaded until the writer closed and
+  // reopened the project. Reload and fold in what's new, additively: existing
+  // scenes and elements are left untouched, so nothing being typed is lost.
+  useDataChanged((change) => {
+    if (change.projectId && change.projectId !== projectId) return
+    if (!projectId || !userId) return
+    void (async () => {
+      try {
+        const full = await getFullProject(projectId, userId)
+        setScenes((prev) => mergeScenes(prev, full.scenes ?? []))
+      } catch (err) {
+        // A failed refresh leaves the editor on what it had, which is stale
+        // but intact — the writer can still reopen the project.
+        console.warn("live refresh failed", err)
+      }
+    })()
+  })
 
   // Report the active scene as this client's focus, so collaborators see
   // "editing X" and the gateway records a durable soft-lock on it. Centralised

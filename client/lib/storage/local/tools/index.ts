@@ -18,6 +18,7 @@ import type { ToolSpec } from "@/lib/ai/providers"
 
 import { addBeat } from "./add-beat"
 import { appendToScene } from "./append-to-scene"
+import { createProject } from "./create-project"
 import { createScene } from "./create-scene"
 import { listProjects } from "./list-projects"
 import { listScenes } from "./list-scenes"
@@ -36,6 +37,7 @@ const ENTRIES: ToolEntry[] = [
   readScene,
   searchNotes,
   readNote,
+  createProject,
   createScene,
   appendToScene,
   addBeat,
