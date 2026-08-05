@@ -31,10 +31,11 @@ export function AddWorkspaceDialog({ open, onOpenChange, onSwitchToOrg }: AddWor
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isFetching, setIsFetching] = useState(true)
-  // Orgs need the `organizations` capability *and* a linked account — on the
-  // desktop they are gateway-backed (ADR 0023), so a signed-out user has no
-  // way to create one. Offering the form and failing on submit is exactly the
-  // dead-end this gate exists to prevent.
+  // Orgs need the `organizations` capability; on the desktop they no longer
+  // need an account, because a signed-out org is created and kept locally
+  // (ADR 0026). The availability probe stays because a build that genuinely
+  // can't offer orgs should say so rather than show a form that fails on
+  // submit — which is the dead-end this gate exists to prevent.
   const orgsSupported = getStorage().capabilities.has("organizations")
   const [orgsAvailable, setOrgsAvailable] = useState(false)
 

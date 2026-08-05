@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { setAuthToken } from "@/lib/api"
-import { UnauthenticatedError } from "@/lib/storage/errors"
 
 // The desktop binds the *gateway* org implementation for org administration
 // (ADR 0023). Stub it so these tests assert the linked-account gate rather than
@@ -39,21 +38,25 @@ vi.mock("@/lib/storage/local/shared", async (importOriginal) => {
 import { organizations } from "@/lib/storage/local/organizations"
 import { organizations as gateway } from "@/lib/storage/remote/organizations"
 
-describe("desktop organizations binding (ADR 0023)", () => {
+describe("desktop organizations binding (ADR 0023, amended by 0026)", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setAuthToken(null)
   })
 
   describe("with no linked account", () => {
-    it("reports itself unavailable so the UI hides org affordances", async () => {
-      await expect(organizations.isAvailable()).resolves.toBe(false)
+    // 0026 reverses 0023 here: an org signed out is a local object, so the
+    // affordances stay rather than hiding behind a sign-in the writer doesn't
+    // need to organise files on their own disk.
+    it("reports itself available, because a signed-out org is a local one", async () => {
+      await expect(organizations.isAvailable()).resolves.toBe(true)
     })
 
-    // The regression this guards: the pre-0023 local stub returned [] so the
-    // rail showed no org zone. Delegating unconditionally would instead fire an
-    // unauthenticated request on every desktop boot.
-    it("degrades list-shaped reads to empty without calling the gateway", async () => {
+    // The regression this guards: delegating unconditionally would fire an
+    // unauthenticated request on every desktop boot. Post-0026 the reads are
+    // answered from SQLite instead of refused — with no org rows on disk the
+    // answers are still empty, and still never touch the gateway.
+    it("answers list-shaped reads locally without calling the gateway", async () => {
       await expect(organizations.list()).resolves.toEqual([])
       await expect(organizations.listIncomingInvites()).resolves.toEqual([])
       await expect(organizations.listMembers("org-1")).resolves.toEqual([])
@@ -69,33 +72,42 @@ describe("desktop organizations binding (ADR 0023)", () => {
       expect(gateway.seats).not.toHaveBeenCalled()
     })
 
-    it("refuses writes locally rather than sending a request that can only 401", async () => {
-      await expect(organizations.create({ name: "x" })).rejects.toBeInstanceOf(UnauthenticatedError)
-      await expect(organizations.get("org-1")).rejects.toBeInstanceOf(UnauthenticatedError)
-      await expect(organizations.update("org-1", { name: "y" })).rejects.toBeInstanceOf(UnauthenticatedError)
-      await expect(organizations.delete("org-1")).rejects.toBeInstanceOf(UnauthenticatedError)
-      await expect(organizations.invite("org-1", "a@b.c", "editor")).rejects.toBeInstanceOf(UnauthenticatedError)
-      await expect(organizations.setSeats("org-1", 5)).rejects.toBeInstanceOf(UnauthenticatedError)
+    // What 0026 keeps from 0023: membership is the part that genuinely needs a
+    // server. Those still refuse on a local org — but with NotSupportedError
+    // ("this org lives on this device"), which is the true reason, rather than
+    // UnauthenticatedError, which would tell the writer to sign in for
+    // something signing in cannot give them.
+    it("refuses membership operations on a local org, naming the real reason", async () => {
+      select.mockResolvedValue([{
+        id: "org-1", name: "Local", slug: "local", type: "org",
+        owner_id: "u1", avatar_url: null, description: null, categories_json: "[]",
+      }])
 
-      expect(gateway.create).not.toHaveBeenCalled()
-      expect(gateway.get).not.toHaveBeenCalled()
-      expect(gateway.update).not.toHaveBeenCalled()
-      expect(gateway.delete).not.toHaveBeenCalled()
+      await expect(organizations.invite("org-1", "a@b.c", "editor")).rejects.toThrow(/lives on this device/)
+      await expect(organizations.setSeats("org-1", 5)).rejects.toThrow(/lives on this device/)
+      await expect(organizations.updateMemberRole("org-1", "u2", "editor")).rejects.toThrow(/lives on this device/)
+      await expect(organizations.removeMember("org-1", "u2")).rejects.toThrow(/lives on this device/)
+
       expect(gateway.invite).not.toHaveBeenCalled()
       expect(gateway.setSeats).not.toHaveBeenCalled()
+      expect(gateway.updateMemberRole).not.toHaveBeenCalled()
+      expect(gateway.removeMember).not.toHaveBeenCalled()
     })
   })
 
   describe("with a linked account", () => {
     beforeEach(() => {
       setAuthToken("a-bearer-token")
+      // clearAllMocks resets calls, not implementations: without this the org
+      // row from the local test above would still be on "disk" here.
+      select.mockResolvedValue([])
     })
 
     it("reports itself available", async () => {
       await expect(organizations.isAvailable()).resolves.toBe(true)
     })
 
-    it("delegates reads to the gateway", async () => {
+    it("delegates reads to the gateway, alongside any local orgs", async () => {
       await expect(organizations.list()).resolves.toEqual([{ id: "org-1" }])
       expect(gateway.list).toHaveBeenCalledOnce()
 
