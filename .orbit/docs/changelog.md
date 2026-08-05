@@ -6,6 +6,26 @@
 > handoff notes + git history). The live status matrix is
 > [PLANNING.md](../../PLANNING.md); forward intent is [roadmap.md](./roadmap.md).
 
+## Organizations on the desktop
+
+Orgs became usable from the desktop build, which previously offered a "Create an
+organization" form that could only fail: the local `Storage` rejected every org
+call. The desktop now serves org *administration* — members, seats, invites —
+from the gateway while everything else stays local SQLite
+([decisions/0023](./decisions/0023-orgs-in-desktop-hybrid-storage.md)), and holds
+org-owned **projects locally** in a new `projects.org_id` column, so creating one
+needs no server and works offline like the rest of the app
+([decisions/0024](./decisions/0024-org-projects-held-locally.md)). Before that
+column existed the org id was silently dropped on insert, so a project made
+inside an org became a personal one and vanished from the org it was made from.
+Org projects reach other devices through the existing per-project sync, whose
+pull path now round-trips `org_id`.
+
+Alongside: the window titlebar no longer scrolls out of view on editor routes (an
+`h-screen` shell inside a viewport-minus-titlebar container, which focus-driven
+scrolling then pushed off the top), and an unreachable gateway now names the
+origin it tried instead of surfacing WebKit's bare "Load failed".
+
 ## Real-time co-editing
 
 Shipped a tiered live-collaboration stack over a WebSocket transport: per-project

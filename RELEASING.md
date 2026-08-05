@@ -12,9 +12,19 @@ to bump the version and push a tag.
 
 ## Cutting a release
 
-1. **Bump the version.** Edit `client/src-tauri/tauri.conf.json` and change
-   the `"version"` field. Semver: bump patch for fixes, minor for features,
-   major for breaking changes.
+1. **Bump the version — in all three places.** Semver: patch for fixes, minor
+   for features, major for breaking changes.
+
+   | File | Field | Why it matters |
+   | --- | --- | --- |
+   | `client/src-tauri/tauri.conf.json` | `version` | names the built artefacts |
+   | `client/src-tauri/Cargo.toml` | `version` | the crate version in build logs |
+   | `client/package.json` | `version` | what npm reports |
+
+   These drifted apart once already (`tauri.conf.json` at 0.3.0 while the other
+   two sat at 0.2.3), which makes a build log disagree with the file it just
+   produced. Run `cargo check` in `client/src-tauri` afterwards so `Cargo.lock`
+   picks the bump up in the same commit.
 
 2. **Commit and tag.** The tag name must start with `v` (e.g. `v0.1.0`) —
    that's what the release workflow watches for.
@@ -33,8 +43,9 @@ to bump the version and push a tag.
    Total wall time usually 15 min. If either fails, see
    [Troubleshooting](#troubleshooting) below.
 
-4. **Publish the draft.** GitHub → Releases → find the newly created draft
-   named after the tag. Assets attached:
+4. **Nothing — the release publishes itself.** When both jobs finish, the
+   release is live at GitHub → Releases, named after the tag, with the notes
+   pre-filled from the workflow and these assets attached:
 
    | Platform | File |
    | --- | --- |
@@ -42,8 +53,14 @@ to bump the version and push a tag.
    | Linux | `Inkwell_X.Y.Z_amd64.AppImage` |
    | Linux | `Inkwell_X.Y.Z_amd64.deb` |
 
-   Edit the release notes (they're pre-filled with install instructions),
-   then click **Publish release**.
+   It used to stop at a draft awaiting a manual publish, and every release
+   through v0.3.0 duly sat unpublished — the repo advertised six tags and no
+   downloads while the artefacts existed the whole time. If you want that
+   behaviour back for a particular release, flip `releaseDraft` in
+   `.github/workflows/release.yml`.
+
+   Editing the notes afterwards is still fine; publishing just no longer
+   depends on someone remembering to.
 
 ## What users will see
 

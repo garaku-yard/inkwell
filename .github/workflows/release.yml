@@ -97,8 +97,11 @@ jobs:
 
             ### Notes
             - First launch creates a local SQLite database at
-              `~/.local/share/com.inkwell.app/inkwell.db` (Linux) or
+              `~/.config/com.inkwell.app/inkwell.db` (Linux) or
               `%APPDATA%\com.inkwell.app\inkwell.db` (Windows). All your
               projects stay on your machine — no server required.
-          releaseDraft: true
+          # Published, not held as a draft. Every tag so far built cleanly and
+          # then sat unpublished, so the repo showed six tags and no releases —
+          # the artefacts existed but nobody could reach them.
+          releaseDraft: false
           prerelease: false
