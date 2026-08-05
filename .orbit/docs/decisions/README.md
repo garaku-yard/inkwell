@@ -37,6 +37,7 @@ never been written up as ADRs.
 | [0022](./0022-drawing-per-shape-rows.md) | Drawing layer: one row per shape, JSON payload inside | Accepted |
 | [0023](./0023-orgs-in-desktop-hybrid-storage.md) | Orgs in the desktop build; hybrid local+remote `Storage` | Accepted |
 | [0024](./0024-org-projects-held-locally.md) | Org-owned projects are held locally on the desktop | Accepted |
+| [0025](./0025-one-tool-registry-two-consumers.md) | One tool registry: in-app chat + an in-app MCP bridge | Accepted |
 
 **Adding one:** next number, same five headings. If it reverses an earlier
 decision, set the old one's Status to `Superseded by NNNN` (that one edit to the
