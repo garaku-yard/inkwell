@@ -16,18 +16,42 @@
 
 import type { ToolSpec } from "@/lib/ai/providers"
 
+import { listProjects } from "./list-projects"
+import { listScenes } from "./list-scenes"
 import { readNote } from "./read-note"
+import { readScene } from "./read-scene"
+import { searchNotes } from "./search-notes"
 import type { ToolArgs, ToolEntry } from "./types"
 
-export type { ToolArgs, ToolContext, ToolEntry } from "./types"
+export type { ToolArgs, ToolContext, ToolEntry, ToolRequirement } from "./types"
 
-/** Every registered tool, in the order the model is shown them. */
-const ENTRIES: ToolEntry[] = [readNote]
+/** Every registered tool, in the order the model is shown them: find your
+ *  way around first, then read something. */
+const ENTRIES: ToolEntry[] = [
+  listProjects,
+  listScenes,
+  readScene,
+  searchNotes,
+  readNote,
+]
 
 const BY_NAME = new Map(ENTRIES.map((entry) => [entry.spec.name, entry]))
 
-/** The declarations to offer the model on each turn. */
-export const TOOL_SPECS: ToolSpec[] = ENTRIES.map((entry) => entry.spec)
+/** What the project can currently satisfy, deciding which tools are worth
+ *  declaring this turn. */
+export interface ToolAvailability {
+  /** The project has vault notes wired as knowledge. */
+  knowledge: boolean
+}
+
+/** The declarations to offer the model, minus the ones whose precondition
+ *  this project doesn't meet. Offering a tool that can only answer "nothing
+ *  is wired" spends the model's attention to teach it a dead end. */
+export function toolSpecsFor(available: ToolAvailability): ToolSpec[] {
+  return ENTRIES.filter(
+    (entry) => entry.requires !== "knowledge" || available.knowledge,
+  ).map((entry) => entry.spec)
+}
 
 /** Looks up a registered tool by the name the model called. Returns
  *  undefined for a name that isn't registered — models do hallucinate tools,

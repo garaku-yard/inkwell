@@ -116,7 +116,7 @@ export function useAIChatStream({
               done?: boolean
               error?: string
               tool?: string
-              arg?: string
+              label?: string
             }
             if (parsed.error) {
               // Gateway emits {error} as the final NDJSON line when
@@ -125,15 +125,16 @@ export function useAIChatStream({
               // visible.
               streamErrorMessage = parsed.error
             }
-            if (parsed.tool === "read_note") {
-              // The desktop knowledge path surfaces note lookups so the
-              // reader can see the model consulting their vault. Render it
-              // as a muted aside woven into the streamed reply.
-              const note = parsed.arg ? `"${parsed.arg}"` : "a note"
+            if (parsed.tool) {
+              // The desktop tool loop surfaces each call so the reader can
+              // see the model consult their work rather than watch a pause.
+              // The phrase is the tool's own — the panel renders whatever
+              // arrives, so a new tool needs no change here.
+              const doing = parsed.label || "Working"
               setMessages((currentMessages) =>
                 currentMessages.map((msg) =>
                   msg.id === aiMessageId
-                    ? { ...msg, content: `${msg.content}\n\n_📄 Reading ${note}…_\n\n` }
+                    ? { ...msg, content: `${msg.content}\n\n_📄 ${doing}…_\n\n` }
                     : msg,
                 ),
               )

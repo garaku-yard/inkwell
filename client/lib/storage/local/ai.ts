@@ -11,11 +11,12 @@ import type {
   ProviderAdapter,
   ProviderKind,
   StreamChunk,
+  ToolSpec,
 } from "@/lib/ai/providers"
 import { deleteSecret, getSecret, setSecret } from "@/lib/secrets"
 import { getDb, newId } from "./shared"
 import { knowledge } from "./knowledge"
-import { findTool, parseToolArgs, TOOL_SPECS } from "./tools"
+import { findTool, parseToolArgs, toolSpecsFor } from "./tools"
 
 // ─── AI (BYO keys, keychain-backed) ──────────────────────────────────────
 
@@ -129,9 +130,9 @@ function buildKnowledgeSystem(chunks: RetrievedChunk[]): AdapterMessage | null {
   const content =
     "You have access to the writer's personal notes. The most relevant " +
     "excerpts for this question are below. Ground your answer in them and " +
-    "cite note titles where useful. If they don't cover the question, say " +
-    "so plainly rather than guessing. When you need a note's full text, call " +
-    "the read_note tool with its title.\n\n" +
+    "cite note titles where useful. If they don't cover the question, reach " +
+    "for your tools before guessing — and if they still don't, say so " +
+    "plainly.\n\n" +
     `--- NOTES ---\n${excerpts}\n--- END NOTES ---`
   return { role: "system", content }
 }
@@ -144,14 +145,18 @@ interface RagStreamOptions {
   baseUrl?: string
   signal?: AbortSignal
   projectId: string
+  /** The tools to declare each turn — already filtered to what this project
+   *  can satisfy, so the loop doesn't re-derive availability per iteration. */
+  tools: ToolSpec[]
 }
 
 /** Drives the call → execute → continue tool loop and flattens every
  *  adapter turn into the one NDJSON stream the chat panel consumes. Text
  *  deltas become `{"response":…}`; each tool call surfaces a
- *  `{"tool":name,"arg":summary}` line before its result is fed back; the
- *  final turn emits `{"done":true}`. Mid-stream failures emit `{"error":…}`
- *  as the last line, matching the gateway's contract.
+ *  `{"tool":name,"label":phrase}` line before its result is fed back, where
+ *  the phrase is the tool's own wording of what it is doing; the final turn
+ *  emits `{"done":true}`. Mid-stream failures emit `{"error":…}` as the last
+ *  line, matching the gateway's contract.
  *
  *  Which tools exist and what they do is the registry's business (`./tools`),
  *  not this loop's — it only sequences call, aside, execute, continue. */
@@ -171,7 +176,7 @@ function ragStream(opts: RagStreamOptions): ReadableStream<Uint8Array> {
             apiKey: opts.apiKey,
             baseUrl: opts.baseUrl,
             signal: opts.signal,
-            tools: TOOL_SPECS,
+            tools: opts.tools,
           })
           const reader = stream.getReader()
           const pendingCalls: NonNullable<StreamChunk["toolCall"]>[] = []
@@ -210,7 +215,7 @@ function ragStream(opts: RagStreamOptions): ReadableStream<Uint8Array> {
             let result: string
             if (tool) {
               const args = parseToolArgs(call.args)
-              emit({ tool: tool.spec.name, arg: tool.summarize(args) })
+              emit({ tool: tool.spec.name, label: tool.label(args) })
               result = await tool.run(args, { projectId: opts.projectId })
             } else {
               result = `Unknown tool: ${call.name}`
@@ -263,22 +268,26 @@ export const ai: AiStorage = {
     const adapter = getAdapter(row.kind as ProviderKind)
     const baseUrl = row.base_url ?? undefined
 
-    // Knowledge path: only when the project has scopes wired. Otherwise this
-    // is a plain chat with no retrieval, no tools, and no model load — byte
-    // for byte the original behaviour.
-    const knowledgeOn =
-      !!request.projectId && (await knowledge.hasScopes(request.projectId))
-    if (knowledgeOn) {
-      const lastUser = [...request.messages]
-        .reverse()
-        .find((m) => m.role === "user")?.content
-      const chunks = lastUser
-        ? await knowledge.retrieve(request.projectId!, lastUser, RETRIEVAL_K)
-        : []
-      const systemMsg = buildKnowledgeSystem(chunks)
-      const conversation: AdapterMessage[] = systemMsg
-        ? [systemMsg, ...toAdapterMessages(request.messages)]
-        : toAdapterMessages(request.messages)
+    // Every tool acts on a project, so a project is what the tool loop needs —
+    // not a wired vault. A chat open on a project can list its scenes and read
+    // them whether or not any notes are attached; wiring notes adds retrieval
+    // and the note tools on top. Without a project there is nothing to act on,
+    // so that path stays a plain completion: no retrieval, no tools, no
+    // model load.
+    const projectId = request.projectId
+    if (projectId) {
+      const knowledgeOn = await knowledge.hasScopes(projectId)
+      const conversation: AdapterMessage[] = toAdapterMessages(request.messages)
+      if (knowledgeOn) {
+        const lastUser = [...request.messages]
+          .reverse()
+          .find((m) => m.role === "user")?.content
+        const chunks = lastUser
+          ? await knowledge.retrieve(projectId, lastUser, RETRIEVAL_K)
+          : []
+        const systemMsg = buildKnowledgeSystem(chunks)
+        if (systemMsg) conversation.unshift(systemMsg)
+      }
       return ragStream({
         adapter,
         conversation,
@@ -286,7 +295,8 @@ export const ai: AiStorage = {
         apiKey: apiKey ?? undefined,
         baseUrl,
         signal: options?.signal,
-        projectId: request.projectId!,
+        projectId,
+        tools: toolSpecsFor({ knowledge: knowledgeOn }),
       })
     }
 

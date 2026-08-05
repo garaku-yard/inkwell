@@ -30,8 +30,12 @@ export const readNote: ToolEntry = {
       required: ["title"],
     },
   },
+  requires: "knowledge",
   mutates: false,
-  summarize: titleOf,
+  label: (args) => {
+    const title = titleOf(args)
+    return title ? `Reading "${title}"` : "Reading a note"
+  },
   async run(args, ctx) {
     const title = titleOf(args)
     const note = await knowledge.readNoteForTool(ctx.projectId, title)

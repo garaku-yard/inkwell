@@ -12,20 +12,32 @@ export interface ToolContext {
   projectId: string
 }
 
+/** A precondition the project must meet before a tool is worth offering.
+ *  `"knowledge"` means the project has vault notes wired as knowledge —
+ *  without any, the note tools can only ever answer "nothing is in scope",
+ *  so they are left out of the declarations entirely rather than offered and
+ *  then apologised for. */
+export type ToolRequirement = "knowledge"
+
 /** One capability an AI consumer may invoke: the declaration providers turn
  *  into their native tool format, paired with the handler that runs it.
  *  Adding a capability is adding an entry — there is no dispatch site to
  *  edit. */
 export interface ToolEntry {
   spec: ToolSpec
+  /** What the project must have for this tool to be offered. Omitted when the
+   *  tool works in any project. */
+  requires?: ToolRequirement
   /** True when running the tool writes to the writer's data. Nothing reads
    *  this yet: it is declared from the first entry because the confirmation
    *  semantics in ADR 0025 need the read/write distinction recorded per tool,
    *  not reconstructed later by guessing from tool names. */
   mutates: boolean
-  /** A short label for this call, shown to the reader as an aside while the
-   *  tool runs. Return "" when a call has nothing worth naming. */
-  summarize(args: ToolArgs): string
+  /** A short present-tense phrase naming what this call is doing —
+   *  `Reading "Cats"`, `Listing scenes`. It is shown to the reader as an
+   *  aside while the tool runs, so each tool words its own activity instead
+   *  of the chat panel guessing a verb per tool name. */
+  label(args: ToolArgs): string
   /** Runs the call and returns the text fed back to the model as the tool
    *  result. Arguments arrive parsed but unvalidated — a model can send
    *  anything — so read them defensively and answer in prose rather than
