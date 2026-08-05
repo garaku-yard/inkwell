@@ -1,6 +1,7 @@
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+mod mcp;
 mod open_file;
 mod scope;
 mod secrets;
@@ -120,12 +121,14 @@ pub fn run() {
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_opener::init())
     .manage(open_file::PendingOpenFile::default())
+    .manage(mcp::Bridge::default())
     .invoke_handler(tauri::generate_handler![
       secrets::secret_set,
       secrets::secret_get,
       secrets::secret_delete,
       open_file::consume_pending_open_file,
       scope::allow_fs_dir,
+      mcp::mcp_reply,
     ])
     .setup(|app| {
       // Make sure the window advertises the bundle icon on platforms that
@@ -152,6 +155,15 @@ pub fn run() {
             .build(),
         )?;
       }
+
+      // The MCP bridge is an extra: if it can't bind or can't record its
+      // handshake, the writer's app still opens. Say so on stderr rather
+      // than failing the launch.
+      match mcp::start(&app.handle()) {
+        Ok(port) => log::info!("MCP bridge listening on 127.0.0.1:{port}"),
+        Err(err) => eprintln!("MCP bridge unavailable: {err}"),
+      }
+
       Ok(())
     })
     .build(tauri::generate_context!())

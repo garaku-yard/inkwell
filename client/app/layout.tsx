@@ -16,6 +16,7 @@ import { AuthProvider } from "@/lib/AuthContext";
 import { ThemeProvider } from "@/lib/ThemeContext";
 import { StorageProvider } from "@/lib/storage/StorageProvider";
 import { DesktopMenuBridge } from "@/components/desktop-menu-bridge";
+import { McpBridge } from "@/components/mcp-bridge";
 import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcutsDialog";
 import { WindowTitlebar } from "@/components/window-titlebar";
 import { Toaster } from "@/components/ui/toaster";
@@ -87,6 +88,7 @@ export default function RootLayout({
                 Skip to content
               </a>
               <DesktopMenuBridge />
+              <McpBridge />
               <KeyboardShortcutsDialog />
               <div className="flex h-screen flex-col">
                 <WindowTitlebar />

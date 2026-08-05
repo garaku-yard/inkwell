@@ -59,6 +59,17 @@ export function toolSpecsFor(available: ToolAvailability): ToolSpec[] {
   ).map((entry) => entry.spec)
 }
 
+/** Every registered tool, availability aside.
+ *
+ *  The MCP bridge lists these rather than `toolSpecsFor`: an MCP client reads
+ *  the tool list once and caches it, so a list that shrinks when no notes are
+ *  wired would leave the client believing tools exist that it can no longer
+ *  see, or the reverse. The chat re-declares tools every turn and can afford
+ *  to be selective; the bridge answers "nothing is wired" at call time. */
+export function allTools(): readonly ToolEntry[] {
+  return ENTRIES
+}
+
 /** Looks up a registered tool by the name the model called. Returns
  *  undefined for a name that isn't registered — models do hallucinate tools,
  *  and the caller answers that with a tool result rather than an error. */

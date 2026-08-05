@@ -28,3 +28,8 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"
 keyring = { version = "3", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+# MCP bridge (ADR 0025): a loopback HTTP endpoint the external agent talks to.
+# tiny_http is blocking and self-contained, so the bridge runs on its own
+# thread without entangling itself with Tauri's async runtime.
+tiny_http = "0.12"
+uuid = { version = "1", features = ["v4"] }

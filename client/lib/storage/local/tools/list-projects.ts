@@ -1,32 +1,69 @@
+import type { Project } from "@/services/project"
+
+import { organizations } from "../organizations"
 import { projects } from "../projects"
 import { LOCAL_USER_ID } from "../shared"
 import type { ToolEntry } from "./types"
 
-/** Lists what the writer is working on. Personal projects only — org-owned
- *  ones live in a workspace of their own and `listOwned` filters them out
- *  (ADR 0024), so the description says so rather than quietly under-reporting. */
+function line(project: Project, owner: string): string {
+  return (
+    `- ${project.title}${project.is_starred ? " ★" : ""} — ${project.category}, ` +
+    `${project.status}, ${owner} (id ${project.id}, updated ${project.updated_at})`
+  )
+}
+
+/** Lists what the writer is working on, personal and org-owned alike.
+ *
+ *  Two lists, because `listOwned` deliberately excludes org projects: on the
+ *  dashboard they belong to the org's workspace and would otherwise appear
+ *  twice (ADR 0024). A tool answering "what am I working on" has no such
+ *  duality, and leaving them out would hide real work.
+ *
+ *  Orgs themselves live on the gateway (ADR 0023), so listing them needs a
+ *  linked cloud account *and* a reachable server. Either can be missing, and
+ *  they fail differently: unlinked, `isAvailable()` is false; linked but
+ *  offline, `list()` throws. Both end the same way here — the writer's
+ *  personal projects are still returned, with a line saying what's missing,
+ *  rather than an error that hides the projects this device can see perfectly
+ *  well. */
 export const listProjects: ToolEntry = {
   spec: {
     name: "list_projects",
     description:
       "List the writer's projects: title, format, status and id for each. Use " +
-      "it to answer questions about their body of work as a whole. Projects " +
-      "owned by an organization are not included. Reading scenes only works " +
-      "for the project this conversation is open on, whichever projects this " +
-      "returns.",
+      "it to answer questions about their body of work, or to find the id of " +
+      "a project you need to act on.",
     parameters: { type: "object", properties: {}, required: [] },
   },
+  scope: "account",
   mutates: false,
   label: () => "Listing projects",
   async run() {
-    const { projects: owned } = await projects.listOwned(LOCAL_USER_ID)
-    if (owned.length === 0) return "The writer has no projects yet."
-    return owned
-      .map(
-        (p) =>
-          `- ${p.title}${p.is_starred ? " ★" : ""} — ${p.category}, ${p.status}` +
-          ` (id ${p.id}, updated ${p.updated_at})`,
-      )
-      .join("\n")
+    const { projects: personal } = await projects.listOwned(LOCAL_USER_ID)
+    const lines = personal.map((p) => line(p, "personal"))
+
+    let orgNote = ""
+    try {
+      if (await organizations.isAvailable()) {
+        for (const org of await organizations.list()) {
+          for (const project of await organizations.listProjects(org.id)) {
+            lines.push(line(project, `org: ${org.name}`))
+          }
+        }
+      } else {
+        orgNote = "no cloud account is linked"
+      }
+    } catch (err) {
+      orgNote = (err as Error).message
+    }
+    if (orgNote) {
+      // The reason may be a thrown message that already ends in a full stop.
+      orgNote =
+        `\n\n(Org-owned projects aren't included — ${orgNote.replace(/\.+$/, "")}. ` +
+        "If you know an org project's id, use_project still accepts it.)"
+    }
+
+    if (lines.length === 0) return "The writer has no projects yet."
+    return lines.join("\n") + orgNote
   },
 }

@@ -15,6 +15,9 @@ const h = vi.hoisted(() => ({
   createScene: vi.fn(),
   createElement: vi.fn(),
   createBeat: vi.fn(),
+  orgAvailable: vi.fn(),
+  orgList: vi.fn(),
+  orgProjects: vi.fn(),
 }))
 
 vi.mock("@/lib/storage/local/knowledge", () => ({
@@ -39,6 +42,14 @@ vi.mock("@/lib/storage/local/elements", () => ({
   elements: {
     listForScene: async (sceneId: string) => h.elements[sceneId] ?? [],
     create: h.createElement,
+  },
+}))
+
+vi.mock("@/lib/storage/local/organizations", () => ({
+  organizations: {
+    isAvailable: h.orgAvailable,
+    list: h.orgList,
+    listProjects: h.orgProjects,
   },
 }))
 
@@ -101,6 +112,12 @@ beforeEach(() => {
   h.createElement.mockResolvedValue({})
   h.createBeat.mockReset()
   h.createBeat.mockResolvedValue({})
+  h.orgAvailable.mockReset()
+  h.orgAvailable.mockResolvedValue(false)
+  h.orgList.mockReset()
+  h.orgList.mockResolvedValue([])
+  h.orgProjects.mockReset()
+  h.orgProjects.mockResolvedValue([])
 })
 
 describe("tool registry", () => {
@@ -191,6 +208,42 @@ describe("list_projects", () => {
     await expect(tool("list_projects").run({}, ctx)).resolves.toBe(
       "The writer has no projects yet.",
     )
+  })
+
+  it("includes org-owned projects when the gateway can be reached", async () => {
+    h.orgAvailable.mockResolvedValue(true)
+    h.orgList.mockResolvedValue([{ id: "o1", name: "Garaku Yard" }])
+    h.orgProjects.mockResolvedValue([
+      {
+        id: "p2",
+        title: "Attractor: Zero",
+        category: "interactive_fiction",
+        status: "draft",
+        is_starred: false,
+        updated_at: "2026-08-05T00:00:00Z",
+      },
+    ])
+    const out = await tool("list_projects").run({}, ctx)
+    expect(out).toContain("Attractor: Zero")
+    expect(out).toContain("org: Garaku Yard")
+    expect(out).not.toContain("aren't included")
+  })
+
+  // Found by driving the real app: a linked account whose gateway is down
+  // makes list() throw, where an unlinked one merely returns nothing. The
+  // personal projects are on this device either way and must still come back.
+  it("still lists personal projects when the gateway is unreachable", async () => {
+    h.orgAvailable.mockResolvedValue(true)
+    h.orgList.mockRejectedValue(new Error("Can't reach the Inkwell server"))
+    const out = await tool("list_projects").run({}, ctx)
+    expect(out).toContain("The Kettle")
+    expect(out).toContain("Can't reach the Inkwell server")
+    expect(out).toContain("use_project still accepts it")
+  })
+
+  it("names the missing cloud account when nothing is linked", async () => {
+    const out = await tool("list_projects").run({}, ctx)
+    expect(out).toContain("no cloud account is linked")
   })
 })
 

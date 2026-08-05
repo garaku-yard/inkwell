@@ -28,6 +28,12 @@ export interface ToolEntry {
   /** What the project must have for this tool to be offered. Omitted when the
    *  tool works in any project. */
   requires?: ToolRequirement
+  /** `"account"` marks a tool that acts across the writer's work rather than
+   *  on one project, and so must not read `ctx.projectId`. The in-app chat
+   *  always has a project and ignores this; a consumer without one (the MCP
+   *  bridge, before a project is chosen) uses it to know which tools it can
+   *  run yet. Omitted means project-scoped. */
+  scope?: "account"
   /** True when running the tool writes to the writer's data. Nothing reads
    *  this yet: it is declared from the first entry because the confirmation
    *  semantics in ADR 0025 need the read/write distinction recorded per tool,
