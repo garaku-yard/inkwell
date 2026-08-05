@@ -40,9 +40,11 @@ const lato = Lato({ variable: "--font-lato", subsets: ["latin"], weight: ["400",
 const lora = Lora({ variable: "--font-lora", subsets: ["latin"], display: "swap" });
 const merriweather = Merriweather({ variable: "--font-merriweather", subsets: ["latin"], weight: ["400", "700"], display: "swap" });
 
-// Editor fonts. Courier New / Monaco / Consolas stay system-only —
-// they're standard on Linux/macOS/Windows respectively, so loading
-// them would just bloat the bundle.
+// Editor fonts. Monaco / Consolas stay system-only — they're standard on
+// macOS / Windows respectively, so loading them would just bloat the bundle.
+// Courier New is NOT in that category: it is a Microsoft font absent from a
+// stock Linux install, where it substitutes silently. The default editor face
+// is the bundled Courier Prime instead (see --inkwell-editor-font).
 const courierPrime = Courier_Prime({ variable: "--font-courier-prime", subsets: ["latin"], weight: ["400", "700"], display: "swap" });
 const sourceCodePro = Source_Code_Pro({ variable: "--font-source-code", subsets: ["latin"], display: "swap" });
 const jetbrainsMono = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"], display: "swap" });
@@ -73,7 +75,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${FONT_VARIABLES} antialiased`}>
+      <body className={FONT_VARIABLES}>
         <StorageProvider>
           <ThemeProvider>
             <AuthProvider>

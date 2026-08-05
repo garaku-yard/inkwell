@@ -79,7 +79,13 @@ html.window-maximised body {
 }
 
 :root {
-  --inkwell-editor-font: 'Courier New', Courier, monospace;
+  /* Courier Prime first: it ships in the bundle (next/font), so every platform
+     gets the same hinted typeface. Naming 'Courier New' alone meant Linux —
+     where it isn't installed and isn't a system font, whatever the comment in
+     layout.tsx used to claim — silently fell back through fontconfig to
+     whatever mono substitute the machine had, typically a lighter Regular that
+     reads soft against the rest of the desktop. */
+  --inkwell-editor-font: var(--font-courier-prime), 'Courier Prime', 'Courier New', Courier, monospace;
   --inkwell-ui-font: Inter, system-ui, sans-serif;
   --inkwell-editor-lh: 1.6;
   --radius: 0.625rem;
@@ -258,10 +264,11 @@ html.window-maximised body {
     display: none;
   }
   
-  /* Smooth text rendering for better typing experience */
+  /* Line height only. Font smoothing is deliberately not set here: forcing
+     grayscale antialiasing overrides whatever the desktop asked for, and on a
+     subpixel-rendering display it makes the manuscript softer than every
+     other window on screen. */
   .screenplay-text {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
     line-height: 1.5;
   }
 
