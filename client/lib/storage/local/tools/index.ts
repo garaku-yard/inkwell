@@ -20,10 +20,13 @@ import { addBeat } from "./add-beat"
 import { appendToScene } from "./append-to-scene"
 import { createProject } from "./create-project"
 import { createScene } from "./create-scene"
+import { deleteScene } from "./delete-scene"
 import { listProjects } from "./list-projects"
 import { listScenes } from "./list-scenes"
 import { readNote } from "./read-note"
 import { readScene } from "./read-scene"
+import { renameScene } from "./rename-scene"
+import { rewriteScene } from "./rewrite-scene"
 import { searchNotes } from "./search-notes"
 import type { ToolArgs, ToolEntry } from "./types"
 
@@ -41,6 +44,9 @@ const ENTRIES: ToolEntry[] = [
   createScene,
   appendToScene,
   addBeat,
+  renameScene,
+  rewriteScene,
+  deleteScene,
 ]
 
 const BY_NAME = new Map(ENTRIES.map((entry) => [entry.spec.name, entry]))
@@ -52,12 +58,20 @@ export interface ToolAvailability {
   knowledge: boolean
 }
 
-/** The declarations to offer the model, minus the ones whose precondition
- *  this project doesn't meet. Offering a tool that can only answer "nothing
- *  is wired" spends the model's attention to teach it a dead end. */
+/** The declarations to offer the in-app chat, minus the ones whose
+ *  precondition this project doesn't meet. Offering a tool that can only
+ *  answer "nothing is wired" spends the model's attention to teach it a dead
+ *  end.
+ *
+ *  Destructive tools are withheld here on purpose. ADR 0025 says a mutating
+ *  tool is declared as such *and confirmed*, and the chat has no way to ask
+ *  before it acts — so until that exists, the consumer that can take writing
+ *  away is the MCP bridge, whose clients prompt for tool use. The chat can
+ *  still add, which is the half that is safe to get wrong. */
 export function toolSpecsFor(available: ToolAvailability): ToolSpec[] {
   return ENTRIES.filter(
-    (entry) => entry.requires !== "knowledge" || available.knowledge,
+    (entry) =>
+      !entry.destructive && (entry.requires !== "knowledge" || available.knowledge),
   ).map((entry) => entry.spec)
 }
 

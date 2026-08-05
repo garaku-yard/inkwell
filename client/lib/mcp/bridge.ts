@@ -64,9 +64,13 @@ function toolList(): unknown {
     name: entry.spec.name,
     description: entry.spec.description,
     inputSchema: entry.spec.parameters,
-    // The registry already records which tools write; MCP clients use this to
-    // decide what to confirm, which is the whole reason `mutates` exists.
-    annotations: { readOnlyHint: !entry.mutates, destructiveHint: false },
+    // The registry already records which tools write, and which can take
+    // writing away. MCP clients use both to decide what to confirm, which is
+    // the whole reason those flags exist.
+    annotations: {
+      readOnlyHint: !entry.mutates,
+      destructiveHint: entry.destructive === true,
+    },
   }))
   return { tools: [USE_PROJECT, ...registered] }
 }

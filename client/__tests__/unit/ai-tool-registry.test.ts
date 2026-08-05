@@ -15,6 +15,9 @@ const h = vi.hoisted(() => ({
   createScene: vi.fn(),
   createElement: vi.fn(),
   createBeat: vi.fn(),
+  deleteScene: vi.fn(),
+  updateHeading: vi.fn(),
+  deleteElement: vi.fn(),
   orgAvailable: vi.fn(),
   orgList: vi.fn(),
   orgProjects: vi.fn(),
@@ -43,13 +46,19 @@ vi.mock("@/lib/storage/local/projects", () => ({
 }))
 
 vi.mock("@/lib/storage/local/scenes", () => ({
-  scenes: { listForProject: h.listForProject, create: h.createScene },
+  scenes: {
+    listForProject: h.listForProject,
+    create: h.createScene,
+    delete: h.deleteScene,
+    updateHeading: h.updateHeading,
+  },
 }))
 
 vi.mock("@/lib/storage/local/elements", () => ({
   elements: {
     listForScene: async (sceneId: string) => h.elements[sceneId] ?? [],
     create: h.createElement,
+    delete: h.deleteElement,
   },
 }))
 
@@ -69,6 +78,7 @@ vi.mock("@/lib/storage/local/beat-board", () => ({
 }))
 
 import {
+  allTools,
   findTool,
   parseToolArgs,
   toolSpecsFor,
@@ -100,8 +110,8 @@ beforeEach(() => {
   ]
   h.elements = {
     s1: [
-      { element_type: "action", content: "The kettle screamed.", line_number: 0 },
-      { element_type: "dialogue", content: "Ignore it.", line_number: 7 },
+      { id: "e1", element_type: "action", content: "The kettle screamed.", line_number: 0 },
+      { id: "e2", element_type: "dialogue", content: "Ignore it.", line_number: 7 },
     ],
   }
   h.category = "novel"
@@ -120,6 +130,9 @@ beforeEach(() => {
   h.createElement.mockResolvedValue({})
   h.createBeat.mockReset()
   h.createBeat.mockResolvedValue({})
+  h.deleteScene.mockReset().mockResolvedValue(undefined)
+  h.updateHeading.mockReset().mockResolvedValue({})
+  h.deleteElement.mockReset().mockResolvedValue(undefined)
   h.orgAvailable.mockReset()
   h.orgAvailable.mockResolvedValue(false)
   h.orgList.mockReset()
@@ -147,6 +160,7 @@ describe("tool registry", () => {
       "create_scene",
       "append_to_scene",
       "add_beat",
+      "rename_scene",
     ])
     for (const spec of specs) {
       expect(findTool(spec.name)?.spec).toBe(spec)
@@ -181,7 +195,7 @@ describe("tool registry", () => {
     expect(parseToolArgs("null")).toEqual({})
   })
 
-  it("marks exactly the tools that write, which is what stage 4 will confirm on", () => {
+  it("marks exactly the tools that write, which is what a client confirms on", () => {
     const mutating = toolSpecsFor({ knowledge: true })
       .map((s) => s.name)
       .filter((name) => tool(name).mutates)
@@ -190,7 +204,20 @@ describe("tool registry", () => {
       "create_scene",
       "append_to_scene",
       "add_beat",
+      "rename_scene",
     ])
+  })
+
+  // ADR 0025 wants a mutating tool confirmed, and the chat cannot ask before
+  // it acts. Until that exists the chat may add but not take away; the MCP
+  // bridge gets the full set because its clients prompt.
+  it("keeps the destructive tools away from the in-app chat", () => {
+    const offered = toolSpecsFor({ knowledge: true }).map((s) => s.name)
+    expect(offered).not.toContain("delete_scene")
+    expect(offered).not.toContain("rewrite_scene")
+    expect(allTools().map((e) => e.spec.name)).toEqual(
+      expect.arrayContaining(["delete_scene", "rewrite_scene"]),
+    )
   })
 })
 
@@ -533,5 +560,91 @@ describe("add_beat", () => {
   it("asks for a title rather than adding a blank card", async () => {
     await expect(tool("add_beat").run({}, ctx)).resolves.toBe("Give the beat a title.")
     expect(h.createBeat).not.toHaveBeenCalled()
+  })
+})
+
+describe("delete_scene", () => {
+  it("removes the scene it was pointed at", async () => {
+    const out = await tool("delete_scene").run({ scene_id: "s1" }, ctx)
+    expect(h.deleteScene).toHaveBeenCalledWith("s1")
+    expect(out).toContain("INT. KITCHEN - DAY")
+  })
+
+  it("deletes nothing for a scene outside this project", async () => {
+    const out = await tool("delete_scene").run({ scene_id: "elsewhere" }, ctx)
+    expect(out).toContain("nothing was deleted")
+    expect(h.deleteScene).not.toHaveBeenCalled()
+  })
+
+  it("is declared destructive, so the chat never sees it", () => {
+    expect(tool("delete_scene").destructive).toBe(true)
+  })
+})
+
+describe("rename_scene", () => {
+  it("renames and reports the heading it replaced", async () => {
+    const out = await tool("rename_scene").run(
+      { scene_id: "s1", heading: "INT. HALL - NIGHT" },
+      ctx,
+    )
+    expect(h.updateHeading).toHaveBeenCalledWith("s1", expect.any(String), "INT. HALL - NIGHT")
+    expect(out).toContain("INT. KITCHEN - DAY")
+    expect(out).toContain("INT. HALL - NIGHT")
+  })
+
+  it("refuses an empty heading", async () => {
+    await expect(
+      tool("rename_scene").run({ scene_id: "s1", heading: "  " }, ctx),
+    ).resolves.toBe("Give the scene a heading.")
+    expect(h.updateHeading).not.toHaveBeenCalled()
+  })
+
+  // Losing one short line that the reply quotes back is not the same as
+  // losing a scene, so this stays out of the destructive set.
+  it("is not destructive", () => {
+    expect(tool("rename_scene").destructive).toBeUndefined()
+  })
+})
+
+describe("rewrite_scene", () => {
+  // The safety property: the replacement is on disk before anything is
+  // removed, so a failure part-way leaves both versions rather than neither.
+  it("writes the new text before deleting the old", async () => {
+    const order: string[] = []
+    h.createElement.mockImplementation(async () => {
+      order.push("create")
+      return {}
+    })
+    h.deleteElement.mockImplementation(async () => {
+      order.push("delete")
+    })
+
+    const out = await tool("rewrite_scene").run(
+      { scene_id: "s1", text: "A corrected line." },
+      ctx,
+    )
+
+    expect(order[0]).toBe("create")
+    expect(order.filter((o) => o === "delete")).toHaveLength(2) // s1 had 2 elements
+    expect(order.indexOf("create")).toBeLessThan(order.indexOf("delete"))
+    expect(h.deleteElement.mock.calls.map(([id]) => id)).toEqual(["e1", "e2"])
+    expect(out).toContain("2 elements replaced with 1")
+  })
+
+  it("refuses to empty a scene, pointing at the tool that removes one", async () => {
+    const out = await tool("rewrite_scene").run({ scene_id: "s1", text: "   " }, ctx)
+    expect(out).toContain("delete_scene")
+    expect(h.createElement).not.toHaveBeenCalled()
+    expect(h.deleteElement).not.toHaveBeenCalled()
+  })
+
+  it("changes nothing for a scene outside this project", async () => {
+    const out = await tool("rewrite_scene").run({ scene_id: "elsewhere", text: "x" }, ctx)
+    expect(out).toContain("nothing was changed")
+    expect(h.deleteElement).not.toHaveBeenCalled()
+  })
+
+  it("is declared destructive", () => {
+    expect(tool("rewrite_scene").destructive).toBe(true)
   })
 })

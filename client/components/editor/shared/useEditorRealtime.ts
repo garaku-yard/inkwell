@@ -27,7 +27,6 @@ import type { Dispatch, RefObject, SetStateAction } from "react"
 
 import { useDataChanged } from "@/lib/live-refresh"
 import { useProjectPresence } from "@/lib/realtime/PresenceContext"
-import { mergeScenes } from "./mergeScenes"
 import { useDurableSessions } from "@/lib/realtime/useDurableSessions"
 import type { Peer } from "@/lib/realtime/protocol"
 import type { CaretSubscriber } from "@/hooks/useRealtimePresence"
@@ -106,26 +105,6 @@ export function useEditorRealtime({
 
   useCaretReporter({ containerRef: surfaceRef, sendCaret, enabled: connected })
 
-  // Writes that arrive from outside React — the MCP bridge acting on this
-  // project (ADR 0025) — reach SQLite without passing through any hook, so the
-  // open editor would sit on the scenes it loaded until the writer closed and
-  // reopened the project. Reload and fold in what's new, additively: existing
-  // scenes and elements are left untouched, so nothing being typed is lost.
-  useDataChanged((change) => {
-    if (change.projectId && change.projectId !== projectId) return
-    if (!projectId || !userId) return
-    void (async () => {
-      try {
-        const full = await getFullProject(projectId, userId)
-        setScenes((prev) => mergeScenes(prev, full.scenes ?? []))
-      } catch (err) {
-        // A failed refresh leaves the editor on what it had, which is stale
-        // but intact — the writer can still reopen the project.
-        console.warn("live refresh failed", err)
-      }
-    })()
-  })
-
   // Report the active scene as this client's focus, so collaborators see
   // "editing X" and the gateway records a durable soft-lock on it. Centralised
   // here so every editor reports focus the same way.
@@ -167,10 +146,10 @@ export function useEditorRealtime({
   // an element we don't have yet (a collaborator created it — element adds
   // aren't broadcast). Throttled so a burst of new elements refetches once.
   const lastResyncRef = useRef(0)
-  const resyncFromDb = useCallback(async () => {
+  const resyncFromDb = useCallback(async (force = false) => {
     if (!userId) return
     const now = Date.now()
-    if (now - lastResyncRef.current < RESYNC_THROTTLE_MS) return
+    if (!force && now - lastResyncRef.current < RESYNC_THROTTLE_MS) return
     lastResyncRef.current = now
     try {
       const fresh = await getFullProject(projectId, userId)
@@ -182,6 +161,22 @@ export function useEditorRealtime({
       lastResyncRef.current = 0
     }
   }, [projectId, userId, setScenes])
+
+  // Writes that arrive from outside React — the MCP bridge acting on this
+  // project (ADR 0025) — reach SQLite without passing through any hook, so the
+  // open editor would sit on the scenes it loaded until the writer closed and
+  // reopened the project.
+  //
+  // This uses the same reconcile as a reconnect, not an additive merge: the
+  // tools can now delete a scene and replace a scene's text, so an editor that
+  // only ever *added* would keep showing writing the database no longer has —
+  // and could autosave it back. `mergeResyncedScenes` lets the database win on
+  // structure while keeping whatever the writer is mid-keystroke on.
+  useDataChanged((change) => {
+    if (change.projectId && change.projectId !== projectId) return
+    void resyncFromDb(true)
+  })
+
 
   // Per-id debounce so switching elements never drops the last edit.
   const editTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())

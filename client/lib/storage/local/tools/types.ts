@@ -34,11 +34,19 @@ export interface ToolEntry {
    *  bridge, before a project is chosen) uses it to know which tools it can
    *  run yet. Omitted means project-scoped. */
   scope?: "account"
-  /** True when running the tool writes to the writer's data. Nothing reads
-   *  this yet: it is declared from the first entry because the confirmation
-   *  semantics in ADR 0025 need the read/write distinction recorded per tool,
-   *  not reconstructed later by guessing from tool names. */
+  /** True when running the tool writes to the writer's data. Surfaced to MCP
+   *  clients as `readOnlyHint`, which is what they confirm on. */
   mutates: boolean
+  /** True when the tool can take writing away — deleting a scene, replacing a
+   *  body. A stronger claim than `mutates`: an addition the writer didn't want
+   *  is visible and deletable, whereas this removes something that no longer
+   *  exists to be reviewed.
+   *
+   *  These are withheld from the in-app chat until the confirmation step of
+   *  ADR 0025 exists, because that consumer has nothing that could ask first.
+   *  The MCP bridge offers them: its clients prompt before running a tool, so
+   *  a human is still in the loop there. */
+  destructive?: boolean
   /** A short present-tense phrase naming what this call is doing —
    *  `Reading "Cats"`, `Listing scenes`. It is shown to the reader as an
    *  aside while the tool runs, so each tool words its own activity instead

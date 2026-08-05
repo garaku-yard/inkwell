@@ -89,10 +89,28 @@ describe("tools/list", () => {
 
   it("marks the writing tools as not read-only, which is what a client confirms on", async () => {
     const { tools } = (await handle("tools/list", {})) as {
-      tools: Array<{ name: string; annotations: { readOnlyHint: boolean } }>
+      tools: Array<{ name: string; annotations: { readOnlyHint: boolean; destructiveHint: boolean } }>
     }
     const writes = tools.filter((t) => !t.annotations.readOnlyHint).map((t) => t.name)
-    expect(writes).toEqual(["create_project", "create_scene", "append_to_scene", "add_beat"])
+    expect(writes).toEqual([
+      "create_project",
+      "create_scene",
+      "append_to_scene",
+      "add_beat",
+      "rename_scene",
+      "rewrite_scene",
+      "delete_scene",
+    ])
+  })
+
+  // The bridge gets the tools that can take writing away — the chat does not,
+  // because an MCP client prompts before running one and the chat cannot.
+  it("flags the two tools that remove writing, so a client can confirm harder", async () => {
+    const { tools } = (await handle("tools/list", {})) as {
+      tools: Array<{ name: string; annotations: { destructiveHint: boolean } }>
+    }
+    const destructive = tools.filter((t) => t.annotations.destructiveHint).map((t) => t.name)
+    expect(destructive).toEqual(["rewrite_scene", "delete_scene"])
   })
 })
 
