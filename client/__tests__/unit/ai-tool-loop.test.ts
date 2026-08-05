@@ -187,7 +187,9 @@ describe("ai.streamChat — knowledge tool loop", () => {
 
     // The manuscript tools are there; the note ones aren't offered at all.
     const offered = h.lastTools.map((t) => t.name)
-    expect(offered).toEqual(["list_projects", "list_scenes", "read_scene"])
+    expect(offered).toContain("list_scenes")
+    expect(offered).not.toContain("read_note")
+    expect(offered).not.toContain("search_notes")
     expect(h.readNoteSpy).not.toHaveBeenCalled()
 
     // And the loop ran: the call executed and the aside carries its wording.

@@ -16,6 +16,9 @@
 
 import type { ToolSpec } from "@/lib/ai/providers"
 
+import { addBeat } from "./add-beat"
+import { appendToScene } from "./append-to-scene"
+import { createScene } from "./create-scene"
 import { listProjects } from "./list-projects"
 import { listScenes } from "./list-scenes"
 import { readNote } from "./read-note"
@@ -25,14 +28,17 @@ import type { ToolArgs, ToolEntry } from "./types"
 
 export type { ToolArgs, ToolContext, ToolEntry, ToolRequirement } from "./types"
 
-/** Every registered tool, in the order the model is shown them: find your
- *  way around first, then read something. */
+/** Every registered tool, in the order the model is shown them: find your way
+ *  around, read, then write. */
 const ENTRIES: ToolEntry[] = [
   listProjects,
   listScenes,
   readScene,
   searchNotes,
   readNote,
+  createScene,
+  appendToScene,
+  addBeat,
 ]
 
 const BY_NAME = new Map(ENTRIES.map((entry) => [entry.spec.name, entry]))

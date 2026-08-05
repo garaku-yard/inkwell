@@ -8,8 +8,13 @@ const h = vi.hoisted(() => ({
   elements: {} as Record<string, Array<Record<string, unknown>>>,
   hits: [] as Array<Record<string, unknown>>,
   notes: {} as Record<string, { title: string; filename: string; content: string }>,
+  beats: [] as unknown[],
+  category: "novel",
   listForProject: vi.fn(),
   retrieve: vi.fn(),
+  createScene: vi.fn(),
+  createElement: vi.fn(),
+  createBeat: vi.fn(),
 }))
 
 vi.mock("@/lib/storage/local/knowledge", () => ({
@@ -22,15 +27,26 @@ vi.mock("@/lib/storage/local/knowledge", () => ({
 vi.mock("@/lib/storage/local/projects", () => ({
   projects: {
     listOwned: async () => ({ projects: h.projects, total: h.projects.length }),
+    getById: async () => ({ id: "proj1", title: "The Kettle", category: h.category }),
   },
 }))
 
 vi.mock("@/lib/storage/local/scenes", () => ({
-  scenes: { listForProject: h.listForProject },
+  scenes: { listForProject: h.listForProject, create: h.createScene },
 }))
 
 vi.mock("@/lib/storage/local/elements", () => ({
-  elements: { listForScene: async (sceneId: string) => h.elements[sceneId] ?? [] },
+  elements: {
+    listForScene: async (sceneId: string) => h.elements[sceneId] ?? [],
+    create: h.createElement,
+  },
+}))
+
+vi.mock("@/lib/storage/local/beat-board", () => ({
+  beatBoard: {
+    getBoard: async () => ({ beats: h.beats, connections: [], lanes: [], outlineItems: [] }),
+    createBeat: h.createBeat,
+  },
 }))
 
 import {
@@ -60,15 +76,17 @@ beforeEach(() => {
     },
   ]
   h.scenes = [
-    { id: "s1", scene_heading: "INT. KITCHEN - DAY", content: "" },
-    { id: "s2", scene_heading: "", content: "legacy body" },
+    { id: "s1", scene_heading: "INT. KITCHEN - DAY", content: "", order_index: 0 },
+    { id: "s2", scene_heading: "", content: "legacy body", order_index: 4 },
   ]
   h.elements = {
     s1: [
-      { element_type: "action", content: "The kettle screamed." },
-      { element_type: "dialogue", content: "Ignore it." },
+      { element_type: "action", content: "The kettle screamed.", line_number: 0 },
+      { element_type: "dialogue", content: "Ignore it.", line_number: 7 },
     ],
   }
+  h.category = "novel"
+  h.beats = []
   h.notes = { Cats: { title: "Cats", filename: "Cats.md", content: "Cats are independent." } }
   h.hits = [{ title: "Cats", text: "cats excerpt", score: 0.8321 }]
   h.listForProject.mockReset()
@@ -77,6 +95,12 @@ beforeEach(() => {
   )
   h.retrieve.mockReset()
   h.retrieve.mockImplementation(async () => h.hits)
+  h.createScene.mockReset()
+  h.createScene.mockImplementation(async () => ({ id: "new-scene" }))
+  h.createElement.mockReset()
+  h.createElement.mockResolvedValue({})
+  h.createBeat.mockReset()
+  h.createBeat.mockResolvedValue({})
 })
 
 describe("tool registry", () => {
@@ -88,6 +112,9 @@ describe("tool registry", () => {
       "read_scene",
       "search_notes",
       "read_note",
+      "create_scene",
+      "append_to_scene",
+      "add_beat",
     ])
     for (const spec of specs) {
       expect(findTool(spec.name)?.spec).toBe(spec)
@@ -96,7 +123,10 @@ describe("tool registry", () => {
 
   it("withholds the note tools from a project with no knowledge wired", () => {
     const specs = toolSpecsFor({ knowledge: false }).map((s) => s.name)
-    expect(specs).toEqual(["list_projects", "list_scenes", "read_scene"])
+    expect(specs).not.toContain("read_note")
+    expect(specs).not.toContain("search_notes")
+    expect(specs).toContain("list_scenes")
+    expect(specs).toContain("create_scene")
   })
 
   it("gives every tool a label to show while it runs, even with no arguments", () => {
@@ -119,10 +149,11 @@ describe("tool registry", () => {
     expect(parseToolArgs("null")).toEqual({})
   })
 
-  it("reads without writing — nothing in stage 2 mutates yet", () => {
-    for (const spec of toolSpecsFor({ knowledge: true })) {
-      expect(tool(spec.name).mutates, spec.name).toBe(false)
-    }
+  it("marks exactly the tools that write, which is what stage 4 will confirm on", () => {
+    const mutating = toolSpecsFor({ knowledge: true })
+      .map((s) => s.name)
+      .filter((name) => tool(name).mutates)
+    expect(mutating).toEqual(["create_scene", "append_to_scene", "add_beat"])
   })
 })
 
@@ -228,5 +259,122 @@ describe("search_notes", () => {
       "Give a query to search for.",
     )
     expect(h.retrieve).not.toHaveBeenCalled()
+  })
+})
+
+describe("create_scene", () => {
+  it("adds the scene after the last one and reports its id", async () => {
+    const out = await tool("create_scene").run({ heading: "INT. HALL" }, ctx)
+    // order_index continues the project's own numbering (4 was the highest).
+    expect(h.createScene).toHaveBeenCalledWith("proj1", expect.any(String), {
+      scene_heading: "INT. HALL",
+      order_index: 5,
+    })
+    expect(out).toContain("new-scene")
+    expect(out).toContain("(empty)")
+    expect(h.createElement).not.toHaveBeenCalled()
+  })
+
+  it("writes optional text in the project's own element vocabulary", async () => {
+    const out = await tool("create_scene").run(
+      { heading: "INT. HALL", text: "One.\n\nTwo." },
+      ctx,
+    )
+    expect(h.createElement).toHaveBeenCalledTimes(2)
+    expect(h.createElement).toHaveBeenNthCalledWith(1, {
+      projectId: "proj1",
+      sceneId: "new-scene",
+      elementOrder: 0,
+      elementType: "paragraph",
+      content: "One.",
+    })
+    expect(out).toContain("2 elements")
+  })
+
+  it("keeps verse a line at a time", async () => {
+    h.category = "poetry"
+    await tool("create_scene").run({ heading: "Aubade", text: "one\ntwo\n\nthree" }, ctx)
+    expect(h.createElement.mock.calls.map(([c]) => [c.elementType, c.content])).toEqual([
+      ["line", "one"],
+      ["line", "two"],
+      ["line", "three"],
+    ])
+  })
+
+  it("refuses a format that has no scenes, without creating anything", async () => {
+    h.category = "vault"
+    const out = await tool("create_scene").run({ heading: "Nope" }, ctx)
+    expect(out).toContain("no scenes")
+    expect(h.createScene).not.toHaveBeenCalled()
+  })
+
+  it("asks for a heading rather than creating an unnamed scene", async () => {
+    await expect(tool("create_scene").run({ heading: "  " }, ctx)).resolves.toBe(
+      "Give the scene a heading.",
+    )
+    expect(h.createScene).not.toHaveBeenCalled()
+  })
+})
+
+describe("append_to_scene", () => {
+  it("continues the scene's line numbering rather than counting rows", async () => {
+    const out = await tool("append_to_scene").run(
+      { scene_id: "s1", text: "Added." },
+      ctx,
+    )
+    // s1's last element is line_number 7, so the append lands at 8 — not at 2.
+    expect(h.createElement).toHaveBeenCalledWith({
+      projectId: "proj1",
+      sceneId: "s1",
+      elementOrder: 8,
+      elementType: "paragraph",
+      content: "Added.",
+    })
+    expect(out).toContain("INT. KITCHEN - DAY")
+  })
+
+  it("starts at zero in an empty scene", async () => {
+    await tool("append_to_scene").run({ scene_id: "s2", text: "First." }, ctx)
+    expect(h.createElement).toHaveBeenCalledWith(
+      expect.objectContaining({ elementOrder: 0 }),
+    )
+  })
+
+  it("writes nothing for a scene outside this project", async () => {
+    const out = await tool("append_to_scene").run(
+      { scene_id: "someone-elses", text: "Added." },
+      ctx,
+    )
+    expect(out).toContain("nothing was written")
+    expect(h.createElement).not.toHaveBeenCalled()
+  })
+
+  it("writes nothing when the text is blank", async () => {
+    await expect(
+      tool("append_to_scene").run({ scene_id: "s1", text: "   " }, ctx),
+    ).resolves.toBe("Give some text to add.")
+    expect(h.createElement).not.toHaveBeenCalled()
+  })
+})
+
+describe("add_beat", () => {
+  it("lays cards out in a grid instead of stacking them at the origin", async () => {
+    h.beats = [{}, {}, {}, {}]
+    await tool("add_beat").run({ title: "Kettle boils", description: "at last" }, ctx)
+    expect(h.createBeat).toHaveBeenCalledWith(
+      "proj1",
+      expect.objectContaining({
+        title: "Kettle boils",
+        description: "at last",
+        order: 4,
+        // Fifth card wraps to the second row of a four-wide grid.
+        position: { x: 80, y: 270 },
+      }),
+    )
+  })
+
+  it("asks for a title rather than adding a blank card", async () => {
+    await expect(tool("add_beat").run({}, ctx)).resolves.toBe("Give the beat a title.")
+    expect(h.createBeat).not.toHaveBeenCalled()
   })
 })
