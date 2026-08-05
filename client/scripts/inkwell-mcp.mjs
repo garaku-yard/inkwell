@@ -63,6 +63,43 @@ async function forward(method, params) {
   return body.result
 }
 
+// ─── Keeping the client's tool list honest ────────────────────────────────
+
+/** How often to check whether the app's tools have changed. Cheap (one
+ *  loopback call) and slow enough to be invisible; the app being closed just
+ *  fails the fetch and is ignored. */
+const TOOL_WATCH_MS = 15_000
+
+let knownTools = null
+let watching = false
+
+/** Polls because there is nothing to subscribe to: the bridge answers requests
+ *  and has no way to push. Rebuilding Inkwell replaces its tool set while the
+ *  client holds a list it fetched once, so without this the only cure is
+ *  quitting the client entirely — which is exactly the trap this hit. */
+function watchForToolChanges() {
+  if (watching) return
+  watching = true
+  const timer = setInterval(async () => {
+    try {
+      const result = await forward("tools/list", {})
+      const names = (result?.tools ?? []).map((t) => t.name).sort().join(",")
+      if (knownTools === null) {
+        knownTools = names
+        return
+      }
+      if (names !== knownTools) {
+        knownTools = names
+        send({ jsonrpc: "2.0", method: "notifications/tools/list_changed" })
+      }
+    } catch {
+      // App closed or restarting. Keep the last known set and try again.
+    }
+  }, TOOL_WATCH_MS)
+  // Don't hold the process open on this alone.
+  timer.unref?.()
+}
+
 // ─── JSON-RPC over stdio ──────────────────────────────────────────────────
 
 function send(message) {
@@ -87,9 +124,14 @@ async function handle(request) {
     case "initialize":
       reply(id, {
         protocolVersion: PROTOCOL_VERSION,
-        capabilities: { tools: {} },
+        // listChanged: the app's tool set can change under a running client —
+        // Inkwell is rebuilt far more often than a chat client is restarted,
+        // and a client that cached the list at connect time would keep
+        // offering yesterday's tools with no sign anything had moved.
+        capabilities: { tools: { listChanged: true } },
         serverInfo: { name: "inkwell", version: "0.4.0" },
       })
+      watchForToolChanges()
       return
     case "ping":
       reply(id, {})
