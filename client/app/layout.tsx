@@ -74,8 +74,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={FONT_VARIABLES}>
+    // The font variables live on <html>, not <body>, because ThemeContext
+    // sets --inkwell-ui-font on document.documentElement. A var() inside a
+    // custom property resolves against the element the property is declared
+    // on, so with the variables one level down, `var(--font-lato)` was
+    // unresolvable at the root: --inkwell-ui-font computed to invalid and the
+    // interface font pref silently did nothing. (The editor picker worked
+    // throughout — editors apply their stack inline, inside <body>.)
+    <html lang="en" className={FONT_VARIABLES}>
+      <body>
         <StorageProvider>
           <ThemeProvider>
             <AuthProvider>
