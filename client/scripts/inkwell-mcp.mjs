@@ -129,7 +129,7 @@ async function handle(request) {
         // and a client that cached the list at connect time would keep
         // offering yesterday's tools with no sign anything had moved.
         capabilities: { tools: { listChanged: true } },
-        serverInfo: { name: "inkwell", version: "0.4.0" },
+        serverInfo: { name: "inkwell", version: "0.5.0" },
       })
       watchForToolChanges()
       return

@@ -6,6 +6,46 @@
 > handoff notes + git history). The live status matrix is
 > [PLANNING.md](../../PLANNING.md); forward intent is [roadmap.md](./roadmap.md).
 
+## Inkwell as a tool surface — and orgs without an account
+
+The desktop's operations became **one registry** defined over `Storage`, with
+two consumers: the in-app chat and an **MCP bridge hosted inside the running
+Tauri app** ([decisions/0025](./decisions/0025-one-tool-registry-two-consumers.md)).
+The chat could previously read exactly one note through a hard-coded
+`if (call.name === "read_note")`; it can now list projects and scenes, read a
+scene, search wired notes, create projects and scenes, append text and add
+beats. Claude Code and Claude Desktop drive the same tools over a loopback
+endpoint — `127.0.0.1` only, per-launch token, `0600` handshake file — with a
+thin stdio shim that knows how to find the app and nothing about writing.
+
+Scene text lands in each format's own element vocabulary (`paragraph` prose,
+`ACTION` screenplay, `line` verse, `panel` comics, `choice` for an
+interactive-fiction link line, mirroring what the twee importer produces when
+reading one in). Writes were additive until `rename_scene`, `rewrite_scene`
+and `delete_scene` arrived; `rewrite_scene` commits the replacement before
+removing the old text, so a failure part-way leaves both versions rather than
+neither. The tools that can take writing away are withheld from the in-app
+chat, which has no way to ask first — the bridge offers them because its
+clients prompt. Confirmation inside Inkwell itself is still owed (#202 stage 4).
+
+**Organizations no longer need an account.** 0023 made them gateway-only,
+reasoning an org is shared tenancy with nothing to model locally; that holds
+for *membership* and not for grouping your own work, and it meant a
+local-first app demanded a server to organise files on its own disk. An org is
+now a local object a cloud account can extend
+([decisions/0026](./decisions/0026-local-orgs-when-signed-out.md)) — no new
+table, since the org workspace rows already existed and `projects.org_id`
+already pointed at them. Inviting and seats still refuse locally, with the
+real reason rather than "sign in".
+
+Typography got three fixes found by measuring pixels rather than trusting the
+eye: `antialiased` on `<body>` had subpixel antialiasing switched off
+app-wide; the per-format editor fonts were being overridden by a migration
+that mirrored a *non-choice* from the old single-font schema onto all seven
+formats; and the interface font picker had never worked at all, because the
+font variables sat on `<body>` while the property referencing them was set on
+`<html>`, so every stack computed to invalid.
+
 ## Organizations on the desktop
 
 Orgs became usable from the desktop build, which previously offered a "Create an

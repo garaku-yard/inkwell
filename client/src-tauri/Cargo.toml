@@ -1,6 +1,6 @@
 [package]
 name = "inkwell"
-version = "0.4.0"
+version = "0.5.0"
 description = "Inkwell — a local-first writing platform"
 authors = ["Inkwell"]
 license = "PolyForm-Noncommercial-1.0.0"

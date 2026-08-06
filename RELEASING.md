@@ -12,7 +12,7 @@ to bump the version and push a tag.
 
 ## Cutting a release
 
-1. **Bump the version — in all three places.** Semver: patch for fixes, minor
+1. **Bump the version — in all four places.** Semver: patch for fixes, minor
    for features, major for breaking changes.
 
    | File | Field | Why it matters |
@@ -20,6 +20,7 @@ to bump the version and push a tag.
    | `client/src-tauri/tauri.conf.json` | `version` | names the built artefacts |
    | `client/src-tauri/Cargo.toml` | `version` | the crate version in build logs |
    | `client/package.json` | `version` | what npm reports |
+   | `client/scripts/inkwell-mcp.mjs` | `serverInfo.version` | what the MCP shim tells a connected client |
 
    These drifted apart once already (`tauri.conf.json` at 0.3.0 while the other
    two sat at 0.2.3), which makes a build log disagree with the file it just
