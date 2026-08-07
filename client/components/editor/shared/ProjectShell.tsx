@@ -109,7 +109,10 @@ export function ProjectShell({
             {chapters.length} {chapterLabel.toLowerCase()}
           </Badge>
         </div>
-        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-2">
+        {/* bg-sidebar on the scroller, not only on <aside> — see the longer note
+            in EditorSidebar: an overflow-y-auto layer that paints no background
+            of its own loses subpixel antialiasing over the transparent window. */}
+        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto bg-sidebar px-2 py-2">
           {chapters.length === 0 ? (
             <p className="px-3 py-8 text-center text-xs text-muted-foreground">Nothing here yet.</p>
           ) : (

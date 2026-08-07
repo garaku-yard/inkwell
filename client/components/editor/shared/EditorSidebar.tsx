@@ -191,7 +191,17 @@ export function EditorSidebar({
               />
             </div>
           )}
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-2">
+          {/* bg-sidebar here, not just on <aside>: overflow-y-auto promotes this
+              to its own compositing layer, and WebKit only uses subpixel
+              antialiasing for text it can prove sits on an opaque backdrop
+              *within the same layer*. The window is deliberately transparent for
+              the rounded corners (see html/body at the top of globals.css), so a
+              layer that paints no background of its own falls back to grayscale
+              AA — which at 14px doubles the stem width (measured 1.00px → 2.00px,
+              40% more ink) and reads as bold, blurred text. Rows with their own
+              opaque background were unaffected, which is why only the selected
+              row and whatever was hovered ever looked crisp. */}
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto bg-sidebar px-2 py-2">
           {shownItems.length === 0 ? (
             <p className="px-3 py-8 text-center text-xs text-muted-foreground">
               {q ? "No matches." : emptyLabel}
@@ -214,14 +224,12 @@ export function EditorSidebar({
                       <span className={cn("shrink-0 text-xs", active ? "text-muted-foreground" : "text-muted-foreground/50")}>
                         {item.index}
                       </span>
-                      {/* Full contrast whether or not the row is selected. The
-                          title is the item's name — the thing you scan the list
-                          for — and muted grey at 14px has soft edges that read
-                          as blurred text rather than as de-emphasis. Selection
-                          is already carried by the button's bg-muted, and hover
-                          by bg-accent, so nothing is lost by keeping the name
-                          legible. */}
-                      <span className="truncate text-sm text-foreground">
+                      <span
+                        className={cn(
+                          "truncate text-sm transition-colors",
+                          active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
+                        )}
+                      >
                         {item.title}
                       </span>
                       {item.adornment && (
