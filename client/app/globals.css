@@ -102,7 +102,13 @@ html.window-maximised body {
   --secondary: oklch(0.938 0.008 95);        /* secondary surfaces */
   --secondary-foreground: oklch(0.34 0.048 145);
   --muted: oklch(0.938 0.008 95);
-  --muted-foreground: oklch(0.553 0.013 58.071);
+  /* Lightness raised from 0.553: as #79716b this scored 4.20:1 on the sidebar
+     surface and 4.42:1 on the canvas, so every 12–14px label using it missed
+     WCAG AA (4.5:1) — text that reads as blurred rather than as secondary,
+     because low contrast softens glyph edges. 0.50 gives 5.26:1 / 5.54:1 and
+     stays clearly subordinate to --foreground (17.35:1). Dark mode already
+     passed at 9.21:1 and is untouched. */
+  --muted-foreground: oklch(0.50 0.013 58.071);
   --accent: oklch(0.938 0.008 95);
   --accent-foreground: oklch(0.34 0.048 145);
   --destructive: oklch(0.577 0.245 27.325);

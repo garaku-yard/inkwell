@@ -214,12 +214,14 @@ export function EditorSidebar({
                       <span className={cn("shrink-0 text-xs", active ? "text-muted-foreground" : "text-muted-foreground/50")}>
                         {item.index}
                       </span>
-                      <span
-                        className={cn(
-                          "truncate text-sm transition-colors",
-                          active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
-                        )}
-                      >
+                      {/* Full contrast whether or not the row is selected. The
+                          title is the item's name — the thing you scan the list
+                          for — and muted grey at 14px has soft edges that read
+                          as blurred text rather than as de-emphasis. Selection
+                          is already carried by the button's bg-muted, and hover
+                          by bg-accent, so nothing is lost by keeping the name
+                          legible. */}
+                      <span className="truncate text-sm text-foreground">
                         {item.title}
                       </span>
                       {item.adornment && (
@@ -228,9 +230,9 @@ export function EditorSidebar({
                     </div>
                     {(item.meta || cc > 0) && (
                       <div className="mt-0.5 flex items-center gap-2 pl-4">
-                        {item.meta && <span className="text-xs text-muted-foreground/60">{item.meta}</span>}
+                        {item.meta && <span className="text-xs text-muted-foreground">{item.meta}</span>}
                         {cc > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground/60">
+                          <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
                             <MessageCircle className="h-3 w-3" />
                             {cc}
                           </span>
@@ -242,7 +244,7 @@ export function EditorSidebar({
                     <button
                       key={sub.id}
                       onClick={sub.onSelect}
-                      className="w-full truncate rounded-md py-1 pl-7 pr-3 text-left text-xs text-muted-foreground/70 transition-colors hover:bg-accent hover:text-muted-foreground"
+                      className="w-full truncate rounded-md py-1 pl-7 pr-3 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     >
                       {sub.title}
                     </button>
