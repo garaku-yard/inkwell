@@ -965,7 +965,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                     </Button>
                   </div>
                 ) : (
-                  <article className="prose prose-sm dark:prose-invert max-w-none">
+                  <article className="prose prose-sm max-w-none">
                     <h2 className="text-xl font-semibold mb-6">
                       {cursor.scene_heading || "Untitled"}
                     </h2>

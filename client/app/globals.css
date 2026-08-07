@@ -325,6 +325,38 @@ html.dark .cm-md-task-checkbox:checked {
   background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%231f2420'%3E%3Cpath d='M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z'/%3E%3C/svg%3E");
 }
 
+/* Tailwind Typography's palette, remapped onto ours.
+ *
+ * The plugin ships a cold slate ramp — body #364153, headings #101828 — chosen
+ * for a neutral-grey design system. Dropped into this one it reads blue next to
+ * the warm charcoal everything else uses, so the IF Play view didn't match the
+ * editor it previews. Pointing the plugin's own variables at our tokens keeps
+ * `prose` content on the brand palette, and means it follows the accent theme
+ * and High Contrast for free instead of needing a parallel set of overrides.
+ *
+ * `dark:prose-invert` is deliberately NOT used alongside this: these tokens
+ * already flip with the theme, and prose-invert would reassign the same
+ * variables to the plugin's inverted slate. Unlayered on purpose — the plugin's
+ * utilities are layered, and unlayered CSS wins regardless of specificity. */
+.prose {
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-lead: var(--muted-foreground);
+  --tw-prose-links: var(--link);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: var(--border);
+  --tw-prose-hr: var(--border);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: var(--border);
+  --tw-prose-captions: var(--muted-foreground);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: var(--card-foreground);
+  --tw-prose-pre-bg: var(--muted);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
+}
+
 /* ─── Accessibility (Settings → Accessibility) ─────────────────────────────
  * Toggled as classes on <html> by ThemeContext.applyPrefs so they apply on
  * every route, not just the settings page. Interface Scale rides the root
