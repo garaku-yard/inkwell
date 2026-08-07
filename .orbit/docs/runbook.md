@@ -140,6 +140,15 @@ npm run tauri:build        # installer for the current platform
 Artefacts: `client/src-tauri/target/release/bundle/` (NSIS `.exe` on Windows;
 AppImage + `.deb` on Linux).
 
+The script sets `NO_STRIP=1`, which the AppImage step needs on a current distro.
+`linuxdeploy` strips bundled libraries with the `strip` inside its own AppImage,
+built in 2024; libraries on an up-to-date system now carry `.relr.dyn` (compact
+RELR relocations), which that older binutils rejects — `unknown type [0x13]` —
+and one failed strip aborts the whole bundle. Skipping the strip costs artefact
+size (~112 MB AppImage) and nothing else. Release builds go through
+`tauri-apps/tauri-action` on `ubuntu-22.04`, which calls `npx tauri` directly
+rather than this script, so published artefacts are still stripped.
+
 ## Cutting a release / AUR
 
 The GitHub Actions `Release` workflow builds Windows + Linux bundles on a `v*`
