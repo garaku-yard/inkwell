@@ -6,6 +6,48 @@
 > handoff notes + git history). The live status matrix is
 > [PLANNING.md](../../PLANNING.md); forward intent is [roadmap.md](./roadmap.md).
 
+## The agent asks first, and what it did can be undone
+
+ADR 0025 said a mutating tool is declared as such *and confirmed*. Only the
+declaring had shipped. The in-app chat was denied every destructive tool because
+its loop had no way to ask a human anything, and the MCP bridge was handed the
+full set on the strength of its clients prompting — an external program's good
+manners standing in for a gate Inkwell owned. Stage 4 closes it
+([decisions/0027](./decisions/0027-inkwell-owns-the-destructive-gate.md)): one
+approval broker, both consumers, one modal that names what is about to go
+("Delete \"The Briefing\" and its 4 elements") rather than a tool name and a
+uuid. A request with nothing mounted to answer it refuses immediately; one
+nobody answers expires after two minutes rather than blocking the loop forever.
+The chat can now delete and rewrite, which it never could — the gate moved from
+*which tools exist* to *what happens before one runs*.
+
+Confirmation was never the whole problem, though. The expensive case is the call
+the writer **approves** and then regrets, and no dialog prevents that. Every
+destructive tool already soft-deleted — `scenes.delete` cascades `deleted_at` to
+the scene's elements, `rewrite_scene` removes the old text only after committing
+the replacement — so the rows were on disk the whole time with no way to reach
+them. Migration 0016 adds `agent_undo`, a row per destructive call holding the
+ids to restore and the ids to remove, and **Recent AI changes** in the Writing
+Buddy header replays it. The journal never syncs; the restore it performs does.
+Undo is deliberately not a tool: an agent that has just done the wrong thing is
+the wrong thing to ask to reverse it.
+
+## Sidebar and Play text stopped rendering bold
+
+The passage list looked heavier in one project than another in the *same build*.
+Measured rather than guessed: every shared region of the two screenshots was
+byte-identical, so it was neither font nor theme nor DPI. The lists differed only
+in whether they overflowed. Painting the scroller — the previous fix — holds only
+until it scrolls, because WebKit then splits it into a container layer and a
+scrolling-contents layer carrying the rows, and the background stays behind on
+the container. Text without an opaque backdrop *in its own layer* degrades over
+this deliberately-transparent window: 2.74px stems and 60% more ink, against
+cores landing exactly on `rgb(105,98,92)` when it renders correctly. Rows now
+carry their own background, which is the configuration the selected row always
+had and which measured crisp in both. The IF **Play** view had the identical
+shape and the textbook symptom — 0.0% colour fringing, the signature of the
+grayscale fallback — fixed the same way on its inner page.
+
 ## Inkwell as a tool surface — and orgs without an account
 
 The desktop's operations became **one registry** defined over `Storage`, with
