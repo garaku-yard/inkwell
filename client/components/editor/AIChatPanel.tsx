@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
 
+import { AgentChangesDialog } from "./AgentChangesDialog"
 import { AIChatComposer } from "./ai-chat/AIChatComposer"
 import { AIChatHeader } from "./ai-chat/AIChatHeader"
 import { AIChatMessages } from "./ai-chat/AIChatMessages"
@@ -42,6 +43,19 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
   ])
   const [inputValue, setInputValue] = useState("")
   const [isTyping, setIsTyping] = useState(false)
+  const [showChanges, setShowChanges] = useState(false)
+
+  // "Don't ask again for this tool" is scoped to the project's chat, so leaving
+  // the project has to end it — otherwise a standing allowance granted for one
+  // manuscript would quietly outlive the conversation that granted it.
+  useEffect(() => {
+    if (!projectId) return
+    return () => {
+      void import("@/lib/storage/local/tools")
+        .then(({ chatScope, clearApprovalScope }) => clearApprovalScope(chatScope(projectId)))
+        .catch(() => {})
+    }
+  }, [projectId])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -98,6 +112,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
           selectedId={selectedId}
           onSelect={selectProvider}
           onClose={onClose}
+          onShowChanges={projectId ? () => setShowChanges(true) : undefined}
         />
         <AIChatMessages
           ref={messagesEndRef}
@@ -117,6 +132,13 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
           providerLabel={selectedProvider?.label}
         />
       </div>
+      {projectId && (
+        <AgentChangesDialog
+          projectId={projectId}
+          open={showChanges}
+          onOpenChange={setShowChanges}
+        />
+      )}
     </div>
   )
 })

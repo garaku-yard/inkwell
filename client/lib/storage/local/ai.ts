@@ -16,7 +16,7 @@ import type {
 import { deleteSecret, getSecret, setSecret } from "@/lib/secrets"
 import { getDb, newId } from "./shared"
 import { knowledge } from "./knowledge"
-import { findTool, parseToolArgs, toolSpecsFor } from "./tools"
+import { chatScope, findTool, parseToolArgs, requestApproval, toolSpecsFor } from "./tools"
 
 // ─── AI (BYO keys, keychain-backed) ──────────────────────────────────────
 
@@ -215,8 +215,26 @@ function ragStream(opts: RagStreamOptions): ReadableStream<Uint8Array> {
             let result: string
             if (tool) {
               const args = parseToolArgs(call.args)
-              emit({ tool: tool.spec.name, label: tool.label(args) })
-              result = await tool.run(args, { projectId: opts.projectId })
+              const ctx = { projectId: opts.projectId, source: "chat" as const }
+              // A tool that can take writing away waits for the writer (ADR
+              // 0027). Asking before the aside is emitted keeps the transcript
+              // honest: a declined call never claims it was deleting anything.
+              const decision = tool.destructive
+                ? await requestApproval({
+                    tool: tool.spec.name,
+                    label: tool.label(args),
+                    detail: tool.describe ? await tool.describe(args, ctx).catch(() => "") : "",
+                    source: "chat",
+                    scope: chatScope(opts.projectId),
+                  })
+                : null
+              if (decision && decision.outcome !== "allowed") {
+                emit({ tool: tool.spec.name, label: `${tool.label(args)} — declined` })
+                result = decision.message
+              } else {
+                emit({ tool: tool.spec.name, label: tool.label(args) })
+                result = await tool.run(args, ctx)
+              }
             } else {
               result = `Unknown tool: ${call.name}`
             }

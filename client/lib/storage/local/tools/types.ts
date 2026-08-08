@@ -1,5 +1,7 @@
 import type { ToolSpec } from "@/lib/ai/providers"
 
+import type { ApprovalSource } from "./approval"
+
 /** Decoded tool-call arguments. The values are whatever the model produced,
  *  so handlers narrow each field before using it. */
 export type ToolArgs = Record<string, unknown>
@@ -10,6 +12,10 @@ export type ToolArgs = Record<string, unknown>
  *  genuinely works without one. */
 export interface ToolContext {
   projectId: string
+  /** Which consumer is running this call. Destructive handlers record it in the
+   *  undo journal so the writer's "recently changed" list can say whether the
+   *  chat or an external agent did it. Defaults to `"chat"` where omitted. */
+  source?: ApprovalSource
 }
 
 /** A precondition the project must meet before a tool is worth offering.
@@ -52,6 +58,15 @@ export interface ToolEntry {
    *  aside while the tool runs, so each tool words its own activity instead
    *  of the chat panel guessing a verb per tool name. */
   label(args: ToolArgs): string
+  /** Names what this call would act on, in the writer's terms — a scene heading
+   *  rather than an id — for the approval dialog. "Delete a scene" is not enough
+   *  to answer yes or no to; "Delete \"The Briefing\"" is.
+   *
+   *  Only destructive entries need one, since they are the only calls that ask.
+   *  Resolve to an empty string rather than throwing if the target can't be
+   *  found: the dialog falls back to the label, and the handler will report the
+   *  bad id properly once it runs. */
+  describe?(args: ToolArgs, ctx: ToolContext): Promise<string>
   /** Runs the call and returns the text fed back to the model as the tool
    *  result. Arguments arrive parsed but unvalidated — a model can send
    *  anything — so read them defensively and answer in prose rather than

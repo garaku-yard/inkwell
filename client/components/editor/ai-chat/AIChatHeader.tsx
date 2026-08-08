@@ -1,4 +1,4 @@
-import { Bot, X } from "lucide-react"
+import { Bot, History, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,13 +15,22 @@ interface AIChatHeaderProps {
   selectedId: string | null
   onSelect: (id: string) => void
   onClose: () => void
+  /** Opens Recent AI changes (ADR 0027). Omitted on surfaces without a project,
+   *  where there is no journal to show. */
+  onShowChanges?: () => void
 }
 
 /** Header for the Writing Buddy panel — a quiet icon + label that mirrors the
  *  editor sidebar header, the provider picker (only when a provider exists),
  *  and a plain close button. Flat by design: no gradients, rings, or status
  *  glow, so it sits inside the same calm language as the rest of the editor. */
-export function AIChatHeader({ providers, selectedId, onSelect, onClose }: AIChatHeaderProps) {
+export function AIChatHeader({
+  providers,
+  selectedId,
+  onSelect,
+  onClose,
+  onShowChanges,
+}: AIChatHeaderProps) {
   return (
     <div className="flex-shrink-0 space-y-2 border-b p-3">
       <div className="flex items-center justify-between gap-2">
@@ -29,15 +38,29 @@ export function AIChatHeader({ providers, selectedId, onSelect, onClose }: AICha
           <Bot className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">Writing Buddy</span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-          onClick={onClose}
-          aria-label="Close Writing Buddy"
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          {onShowChanges && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={onShowChanges}
+              aria-label="Recent AI changes"
+              title="Recent AI changes"
+            >
+              <History className="h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            onClick={onClose}
+            aria-label="Close Writing Buddy"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {providers.length > 0 && (

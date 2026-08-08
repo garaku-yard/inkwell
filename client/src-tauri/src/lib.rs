@@ -102,6 +102,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0015_project_org.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 16,
+      description: "undo journal for destructive agent tool calls",
+      sql: include_str!("../migrations/0016_agent_undo.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 

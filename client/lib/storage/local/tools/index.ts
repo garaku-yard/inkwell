@@ -31,6 +31,17 @@ import { searchNotes } from "./search-notes"
 import type { ToolArgs, ToolEntry } from "./types"
 
 export type { ToolArgs, ToolContext, ToolEntry, ToolRequirement } from "./types"
+export {
+  chatScope,
+  clearApprovalScope,
+  mcpScope,
+  requestApproval,
+  resolveApproval,
+  subscribeApprovals,
+} from "./approval"
+export type { ApprovalDecision, ApprovalRequest, ApprovalSource } from "./approval"
+export { listUndo, undoEntry } from "./undo"
+export type { UndoEntry } from "./undo"
 
 /** Every registered tool, in the order the model is shown them: find your way
  *  around, read, then write. */
@@ -63,15 +74,17 @@ export interface ToolAvailability {
  *  answer "nothing is wired" spends the model's attention to teach it a dead
  *  end.
  *
- *  Destructive tools are withheld here on purpose. ADR 0025 says a mutating
- *  tool is declared as such *and confirmed*, and the chat has no way to ask
- *  before it acts — so until that exists, the consumer that can take writing
- *  away is the MCP bridge, whose clients prompt for tool use. The chat can
- *  still add, which is the half that is safe to get wrong. */
+ *  Destructive tools used to be withheld here, because ADR 0025 requires a
+ *  mutating tool to be declared as such *and confirmed*, and the chat had no way
+ *  to ask before acting. ADR 0027 gave it one — `requestApproval` in
+ *  `./approval`, which the tool loop awaits before running anything marked
+ *  `destructive` — so the filter is gone and the chat is offered the whole
+ *  registry. The gate moved from "which tools exist" to "what happens before one
+ *  runs", which is where it belonged: withholding them meant the writer couldn't
+ *  ask their own chat to delete a scene they no longer wanted. */
 export function toolSpecsFor(available: ToolAvailability): ToolSpec[] {
   return ENTRIES.filter(
-    (entry) =>
-      !entry.destructive && (entry.requires !== "knowledge" || available.knowledge),
+    (entry) => entry.requires !== "knowledge" || available.knowledge,
   ).map((entry) => entry.spec)
 }
 

@@ -3,6 +3,7 @@ import { projects } from "../projects"
 import { scenes } from "../scenes"
 import { LOCAL_USER_ID } from "../shared"
 import { shapeOf } from "./formats"
+import { recordUndo } from "./undo"
 import type { ToolArgs, ToolEntry } from "./types"
 import { appendBody } from "./write-body"
 
@@ -51,6 +52,14 @@ export const rewriteScene: ToolEntry = {
   mutates: true,
   destructive: true,
   label: () => "Rewriting a scene",
+  async describe(args, ctx) {
+    const list = await scenes.listForProject(ctx.projectId, LOCAL_USER_ID)
+    const scene = list.find((s) => s.id === stringArg(args, "scene_id"))
+    if (!scene) return ""
+    const count = (await elements.listForScene(scene.id, LOCAL_USER_ID)).length
+    const heading = scene.scene_heading || "(untitled scene)"
+    return `Replace the text of "${heading}" — ${count} ${count === 1 ? "element" : "elements"} overwritten`
+  },
   async run(args, ctx) {
     const sceneId = stringArg(args, "scene_id")
     const text = stringArg(args, "text")
@@ -78,15 +87,33 @@ export const rewriteScene: ToolEntry = {
     if (written === 0) {
       return "That text was empty once trimmed — nothing was changed."
     }
+    // `appendBody` reports a count, not ids, and undo needs to know which rows
+    // this call added so it can take exactly those away again. Diffing the
+    // scene against the ids we already hold is cheaper than threading ids back
+    // out of the writer, and correct even if it batches differently later.
+    const beforeIds = new Set(before.map((element) => element.id))
+    const added = (await elements.listForScene(scene.id, LOCAL_USER_ID)).filter(
+      (element) => !beforeIds.has(element.id),
+    )
+
     // Only now that the replacement is on disk does the old text go.
     for (const element of before) {
       await elements.delete(element.id)
     }
 
     const heading = scene.scene_heading || "(untitled scene)"
+    await recordUndo({
+      projectId: ctx.projectId,
+      tool: "rewrite_scene",
+      source: ctx.source ?? "chat",
+      summary: `Rewrote "${heading}"`,
+      restoreElementIds: before.map((element) => element.id),
+      removeElementIds: added.map((element) => element.id),
+    })
     return (
       `Rewrote "${heading}": ${before.length} ` +
-      `${before.length === 1 ? "element" : "elements"} replaced with ${written}.`
+      `${before.length === 1 ? "element" : "elements"} replaced with ${written}. ` +
+      "The writer can undo this from Recent AI changes."
     )
   },
 }

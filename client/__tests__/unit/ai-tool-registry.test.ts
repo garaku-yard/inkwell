@@ -161,6 +161,8 @@ describe("tool registry", () => {
       "append_to_scene",
       "add_beat",
       "rename_scene",
+      "rewrite_scene",
+      "delete_scene",
     ])
     for (const spec of specs) {
       expect(findTool(spec.name)?.spec).toBe(spec)
@@ -205,19 +207,31 @@ describe("tool registry", () => {
       "append_to_scene",
       "add_beat",
       "rename_scene",
+      "rewrite_scene",
+      "delete_scene",
     ])
   })
 
-  // ADR 0025 wants a mutating tool confirmed, and the chat cannot ask before
-  // it acts. Until that exists the chat may add but not take away; the MCP
-  // bridge gets the full set because its clients prompt.
-  it("keeps the destructive tools away from the in-app chat", () => {
+  // ADR 0027 moved the gate. The chat used to be denied the destructive tools
+  // outright because it had no way to ask; now both consumers ask through the
+  // same broker before the handler runs, so the registry offers the whole set
+  // and refusing is a decision made per call rather than per consumer.
+  it("offers the destructive tools to both consumers, gated at call time", () => {
     const offered = toolSpecsFor({ knowledge: true }).map((s) => s.name)
-    expect(offered).not.toContain("delete_scene")
-    expect(offered).not.toContain("rewrite_scene")
+    expect(offered).toContain("delete_scene")
+    expect(offered).toContain("rewrite_scene")
     expect(allTools().map((e) => e.spec.name)).toEqual(
       expect.arrayContaining(["delete_scene", "rewrite_scene"]),
     )
+  })
+
+  it("gives every destructive tool a way to name what it would act on", () => {
+    // The approval dialog asks about a scene by heading, not by id — an entry
+    // that can take writing away without a describe() would put a uuid in front
+    // of the writer and expect a yes or no.
+    for (const entry of allTools()) {
+      if (entry.destructive) expect(typeof entry.describe, entry.spec.name).toBe("function")
+    }
   })
 })
 

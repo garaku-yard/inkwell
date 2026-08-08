@@ -20,7 +20,13 @@
  */
 
 import { announceDataChanged } from "@/lib/live-refresh"
-import { allTools, findTool, type ToolArgs } from "@/lib/storage/local/tools"
+import {
+  allTools,
+  findTool,
+  mcpScope,
+  requestApproval,
+  type ToolArgs,
+} from "@/lib/storage/local/tools"
 
 /** The project subsequent calls act on. Null until the agent chooses one. */
 let chosenProject: string | null = null
@@ -102,8 +108,27 @@ async function callTool(params: Record<string, unknown>): Promise<McpResult> {
     return text(`Choose a project first: call use_project. ${name} acts on one project.`, true)
   }
 
+  const ctx = { projectId: chosenProject ?? "", source: "mcp" as const }
+
+  // Inkwell asks for itself now (ADR 0027). It used to hand destructive tools
+  // over on the strength of `destructiveHint` and the expectation that the
+  // client would prompt — which is an external program's good manners standing
+  // in for a gate, and buys nothing against any other process holding the token.
+  // The client is welcome to prompt as well; two questions for a scene deletion
+  // is not the failure mode worth optimising away.
+  if (tool.destructive) {
+    const decision = await requestApproval({
+      tool: tool.spec.name,
+      label: tool.label(args),
+      detail: tool.describe ? await tool.describe(args, ctx).catch(() => "") : "",
+      source: "mcp",
+      scope: mcpScope(ctx.projectId),
+    })
+    if (decision.outcome !== "allowed") return text(decision.message, true)
+  }
+
   try {
-    const result = text(await tool.run(args, { projectId: chosenProject ?? "" }))
+    const result = text(await tool.run(args, ctx))
     if (tool.mutates) {
       // The write landed in SQLite, which no hook is watching. Tell the open
       // views so the writer sees it without reaching for a refresh.
