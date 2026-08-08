@@ -196,14 +196,22 @@ export function EditorSidebar({
               antialiasing for text it can prove sits on an opaque backdrop
               *within the same layer*. The window is deliberately transparent for
               the rounded corners (see html/body at the top of globals.css), so a
-              layer that paints no background of its own falls back to grayscale
-              AA — which at 14px doubles the stem width (measured 1.00px → 2.00px,
-              40% more ink) and reads as bold, blurred text. Rows with their own
-              opaque background were unaffected, which is why only the selected
-              row and whatever was hovered ever looked crisp. */}
+              layer that paints no background of its own degrades the text.
+
+              This alone is not enough: it only holds while the list fits. Once
+              the content overflows, WebKit splits the scroller into a container
+              (which is what this background paints) and a separate scrolling-
+              contents layer that actually carries the rows — so the rows are
+              back on an unpainted layer. Measured across two projects in one
+              build: the 8-item list that fits renders its glyph cores at exactly
+              rgb(105,98,92), the CSS --muted-foreground, on 1.5px stems; the
+              10-item list that scrolls spreads the same text over 2.7px stems
+              with 60% more ink and no fully-covered pixel at all. The rows carry
+              their own background below for that reason — a row that paints its
+              own opaque backdrop measured identical (1.7px vs 1.8px) in both. */}
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto bg-sidebar px-2 py-2">
           {shownItems.length === 0 ? (
-            <p className="px-3 py-8 text-center text-xs text-muted-foreground">
+            <p className="bg-sidebar px-3 py-8 text-center text-xs text-muted-foreground">
               {q ? "No matches." : emptyLabel}
             </p>
           ) : (
@@ -217,7 +225,10 @@ export function EditorSidebar({
                     aria-current={active ? "true" : undefined}
                     className={cn(
                       "group w-full rounded-md px-3 py-2 text-left transition-colors",
-                      active ? "bg-muted" : "hover:bg-accent",
+                      // bg-sidebar (same colour as the scroller, so no visual
+                      // change) gives every row the opaque backdrop the
+                      // scrolling-contents layer does not inherit — see above.
+                      active ? "bg-muted" : "bg-sidebar hover:bg-accent",
                     )}
                   >
                     <div className="flex min-w-0 items-baseline gap-1.5">
@@ -252,7 +263,7 @@ export function EditorSidebar({
                     <button
                       key={sub.id}
                       onClick={sub.onSelect}
-                      className="w-full truncate rounded-md py-1 pl-7 pr-3 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      className="w-full truncate rounded-md bg-sidebar py-1 pl-7 pr-3 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     >
                       {sub.title}
                     </button>

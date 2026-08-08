@@ -933,7 +933,17 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           }
           return (
             <div className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background">
-              <div className="max-w-[660px] mx-auto px-8 py-10">
+              {/* The same background is repeated on this inner page, and it is
+                  not redundant: once the passage is long enough to scroll,
+                  WebKit moves the content into a scrolling-contents layer that
+                  the scroller's own background does not paint, and text with no
+                  opaque backdrop *in its own layer* drops to grayscale AA over
+                  this deliberately-transparent window. Measured on two passages
+                  of one build: the one that fits renders at 92% colour fringing
+                  on 1.78px stems, the one that scrolls at 0.0% on 2.53px —
+                  zero fringing is the signature of the fallback, not of clean
+                  text. Same fix as EditorSidebar; see the note there. */}
+              <div className="max-w-[660px] mx-auto bg-secondary px-8 py-10 dark:bg-background">
                 {/* Player toolbar */}
                 <div className="flex items-center justify-between mb-6 text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">

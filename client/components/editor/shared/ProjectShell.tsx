@@ -109,18 +109,20 @@ export function ProjectShell({
             {chapters.length} {chapterLabel.toLowerCase()}
           </Badge>
         </div>
-        {/* bg-sidebar on the scroller, not only on <aside> — see the longer note
-            in EditorSidebar: an overflow-y-auto layer that paints no background
-            of its own loses subpixel antialiasing over the transparent window. */}
+        {/* bg-sidebar on the scroller *and* on every row — see the longer note in
+            EditorSidebar: an overflow-y-auto layer that paints no background of
+            its own degrades text over the transparent window, and once the list
+            overflows the rows move to a scrolling-contents layer that the
+            scroller's own background does not cover. */}
         <div className="min-h-0 flex-1 space-y-1 overflow-y-auto bg-sidebar px-2 py-2">
           {chapters.length === 0 ? (
-            <p className="px-3 py-8 text-center text-xs text-muted-foreground">Nothing here yet.</p>
+            <p className="bg-sidebar px-3 py-8 text-center text-xs text-muted-foreground">Nothing here yet.</p>
           ) : (
             chapters.map((ch, i) => (
               <button
                 key={ch.id}
                 onClick={() => selectChapter(ch.id)}
-                className="group w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-accent"
+                className="group w-full rounded-md bg-sidebar px-3 py-2 text-left transition-colors hover:bg-accent"
               >
                 <div className="flex min-w-0 items-baseline gap-1.5">
                   <span className="shrink-0 text-xs text-muted-foreground/50">{i + 1}</span>
