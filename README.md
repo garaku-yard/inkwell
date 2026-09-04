@@ -13,37 +13,44 @@ macOS deferred). Everything lives on disk. No account required, no network
 required. Hosted collaboration is an optional layer you can self-host or
 skip entirely.
 
-```
- ┌───────────────┐   ┌─────────────┐   ┌────────────┐   ┌──────────────┐
- │  Screenplay   │   │    Prose    │   │   Poetry   │   │    Comic     │
- └───────────────┘   └─────────────┘   └────────────┘   └──────────────┘
- ┌───────────────┐   ┌─────────────┐   ┌────────────┐   ┌──────────────┐
- │  Interactive  │   │    TTRPG    │   │   Memoir   │   │    Lyrics    │
- └───────────────┘   └─────────────┘   └────────────┘   └──────────────┘
-                            ┌─────────────────┐
-                            │  Vault (notes)  │
-                            └─────────────────┘
-```
+**Contents:** [Features](#features) · [Install](#install) ·
+[Local-first, optionally collaborative](#local-first-optionally-collaborative) ·
+[Architecture](#architecture) · [Develop](#develop) ·
+[Repository layout](#repository-layout) · [Status](#status) ·
+[Contributing](#contributing) · [License](#license)
 
 ---
 
-## What's in it
+## Features
 
-- **Nine format-native editors.** Each category has its own editor tuned to
-  its conventions — screenplay uses industry-standard scene/action/dialogue
-  elements; prose is a manuscript editor; poetry gets line numbers and
-  section labels; comic scripts follow Marvel/DC layout; interactive fiction
-  ships with Twine-style `[[links]]`, a live validator, and a graph view;
-  TTRPG has stat blocks and dice tables; lyrics handle chord overlays.
-- **Markdown vault** _(desktop only)_ — plain `.md` files on disk,
-  live-preview rendering (markdown styled inline while you type, no
-  split-screen), `[[wikilinks]]` with click-to-create, backlinks panel,
-  subfolder tree, and a filesystem watcher so external edits (vim, git,
-  other apps) flow through. A vault is just a regular folder — rename it,
-  back it up with git, point another tool at the same path. Everything
-  interoperates. The hosted web build can't reach your filesystem, so vault
-  projects are available in the desktop app only; the other eight editors
-  work on both.
+### Nine format-native editors
+
+Each category gets an editor tuned to its own conventions, sharing one page
+surface so the formats feel like one tool, not eight bolted together.
+
+| Format | Tuned for |
+|---|---|
+| Screenplay | scene/action/dialogue elements, FDX + PDF export |
+| Prose | manuscript editor, EPUB export |
+| Poetry | line numbers, section labels |
+| Comic | Marvel/DC script layout, CBZ export |
+| Interactive fiction | Twine-style `[[links]]`, live validator, graph view, Twee export |
+| TTRPG | stat blocks, dice tables |
+| Memoir | manuscript editor, shares Prose's tooling |
+| Lyrics | chord overlays, ChordPro export |
+
+### Markdown vault _(desktop only)_
+
+Plain `.md` files on disk, live-preview rendering (markdown styled inline
+while you type, no split-screen), `[[wikilinks]]` with click-to-create, a
+backlinks panel, a subfolder tree, and a filesystem watcher so external
+edits (vim, git, other apps) flow through. A vault is just a regular
+folder — rename it, back it up with git, point another tool at the same
+path. The hosted web build can't reach your filesystem, so vault projects
+are desktop-only; the other eight editors work on both.
+
+### Also included
+
 - **Beat board** — a free-form canvas of story beats with swim lanes,
   connections, and timeline placement. Works for any category, not just
   screenplay.
