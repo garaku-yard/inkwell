@@ -52,8 +52,7 @@ are desktop-only; the other eight editors work on both.
 ### Also included
 
 - **Beat board** — a free-form canvas of story beats with swim lanes,
-  connections, and timeline placement. Works for any category, not just
-  screenplay.
+  connections, and timeline placement. Works for any category.
 - **Analytics** per category — scene breakdown, dialogue balance, pacing,
   character voice, poem structure, whatever makes sense for each format.
 - **AI chat side-panel** in every editor. Bring your own provider key
@@ -65,6 +64,11 @@ are desktop-only; the other eight editors work on both.
   assistant can act on the project directly (create/read/rewrite/delete
   scenes, add beats, search vault notes) through an approval-gated tool
   registry — every destructive call is confirmed and undoable.
+- **MCP server** _(desktop only)_ — the same tool registry is also exposed
+  as a local MCP server, so external MCP clients (Claude Code, Claude
+  Desktop, etc.) can list your projects and read, search, create, and edit
+  scenes, beats, and vault notes directly — same approval gate and undo as
+  the in-app chat.
 - **Export** — PDF for screenplay, `.md` and `.txt` for everything else,
   with per-category industry conventions baked in.
 - **Collaboration** (optional) — invite by email or `@username#tag`,
