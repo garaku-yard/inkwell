@@ -1,8 +1,12 @@
 # Inkwell
 
-A local-first, open-source writing tool for long-form work — screenplays,
-novels, poetry, comics, TTRPG content, interactive fiction, memoirs, song
-lyrics, and a built-in markdown note vault. One app, one home for the draft.
+A local-first writing tool for long-form work — screenplays, novels, poetry,
+comics, TTRPG content, interactive fiction, memoirs, song lyrics, and a
+built-in markdown note vault. One app, one home for the draft.
+
+Free for individuals and internal team use, source-available under
+[PolyForm Shield](#license) — the only thing it rules out is reselling
+Inkwell (or hosting it for others) as a competing product.
 
 Inkwell ships as a cross-platform desktop app (Windows and Linux today;
 macOS deferred). Everything lives on disk. No account required, no network
@@ -50,12 +54,15 @@ skip entirely.
   (Ollama, LM Studio, OpenRouter, your own LiteLLM proxy). Desktop
   stores keys in your OS keychain and dispatches direct from your
   machine; the optional hosted server encrypts keys at rest with
-  AES-256-GCM and decrypts only when calling the provider.
+  AES-256-GCM and decrypts only when calling the provider. The
+  assistant can act on the project directly (create/read/rewrite/delete
+  scenes, add beats, search vault notes) through an approval-gated tool
+  registry — every destructive call is confirmed and undoable.
 - **Export** — PDF for screenplay, `.md` and `.txt` for everything else,
   with per-category industry conventions baked in.
 - **Collaboration** (optional) — invite by email or `@username#tag`,
-  role-based access, inline comments, live presence. Requires running or
-  self-hosting the server stack.
+  role-based access, inline comments, live presence, live co-editing with
+  collaborator cursors. Requires running or self-hosting the server stack.
 
 ---
 
@@ -64,11 +71,11 @@ skip entirely.
 ### Arch Linux
 
 ```sh
-# Once v0.2.1 is published to AUR:
+# Once published to AUR:
 yay -S inkwell-bin
 
 # For now, build locally from the repo's PKGBUILD:
-git clone https://github.com/l1roii/inkwell.git
+git clone https://github.com/garaku-yard/inkwell.git
 mkdir -p ~/build/inkwell-bin
 cp inkwell/packaging/arch/PKGBUILD ~/build/inkwell-bin/
 cd ~/build/inkwell-bin
@@ -85,12 +92,12 @@ Grab the installer for your platform from the [latest release][releases]:
   Unsigned; a proper cert will come before a mainstream launch.
 - **Linux** — `Inkwell_<version>_amd64.AppImage` or `.deb`.
 
-[releases]: https://github.com/l1roii/inkwell/releases
+[releases]: https://github.com/garaku-yard/inkwell/releases
 
 ### Build from source
 
 ```sh
-git clone https://github.com/l1roii/inkwell.git
+git clone https://github.com/garaku-yard/inkwell.git
 cd inkwell/client
 npm install
 npm run tauri:build      # emits the installer for the current platform
@@ -112,9 +119,9 @@ By default Inkwell stores everything on your own machine:
 
 If you want real-time collaboration, cross-device sync, or sharing, spin up
 the server stack — everything's in this repo. Details in
-[CONTRIBUTING.md](./CONTRIBUTING.md#running-the-server-stack). You can
-self-host freely for personal/team use; commercial hosting as a paid
-service requires a separate agreement (see [License](#license)).
+[CONTRIBUTING.md](./CONTRIBUTING.md#running-the-server-stack). Self-host it
+freely for yourself, your team, or your org; reselling Inkwell hosting to
+others is the one thing the license reserves (see [License](#license)).
 
 ---
 
@@ -214,13 +221,16 @@ Brand voice, palette, and logo rules live in [BRANDBOOK.md](./BRANDBOOK.md).
 
 ## License
 
-[PolyForm Noncommercial 1.0.0](./LICENSE) © Inkwell contributors.
+[PolyForm Shield 1.0.0](./LICENSE) © Inkwell contributors.
 
-Free to use, study, modify, and share for any **noncommercial** purpose —
-personal projects, research, education, hobby work, non-profits, and
-government use all qualify. Commercial use (selling, rebranding, or
-offering Inkwell as a paid service) requires a separate agreement with the
-maintainers.
+Free to use, study, modify, and share for any purpose — personal projects,
+freelance/commercial writing, and internal use at a company or org all
+qualify, no revenue or seat limits. The one thing it rules out is
+**competing use**: offering Inkwell, or a hosted/managed service built on
+it, to other people as a substitute for Inkwell itself or for the hosting
+plans, workspaces, and org/admin features we sell. Source-available, not
+OSI open source — this restriction is exactly what that label would
+prohibit.
 
 Full terms at
-[polyformproject.org/licenses/noncommercial/1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0).
+[polyformproject.org/licenses/shield/1.0.0](https://polyformproject.org/licenses/shield/1.0.0).

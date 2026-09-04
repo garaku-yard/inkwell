@@ -4,7 +4,7 @@
 
 ## One line
 
-Inkwell is a **local-first, open-source writing tool** for long-form work —
+Inkwell is a **local-first, source-available writing tool** for long-form work —
 screenplays, novels, poetry, comics, TTRPG content, interactive fiction,
 memoirs, song lyrics, and a built-in markdown note vault. One app, one home for
 the draft.
@@ -50,12 +50,13 @@ Obsidian-adjacent vaults), and honest about what it is: a **tool**, not a
 - **Why it's built the way it is** → [decisions/](./decisions/)
 - **What has shipped and why** → [changelog.md](./changelog.md)
 - **Public-facing intro** → [README.md](../../README.md) (canonical for outsiders)
-- **License** → [PolyForm Noncommercial 1.0.0](../../LICENSE) · rationale in
-  [decisions/0003](./decisions/0003-polyform-noncommercial-license.md)
+- **License** → [PolyForm Shield 1.0.0](../../LICENSE) · rationale in
+  [decisions/0028](./decisions/0028-polyform-shield-supersedes-noncommercial.md)
+  (supersedes [decisions/0003](./decisions/0003-polyform-noncommercial-license.md))
 
 ## Status (as of this migration)
 
 Pre-1.0. The desktop build is the primary surface and is usable day-to-day;
 the hosted stack is functional but still tightening around identity + billing.
-Shipped releases: **v0.2.0 – v0.2.3** on GitHub Releases (Windows + Linux). The
+Shipped releases: **v0.2.0 – v0.6.0** on GitHub Releases (Windows + Linux). The
 live at-a-glance tracker is [PLANNING.md](../../PLANNING.md).

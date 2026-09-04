@@ -2,7 +2,7 @@
 
 > Living status of what's shipped, what's partial, and what's planned. Kept in
 > sync with the architecture + handoff detail in `CLAUDE.md`.
-> Last synced: 2026-06-22.
+> Last synced: 2026-09-04.
 
 Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
 
@@ -15,7 +15,7 @@ Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
 | Desktop app (Tauri v2 + Next.js static export) | ✅ | Windows + Linux bundles via GH Actions; macOS deferred |
 | Local-first storage (SQLite + on-disk `.md`) | ✅ | `lib/storage` abstraction with local (SQLite/FS) + remote (gateway) impls |
 | Hosted stack (Go microservices / gRPC / Postgres / Redis / Kafka) | ✅ | Self-hostable, optional — most users never need it |
-| Releases | ✅ | v0.2.0–v0.2.3 on GitHub Releases |
+| Releases | ✅ | v0.2.0–v0.6.0 on GitHub Releases |
 
 ## Editors — nine format-native surfaces
 
@@ -34,7 +34,7 @@ Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
 | Per-category analytics | ✅ | computed from real scenes/elements |
 | Workspaces | ✅ | switcher, per-category, drag-reorder |
 | Auth | ✅ | cookie/JWT, register/login, sessions. Usernames are **not** globally unique — the `(username, user_tag)` pair is (Discord-style "Model B") |
-| Collaboration | ✅ | collaborators, invitations, comments, presence. Real-time co-editing is **not** built (see deferred) |
+| Collaboration | ✅ | collaborators, invitations, comments, presence, live co-editing with remote carets (`useEditorRealtime`, all editors) |
 | Export | ✅ | PDF / FDX / EPUB / ChordPro / CBZ / Twee / txt / md, client-side; plus lossless **`.iw`** project files (every non-vault editor) |
 | Import | ✅ | Per-format, client-side, in every editor (`716703a`). Editor Import lands **into the current project**; dashboard Import creates a new one. Parsers: `.md`/`.txt`→Prose+TTRPG, `.twee`→IF, `.txt`/`.cho`→Poetry, `.fdx`→Screenplay; lossless **`.iw`**→new project (dashboard). Verified end-to-end (Playwright). Comic omitted (no clean text inverse). |
 | BYO AI chat (every editor) | ✅ | OpenAI / Anthropic / Gemini / openai_compatible; desktop keys in OS keychain, hosted keys AES-256-GCM in `aisettings-service` |
@@ -66,7 +66,7 @@ Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
   - **Per-format Import** in every editor header (see Import row above) — `EditorHeader.importItems` + a shared file picker; client-side parsers under `lib/import/` → `importIntoProject` (into the current project). Fixed a pre-existing remote-storage bug found in QA: the gateway wraps created/updated elements as `{element:…}` and `remote/elements.ts` returned the envelope, so optimistic renders had no id/content (`78651d0`).
   - **Verified end-to-end via Playwright** against the live web stack (registered a throwaway account): screenplay rail-in-margin + save pill + header; import round-trips for md/txt→Prose, twee→IF, txt/cho→Poetry, md→TTRPG, fdx→Screenplay.
   - **Editor canvas as a brand surface — DONE** (`98f1cfe`): BRANDBOOK §8 "Editor canvas" codifies the one-page-everywhere contract (A4 sheets on a desk, margin tool rail, quiet page numbers, floating save pill; screenplay the lone US-Letter exception on the same `PagedSheets`), pinned in `PagedSheets.smoke.test.tsx` (sheet-per-page at A4, custom `pageSize` honoured, empty state, rail-only-when-supplied).
-- **Real-time co-editing** — `edit_sessions` table exists; no live CRDT/WebSocket sync yet.
+- **Real-time co-editing — SHIPPED.** Element-level LWW + presence + live text edits over WebSocket, Redis fan-out across gateway instances, `edit_sessions` durable locks, remote carets with collaborator name-flags, per-connection rate limiting. Rolled out to every editor (IF first, then prose/poetry/comic/ttrpg/screenplay via the shared `useEditorRealtime` hook). Browser-verified two-participant. Still deferred: selection-range highlight (only the collapsed caret shipped), vault realtime (no hosted vault backend to sync through).
 - **Packaging** — macOS builds (unsigned ad-hoc path agreed), auto-updater (needs signing keys + `tauri-plugin-updater`), Windows code signing — deferred to public launch. Helm charts for the hosted stack.
 - **`.iw` portable project file — SHIPPED** (`ad4ede5`): a lossless single-JSON envelope of a non-vault project (project + scenes/elements + characters + locations + full beat board). Export from any non-vault editor's Export menu; import (new project) from the dashboard Import menu. JSON because non-vault data has no binary blobs (beat images are gateway URL refs); same envelope as the Drive-backup design. **Still deferred:** making `.iw` the on-disk *source of truth* for non-vault projects (replacing SQLite, like the vault) — a much larger rewrite; the shipped slice is import/export only.
 - **Server hygiene** — the gateway is now a single `/api/v1` tree (no legacy duplicate) and all collab/billing/workspace handlers are on `Endpoint[]` except the intentionally-manual `PaddleWebhook` (raw body for signature checks). The admin `GetSubscriptions` per-row usage fan-out is gone: a `GetBatchUsage` billing RPC now returns lifetime totals + current-month sums for the whole page in two grouped queries (Redis stays authoritative for monthly metrics via overlay). No remaining known hygiene items.
