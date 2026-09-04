@@ -15,7 +15,7 @@ never been written up as ADRs.
 |---|---|---|
 | [0001](./0001-local-first-architecture.md) | Local-first architecture; hosted stack optional | Accepted |
 | [0002](./0002-tauri-not-electron.md) | Tauri (not Electron) for the desktop shell | Accepted |
-| [0003](./0003-polyform-noncommercial-license.md) | PolyForm Noncommercial 1.0.0 license | Accepted |
+| [0003](./0003-polyform-noncommercial-license.md) | PolyForm Noncommercial 1.0.0 license | Superseded by [0028](./0028-polyform-shield-supersedes-noncommercial.md) |
 | [0004](./0004-storage-abstraction.md) | One `Storage` interface, local + remote impls | Accepted |
 | [0005](./0005-frameless-themed-titlebar.md) | Frameless transparent themed titlebar | Accepted |
 | [0006](./0006-vault-notes-as-files.md) | Vault notes are real `.md` files on disk | Accepted |
@@ -38,6 +38,9 @@ never been written up as ADRs.
 | [0023](./0023-orgs-in-desktop-hybrid-storage.md) | Orgs in the desktop build; hybrid local+remote `Storage` | Accepted |
 | [0024](./0024-org-projects-held-locally.md) | Org-owned projects are held locally on the desktop | Accepted |
 | [0025](./0025-one-tool-registry-two-consumers.md) | One tool registry: in-app chat + an in-app MCP bridge | Accepted |
+| [0026](./0026-local-orgs-when-signed-out.md) | Local organizations when signed out | Accepted |
+| [0027](./0027-inkwell-owns-the-destructive-gate.md) | Inkwell owns the gate in front of destructive tool calls | Accepted |
+| [0028](./0028-polyform-shield-supersedes-noncommercial.md) | PolyForm Shield 1.0.0 supersedes PolyForm Noncommercial | Accepted |
 
 **Adding one:** next number, same five headings. If it reverses an earlier
 decision, set the old one's Status to `Superseded by NNNN` (that one edit to the
