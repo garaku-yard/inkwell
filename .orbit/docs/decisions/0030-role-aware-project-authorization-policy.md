@@ -87,9 +87,9 @@ loosening anything:**
   resolve the self-vs-moderate comparison below without a second round-trip.
 
 **Comment mutation resolves the real author at the gateway, not just "has
-some access", and forwards the caller's real id rather than the bypass
-sentinel.** A first pass gated `UpdateComment`/`DeleteComment` on a coarse
-`ActionCommentAdd` check (any real role) and relied on
+some access", and forwards the caller's real id only for the tier that
+structurally needs it.** A first pass gated `UpdateComment`/`DeleteComment`
+on a coarse `ActionCommentAdd` check (any real role) and relied on
 `CollaborationService.UpdateComment`/`DeleteComment`'s own self-authorship
 comparison downstream. Review caught the hole in that: an org-only member
 (org role only, no `collab.collaborators` row) reaches
@@ -108,6 +108,32 @@ editor requirement. An org viewer moderating a stranger's comment is now
 denied by `Can(RoleViewer, ActionCommentModerate)` before the request ever
 reaches collab-service, so #366's fallback is unreachable through this path
 too — see Consequences.
+
+**The moderate tier forwards the bypass sentinel, not the real caller id —
+a second review round caught that the first version of this fix
+undermined the "highest role wins" combination above.**
+`ResolveProjectRole` can grant `ActionCommentModerate` from a role
+combined across org membership *and* a direct collaborator row, but
+`CollaborationService.CheckPermission` — invoked downstream whenever the
+real caller id reaches it — only ever sees the direct row
+(`GetUserProjectRole` queries nothing but the `collaborators` table; collab
+has no concept of org membership at all). Forwarding the real id for a
+moderate-tier call therefore let collab re-derive a *narrower* role than
+the gateway had just verified: an org editor who also held a lower direct
+viewer row passed the gateway check, then failed collab's own recheck.
+Fixed by forwarding the id split by tier, not uniformly: the real caller id
+only for the self-edit tier (`ActionCommentAdd`), where collab's own
+`UpdateComment`/`DeleteComment` skip `CheckPermission` entirely on an
+authorship match and never re-derive a role at all; the bypass sentinel for
+the moderate tier, where the gateway has already verified `editor+` across
+every source and collab has no way to confirm that independently anyway.
+This also makes the moderate tier forward-compatible with #366's eventual
+fix — it no longer depends on `CheckPermission`'s fallback bug to work for
+an org-only editor, which the sentinel already covers by design, the same
+way every scripts-service call does. `TestModerateComment_ForwardsBypassSentinelNotRealID`
+asserts on the dispatched id, not just the HTTP status, for exactly this
+regression, across an org editor with a lower direct row, an org-only
+editor, and an org-only admin.
 
 **Org membership and a direct collaborator grant are combined, not
 prioritised.** A first pass checked the project's org role, and only fell
@@ -217,8 +243,16 @@ their plan resolve regardless of who is inviting.
   reads as "try again," never as "you don't have access" or, for a write,
   "proceed."
 - Known residual, tracked, not fixed here: `CollaborationService.CheckPermission`'s
-  fallback itself (Orbit #366) is still wrong. Every path that could reach it
+  fallback itself (Orbit #366) is still wrong. Every *moderate-tier* path
   through the gateway — including the org-viewer-vs-comment path review
-  found still open in the first pass — is gated before it does, so it's
-  unreachable via HTTP/WS today; it remains a landmine for the next collab
-  RPC someone adds without gating it at the gateway first.
+  found still open in the first pass — now forwards the bypass sentinel
+  instead of reaching it, so it's unreachable via HTTP/WS today for those.
+  **`AddComment` and `UpdatePresence` are the exception**, and cannot use
+  the same fix: both record the real caller id as data (a comment's author,
+  a presence row's subject), not just a permission subject, so they
+  structurally need the real id downstream and their correctness for a
+  legitimate org-only member still depends on the fallback bug. #366 is
+  updated with this constraint — a fix that simply denies "no collaborator
+  row" would close the fallback's remaining hole but also break those two
+  RPCs for every legitimate org-only member, since collab-service has no
+  independent way to learn about org roles.
