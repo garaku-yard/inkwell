@@ -17,7 +17,7 @@ import (
 )
 
 // fakeScriptsClient resolves a project to a fixed owner, or fails when projErr is
-// set. Only GetProject is exercised by the collaborator-quota gate.
+// set. Only GetProjectAccessMetadata is exercised by the collaborator-quota gate.
 type fakeScriptsClient struct {
 	scripts.ScriptsServiceClient
 	ownerID string
@@ -25,14 +25,14 @@ type fakeScriptsClient struct {
 	err     error
 }
 
-func (f *fakeScriptsClient) GetProject(_ context.Context, _ *scripts.GetProjectRequest, _ ...grpc.CallOption) (*scripts.GetProjectResponse, error) {
+func (f *fakeScriptsClient) GetProjectAccessMetadata(_ context.Context, _ *scripts.GetProjectAccessMetadataRequest, _ ...grpc.CallOption) (*scripts.GetProjectAccessMetadataResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
 	if !f.project {
-		return &scripts.GetProjectResponse{}, nil // nil project
+		return &scripts.GetProjectAccessMetadataResponse{}, nil
 	}
-	return &scripts.GetProjectResponse{Project: &scripts.Project{OwnerId: f.ownerID}}, nil
+	return &scripts.GetProjectAccessMetadataResponse{OwnerId: f.ownerID}, nil
 }
 
 // fakeBillingClient returns a plan with a fixed per-project collaborator cap, a

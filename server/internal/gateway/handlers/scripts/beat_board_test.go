@@ -33,6 +33,7 @@ type fakeScriptsClient struct {
 
 	deletedID    string // id passed to the dispatched delete
 	deletedUser  string // user id passed to the dispatched delete
+	deletedRole  scriptspb.CallerRole
 	deleteCalled bool
 }
 
@@ -48,28 +49,32 @@ func (f *fakeScriptsClient) GetProject(_ context.Context, in *scriptspb.GetProje
 	return nil, status.Error(codes.PermissionDenied, "not owner")
 }
 
+func (f *fakeScriptsClient) GetProjectAccessMetadata(context.Context, *scriptspb.GetProjectAccessMetadataRequest, ...grpc.CallOption) (*scriptspb.GetProjectAccessMetadataResponse, error) {
+	return &scriptspb.GetProjectAccessMetadataResponse{OwnerId: f.ownerUserID}, nil
+}
+
 func (f *fakeScriptsClient) DeleteBeat(_ context.Context, in *scriptspb.DeleteBeatRequest, _ ...grpc.CallOption) (*scriptspb.DeleteBeatResponse, error) {
-	f.deletedID, f.deletedUser, f.deleteCalled = in.BeatId, in.UserId, true
+	f.deletedID, f.deletedUser, f.deletedRole, f.deleteCalled = in.BeatId, in.UserId, in.CallerRole, true
 	return &scriptspb.DeleteBeatResponse{}, nil
 }
 
 func (f *fakeScriptsClient) DeleteConnection(_ context.Context, in *scriptspb.DeleteConnectionRequest, _ ...grpc.CallOption) (*scriptspb.DeleteConnectionResponse, error) {
-	f.deletedID, f.deletedUser, f.deleteCalled = in.ConnectionId, in.UserId, true
+	f.deletedID, f.deletedUser, f.deletedRole, f.deleteCalled = in.ConnectionId, in.UserId, in.CallerRole, true
 	return &scriptspb.DeleteConnectionResponse{}, nil
 }
 
 func (f *fakeScriptsClient) DeleteLane(_ context.Context, in *scriptspb.DeleteLaneRequest, _ ...grpc.CallOption) (*scriptspb.DeleteLaneResponse, error) {
-	f.deletedID, f.deletedUser, f.deleteCalled = in.LaneId, in.UserId, true
+	f.deletedID, f.deletedUser, f.deletedRole, f.deleteCalled = in.LaneId, in.UserId, in.CallerRole, true
 	return &scriptspb.DeleteLaneResponse{}, nil
 }
 
 func (f *fakeScriptsClient) DeleteOutlineItem(_ context.Context, in *scriptspb.DeleteOutlineItemRequest, _ ...grpc.CallOption) (*scriptspb.DeleteOutlineItemResponse, error) {
-	f.deletedID, f.deletedUser, f.deleteCalled = in.OutlineItemId, in.UserId, true
+	f.deletedID, f.deletedUser, f.deletedRole, f.deleteCalled = in.OutlineItemId, in.UserId, in.CallerRole, true
 	return &scriptspb.DeleteOutlineItemResponse{}, nil
 }
 
 func (f *fakeScriptsClient) DeleteScriptElement(_ context.Context, in *scriptspb.DeleteScriptElementRequest, _ ...grpc.CallOption) (*scriptspb.DeleteScriptElementResponse, error) {
-	f.deletedID, f.deletedUser, f.deleteCalled = in.ScriptElementId, in.UserId, true
+	f.deletedID, f.deletedUser, f.deletedRole, f.deleteCalled = in.ScriptElementId, in.UserId, in.CallerRole, true
 	return &scriptspb.DeleteScriptElementResponse{Success: true}, nil
 }
 
@@ -193,10 +198,8 @@ func TestSubResourceDeleteUnauthorized(t *testing.T) {
 }
 
 // TestSubResourceDeleteAsCollaborator confirms an active collaborator (not the
-// owner) is authorized, and the delete is dispatched with the empty-user bypass
-// sentinel the scripts service expects for a gateway-authorized caller. The
-// element case also exercises the DeleteScriptElement empty-user_id path that
-// previously rejected collaborators.
+// owner) is authorized, and the delete is dispatched with their real identity
+// plus the explicit editor role assertion expected by scripts.
 func TestSubResourceDeleteAsCollaborator(t *testing.T) {
 	for _, tc := range subResourceCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -214,8 +217,11 @@ func TestSubResourceDeleteAsCollaborator(t *testing.T) {
 			if !sc.deleteCalled {
 				t.Fatal("delete was not dispatched for an authorized collaborator")
 			}
-			if sc.deletedUser != "" {
-				t.Errorf("collaborator delete dispatched with user %q, want empty bypass sentinel", sc.deletedUser)
+			if sc.deletedUser != "collab-3" {
+				t.Errorf("collaborator delete dispatched with user %q, want real actor %q", sc.deletedUser, "collab-3")
+			}
+			if sc.deletedRole != scriptspb.CallerRole_CALLER_ROLE_EDITOR {
+				t.Errorf("collaborator delete dispatched with role %v, want editor", sc.deletedRole)
 			}
 		})
 	}

@@ -111,39 +111,34 @@ func ResolveProjectRole(
 	cc collab.CollaborationServiceClient,
 	wc workspacepb.WorkspaceServiceClient,
 ) (ProjectRole, error) {
-	// Fast path: owner check. The only source that can ever produce
-	// RoleOwner — see mapCollabRole's doc comment for why a collab
-	// collaborator row must not be able to.
-	if _, err := sc.GetProject(ctx, &scriptspb.GetProjectRequest{ProjectId: projectID, UserId: userID}); err == nil {
+	best := RoleNone
+	metadata, metadataErr := sc.GetProjectAccessMetadata(ctx, &scriptspb.GetProjectAccessMetadataRequest{ProjectId: projectID})
+	if metadataErr != nil && !isDefiniteDenial(metadataErr) {
+		return RoleNone, metadataErr
+	}
+	// scripts.projects.owner_id is the sole ownership authority. Resolve it
+	// through the narrow metadata RPC rather than performing a protected
+	// GetProject read before the caller's role has been established.
+	if metadataErr == nil && metadata.GetOwnerId() == userID {
 		return RoleOwner, nil
-	} else if !isDefiniteDenial(err) {
-		return RoleNone, err
 	}
 
-	best := RoleNone
-
-	// Org path: read the project's metadata with the nil-user bypass (a
-	// read-only lookup to learn the org id, not a grant of access — the
-	// caller's own access is decided below by their resolved org role).
-	if wc != nil {
-		meta, err := sc.GetProject(ctx, &scriptspb.GetProjectRequest{ProjectId: projectID, UserId: ""})
-		if err != nil && !isDefiniteDenial(err) {
-			return RoleNone, err
-		}
-		if err == nil {
-			if orgID := meta.GetProject().GetOrgId(); orgID != "" {
-				member, err := wc.GetOrgMember(ctx, &workspacepb.GetOrgMemberRequest{OrgId: orgID, UserId: userID})
-				switch {
-				case err == nil:
-					if r := mapOrgRole(member.GetMember().GetRole()); r > best {
-						best = r
-					}
-				case !isDefiniteDenial(err):
-					return RoleNone, err
+	// Org path: use the narrow metadata lookup added by #360. This is not a
+	// project read and carries no actor or authorization assertion; it returns
+	// only the org id needed to resolve the caller's workspace role.
+	if wc != nil && metadataErr == nil {
+		if orgID := metadata.GetOrgId(); orgID != "" {
+			member, err := wc.GetOrgMember(ctx, &workspacepb.GetOrgMemberRequest{OrgId: orgID, UserId: userID})
+			switch {
+			case err == nil:
+				if r := mapOrgRole(member.GetMember().GetRole()); r > best {
+					best = r
 				}
-				// Definite denial (not an org member) contributes nothing —
-				// still check the collaborator path below.
+			case !isDefiniteDenial(err):
+				return RoleNone, err
 			}
+			// Definite denial (not an org member) contributes nothing —
+			// still check the collaborator path below.
 		}
 	}
 
@@ -175,10 +170,13 @@ func ResolveProjectRole(
 
 // RequireProjectAccess resolves userID's role on projectID, checks it against
 // action via Can, and — when permitted — returns the effective downstream
-// user id the existing scripts-service calls expect: the owner's own id, or
-// "" for every other permitted role (scripts-service still reads an empty id
-// as "the gateway already authorized this"; replacing that sentinel-based
-// wire contract is Orbit #360, out of scope here).
+// user id: the owner's own id, or "" for every other permitted role. This is
+// the collab-service wire shape: collab's own CheckPermission still reads an
+// empty id as "the gateway already authorized this" (Orbit #366 tracks that
+// sentinel's remaining problems; its proto contract wasn't touched here).
+// scripts-service dispatch uses RequireProjectRole instead — Orbit #360
+// replaced its identical sentinel with an explicit, always-real actor id
+// plus a typed resolved-role field, so use that for any new scripts call.
 //
 // A non-nil error is always an *apierror.Error ready to return straight from
 // a handler: CodePermissionDenied/403 for a real denial, or whatever
@@ -205,4 +203,34 @@ func RequireProjectAccess(
 		return userID, nil
 	}
 	return "", nil
+}
+
+// RequireProjectRole resolves userID's role on projectID and checks it
+// against action via Can, exactly like RequireProjectAccess — but returns
+// the resolved ProjectRole itself rather than collapsing it into the
+// owner-id-or-empty-sentinel scripts-service used to require. Orbit #360:
+// scripts-service now always receives the real, unmodified userID plus this
+// role (mapped to its own scripts.CallerRole), never an empty id standing in
+// for "already authorized". Use this for any new or updated scripts-service
+// call site; RequireProjectAccess remains for collab-service dispatch.
+//
+// Error handling matches RequireProjectAccess: a non-nil error is always a
+// ready-to-return *apierror.Error, never a bare 403 for a dependency
+// failure.
+func RequireProjectRole(
+	ctx context.Context,
+	userID, projectID string,
+	action ProjectAction,
+	sc scriptspb.ScriptsServiceClient,
+	cc collab.CollaborationServiceClient,
+	wc workspacepb.WorkspaceServiceClient,
+) (ProjectRole, error) {
+	role, err := ResolveProjectRole(ctx, userID, projectID, sc, cc, wc)
+	if err != nil {
+		return RoleNone, apierror.FromError(err)
+	}
+	if !Can(role, action) {
+		return RoleNone, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+	}
+	return role, nil
 }

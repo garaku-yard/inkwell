@@ -19,52 +19,53 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ScriptsService_CreateProject_FullMethodName        = "/scripts.ScriptsService/CreateProject"
-	ScriptsService_GetProject_FullMethodName           = "/scripts.ScriptsService/GetProject"
-	ScriptsService_UpdateProject_FullMethodName        = "/scripts.ScriptsService/UpdateProject"
-	ScriptsService_ToggleProjectStar_FullMethodName    = "/scripts.ScriptsService/ToggleProjectStar"
-	ScriptsService_DeleteProject_FullMethodName        = "/scripts.ScriptsService/DeleteProject"
-	ScriptsService_GetUserProjects_FullMethodName      = "/scripts.ScriptsService/GetUserProjects"
-	ScriptsService_GetOrgProjects_FullMethodName       = "/scripts.ScriptsService/GetOrgProjects"
-	ScriptsService_CreateOutlineUnit_FullMethodName    = "/scripts.ScriptsService/CreateOutlineUnit"
-	ScriptsService_GetProjectOutline_FullMethodName    = "/scripts.ScriptsService/GetProjectOutline"
-	ScriptsService_UpdateOutlineUnit_FullMethodName    = "/scripts.ScriptsService/UpdateOutlineUnit"
-	ScriptsService_DeleteOutlineUnit_FullMethodName    = "/scripts.ScriptsService/DeleteOutlineUnit"
-	ScriptsService_CreateScene_FullMethodName          = "/scripts.ScriptsService/CreateScene"
-	ScriptsService_GetProjectScenes_FullMethodName     = "/scripts.ScriptsService/GetProjectScenes"
-	ScriptsService_UpdateScene_FullMethodName          = "/scripts.ScriptsService/UpdateScene"
-	ScriptsService_DeleteScene_FullMethodName          = "/scripts.ScriptsService/DeleteScene"
-	ScriptsService_CreateCharacter_FullMethodName      = "/scripts.ScriptsService/CreateCharacter"
-	ScriptsService_GetProjectCharacters_FullMethodName = "/scripts.ScriptsService/GetProjectCharacters"
-	ScriptsService_UpdateCharacter_FullMethodName      = "/scripts.ScriptsService/UpdateCharacter"
-	ScriptsService_CreateLocation_FullMethodName       = "/scripts.ScriptsService/CreateLocation"
-	ScriptsService_GetProjectLocations_FullMethodName  = "/scripts.ScriptsService/GetProjectLocations"
-	ScriptsService_CreateElement_FullMethodName        = "/scripts.ScriptsService/CreateElement"
-	ScriptsService_UpdateElement_FullMethodName        = "/scripts.ScriptsService/UpdateElement"
-	ScriptsService_GetSceneElements_FullMethodName     = "/scripts.ScriptsService/GetSceneElements"
-	ScriptsService_DeleteScriptElement_FullMethodName  = "/scripts.ScriptsService/DeleteScriptElement"
-	ScriptsService_BatchCreateElements_FullMethodName  = "/scripts.ScriptsService/BatchCreateElements"
-	ScriptsService_CreateBeat_FullMethodName           = "/scripts.ScriptsService/CreateBeat"
-	ScriptsService_GetBeat_FullMethodName              = "/scripts.ScriptsService/GetBeat"
-	ScriptsService_GetProjectBeatBoard_FullMethodName  = "/scripts.ScriptsService/GetProjectBeatBoard"
-	ScriptsService_UpdateBeat_FullMethodName           = "/scripts.ScriptsService/UpdateBeat"
-	ScriptsService_DeleteBeat_FullMethodName           = "/scripts.ScriptsService/DeleteBeat"
-	ScriptsService_CreateConnection_FullMethodName     = "/scripts.ScriptsService/CreateConnection"
-	ScriptsService_DeleteConnection_FullMethodName     = "/scripts.ScriptsService/DeleteConnection"
-	ScriptsService_CreateLane_FullMethodName           = "/scripts.ScriptsService/CreateLane"
-	ScriptsService_GetProjectLanes_FullMethodName      = "/scripts.ScriptsService/GetProjectLanes"
-	ScriptsService_UpdateLane_FullMethodName           = "/scripts.ScriptsService/UpdateLane"
-	ScriptsService_UpdateLaneOrder_FullMethodName      = "/scripts.ScriptsService/UpdateLaneOrder"
-	ScriptsService_DeleteLane_FullMethodName           = "/scripts.ScriptsService/DeleteLane"
-	ScriptsService_CreateOutlineItem_FullMethodName    = "/scripts.ScriptsService/CreateOutlineItem"
-	ScriptsService_UpdateOutlineItem_FullMethodName    = "/scripts.ScriptsService/UpdateOutlineItem"
-	ScriptsService_DeleteOutlineItem_FullMethodName    = "/scripts.ScriptsService/DeleteOutlineItem"
-	ScriptsService_CreateDrawing_FullMethodName        = "/scripts.ScriptsService/CreateDrawing"
-	ScriptsService_UpdateDrawing_FullMethodName        = "/scripts.ScriptsService/UpdateDrawing"
-	ScriptsService_DeleteDrawing_FullMethodName        = "/scripts.ScriptsService/DeleteDrawing"
-	ScriptsService_GetResourceProject_FullMethodName   = "/scripts.ScriptsService/GetResourceProject"
-	ScriptsService_SyncProject_FullMethodName          = "/scripts.ScriptsService/SyncProject"
-	ScriptsService_SyncVault_FullMethodName            = "/scripts.ScriptsService/SyncVault"
+	ScriptsService_CreateProject_FullMethodName            = "/scripts.ScriptsService/CreateProject"
+	ScriptsService_GetProject_FullMethodName               = "/scripts.ScriptsService/GetProject"
+	ScriptsService_UpdateProject_FullMethodName            = "/scripts.ScriptsService/UpdateProject"
+	ScriptsService_ToggleProjectStar_FullMethodName        = "/scripts.ScriptsService/ToggleProjectStar"
+	ScriptsService_DeleteProject_FullMethodName            = "/scripts.ScriptsService/DeleteProject"
+	ScriptsService_GetUserProjects_FullMethodName          = "/scripts.ScriptsService/GetUserProjects"
+	ScriptsService_GetOrgProjects_FullMethodName           = "/scripts.ScriptsService/GetOrgProjects"
+	ScriptsService_CreateOutlineUnit_FullMethodName        = "/scripts.ScriptsService/CreateOutlineUnit"
+	ScriptsService_GetProjectOutline_FullMethodName        = "/scripts.ScriptsService/GetProjectOutline"
+	ScriptsService_UpdateOutlineUnit_FullMethodName        = "/scripts.ScriptsService/UpdateOutlineUnit"
+	ScriptsService_DeleteOutlineUnit_FullMethodName        = "/scripts.ScriptsService/DeleteOutlineUnit"
+	ScriptsService_CreateScene_FullMethodName              = "/scripts.ScriptsService/CreateScene"
+	ScriptsService_GetProjectScenes_FullMethodName         = "/scripts.ScriptsService/GetProjectScenes"
+	ScriptsService_UpdateScene_FullMethodName              = "/scripts.ScriptsService/UpdateScene"
+	ScriptsService_DeleteScene_FullMethodName              = "/scripts.ScriptsService/DeleteScene"
+	ScriptsService_CreateCharacter_FullMethodName          = "/scripts.ScriptsService/CreateCharacter"
+	ScriptsService_GetProjectCharacters_FullMethodName     = "/scripts.ScriptsService/GetProjectCharacters"
+	ScriptsService_UpdateCharacter_FullMethodName          = "/scripts.ScriptsService/UpdateCharacter"
+	ScriptsService_CreateLocation_FullMethodName           = "/scripts.ScriptsService/CreateLocation"
+	ScriptsService_GetProjectLocations_FullMethodName      = "/scripts.ScriptsService/GetProjectLocations"
+	ScriptsService_CreateElement_FullMethodName            = "/scripts.ScriptsService/CreateElement"
+	ScriptsService_UpdateElement_FullMethodName            = "/scripts.ScriptsService/UpdateElement"
+	ScriptsService_GetSceneElements_FullMethodName         = "/scripts.ScriptsService/GetSceneElements"
+	ScriptsService_DeleteScriptElement_FullMethodName      = "/scripts.ScriptsService/DeleteScriptElement"
+	ScriptsService_BatchCreateElements_FullMethodName      = "/scripts.ScriptsService/BatchCreateElements"
+	ScriptsService_CreateBeat_FullMethodName               = "/scripts.ScriptsService/CreateBeat"
+	ScriptsService_GetBeat_FullMethodName                  = "/scripts.ScriptsService/GetBeat"
+	ScriptsService_GetProjectBeatBoard_FullMethodName      = "/scripts.ScriptsService/GetProjectBeatBoard"
+	ScriptsService_UpdateBeat_FullMethodName               = "/scripts.ScriptsService/UpdateBeat"
+	ScriptsService_DeleteBeat_FullMethodName               = "/scripts.ScriptsService/DeleteBeat"
+	ScriptsService_CreateConnection_FullMethodName         = "/scripts.ScriptsService/CreateConnection"
+	ScriptsService_DeleteConnection_FullMethodName         = "/scripts.ScriptsService/DeleteConnection"
+	ScriptsService_CreateLane_FullMethodName               = "/scripts.ScriptsService/CreateLane"
+	ScriptsService_GetProjectLanes_FullMethodName          = "/scripts.ScriptsService/GetProjectLanes"
+	ScriptsService_UpdateLane_FullMethodName               = "/scripts.ScriptsService/UpdateLane"
+	ScriptsService_UpdateLaneOrder_FullMethodName          = "/scripts.ScriptsService/UpdateLaneOrder"
+	ScriptsService_DeleteLane_FullMethodName               = "/scripts.ScriptsService/DeleteLane"
+	ScriptsService_CreateOutlineItem_FullMethodName        = "/scripts.ScriptsService/CreateOutlineItem"
+	ScriptsService_UpdateOutlineItem_FullMethodName        = "/scripts.ScriptsService/UpdateOutlineItem"
+	ScriptsService_DeleteOutlineItem_FullMethodName        = "/scripts.ScriptsService/DeleteOutlineItem"
+	ScriptsService_CreateDrawing_FullMethodName            = "/scripts.ScriptsService/CreateDrawing"
+	ScriptsService_UpdateDrawing_FullMethodName            = "/scripts.ScriptsService/UpdateDrawing"
+	ScriptsService_DeleteDrawing_FullMethodName            = "/scripts.ScriptsService/DeleteDrawing"
+	ScriptsService_GetResourceProject_FullMethodName       = "/scripts.ScriptsService/GetResourceProject"
+	ScriptsService_GetProjectAccessMetadata_FullMethodName = "/scripts.ScriptsService/GetProjectAccessMetadata"
+	ScriptsService_SyncProject_FullMethodName              = "/scripts.ScriptsService/SyncProject"
+	ScriptsService_SyncVault_FullMethodName                = "/scripts.ScriptsService/SyncVault"
 )
 
 // ScriptsServiceClient is the client API for ScriptsService service.
@@ -129,6 +130,8 @@ type ScriptsServiceClient interface {
 	// mutations against the resource's real project. It is an internal lookup —
 	// no ownership check — so the gateway must authorize the returned project.
 	GetResourceProject(ctx context.Context, in *GetResourceProjectRequest, opts ...grpc.CallOption) (*GetResourceProjectResponse, error)
+	// Narrow ownership metadata for gateway authorization and quota decisions.
+	GetProjectAccessMetadata(ctx context.Context, in *GetProjectAccessMetadataRequest, opts ...grpc.CallOption) (*GetProjectAccessMetadataResponse, error)
 	// SyncProject reconciles one project bidirectionally: it applies the caller's
 	// pushed changes (upsert-by-id, server-stamped updated_at, last-sync-wins) and
 	// returns every row changed since the caller's cursor. See SYNC_DESIGN.md.
@@ -588,6 +591,16 @@ func (c *scriptsServiceClient) GetResourceProject(ctx context.Context, in *GetRe
 	return out, nil
 }
 
+func (c *scriptsServiceClient) GetProjectAccessMetadata(ctx context.Context, in *GetProjectAccessMetadataRequest, opts ...grpc.CallOption) (*GetProjectAccessMetadataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetProjectAccessMetadataResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_GetProjectAccessMetadata_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *scriptsServiceClient) SyncProject(ctx context.Context, in *SyncProjectRequest, opts ...grpc.CallOption) (*SyncProjectResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SyncProjectResponse)
@@ -670,6 +683,8 @@ type ScriptsServiceServer interface {
 	// mutations against the resource's real project. It is an internal lookup —
 	// no ownership check — so the gateway must authorize the returned project.
 	GetResourceProject(context.Context, *GetResourceProjectRequest) (*GetResourceProjectResponse, error)
+	// Narrow ownership metadata for gateway authorization and quota decisions.
+	GetProjectAccessMetadata(context.Context, *GetProjectAccessMetadataRequest) (*GetProjectAccessMetadataResponse, error)
 	// SyncProject reconciles one project bidirectionally: it applies the caller's
 	// pushed changes (upsert-by-id, server-stamped updated_at, last-sync-wins) and
 	// returns every row changed since the caller's cursor. See SYNC_DESIGN.md.
@@ -820,6 +835,9 @@ func (UnimplementedScriptsServiceServer) DeleteDrawing(context.Context, *DeleteD
 }
 func (UnimplementedScriptsServiceServer) GetResourceProject(context.Context, *GetResourceProjectRequest) (*GetResourceProjectResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetResourceProject not implemented")
+}
+func (UnimplementedScriptsServiceServer) GetProjectAccessMetadata(context.Context, *GetProjectAccessMetadataRequest) (*GetProjectAccessMetadataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetProjectAccessMetadata not implemented")
 }
 func (UnimplementedScriptsServiceServer) SyncProject(context.Context, *SyncProjectRequest) (*SyncProjectResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SyncProject not implemented")
@@ -1640,6 +1658,24 @@ func _ScriptsService_GetResourceProject_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ScriptsService_GetProjectAccessMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProjectAccessMetadataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).GetProjectAccessMetadata(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_GetProjectAccessMetadata_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).GetProjectAccessMetadata(ctx, req.(*GetProjectAccessMetadataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ScriptsService_SyncProject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SyncProjectRequest)
 	if err := dec(in); err != nil {
@@ -1858,6 +1894,10 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetResourceProject",
 			Handler:    _ScriptsService_GetResourceProject_Handler,
+		},
+		{
+			MethodName: "GetProjectAccessMetadata",
+			Handler:    _ScriptsService_GetProjectAccessMetadata_Handler,
 		},
 		{
 			MethodName: "SyncProject",

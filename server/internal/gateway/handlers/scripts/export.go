@@ -61,7 +61,7 @@ func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionExport, h.scriptsClient, h.collabClient, h.workspaceClient)
+	role, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionExport, h.scriptsClient, h.collabClient, h.workspaceClient)
 	if authErr != nil {
 		apierror.Write(w, authErr)
 		return
@@ -82,13 +82,17 @@ func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer wg.Done()
 		projResp, projErr = h.scriptsClient.GetProject(ctx, &scriptspb.GetProjectRequest{
-			ProjectId: projectID, UserId: resolvedID,
+			ProjectId:  projectID,
+			UserId:     userID,
+			CallerRole: callerRoleToProto(role),
 		})
 	}()
 	go func() {
 		defer wg.Done()
 		scenesResp, scenesErr = h.scriptsClient.GetProjectScenes(ctx, &scriptspb.GetProjectScenesRequest{
-			ProjectId: projectID, UserId: resolvedID,
+			ProjectId:  projectID,
+			UserId:     userID,
+			CallerRole: callerRoleToProto(role),
 		})
 	}()
 	wg.Wait()
@@ -108,7 +112,7 @@ func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Fan out element fetches per scene in parallel.
-	elementsByScene := fetchSceneElements(ctx, h.scriptsClient, scenes, resolvedID)
+	elementsByScene := fetchSceneElements(ctx, h.scriptsClient, scenes, userID, role)
 
 	project := export.FromProto(projResp.GetProject(), scenes, elementsByScene, "")
 	body, err := exporter.Render(project)
@@ -129,7 +133,7 @@ func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 // and returns a map keyed by scene ID. Sort order is preserved by line_number
 // within each scene. Failed fetches for individual scenes are logged and the
 // scene is emitted with an empty element list rather than aborting the export.
-func fetchSceneElements(ctx context.Context, client scriptspb.ScriptsServiceClient, scenes []*scriptspb.Scene, userID string) map[string][]*scriptspb.ProjectElement {
+func fetchSceneElements(ctx context.Context, client scriptspb.ScriptsServiceClient, scenes []*scriptspb.Scene, userID string, role handlers.ProjectRole) map[string][]*scriptspb.ProjectElement {
 	out := make(map[string][]*scriptspb.ProjectElement, len(scenes))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -139,8 +143,9 @@ func fetchSceneElements(ctx context.Context, client scriptspb.ScriptsServiceClie
 		go func(sceneID string) {
 			defer wg.Done()
 			resp, err := client.GetSceneElements(ctx, &scriptspb.GetSceneElementsRequest{
-				SceneId: sceneID,
-				UserId:  userID,
+				SceneId:    sceneID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			})
 			if err != nil {
 				slog.Warn("export: failed to fetch scene elements", "scene_id", sceneID, "error", err)

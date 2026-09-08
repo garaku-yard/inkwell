@@ -146,6 +146,7 @@ func (h *ScriptsHandler) ImportFDX(w http.ResponseWriter, r *http.Request) {
 			sceneResp, err := h.scriptsClient.CreateScene(r.Context(), &scriptspb.CreateSceneRequest{
 				ProjectId:    projectID,
 				UserId:       userID,
+				CallerRole:   scriptspb.CallerRole_CALLER_ROLE_OWNER,
 				SceneHeading: para.Text,
 				Content:      "",
 				OrderIndex:   0,

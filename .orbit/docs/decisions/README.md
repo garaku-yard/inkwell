@@ -43,6 +43,7 @@ never been written up as ADRs.
 | [0028](./0028-polyform-shield-supersedes-noncommercial.md) | PolyForm Shield 1.0.0 supersedes PolyForm Noncommercial | Accepted |
 | [0029](./0029-gateway-application-gateway-service-authorities.md) | Gateway as application gateway/BFF; one authority per fact | Accepted |
 | [0030](./0030-role-aware-project-authorization-policy.md) | Role-aware project authorization: typed policy over bypass sentinel | Accepted |
+| [0031](./0031-explicit-scripts-access-assertion.md) | Explicit scripts access assertions replace missing identity | Accepted |
 
 **Adding one:** next number, same five headings. If it reverses an earlier
 decision, set the old one's Status to `Superseded by NNNN` (that one edit to the

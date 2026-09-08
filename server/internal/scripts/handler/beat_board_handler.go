@@ -42,15 +42,17 @@ func (h *BeatBoardHandler) CreateBeat(ctx context.Context, req *scriptspb.Create
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	beat := &domain.Beat{
 		Title:        req.Title,
@@ -68,7 +70,7 @@ func (h *BeatBoardHandler) CreateBeat(ctx context.Context, req *scriptspb.Create
 		ImageURL:     req.ImageUrl,
 	}
 
-	created, err := h.service.CreateBeat(ctx, projectID, userID, beat)
+	created, err := h.service.CreateBeat(ctx, projectID, userID, callerRole, beat)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -90,17 +92,19 @@ func (h *BeatBoardHandler) GetBeat(ctx context.Context, req *scriptspb.GetBeatRe
 		return nil, status.Errorf(codes.InvalidArgument, "invalid beat_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
-	beat, err := h.service.GetBeat(ctx, beatID, userID)
+	beat, err := h.service.GetBeat(ctx, beatID, userID, callerRole)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -123,17 +127,19 @@ func (h *BeatBoardHandler) GetProjectBeatBoard(ctx context.Context, req *scripts
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
-	beatBoard, err := h.service.GetProjectBeatBoard(ctx, projectID, userID)
+	beatBoard, err := h.service.GetProjectBeatBoard(ctx, projectID, userID, callerRole)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -156,15 +162,17 @@ func (h *BeatBoardHandler) UpdateBeat(ctx context.Context, req *scriptspb.Update
 		return nil, status.Errorf(codes.InvalidArgument, "invalid beat_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	updates := &domain.Beat{}
 	if req.Title != nil {
@@ -207,7 +215,7 @@ func (h *BeatBoardHandler) UpdateBeat(ctx context.Context, req *scriptspb.Update
 		updates.ImageURL = req.ImageUrl
 	}
 
-	updated, err := h.service.UpdateBeat(ctx, beatID, userID, updates)
+	updated, err := h.service.UpdateBeat(ctx, beatID, userID, callerRole, updates)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -229,17 +237,19 @@ func (h *BeatBoardHandler) DeleteBeat(ctx context.Context, req *scriptspb.Delete
 		return nil, status.Errorf(codes.InvalidArgument, "invalid beat_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
-	if err := h.service.DeleteBeat(ctx, beatID, userID); err != nil {
+	if err := h.service.DeleteBeat(ctx, beatID, userID, callerRole); err != nil {
 		return nil, handleServiceError(err)
 	}
 
@@ -259,15 +269,17 @@ func (h *BeatBoardHandler) CreateConnection(ctx context.Context, req *scriptspb.
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	fromID, err := uuid.Parse(req.FromBeatId)
 	if err != nil {
@@ -286,7 +298,7 @@ func (h *BeatBoardHandler) CreateConnection(ctx context.Context, req *scriptspb.
 		ToSide:   req.ToSide,
 	}
 
-	created, err := h.service.CreateConnection(ctx, projectID, userID, conn)
+	created, err := h.service.CreateConnection(ctx, projectID, userID, callerRole, conn)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -307,17 +319,19 @@ func (h *BeatBoardHandler) DeleteConnection(ctx context.Context, req *scriptspb.
 		return nil, status.Errorf(codes.InvalidArgument, "invalid connection_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
-	if err := h.service.DeleteConnection(ctx, connID, userID); err != nil {
+	if err := h.service.DeleteConnection(ctx, connID, userID, callerRole); err != nil {
 		return nil, handleServiceError(err)
 	}
 
@@ -336,15 +350,17 @@ func (h *BeatBoardHandler) CreateLane(ctx context.Context, req *scriptspb.Create
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	lane := &domain.Lane{
 		Name:  req.Name,
@@ -352,7 +368,7 @@ func (h *BeatBoardHandler) CreateLane(ctx context.Context, req *scriptspb.Create
 		Order: req.Order,
 	}
 
-	created, err := h.service.CreateLane(ctx, projectID, userID, lane)
+	created, err := h.service.CreateLane(ctx, projectID, userID, callerRole, lane)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -373,17 +389,19 @@ func (h *BeatBoardHandler) GetProjectLanes(ctx context.Context, req *scriptspb.G
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
-	lanes, err := h.service.GetProjectLanes(ctx, projectID, userID)
+	lanes, err := h.service.GetProjectLanes(ctx, projectID, userID, callerRole)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -410,15 +428,17 @@ func (h *BeatBoardHandler) UpdateLane(ctx context.Context, req *scriptspb.Update
 		return nil, status.Errorf(codes.InvalidArgument, "invalid lane_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	updates := &domain.Lane{}
 	if req.Name != nil {
@@ -431,7 +451,7 @@ func (h *BeatBoardHandler) UpdateLane(ctx context.Context, req *scriptspb.Update
 		updates.Order = *req.Order
 	}
 
-	updated, err := h.service.UpdateLane(ctx, laneID, userID, updates)
+	updated, err := h.service.UpdateLane(ctx, laneID, userID, callerRole, updates)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -453,15 +473,17 @@ func (h *BeatBoardHandler) UpdateLaneOrder(ctx context.Context, req *scriptspb.U
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	laneIDs := make([]uuid.UUID, len(req.LaneIds))
 	for i, idStr := range req.LaneIds {
@@ -472,7 +494,7 @@ func (h *BeatBoardHandler) UpdateLaneOrder(ctx context.Context, req *scriptspb.U
 		laneIDs[i] = id
 	}
 
-	if err := h.service.UpdateLaneOrder(ctx, projectID, userID, laneIDs); err != nil {
+	if err := h.service.UpdateLaneOrder(ctx, projectID, userID, callerRole, laneIDs); err != nil {
 		return nil, handleServiceError(err)
 	}
 
@@ -490,17 +512,19 @@ func (h *BeatBoardHandler) DeleteLane(ctx context.Context, req *scriptspb.Delete
 		return nil, status.Errorf(codes.InvalidArgument, "invalid lane_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
-	if err := h.service.DeleteLane(ctx, laneID, userID); err != nil {
+	if err := h.service.DeleteLane(ctx, laneID, userID, callerRole); err != nil {
 		return nil, handleServiceError(err)
 	}
 
@@ -520,15 +544,17 @@ func (h *BeatBoardHandler) CreateOutlineItem(ctx context.Context, req *scriptspb
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	beatID, err := uuid.Parse(req.BeatId)
 	if err != nil {
@@ -548,7 +574,7 @@ func (h *BeatBoardHandler) CreateOutlineItem(ctx context.Context, req *scriptspb
 		Width:            req.Width,
 	}
 
-	created, err := h.service.CreateOutlineItem(ctx, projectID, userID, item)
+	created, err := h.service.CreateOutlineItem(ctx, projectID, userID, callerRole, item)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -570,15 +596,17 @@ func (h *BeatBoardHandler) UpdateOutlineItem(ctx context.Context, req *scriptspb
 		return nil, status.Errorf(codes.InvalidArgument, "invalid outline_item_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	updates := &domain.OutlineItem{}
 	if req.BeatId != nil {
@@ -605,7 +633,7 @@ func (h *BeatBoardHandler) UpdateOutlineItem(ctx context.Context, req *scriptspb
 		updates.Width = *req.Width
 	}
 
-	updated, err := h.service.UpdateOutlineItem(ctx, itemID, userID, updates)
+	updated, err := h.service.UpdateOutlineItem(ctx, itemID, userID, callerRole, updates)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -627,17 +655,19 @@ func (h *BeatBoardHandler) DeleteOutlineItem(ctx context.Context, req *scriptspb
 		return nil, status.Errorf(codes.InvalidArgument, "invalid outline_item_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
-	if err := h.service.DeleteOutlineItem(ctx, itemID, userID); err != nil {
+	if err := h.service.DeleteOutlineItem(ctx, itemID, userID, callerRole); err != nil {
 		return nil, handleServiceError(err)
 	}
 
@@ -780,18 +810,20 @@ func (h *BeatBoardHandler) CreateDrawing(ctx context.Context, req *scriptspb.Cre
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	// userID is optional — an empty user_id is the collaborator bypass sentinel
-	// (the gateway confirms project access before forwarding the call).
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	d := &domain.Drawing{Kind: req.Kind, Data: req.Data, Order: req.Order}
-	created, err := h.service.CreateDrawing(ctx, projectID, userID, d)
+	created, err := h.service.CreateDrawing(ctx, projectID, userID, callerRole, d)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -811,16 +843,20 @@ func (h *BeatBoardHandler) UpdateDrawing(ctx context.Context, req *scriptspb.Upd
 		return nil, status.Errorf(codes.InvalidArgument, "invalid drawing_id: %v", err)
 	}
 
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	patch := &domain.DrawingPatch{Kind: req.Kind, Data: req.Data, Order: req.Order}
-	updated, err := h.service.UpdateDrawing(ctx, drawingID, userID, patch)
+	updated, err := h.service.UpdateDrawing(ctx, drawingID, userID, callerRole, patch)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -839,15 +875,19 @@ func (h *BeatBoardHandler) DeleteDrawing(ctx context.Context, req *scriptspb.Del
 		return nil, status.Errorf(codes.InvalidArgument, "invalid drawing_id: %v", err)
 	}
 
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
-	if err := h.service.DeleteDrawing(ctx, drawingID, userID); err != nil {
+	if err := h.service.DeleteDrawing(ctx, drawingID, userID, callerRole); err != nil {
 		return nil, handleServiceError(err)
 	}
 

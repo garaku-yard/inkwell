@@ -35,6 +35,10 @@ func (s roleScriptsStub) GetProject(_ context.Context, in *scriptspb.GetProjectR
 	return nil, status.Error(codes.PermissionDenied, "not owner")
 }
 
+func (s roleScriptsStub) GetProjectAccessMetadata(context.Context, *scriptspb.GetProjectAccessMetadataRequest, ...grpc.CallOption) (*scriptspb.GetProjectAccessMetadataResponse, error) {
+	return &scriptspb.GetProjectAccessMetadataResponse{OwnerId: s.ownerUserID}, nil
+}
+
 // roleCollabStub reports one active collaborator per userID→role, and answers
 // GetResourceProject as a no-op (unused by HandleWS).
 type roleCollabStub struct {
