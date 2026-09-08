@@ -69,9 +69,11 @@ An optional feature flag on the bound storage impl: `auth`, `collaboration`,
 
 ### Gateway
 The chi HTTP router (`:8080`) that authenticates requests (JWT → identity),
-enforces rate limits (Redis), and proxies to the gRPC services. **Not a
-service** — a thin HTTP↔gRPC translation layer. See
-[decisions/0007](./decisions/0007-gateway-thin-proxy-db-per-service.md).
+enforces rate limits (Redis), resolves project authorization, composes
+responses across services, and proxies to the gRPC services. **Not a
+service** — the public application gateway (BFF), not a passthrough. See
+[decisions/0007](./decisions/0007-gateway-thin-proxy-db-per-service.md),
+[0029](./decisions/0029-gateway-application-gateway-service-authorities.md).
 
 ### Service
 One of the backend Go microservices (identity, scripts, collab, billing,

@@ -85,15 +85,21 @@ Go microservices over gRPC behind a chi HTTP gateway.
 
 ### Gateway (`server/internal/gateway/`)
 
-**Not a service** — a thin HTTP↔gRPC proxy. It authenticates (JWT → identity +
-Redis blocklist), enforces per-user + per-route rate limits, sets CSP/security
-headers, and routes to services through a `grpcclient` registry with
-`sony/gobreaker` circuit breakers. Handlers use the `Endpoint[Req,Resp]` +
-`Wrap()` helper to collapse method-guard/auth/decode/call/error boilerplate.
-Sub-resource mutations (beats/lanes/connections/outline items/elements) are
-authorized against the resource's **real** owning project
-(`GetResourceProject` → `ResolveProjectAccess`), never a client-supplied id.
-[decisions/0007](./decisions/0007-gateway-thin-proxy-db-per-service.md).
+**Not a service** — the public application gateway (BFF): HTTP/WebSocket
+transport, request orchestration across services, coarse authorization policy,
+response composition, and the decision of how to degrade when a dependency is
+down. It authenticates (JWT → identity + Redis blocklist), enforces per-user +
+per-route rate limits, sets CSP/security headers, and routes to services
+through a `grpcclient` registry with `sony/gobreaker` circuit breakers.
+Handlers use the `Endpoint[Req,Resp]` + `Wrap()` helper to collapse
+method-guard/auth/decode/call/error boilerplate. Sub-resource mutations
+(beats/lanes/connections/outline items/elements) are authorized against the
+resource's **real** owning project (`GetResourceProject` →
+`ResolveProjectAccess`), never a client-supplied id. It holds no *domain*
+logic — it doesn't decide what a valid scene or outline item looks like — but
+it is not a passthrough either.
+[decisions/0007](./decisions/0007-gateway-thin-proxy-db-per-service.md),
+[0029](./decisions/0029-gateway-application-gateway-service-authorities.md).
 
 ### Services
 
@@ -101,7 +107,11 @@ Each service is identical in shape — `domain/` (structs + error sentinels),
 `repository/` (interface + `postgres_repository.go`), `service/` (business logic
 on the repo interface + `outbox.Store` + `events.Publisher` + `quota.Client`),
 `handler/` (gRPC ↔ domain), `config/`, `migrations/`. Each **owns its own
-database**; cross-service reads go through gRPC.
+database**; cross-service reads go through gRPC. Ownership is also the
+*authority* for the fact, not just the storage: nothing else may hold a
+conflicting copy, and a service that projects another's fact must document
+the projection's source, event, consistency model and reconciliation path
+([decisions/0029](./decisions/0029-gateway-application-gateway-service-authorities.md)).
 
 | Service | gRPC | Owns | Kafka |
 |---|---|---|---|
