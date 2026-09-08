@@ -22,13 +22,12 @@ import (
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
 
-// scriptsStub admits every caller as the project owner so ResolveProjectAccess
-// returns on its fast path (the access check itself is exercised by the REST
-// handler tests; here we only need the WS upgrade to proceed).
+// scriptsStub supplies project metadata; the test server grants its fixture
+// users explicit collaborator roles below.
 type scriptsStub struct{ scriptspb.ScriptsServiceClient }
 
-func (scriptsStub) GetProject(context.Context, *scriptspb.GetProjectRequest, ...grpc.CallOption) (*scriptspb.GetProjectResponse, error) {
-	return &scriptspb.GetProjectResponse{}, nil
+func (scriptsStub) GetProjectAccessMetadata(context.Context, *scriptspb.GetProjectAccessMetadataRequest, ...grpc.CallOption) (*scriptspb.GetProjectAccessMetadataResponse, error) {
+	return &scriptspb.GetProjectAccessMetadataResponse{OwnerId: "user-a"}, nil
 }
 
 // identityStub names each user after their id so peers are distinguishable.
@@ -48,7 +47,14 @@ func presenceTestServer(t *testing.T) *nethttptest.Server {
 // Cluster, so a test can stand up two instances sharing one Redis.
 func clusterTestServer(t *testing.T, cluster *Cluster) *nethttptest.Server {
 	t.Helper()
-	h := NewHandler(&grpcclient.Registry{Scripts: scriptsStub{}, Identity: identityStub{}}, nil, cluster)
+	h := NewHandler(&grpcclient.Registry{
+		Scripts:  scriptsStub{},
+		Identity: identityStub{},
+		Collab: roleCollabStub{roles: map[string]string{
+			"user-a": "editor",
+			"user-b": "editor",
+		}},
+	}, nil, cluster)
 	r := chi.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

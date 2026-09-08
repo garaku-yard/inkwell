@@ -16,9 +16,8 @@ import (
 )
 
 // fakeScripts exercises the two calls ResolveProjectRole makes to scripts:
-// the owner fast path (a real userID) and the org-metadata read (the empty
-// userID bypass, a read-only lookup — not a grant). When err is set every
-// call fails with it, for dependency-failure tests.
+// the owner fast path (a real userID) and the narrow org-metadata lookup.
+// When err is set every call fails with it, for dependency-failure tests.
 type fakeScripts struct {
 	scriptspb.ScriptsServiceClient
 	ownerUserID string
@@ -30,13 +29,17 @@ func (f *fakeScripts) GetProject(_ context.Context, in *scriptspb.GetProjectRequ
 	if f.err != nil {
 		return nil, f.err
 	}
-	if in.UserId == "" {
-		return &scriptspb.GetProjectResponse{Project: &scriptspb.Project{OrgId: f.orgID}}, nil
-	}
 	if in.UserId == f.ownerUserID {
 		return &scriptspb.GetProjectResponse{Project: &scriptspb.Project{OwnerId: f.ownerUserID}}, nil
 	}
 	return nil, status.Error(codes.PermissionDenied, "not owner")
+}
+
+func (f *fakeScripts) GetProjectAccessMetadata(_ context.Context, _ *scriptspb.GetProjectAccessMetadataRequest, _ ...grpc.CallOption) (*scriptspb.GetProjectAccessMetadataResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &scriptspb.GetProjectAccessMetadataResponse{OrgId: f.orgID, OwnerId: f.ownerUserID}, nil
 }
 
 // fakeWorkspace reports a single org member (memberUserID, memberRole) for orgID.

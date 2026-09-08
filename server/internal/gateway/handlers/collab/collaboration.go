@@ -179,23 +179,20 @@ func (h *CollaborationHandler) checkCollaboratorQuota(ctx context.Context, proje
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	// Resolve the project to find its real owner, via the same trusted
-	// nil-user bypass ResolveProjectRole's org-metadata read uses — a
-	// read-only lookup, not a grant. The caller here has already passed
+	// Resolve the project to find its real owner through the narrow internal
+	// access-metadata lookup introduced by #360. It returns ownership fields,
+	// not project content, and is not itself a grant. The caller already passed
 	// ActionManageCollaborators (owner or org admin); using their own id for
 	// this second, unrelated lookup would fail it for every org admin (only
 	// the literal owner passes scripts' ownership check) and silently skip
 	// the quota check entirely via the fail-open path below — exactly the
-	// bypass this comment used to invite. Never trust a client-supplied
+	// bypass this code used to permit. Never trust a client-supplied
 	// owner id either way; read it from the project record.
-	projResp, err := h.scriptsClient.GetProject(ctx, &scripts.GetProjectRequest{
-		ProjectId: projectID,
-		UserId:    "",
-	})
-	if err != nil || projResp.GetProject() == nil {
+	projResp, err := h.scriptsClient.GetProjectAccessMetadata(ctx, &scripts.GetProjectAccessMetadataRequest{ProjectId: projectID})
+	if err != nil {
 		return nil // fail open
 	}
-	ownerID := projResp.GetProject().GetOwnerId()
+	ownerID := projResp.GetOwnerId()
 	if ownerID == "" {
 		return nil // fail open
 	}

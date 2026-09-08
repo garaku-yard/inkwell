@@ -13,31 +13,31 @@ import (
 // BeatBoardService defines business logic for beat board operations
 type BeatBoardService interface {
 	// Beat operations
-	CreateBeat(ctx context.Context, projectID, userID uuid.UUID, beat *domain.Beat) (*domain.Beat, error)
-	GetBeat(ctx context.Context, beatID, userID uuid.UUID) (*domain.Beat, error)
-	GetProjectBeatBoard(ctx context.Context, projectID, userID uuid.UUID) (*domain.BeatBoardData, error)
-	UpdateBeat(ctx context.Context, beatID, userID uuid.UUID, updates *domain.Beat) (*domain.Beat, error)
-	DeleteBeat(ctx context.Context, beatID, userID uuid.UUID) error
+	CreateBeat(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, beat *domain.Beat) (*domain.Beat, error)
+	GetBeat(ctx context.Context, beatID, userID uuid.UUID, callerRole domain.CallerRole) (*domain.Beat, error)
+	GetProjectBeatBoard(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) (*domain.BeatBoardData, error)
+	UpdateBeat(ctx context.Context, beatID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Beat) (*domain.Beat, error)
+	DeleteBeat(ctx context.Context, beatID, userID uuid.UUID, callerRole domain.CallerRole) error
 
 	// Connection operations
-	CreateConnection(ctx context.Context, projectID, userID uuid.UUID, conn *domain.Connection) (*domain.Connection, error)
-	DeleteConnection(ctx context.Context, connID, userID uuid.UUID) error
+	CreateConnection(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, conn *domain.Connection) (*domain.Connection, error)
+	DeleteConnection(ctx context.Context, connID, userID uuid.UUID, callerRole domain.CallerRole) error
 
 	// Lane operations
-	CreateLane(ctx context.Context, projectID, userID uuid.UUID, lane *domain.Lane) (*domain.Lane, error)
-	GetProjectLanes(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Lane, error)
-	UpdateLane(ctx context.Context, laneID, userID uuid.UUID, updates *domain.Lane) (*domain.Lane, error)
-	UpdateLaneOrder(ctx context.Context, projectID, userID uuid.UUID, laneIDs []uuid.UUID) error
-	DeleteLane(ctx context.Context, laneID, userID uuid.UUID) error
+	CreateLane(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, lane *domain.Lane) (*domain.Lane, error)
+	GetProjectLanes(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) ([]*domain.Lane, error)
+	UpdateLane(ctx context.Context, laneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Lane) (*domain.Lane, error)
+	UpdateLaneOrder(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, laneIDs []uuid.UUID) error
+	DeleteLane(ctx context.Context, laneID, userID uuid.UUID, callerRole domain.CallerRole) error
 
 	// Outline item operations
-	CreateOutlineItem(ctx context.Context, projectID, userID uuid.UUID, item *domain.OutlineItem) (*domain.OutlineItem, error)
-	UpdateOutlineItem(ctx context.Context, itemID, userID uuid.UUID, updates *domain.OutlineItem) (*domain.OutlineItem, error)
-	DeleteOutlineItem(ctx context.Context, itemID, userID uuid.UUID) error
+	CreateOutlineItem(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, item *domain.OutlineItem) (*domain.OutlineItem, error)
+	UpdateOutlineItem(ctx context.Context, itemID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.OutlineItem) (*domain.OutlineItem, error)
+	DeleteOutlineItem(ctx context.Context, itemID, userID uuid.UUID, callerRole domain.CallerRole) error
 
-	CreateDrawing(ctx context.Context, projectID, userID uuid.UUID, d *domain.Drawing) (*domain.Drawing, error)
-	UpdateDrawing(ctx context.Context, drawingID, userID uuid.UUID, updates *domain.DrawingPatch) (*domain.Drawing, error)
-	DeleteDrawing(ctx context.Context, drawingID, userID uuid.UUID) error
+	CreateDrawing(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, d *domain.Drawing) (*domain.Drawing, error)
+	UpdateDrawing(ctx context.Context, drawingID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.DrawingPatch) (*domain.Drawing, error)
+	DeleteDrawing(ctx context.Context, drawingID, userID uuid.UUID, callerRole domain.CallerRole) error
 }
 
 type beatBoardService struct {
@@ -50,9 +50,9 @@ func NewBeatBoardService(repo *repository.Repository) BeatBoardService {
 }
 
 // CreateBeat creates a new beat for a project
-func (s *beatBoardService) CreateBeat(ctx context.Context, projectID, userID uuid.UUID, beat *domain.Beat) (*domain.Beat, error) {
+func (s *beatBoardService) CreateBeat(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, beat *domain.Beat) (*domain.Beat, error) {
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -67,14 +67,14 @@ func (s *beatBoardService) CreateBeat(ctx context.Context, projectID, userID uui
 }
 
 // GetBeat retrieves a beat by ID
-func (s *beatBoardService) GetBeat(ctx context.Context, beatID, userID uuid.UUID) (*domain.Beat, error) {
+func (s *beatBoardService) GetBeat(ctx context.Context, beatID, userID uuid.UUID, callerRole domain.CallerRole) (*domain.Beat, error) {
 	beat, err := s.repo.Beat.GetBeat(ctx, beatID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, beat.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, beat.ProjectID, userID, callerRole, domain.CallerRoleViewer); err != nil {
 		return nil, err
 	}
 
@@ -82,9 +82,9 @@ func (s *beatBoardService) GetBeat(ctx context.Context, beatID, userID uuid.UUID
 }
 
 // GetProjectBeatBoard retrieves all beat board data for a project
-func (s *beatBoardService) GetProjectBeatBoard(ctx context.Context, projectID, userID uuid.UUID) (*domain.BeatBoardData, error) {
+func (s *beatBoardService) GetProjectBeatBoard(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) (*domain.BeatBoardData, error) {
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleViewer); err != nil {
 		return nil, err
 	}
 
@@ -164,7 +164,7 @@ func (s *beatBoardService) GetProjectBeatBoard(ctx context.Context, projectID, u
 }
 
 // UpdateBeat updates an existing beat
-func (s *beatBoardService) UpdateBeat(ctx context.Context, beatID, userID uuid.UUID, updates *domain.Beat) (*domain.Beat, error) {
+func (s *beatBoardService) UpdateBeat(ctx context.Context, beatID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Beat) (*domain.Beat, error) {
 	// Get existing beat
 	beat, err := s.repo.Beat.GetBeat(ctx, beatID)
 	if err != nil {
@@ -172,7 +172,7 @@ func (s *beatBoardService) UpdateBeat(ctx context.Context, beatID, userID uuid.U
 	}
 
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, beat.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, beat.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -225,7 +225,7 @@ func (s *beatBoardService) UpdateBeat(ctx context.Context, beatID, userID uuid.U
 }
 
 // DeleteBeat deletes a beat
-func (s *beatBoardService) DeleteBeat(ctx context.Context, beatID, userID uuid.UUID) error {
+func (s *beatBoardService) DeleteBeat(ctx context.Context, beatID, userID uuid.UUID, callerRole domain.CallerRole) error {
 	// Get existing beat
 	beat, err := s.repo.Beat.GetBeat(ctx, beatID)
 	if err != nil {
@@ -233,7 +233,7 @@ func (s *beatBoardService) DeleteBeat(ctx context.Context, beatID, userID uuid.U
 	}
 
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, beat.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, beat.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return err
 	}
 
@@ -245,9 +245,9 @@ func (s *beatBoardService) DeleteBeat(ctx context.Context, beatID, userID uuid.U
 }
 
 // CreateConnection creates a new connection between beats
-func (s *beatBoardService) CreateConnection(ctx context.Context, projectID, userID uuid.UUID, conn *domain.Connection) (*domain.Connection, error) {
+func (s *beatBoardService) CreateConnection(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, conn *domain.Connection) (*domain.Connection, error) {
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -262,7 +262,7 @@ func (s *beatBoardService) CreateConnection(ctx context.Context, projectID, user
 }
 
 // DeleteConnection deletes a connection
-func (s *beatBoardService) DeleteConnection(ctx context.Context, connID, userID uuid.UUID) error {
+func (s *beatBoardService) DeleteConnection(ctx context.Context, connID, userID uuid.UUID, callerRole domain.CallerRole) error {
 	// Get existing connection
 	conn, err := s.repo.Connection.GetConnection(ctx, connID)
 	if err != nil {
@@ -270,7 +270,7 @@ func (s *beatBoardService) DeleteConnection(ctx context.Context, connID, userID 
 	}
 
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, conn.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, conn.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return err
 	}
 
@@ -282,9 +282,9 @@ func (s *beatBoardService) DeleteConnection(ctx context.Context, connID, userID 
 }
 
 // CreateLane creates a new lane for a project
-func (s *beatBoardService) CreateLane(ctx context.Context, projectID, userID uuid.UUID, lane *domain.Lane) (*domain.Lane, error) {
+func (s *beatBoardService) CreateLane(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, lane *domain.Lane) (*domain.Lane, error) {
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -299,9 +299,9 @@ func (s *beatBoardService) CreateLane(ctx context.Context, projectID, userID uui
 }
 
 // GetProjectLanes retrieves all lanes for a project
-func (s *beatBoardService) GetProjectLanes(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Lane, error) {
+func (s *beatBoardService) GetProjectLanes(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) ([]*domain.Lane, error) {
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleViewer); err != nil {
 		return nil, err
 	}
 
@@ -314,7 +314,7 @@ func (s *beatBoardService) GetProjectLanes(ctx context.Context, projectID, userI
 }
 
 // UpdateLane updates an existing lane
-func (s *beatBoardService) UpdateLane(ctx context.Context, laneID, userID uuid.UUID, updates *domain.Lane) (*domain.Lane, error) {
+func (s *beatBoardService) UpdateLane(ctx context.Context, laneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Lane) (*domain.Lane, error) {
 	// Get existing lane
 	lane, err := s.repo.Lane.GetLane(ctx, laneID)
 	if err != nil {
@@ -322,7 +322,7 @@ func (s *beatBoardService) UpdateLane(ctx context.Context, laneID, userID uuid.U
 	}
 
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, lane.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, lane.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -345,9 +345,9 @@ func (s *beatBoardService) UpdateLane(ctx context.Context, laneID, userID uuid.U
 }
 
 // UpdateLaneOrder updates the order of lanes in a project
-func (s *beatBoardService) UpdateLaneOrder(ctx context.Context, projectID, userID uuid.UUID, laneIDs []uuid.UUID) error {
+func (s *beatBoardService) UpdateLaneOrder(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, laneIDs []uuid.UUID) error {
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return err
 	}
 
@@ -359,7 +359,7 @@ func (s *beatBoardService) UpdateLaneOrder(ctx context.Context, projectID, userI
 }
 
 // DeleteLane deletes a lane
-func (s *beatBoardService) DeleteLane(ctx context.Context, laneID, userID uuid.UUID) error {
+func (s *beatBoardService) DeleteLane(ctx context.Context, laneID, userID uuid.UUID, callerRole domain.CallerRole) error {
 	// Get existing lane
 	lane, err := s.repo.Lane.GetLane(ctx, laneID)
 	if err != nil {
@@ -367,7 +367,7 @@ func (s *beatBoardService) DeleteLane(ctx context.Context, laneID, userID uuid.U
 	}
 
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, lane.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, lane.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return err
 	}
 
@@ -379,9 +379,9 @@ func (s *beatBoardService) DeleteLane(ctx context.Context, laneID, userID uuid.U
 }
 
 // CreateOutlineItem creates a new outline item
-func (s *beatBoardService) CreateOutlineItem(ctx context.Context, projectID, userID uuid.UUID, item *domain.OutlineItem) (*domain.OutlineItem, error) {
+func (s *beatBoardService) CreateOutlineItem(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, item *domain.OutlineItem) (*domain.OutlineItem, error) {
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -396,7 +396,7 @@ func (s *beatBoardService) CreateOutlineItem(ctx context.Context, projectID, use
 }
 
 // UpdateOutlineItem updates an existing outline item
-func (s *beatBoardService) UpdateOutlineItem(ctx context.Context, itemID, userID uuid.UUID, updates *domain.OutlineItem) (*domain.OutlineItem, error) {
+func (s *beatBoardService) UpdateOutlineItem(ctx context.Context, itemID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.OutlineItem) (*domain.OutlineItem, error) {
 	// Get existing item
 	item, err := s.repo.OutlineItem.GetOutlineItem(ctx, itemID)
 	if err != nil {
@@ -404,7 +404,7 @@ func (s *beatBoardService) UpdateOutlineItem(ctx context.Context, itemID, userID
 	}
 
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, item.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, item.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -433,7 +433,7 @@ func (s *beatBoardService) UpdateOutlineItem(ctx context.Context, itemID, userID
 }
 
 // DeleteOutlineItem deletes an outline item
-func (s *beatBoardService) DeleteOutlineItem(ctx context.Context, itemID, userID uuid.UUID) error {
+func (s *beatBoardService) DeleteOutlineItem(ctx context.Context, itemID, userID uuid.UUID, callerRole domain.CallerRole) error {
 	// Get existing item
 	item, err := s.repo.OutlineItem.GetOutlineItem(ctx, itemID)
 	if err != nil {
@@ -441,7 +441,7 @@ func (s *beatBoardService) DeleteOutlineItem(ctx context.Context, itemID, userID
 	}
 
 	// Verify user has access to the project
-	if err := s.verifyProjectAccess(ctx, item.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, item.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return err
 	}
 
@@ -452,15 +452,18 @@ func (s *beatBoardService) DeleteOutlineItem(ctx context.Context, itemID, userID
 	return nil
 }
 
-// verifyProjectAccess checks if a user has access to a project. A Nil userID is
-// the collaborator bypass sentinel: the gateway resolves project access (owner or
-// active collaborator) via the collab service before forwarding the call and
-// signals a confirmed collaborator by passing an empty user_id. This mirrors
-// scriptsService.verifyProjectAccess so scenes, elements, and the beat board all
-// share one access model.
-func (s *beatBoardService) verifyProjectAccess(ctx context.Context, projectID, userID uuid.UUID) error {
+// verifyProjectAccess mirrors scriptsService.verifyProjectAccess (see its doc
+// comment for the full reasoning) so scenes, elements, and the beat board
+// share one access model. userID must always be a real actor now (Orbit
+// #360) — a missing one is ErrMissingActor, never a bypass. Literal
+// ownership is always re-verified independently regardless of callerRole,
+// which a non-owner caller's resolved role from the gateway; previously this
+// denied with a plain fmt.Errorf that handleServiceError's errors.Is checks
+// never matched, so every real denial surfaced as an opaque 500 instead of
+// 403 — fixed here to use the same domain sentinels scriptsService does.
+func (s *beatBoardService) verifyProjectAccess(ctx context.Context, projectID, userID uuid.UUID, callerRole, requiredRole domain.CallerRole) error {
 	if userID == uuid.Nil {
-		return nil
+		return domain.ErrMissingActor
 	}
 
 	project, err := s.repo.Project.GetProjectByID(ctx, projectID)
@@ -472,14 +475,17 @@ func (s *beatBoardService) verifyProjectAccess(ctx context.Context, projectID, u
 		return nil
 	}
 
-	return fmt.Errorf("user does not have access to this project")
+	if !callerRole.Allows(requiredRole) {
+		return domain.ErrUnauthorizedAccess
+	}
+	return nil
 }
 
 // ─── Drawings (decisions/0022) ───────────────────────────────────────────────
 
 // CreateDrawing adds one shape to a project's drawing layer.
-func (s *beatBoardService) CreateDrawing(ctx context.Context, projectID, userID uuid.UUID, d *domain.Drawing) (*domain.Drawing, error) {
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+func (s *beatBoardService) CreateDrawing(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, d *domain.Drawing) (*domain.Drawing, error) {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -501,13 +507,13 @@ func (s *beatBoardService) CreateDrawing(ctx context.Context, projectID, userID 
 // UpdateDrawing applies a partial update. Only the fields present on the patch
 // are touched — see domain.DrawingPatch for why this doesn't use the zero-value
 // sentinel the neighbouring updates do.
-func (s *beatBoardService) UpdateDrawing(ctx context.Context, drawingID, userID uuid.UUID, updates *domain.DrawingPatch) (*domain.Drawing, error) {
+func (s *beatBoardService) UpdateDrawing(ctx context.Context, drawingID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.DrawingPatch) (*domain.Drawing, error) {
 	d, err := s.repo.Drawing.GetDrawing(ctx, drawingID)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.verifyProjectAccess(ctx, d.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, d.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -530,13 +536,13 @@ func (s *beatBoardService) UpdateDrawing(ctx context.Context, drawingID, userID 
 }
 
 // DeleteDrawing soft-deletes a shape; the tombstone carries the erase to other devices.
-func (s *beatBoardService) DeleteDrawing(ctx context.Context, drawingID, userID uuid.UUID) error {
+func (s *beatBoardService) DeleteDrawing(ctx context.Context, drawingID, userID uuid.UUID, callerRole domain.CallerRole) error {
 	d, err := s.repo.Drawing.GetDrawing(ctx, drawingID)
 	if err != nil {
 		return err
 	}
 
-	if err := s.verifyProjectAccess(ctx, d.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, d.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return err
 	}
 

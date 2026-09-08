@@ -23,16 +23,19 @@ import (
 type ScriptsService interface {
 	// Project operations
 	CreateProject(ctx context.Context, title, description, category string, ownerID uuid.UUID, orgID *uuid.UUID) (*domain.Project, error)
-	GetProject(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error)
+	GetProject(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) (*domain.Project, error)
 	UpdateProject(ctx context.Context, projectID, userID uuid.UUID, title, description, status *string) (*domain.Project, error)
 	ToggleProjectStar(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error)
 	DeleteProject(ctx context.Context, projectID, userID uuid.UUID) error
 	GetUserProjects(ctx context.Context, userID uuid.UUID, offset, limit int) ([]*domain.Project, int64, error)
 	// GetOrgProjects lists the projects owned by an organization.
 	GetOrgProjects(ctx context.Context, orgID uuid.UUID) ([]*domain.Project, error)
+	// GetProjectAccessMetadata resolves the ownership fields needed by the
+	// gateway before it has an already-resolved caller role.
+	GetProjectAccessMetadata(ctx context.Context, projectID uuid.UUID) (ownerID uuid.UUID, orgID *uuid.UUID, err error)
 
 	// Script element operations
-	DeleteScriptElement(ctx context.Context, elementID, userID uuid.UUID) error
+	DeleteScriptElement(ctx context.Context, elementID, userID uuid.UUID, callerRole domain.CallerRole) error
 
 	// GetResourceProject resolves which project owns a sub-resource. It is an
 	// internal lookup with no access check — the gateway authorizes the caller
@@ -50,30 +53,34 @@ type ScriptsService interface {
 	SyncVault(ctx context.Context, projectID, ownerID uuid.UUID, project *domain.Project, cursor domain.VaultCursor, files []*domain.VaultFile, maxFiles, maxBytes int) ([]*domain.VaultFile, domain.VaultCursor, bool, error)
 
 	// Scene operations
-	CreateScene(ctx context.Context, projectID, userID uuid.UUID, scene *domain.Scene) (*domain.Scene, error)
-	GetProjectScenes(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Scene, error)
-	UpdateScene(ctx context.Context, sceneID, userID uuid.UUID, updates *domain.Scene) (*domain.Scene, error)
-	DeleteScene(ctx context.Context, sceneID, userID uuid.UUID) error
+	CreateScene(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, scene *domain.Scene) (*domain.Scene, error)
+	GetProjectScenes(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) ([]*domain.Scene, error)
+	UpdateScene(ctx context.Context, sceneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Scene) (*domain.Scene, error)
+	DeleteScene(ctx context.Context, sceneID, userID uuid.UUID, callerRole domain.CallerRole) error
 
-	// Character operations
-	CreateCharacter(ctx context.Context, projectID, userID uuid.UUID, character *domain.Character) (*domain.Character, error)
-	GetProjectCharacters(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Character, error)
-	UpdateCharacter(ctx context.Context, characterID, userID uuid.UUID, updates *domain.Character) (*domain.Character, error)
+	// Character operations — unimplemented at the gRPC handler layer today;
+	// callerRole is threaded through anyway for signature consistency.
+	CreateCharacter(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, character *domain.Character) (*domain.Character, error)
+	GetProjectCharacters(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) ([]*domain.Character, error)
+	UpdateCharacter(ctx context.Context, characterID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Character) (*domain.Character, error)
 
-	// Location operations
-	CreateLocation(ctx context.Context, projectID, userID uuid.UUID, location *domain.Location) (*domain.Location, error)
-	GetProjectLocations(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Location, error)
+	// Location operations — unimplemented at the gRPC handler layer today.
+	CreateLocation(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, location *domain.Location) (*domain.Location, error)
+	GetProjectLocations(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) ([]*domain.Location, error)
 
-	// Outline operations
-	CreateOutlineUnit(ctx context.Context, projectID, userID uuid.UUID, unit *domain.OutlineUnit) (*domain.OutlineUnit, error)
-	GetProjectOutline(ctx context.Context, projectID, userID uuid.UUID, typeFilter string) ([]*domain.OutlineUnit, error)
-	UpdateOutlineUnit(ctx context.Context, unitID, userID uuid.UUID, updates *domain.OutlineUnit) (*domain.OutlineUnit, error)
-	DeleteOutlineUnit(ctx context.Context, unitID, userID uuid.UUID) error
+	// Outline operations — unimplemented at the gRPC handler layer today.
+	CreateOutlineUnit(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, unit *domain.OutlineUnit) (*domain.OutlineUnit, error)
+	GetProjectOutline(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, typeFilter string) ([]*domain.OutlineUnit, error)
+	UpdateOutlineUnit(ctx context.Context, unitID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.OutlineUnit) (*domain.OutlineUnit, error)
+	DeleteOutlineUnit(ctx context.Context, unitID, userID uuid.UUID, callerRole domain.CallerRole) error
 
 	// Simplified element operations for gateway
-	CreateElement(ctx context.Context, userID uuid.UUID, element *domain.ProjectElement) (*domain.ProjectElement, error)
-	UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, content string) (*domain.ProjectElement, error)
-	GetSceneElements(ctx context.Context, userID, sceneID uuid.UUID) ([]*domain.ProjectElement, error)
+	CreateElement(ctx context.Context, userID uuid.UUID, callerRole domain.CallerRole, element *domain.ProjectElement) (*domain.ProjectElement, error)
+	UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, callerRole domain.CallerRole, content string) (*domain.ProjectElement, error)
+	GetSceneElements(ctx context.Context, userID, sceneID uuid.UUID, callerRole domain.CallerRole) ([]*domain.ProjectElement, error)
+	// BatchCreateElements is only ever called for a project the caller just
+	// created (ImportFDX) — no callerRole parameter; see the implementation's
+	// doc comment.
 	BatchCreateElements(ctx context.Context, userID, projectID uuid.UUID, elements []*domain.ProjectElement) ([]*domain.ProjectElement, error)
 }
 
@@ -176,24 +183,38 @@ func (s *scriptsService) CreateProject(ctx context.Context, title, description, 
 }
 
 // GetProject retrieves a project by ID with authorization check.
-// If userID is uuid.Nil (empty), the ownership check is skipped (used when the gateway
-// has already verified collaborator access).
-func (s *scriptsService) GetProject(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error) {
-	if userID != uuid.Nil {
-		isOwner, err := s.repo.Project.IsProjectOwner(ctx, projectID, userID)
-		if err != nil {
-			return nil, err
-		}
-		if !isOwner {
-			return nil, domain.ErrUnauthorizedAccess
-		}
+// userID must always be a real actor now (Orbit #360) — the old empty-userID
+// "skip the check" bypass is gone. Non-owner callers are trusted per
+// callerRole, same reasoning as verifyProjectAccess (see its doc comment);
+// the previous unauthenticated read for the gateway's own org-lookup
+// bootstrap step moved to the dedicated GetProjectAccessMetadata RPC, which performs
+// no ownership check by design rather than overloading this one.
+func (s *scriptsService) GetProject(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) (*domain.Project, error) {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleViewer); err != nil {
+		return nil, err
 	}
-
 	return s.repo.Project.GetProjectByID(ctx, projectID)
 }
 
-// UpdateProject updates an existing project
+// GetProjectAccessMetadata resolves only the ownership fields needed by the
+// gateway's authorization and quota decisions. It deliberately performs no
+// access check; callers must not treat the lookup itself as a grant.
+func (s *scriptsService) GetProjectAccessMetadata(ctx context.Context, projectID uuid.UUID) (uuid.UUID, *uuid.UUID, error) {
+	project, err := s.repo.Project.GetProjectByID(ctx, projectID)
+	if err != nil {
+		return uuid.Nil, nil, err
+	}
+	return project.OwnerID, project.OrgID, nil
+}
+
+// UpdateProject updates an existing project. userID must always be a real
+// actor (Orbit #360) — ownership is, and has always been, checked
+// unconditionally here with no bypass; the only change is an explicit
+// missing-actor error instead of "not owner" for an absent id.
 func (s *scriptsService) UpdateProject(ctx context.Context, projectID, userID uuid.UUID, title, description, status *string) (*domain.Project, error) {
+	if userID == uuid.Nil {
+		return nil, domain.ErrMissingActor
+	}
 	// Check authorization
 	isOwner, err := s.repo.Project.IsProjectOwner(ctx, projectID, userID)
 	if err != nil {
@@ -229,8 +250,13 @@ func (s *scriptsService) UpdateProject(ctx context.Context, projectID, userID uu
 	return project, nil
 }
 
-// ToggleProjectStar toggles the starred status of a project
+// ToggleProjectStar toggles the starred status of a project. userID must
+// always be a real actor (Orbit #360); ownership is, and has always been,
+// checked unconditionally with no bypass.
 func (s *scriptsService) ToggleProjectStar(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error) {
+	if userID == uuid.Nil {
+		return nil, domain.ErrMissingActor
+	}
 	// Check authorization
 	isOwner, err := s.repo.Project.IsProjectOwner(ctx, projectID, userID)
 	if err != nil {
@@ -262,6 +288,9 @@ func (s *scriptsService) ToggleProjectStar(ctx context.Context, projectID, userI
 // event in the same transaction. The inline publish is best-effort; the
 // outbox poller guarantees the event eventually reaches Kafka.
 func (s *scriptsService) DeleteProject(ctx context.Context, projectID, userID uuid.UUID) error {
+	if userID == uuid.Nil {
+		return domain.ErrMissingActor
+	}
 	isOwner, err := s.repo.Project.IsProjectOwner(ctx, projectID, userID)
 	if err != nil {
 		return err
@@ -318,32 +347,43 @@ func (s *scriptsService) GetUserProjects(ctx context.Context, userID uuid.UUID, 
 	return s.repo.Project.GetProjectsByOwner(ctx, userID, offset, limit)
 }
 
-// Helper method to verify project access.
-// If userID is uuid.Nil the check is skipped — used when the gateway has already
-// verified that the caller is an active collaborator.
-func (s *scriptsService) verifyProjectAccess(ctx context.Context, projectID, userID uuid.UUID) error {
+// verifyProjectAccess checks whether userID, asserted by the gateway to hold
+// callerRole, may act on projectID. Orbit #360: userID must always be a real
+// actor now — a missing one is a malformed request (ErrMissingActor), never
+// a bypass. Literal ownership is always re-verified independently against
+// projects.owner_id regardless of what callerRole claims: this is the
+// defense-in-depth #360 asks for, since a misapplied gateway policy (a stale
+// or mistaken CallerRoleOwner) must not be able to grant owner-level access
+// just because it says so — see CallerRole's doc comment. For a non-owner,
+// scripts has no independent way to verify org or collaborator membership —
+// that stays the gateway's job (0029) — so any resolved role beyond
+// "unspecified" is trusted once identity is confirmed real.
+func (s *scriptsService) verifyProjectAccess(ctx context.Context, projectID, userID uuid.UUID, callerRole, requiredRole domain.CallerRole) error {
 	if userID == uuid.Nil {
-		return nil
+		return domain.ErrMissingActor
 	}
 	isOwner, err := s.repo.Project.IsProjectOwner(ctx, projectID, userID)
 	if err != nil {
 		return err
 	}
-	if !isOwner {
+	if isOwner {
+		return nil
+	}
+	if !callerRole.Allows(requiredRole) {
 		return domain.ErrUnauthorizedAccess
 	}
 	return nil
 }
 
 // Script element operations
-func (s *scriptsService) DeleteScriptElement(ctx context.Context, elementID, userID uuid.UUID) error {
+func (s *scriptsService) DeleteScriptElement(ctx context.Context, elementID, userID uuid.UUID, callerRole domain.CallerRole) error {
 	// Get existing element to check project ownership
 	element, err := s.repo.ProjectElement.GetScriptElement(ctx, elementID)
 	if err != nil {
 		return err
 	}
 
-	if err := s.verifyProjectAccess(ctx, element.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, element.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return err
 	}
 
@@ -508,8 +548,8 @@ func (s *scriptsService) SyncVault(ctx context.Context, projectID, ownerID uuid.
 }
 
 // Scene operations
-func (s *scriptsService) CreateScene(ctx context.Context, projectID, userID uuid.UUID, scene *domain.Scene) (*domain.Scene, error) {
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+func (s *scriptsService) CreateScene(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, scene *domain.Scene) (*domain.Scene, error) {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -525,21 +565,21 @@ func (s *scriptsService) CreateScene(ctx context.Context, projectID, userID uuid
 	return scene, nil
 }
 
-func (s *scriptsService) GetProjectScenes(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Scene, error) {
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+func (s *scriptsService) GetProjectScenes(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) ([]*domain.Scene, error) {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleViewer); err != nil {
 		return nil, err
 	}
 
 	return s.repo.Scene.GetProjectScenes(ctx, projectID)
 }
 
-func (s *scriptsService) UpdateScene(ctx context.Context, sceneID, userID uuid.UUID, updates *domain.Scene) (*domain.Scene, error) {
+func (s *scriptsService) UpdateScene(ctx context.Context, sceneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Scene) (*domain.Scene, error) {
 	scene, err := s.repo.Scene.GetScene(ctx, sceneID)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.verifyProjectAccess(ctx, scene.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, scene.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -562,13 +602,13 @@ func (s *scriptsService) UpdateScene(ctx context.Context, sceneID, userID uuid.U
 	return scene, nil
 }
 
-func (s *scriptsService) DeleteScene(ctx context.Context, sceneID, userID uuid.UUID) error {
+func (s *scriptsService) DeleteScene(ctx context.Context, sceneID, userID uuid.UUID, callerRole domain.CallerRole) error {
 	scene, err := s.repo.Scene.GetScene(ctx, sceneID)
 	if err != nil {
 		return err
 	}
 
-	if err := s.verifyProjectAccess(ctx, scene.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, scene.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return err
 	}
 
@@ -576,8 +616,12 @@ func (s *scriptsService) DeleteScene(ctx context.Context, sceneID, userID uuid.U
 }
 
 // Character operations
-func (s *scriptsService) CreateCharacter(ctx context.Context, projectID, userID uuid.UUID, character *domain.Character) (*domain.Character, error) {
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+// callerRole is threaded through for signature consistency with every other
+// verifyProjectAccess caller; unreached today (the gRPC handler returns
+// Unimplemented before calling this), but kept in step so reactivating it
+// later doesn't require rediscovering the #360 contract from scratch.
+func (s *scriptsService) CreateCharacter(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, character *domain.Character) (*domain.Character, error) {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -593,21 +637,21 @@ func (s *scriptsService) CreateCharacter(ctx context.Context, projectID, userID 
 	return character, nil
 }
 
-func (s *scriptsService) GetProjectCharacters(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Character, error) {
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+func (s *scriptsService) GetProjectCharacters(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) ([]*domain.Character, error) {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleViewer); err != nil {
 		return nil, err
 	}
 
 	return s.repo.Character.GetProjectCharacters(ctx, projectID)
 }
 
-func (s *scriptsService) UpdateCharacter(ctx context.Context, characterID, userID uuid.UUID, updates *domain.Character) (*domain.Character, error) {
+func (s *scriptsService) UpdateCharacter(ctx context.Context, characterID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Character) (*domain.Character, error) {
 	character, err := s.repo.Character.GetCharacter(ctx, characterID)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.verifyProjectAccess(ctx, character.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, character.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -633,8 +677,8 @@ func (s *scriptsService) UpdateCharacter(ctx context.Context, characterID, userI
 }
 
 // Location operations
-func (s *scriptsService) CreateLocation(ctx context.Context, projectID, userID uuid.UUID, location *domain.Location) (*domain.Location, error) {
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+func (s *scriptsService) CreateLocation(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, location *domain.Location) (*domain.Location, error) {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -650,8 +694,8 @@ func (s *scriptsService) CreateLocation(ctx context.Context, projectID, userID u
 	return location, nil
 }
 
-func (s *scriptsService) GetProjectLocations(ctx context.Context, projectID, userID uuid.UUID) ([]*domain.Location, error) {
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+func (s *scriptsService) GetProjectLocations(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) ([]*domain.Location, error) {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleViewer); err != nil {
 		return nil, err
 	}
 
@@ -659,8 +703,8 @@ func (s *scriptsService) GetProjectLocations(ctx context.Context, projectID, use
 }
 
 // Outline operations
-func (s *scriptsService) CreateOutlineUnit(ctx context.Context, projectID, userID uuid.UUID, unit *domain.OutlineUnit) (*domain.OutlineUnit, error) {
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+func (s *scriptsService) CreateOutlineUnit(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, unit *domain.OutlineUnit) (*domain.OutlineUnit, error) {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -676,21 +720,21 @@ func (s *scriptsService) CreateOutlineUnit(ctx context.Context, projectID, userI
 	return unit, nil
 }
 
-func (s *scriptsService) GetProjectOutline(ctx context.Context, projectID, userID uuid.UUID, typeFilter string) ([]*domain.OutlineUnit, error) {
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+func (s *scriptsService) GetProjectOutline(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, typeFilter string) ([]*domain.OutlineUnit, error) {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleViewer); err != nil {
 		return nil, err
 	}
 
 	return s.repo.Outline.GetProjectOutline(ctx, projectID, typeFilter)
 }
 
-func (s *scriptsService) UpdateOutlineUnit(ctx context.Context, unitID, userID uuid.UUID, updates *domain.OutlineUnit) (*domain.OutlineUnit, error) {
+func (s *scriptsService) UpdateOutlineUnit(ctx context.Context, unitID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.OutlineUnit) (*domain.OutlineUnit, error) {
 	unit, err := s.repo.Outline.GetOutlineUnit(ctx, unitID)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.verifyProjectAccess(ctx, unit.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, unit.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -721,13 +765,13 @@ func (s *scriptsService) UpdateOutlineUnit(ctx context.Context, unitID, userID u
 	return unit, nil
 }
 
-func (s *scriptsService) DeleteOutlineUnit(ctx context.Context, unitID, userID uuid.UUID) error {
+func (s *scriptsService) DeleteOutlineUnit(ctx context.Context, unitID, userID uuid.UUID, callerRole domain.CallerRole) error {
 	unit, err := s.repo.Outline.GetOutlineUnit(ctx, unitID)
 	if err != nil {
 		return err
 	}
 
-	if err := s.verifyProjectAccess(ctx, unit.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, unit.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return err
 	}
 
@@ -735,14 +779,14 @@ func (s *scriptsService) DeleteOutlineUnit(ctx context.Context, unitID, userID u
 }
 
 // CreateElement creates a new script element (simplified version)
-func (s *scriptsService) CreateElement(ctx context.Context, userID uuid.UUID, element *domain.ProjectElement) (*domain.ProjectElement, error) {
+func (s *scriptsService) CreateElement(ctx context.Context, userID uuid.UUID, callerRole domain.CallerRole, element *domain.ProjectElement) (*domain.ProjectElement, error) {
 	// Validate required fields
 	if element.SceneID == nil {
 		return nil, errors.New("scene_id is required - script elements must belong to a scene")
 	}
 
 	// Verify project access
-	if err := s.verifyProjectAccess(ctx, element.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, element.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -761,7 +805,7 @@ func (s *scriptsService) CreateElement(ctx context.Context, userID uuid.UUID, el
 }
 
 // UpdateElementContent updates the content of a script element (simplified version)
-func (s *scriptsService) UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, content string) (*domain.ProjectElement, error) {
+func (s *scriptsService) UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, callerRole domain.CallerRole, content string) (*domain.ProjectElement, error) {
 	// Get existing element
 	element, err := s.repo.ProjectElement.GetScriptElement(ctx, elementID)
 	if err != nil {
@@ -769,7 +813,7 @@ func (s *scriptsService) UpdateElementContent(ctx context.Context, userID, eleme
 	}
 
 	// Verify project access
-	if err := s.verifyProjectAccess(ctx, element.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, element.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 
@@ -787,7 +831,7 @@ func (s *scriptsService) UpdateElementContent(ctx context.Context, userID, eleme
 }
 
 // GetSceneElements gets all script elements for a scene (simplified version)
-func (s *scriptsService) GetSceneElements(ctx context.Context, userID, sceneID uuid.UUID) ([]*domain.ProjectElement, error) {
+func (s *scriptsService) GetSceneElements(ctx context.Context, userID, sceneID uuid.UUID, callerRole domain.CallerRole) ([]*domain.ProjectElement, error) {
 	// Get scene first to verify project access
 	scene, err := s.repo.Scene.GetScene(ctx, sceneID)
 	if err != nil {
@@ -795,7 +839,7 @@ func (s *scriptsService) GetSceneElements(ctx context.Context, userID, sceneID u
 	}
 
 	// Verify project access
-	if err := s.verifyProjectAccess(ctx, scene.ProjectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, scene.ProjectID, userID, callerRole, domain.CallerRoleViewer); err != nil {
 		return nil, err
 	}
 
@@ -804,9 +848,13 @@ func (s *scriptsService) GetSceneElements(ctx context.Context, userID, sceneID u
 }
 
 // BatchCreateElements creates multiple script elements in a single transaction
+// BatchCreateElements' only caller (ImportFDX) always passes the id of the
+// project it just created, making userID its literal owner by construction —
+// so it hardcodes CallerRoleOwner rather than carrying a proto field solely
+// for a role verifyProjectAccess's owner branch never actually consults.
 func (s *scriptsService) BatchCreateElements(ctx context.Context, userID, projectID uuid.UUID, elements []*domain.ProjectElement) ([]*domain.ProjectElement, error) {
 	// Verify project access
-	if err := s.verifyProjectAccess(ctx, projectID, userID); err != nil {
+	if err := s.verifyProjectAccess(ctx, projectID, userID, domain.CallerRoleOwner, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
 

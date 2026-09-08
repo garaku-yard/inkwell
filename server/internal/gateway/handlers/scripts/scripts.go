@@ -41,6 +41,27 @@ func NewScriptsHandler(clients *grpcclient.Registry) *ScriptsHandler {
 	}
 }
 
+// callerRoleToProto maps the gateway's resolved handlers.ProjectRole to the
+// scripts.CallerRole every protected scripts RPC now carries alongside the
+// caller's real, always-non-empty user_id (Orbit #360 — replaces the old
+// empty-user_id bypass sentinel). RoleNone never reaches here: every call
+// site checks handlers.RequireProjectRole's error first, and Can() never
+// permits an action for RoleNone.
+func callerRoleToProto(role handlers.ProjectRole) scriptspb.CallerRole {
+	switch role {
+	case handlers.RoleOwner:
+		return scriptspb.CallerRole_CALLER_ROLE_OWNER
+	case handlers.RoleOrgAdmin:
+		return scriptspb.CallerRole_CALLER_ROLE_ORG_ADMIN
+	case handlers.RoleEditor:
+		return scriptspb.CallerRole_CALLER_ROLE_EDITOR
+	case handlers.RoleViewer:
+		return scriptspb.CallerRole_CALLER_ROLE_VIEWER
+	default:
+		return scriptspb.CallerRole_CALLER_ROLE_UNSPECIFIED
+	}
+}
+
 // CreateProject creates a new writing project and immediately registers its
 // creator as an "owner" collaborator in the collab service. The owner is
 // always the authenticated caller — client-supplied owner fields are ignored
@@ -129,14 +150,15 @@ func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Project ID is required")
 			}
 
-			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
+			role, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.GetProject(r.Context(), &scriptspb.GetProjectRequest{
-				ProjectId: projectID,
-				UserId:    resolvedID,
+				ProjectId:  projectID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, err
@@ -170,7 +192,7 @@ func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project ID is required")
 			}
 
-			if _, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionDeleteProject, h.scriptsClient, h.collabClient, h.workspaceClient); authErr != nil {
+			if _, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionDeleteProject, h.scriptsClient, h.collabClient, h.workspaceClient); authErr != nil {
 				return nil, authErr
 			}
 
@@ -207,7 +229,7 @@ func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Reques
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project ID is required")
 			}
 
-			if _, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionManageProject, h.scriptsClient, h.collabClient, h.workspaceClient); authErr != nil {
+			if _, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionManageProject, h.scriptsClient, h.collabClient, h.workspaceClient); authErr != nil {
 				return nil, authErr
 			}
 
@@ -249,7 +271,7 @@ func (h *ScriptsHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project ID is required")
 			}
 
-			if _, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionManageProject, h.scriptsClient, h.collabClient, h.workspaceClient); authErr != nil {
+			if _, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionManageProject, h.scriptsClient, h.collabClient, h.workspaceClient); authErr != nil {
 				return nil, authErr
 			}
 
@@ -389,8 +411,8 @@ func (h *ScriptsHandler) GetOrgProjects(w http.ResponseWriter, r *http.Request) 
 
 // GetSharedProjects returns projects where the authenticated user is an active
 // collaborator but not the owner. It queries the collab service for the user's
-// active collaborations, then fetches each project using an empty userID bypass —
-// ownership checks are skipped because collaborator membership is already confirmed.
+// active collaborations, resolves the effective role for each project, then fetches
+// it with the real actor and explicit role assertion.
 func (h *ScriptsHandler) GetSharedProjects(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[struct{}, map[string]interface{}]{
 		Method: http.MethodGet,
@@ -408,12 +430,19 @@ func (h *ScriptsHandler) GetSharedProjects(w http.ResponseWriter, r *http.Reques
 				return nil, err
 			}
 
-			// Fetch each project using the bypass (empty userId)
+			// Resolve each project's effective role rather than trusting the role
+			// projection returned by collab in isolation: org membership may grant
+			// a higher role, and scripts requires an explicit gateway assertion.
 			projects := make([]map[string]interface{}, 0, len(collabResp.Collaborations))
 			for _, c := range collabResp.Collaborations {
+				role, authErr := handlers.RequireProjectRole(ctx, userID, c.ProjectId, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
+				if authErr != nil {
+					continue
+				}
 				projResp, err := h.scriptsClient.GetProject(ctx, &scriptspb.GetProjectRequest{
-					ProjectId: c.ProjectId,
-					UserId:    "", // bypass — already verified as collaborator
+					ProjectId:  c.ProjectId,
+					UserId:     userID,
+					CallerRole: callerRoleToProto(role),
 				})
 				if err != nil {
 					continue // skip projects that can't be fetched
@@ -460,14 +489,15 @@ func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			resolvedID, authErr := handlers.RequireProjectAccess(ctx, userID, req.ProjectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
+			role, authErr := handlers.RequireProjectRole(ctx, userID, req.ProjectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			response, err := h.scriptsClient.CreateScene(ctx, &scriptspb.CreateSceneRequest{
 				ProjectId:     req.ProjectID,
-				UserId:        resolvedID,
+				UserId:        userID,
+				CallerRole:    callerRoleToProto(role),
 				OutlineUnitId: &req.OutlineUnitID,
 				SceneHeading:  req.SceneHeading,
 				Content:       req.Content,
@@ -502,14 +532,15 @@ func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			resolvedID, authErr := handlers.RequireProjectAccess(ctx, userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
+			role, authErr := handlers.RequireProjectRole(ctx, userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			response, err := h.scriptsClient.GetProjectScenes(ctx, &scriptspb.GetProjectScenesRequest{
-				ProjectId: projectID,
-				UserId:    resolvedID,
+				ProjectId:  projectID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			})
 
 			if err != nil {
@@ -559,14 +590,15 @@ func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			resolvedID, authErr := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_SCENE, sceneID, handlers.ActionEditContent)
+			role, authErr := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_SCENE, sceneID, handlers.ActionEditContent)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			response, err := h.scriptsClient.UpdateScene(ctx, &scriptspb.UpdateSceneRequest{
 				SceneId:      sceneID,
-				UserId:       resolvedID,
+				UserId:       userID,
+				CallerRole:   callerRoleToProto(role),
 				SceneHeading: req.SceneHeading,
 				Content:      req.Content,
 				OrderIndex:   req.OrderIndex,
@@ -599,14 +631,15 @@ func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			resolvedID, authErr := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_SCENE, sceneID, handlers.ActionEditContent)
+			role, authErr := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_SCENE, sceneID, handlers.ActionEditContent)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			_, err := h.scriptsClient.DeleteScene(ctx, &scriptspb.DeleteSceneRequest{
-				SceneId: sceneID,
-				UserId:  resolvedID,
+				SceneId:    sceneID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			})
 
 			if err != nil {
@@ -650,14 +683,15 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			resolvedID, authErr := handlers.RequireProjectAccess(ctx, userID, req.ProjectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
+			role, authErr := handlers.RequireProjectRole(ctx, userID, req.ProjectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			response, err := h.scriptsClient.CreateElement(ctx, &scriptspb.CreateElementRequest{
 				ProjectId:   req.ProjectID,
-				UserId:      resolvedID,
+				UserId:      userID,
+				CallerRole:  callerRoleToProto(role),
 				SceneId:     req.SceneID,
 				ElementType: req.ElementType,
 				Content:     req.Content,
@@ -709,14 +743,15 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			resolvedID, err := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT, elementID, handlers.ActionEditContent)
+			role, err := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT, elementID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
 
 			updateReq := &scriptspb.UpdateElementRequest{
-				ElementId: elementID,
-				UserId:    resolvedID,
+				ElementId:  elementID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			}
 
 			if req.Content != nil {
@@ -755,14 +790,15 @@ func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			resolvedID, err := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT, elementID, handlers.ActionEditContent)
+			role, err := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT, elementID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
 
 			_, err = h.scriptsClient.DeleteScriptElement(ctx, &scriptspb.DeleteScriptElementRequest{
 				ScriptElementId: elementID,
-				UserId:          resolvedID,
+				UserId:          userID,
+				CallerRole:      callerRoleToProto(role),
 			})
 
 			if err != nil {
@@ -794,14 +830,15 @@ func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			resolvedID, authErr := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_SCENE, sceneID, handlers.ActionRead)
+			role, authErr := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_SCENE, sceneID, handlers.ActionRead)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			response, err := h.scriptsClient.GetSceneElements(ctx, &scriptspb.GetSceneElementsRequest{
-				SceneId: sceneID,
-				UserId:  resolvedID,
+				SceneId:    sceneID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to get elements")

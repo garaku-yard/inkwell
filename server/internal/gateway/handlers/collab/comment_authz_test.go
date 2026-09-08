@@ -27,10 +27,11 @@ type orgOnlyScriptsStub struct {
 }
 
 func (s orgOnlyScriptsStub) GetProject(_ context.Context, in *scripts.GetProjectRequest, _ ...grpc.CallOption) (*scripts.GetProjectResponse, error) {
-	if in.UserId == "" {
-		return &scripts.GetProjectResponse{Project: &scripts.Project{OrgId: s.orgID}}, nil
-	}
 	return nil, status.Error(codes.PermissionDenied, "not owner")
+}
+
+func (s orgOnlyScriptsStub) GetProjectAccessMetadata(context.Context, *scripts.GetProjectAccessMetadataRequest, ...grpc.CallOption) (*scripts.GetProjectAccessMetadataResponse, error) {
+	return &scripts.GetProjectAccessMetadataResponse{OrgId: s.orgID}, nil
 }
 
 // orgOnlyWorkspaceStub reports one fixed org member — the "org viewer" whose

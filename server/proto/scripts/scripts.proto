@@ -192,9 +192,17 @@ message CreateProjectResponse {
   Project project = 1;
 }
 
+// user_id is always the real authenticated actor (never empty — Orbit #360
+// removed the old empty-user_id "give me the project unauthenticated" path;
+// see GetProjectAccessMetadata for the legitimate no-actor lookup that replaced
+// it). caller_role is the gateway's resolved access level for that actor.
 message GetProjectRequest {
   string project_id = 1;
   string user_id = 2; // For authorization check
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message GetProjectResponse {
@@ -315,6 +323,10 @@ message CreateSceneRequest {
   string scene_heading = 4;
   string content = 5;
   int32 order_index = 6;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 7;
 }
 
 message CreateSceneResponse {
@@ -324,6 +336,10 @@ message CreateSceneResponse {
 message GetProjectScenesRequest {
   string project_id = 1;
   string user_id = 2; // For authorization check
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message GetProjectScenesResponse {
@@ -337,6 +353,10 @@ message UpdateSceneRequest {
   optional string scene_heading = 4;
   optional string content = 5;
   optional int32 order_index = 6;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 7;
 }
 
 message UpdateSceneResponse {
@@ -346,6 +366,10 @@ message UpdateSceneResponse {
 message DeleteSceneRequest {
   string scene_id = 1;
   string user_id = 2; // For authorization check
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message DeleteSceneResponse {
@@ -409,6 +433,10 @@ message UpdateLocationResponse {
 message DeleteScriptElementRequest {
   string script_element_id = 1;
   string user_id = 2; // For authorization check
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message DeleteScriptElementResponse {
@@ -426,6 +454,10 @@ message CreateElementRequest {
   reserved "character_id";
   int32 line_number = 7;
   map<string, string> formatting = 8;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 9;
 }
 
 message CreateElementResponse {
@@ -437,6 +469,10 @@ message UpdateElementRequest {
   string user_id = 2;
   string content = 3;
   string type = 4;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 5;
 }
 
 message UpdateElementResponse {
@@ -446,6 +482,10 @@ message UpdateElementResponse {
 message GetSceneElementsRequest {
   string scene_id = 1;
   string user_id = 2;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message GetSceneElementsResponse {
@@ -480,6 +520,10 @@ message CreateBeatRequest {
   int32 start_page = 13;
   int32 end_page = 14;
   optional string image_url = 15;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 16;
 }
 
 message CreateBeatResponse {
@@ -489,6 +533,10 @@ message CreateBeatResponse {
 message GetBeatRequest {
   string beat_id = 1;
   string user_id = 2;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message GetBeatResponse {
@@ -498,6 +546,10 @@ message GetBeatResponse {
 message GetProjectBeatBoardRequest {
   string project_id = 1;
   string user_id = 2;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message GetProjectBeatBoardResponse {
@@ -520,6 +572,10 @@ message UpdateBeatRequest {
   optional int32 start_page = 13;
   optional int32 end_page = 14;
   optional string image_url = 15;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 16;
 }
 
 message UpdateBeatResponse {
@@ -529,6 +585,10 @@ message UpdateBeatResponse {
 message DeleteBeatRequest {
   string beat_id = 1;
   string user_id = 2;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message DeleteBeatResponse {
@@ -542,6 +602,10 @@ message CreateConnectionRequest {
   string to_beat_id = 4;
   string from_side = 5;
   string to_side = 6;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 7;
 }
 
 message CreateConnectionResponse {
@@ -551,6 +615,10 @@ message CreateConnectionResponse {
 message DeleteConnectionRequest {
   string connection_id = 1;
   string user_id = 2;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message DeleteConnectionResponse {
@@ -563,6 +631,10 @@ message CreateLaneRequest {
   string name = 3;
   string color = 4;
   int32 order = 5;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 6;
 }
 
 message CreateLaneResponse {
@@ -572,6 +644,10 @@ message CreateLaneResponse {
 message GetProjectLanesRequest {
   string project_id = 1;
   string user_id = 2;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message GetProjectLanesResponse {
@@ -584,6 +660,10 @@ message UpdateLaneRequest {
   optional string name = 3;
   optional string color = 4;
   optional int32 order = 5;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 6;
 }
 
 message UpdateLaneResponse {
@@ -594,6 +674,10 @@ message UpdateLaneOrderRequest {
   string project_id = 1;
   string user_id = 2;
   repeated string lane_ids = 3;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 4;
 }
 
 message UpdateLaneOrderResponse {
@@ -603,6 +687,10 @@ message UpdateLaneOrderResponse {
 message DeleteLaneRequest {
   string lane_id = 1;
   string user_id = 2;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message DeleteLaneResponse {
@@ -617,6 +705,10 @@ message CreateOutlineItemRequest {
   int32 order = 5;
   double timeline_position = 6;
   double width = 7;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 8;
 }
 
 message CreateOutlineItemResponse {
@@ -631,6 +723,10 @@ message UpdateOutlineItemRequest {
   optional int32 order = 5;
   optional double timeline_position = 6;
   optional double width = 7;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 8;
 }
 
 message UpdateOutlineItemResponse {
@@ -640,6 +736,10 @@ message UpdateOutlineItemResponse {
 message DeleteOutlineItemRequest {
   string outline_item_id = 1;
   string user_id = 2;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message DeleteOutlineItemResponse {
@@ -652,6 +752,10 @@ message CreateDrawingRequest {
   string kind = 3;
   string data = 4;
   int32 order = 5;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 6;
 }
 
 message CreateDrawingResponse {
@@ -666,6 +770,10 @@ message UpdateDrawingRequest {
   // merged — there is no partial update of a stroke.
   optional string data = 4;
   optional int32 order = 5;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 6;
 }
 
 message UpdateDrawingResponse {
@@ -675,10 +783,38 @@ message UpdateDrawingResponse {
 message DeleteDrawingRequest {
   string drawing_id = 1;
   string user_id = 2;
+  // Set exclusively by the gateway (the trusted internal caller) after
+  // resolving access via handlers.ResolveProjectRole — never derived from
+  // client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+  CallerRole caller_role = 3;
 }
 
 message DeleteDrawingResponse {
   bool success = 1;
+}
+
+// CallerRole is the access level the gateway resolved for the caller on the
+// target project and is asserting for this call — set exclusively by the
+// gateway (handlers.ResolveProjectRole), never derived from client input.
+// Replaces the empty-user_id bypass sentinel (Orbit #360): user_id is now
+// always the real authenticated actor, and this field carries what the
+// gateway determined about them instead of emptiness carrying meaning.
+//
+// scripts-service does not treat this as ground truth for ownership — it
+// always re-verifies literal ownership itself (projects.owner_id) before
+// trusting anything else, so a misapplied or stale CALLER_ROLE_OWNER cannot
+// grant owner-level access on its own (mirrors the same rule the gateway
+// enforces for a collab collaborator row, ADR 0030). For every other value,
+// scripts has no independent way to verify org or collaborator membership
+// (and is not meant to — that stays the gateway's job per 0029) and trusts
+// the gateway's resolution once an actor identity is present; a
+// CALLER_ROLE_UNSPECIFIED value is rejected the same as a missing actor.
+enum CallerRole {
+  CALLER_ROLE_UNSPECIFIED = 0;
+  CALLER_ROLE_VIEWER = 1;
+  CALLER_ROLE_EDITOR = 2;
+  CALLER_ROLE_ORG_ADMIN = 3;
+  CALLER_ROLE_OWNER = 4;
 }
 
 // ResourceType identifies a beat-board or script sub-resource for
@@ -706,6 +842,20 @@ message GetResourceProjectRequest {
 
 message GetResourceProjectResponse {
   string project_id = 1;
+}
+
+// GetProjectAccessMetadata is a narrow internal lookup used while the gateway
+// is resolving access or enforcing owner-scoped quotas. It is not "read this
+// project": it returns only the ownership fields needed for those decisions
+// and performs no authorization itself, like GetResourceProject. Added for
+// Orbit #360 to replace GetProject's overloaded empty-user_id bypass.
+message GetProjectAccessMetadataRequest {
+  string project_id = 1;
+}
+
+message GetProjectAccessMetadataResponse {
+  string org_id = 1;
+  string owner_id = 2;
 }
 
 message GetProjectLocationsRequest {
@@ -856,6 +1006,9 @@ service ScriptsService {
   // mutations against the resource's real project. It is an internal lookup —
   // no ownership check — so the gateway must authorize the returned project.
   rpc GetResourceProject(GetResourceProjectRequest) returns (GetResourceProjectResponse);
+
+  // Narrow ownership metadata for gateway authorization and quota decisions.
+  rpc GetProjectAccessMetadata(GetProjectAccessMetadataRequest) returns (GetProjectAccessMetadataResponse);
 
   // SyncProject reconciles one project bidirectionally: it applies the caller's
   // pushed changes (upsert-by-id, server-stamped updated_at, last-sync-wins) and

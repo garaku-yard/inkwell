@@ -22,6 +22,77 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// CallerRole is the access level the gateway resolved for the caller on the
+// target project and is asserting for this call — set exclusively by the
+// gateway (handlers.ResolveProjectRole), never derived from client input.
+// Replaces the empty-user_id bypass sentinel (Orbit #360): user_id is now
+// always the real authenticated actor, and this field carries what the
+// gateway determined about them instead of emptiness carrying meaning.
+//
+// scripts-service does not treat this as ground truth for ownership — it
+// always re-verifies literal ownership itself (projects.owner_id) before
+// trusting anything else, so a misapplied or stale CALLER_ROLE_OWNER cannot
+// grant owner-level access on its own (mirrors the same rule the gateway
+// enforces for a collab collaborator row, ADR 0030). For every other value,
+// scripts has no independent way to verify org or collaborator membership
+// (and is not meant to — that stays the gateway's job per 0029) and trusts
+// the gateway's resolution once an actor identity is present; a
+// CALLER_ROLE_UNSPECIFIED value is rejected the same as a missing actor.
+type CallerRole int32
+
+const (
+	CallerRole_CALLER_ROLE_UNSPECIFIED CallerRole = 0
+	CallerRole_CALLER_ROLE_VIEWER      CallerRole = 1
+	CallerRole_CALLER_ROLE_EDITOR      CallerRole = 2
+	CallerRole_CALLER_ROLE_ORG_ADMIN   CallerRole = 3
+	CallerRole_CALLER_ROLE_OWNER       CallerRole = 4
+)
+
+// Enum value maps for CallerRole.
+var (
+	CallerRole_name = map[int32]string{
+		0: "CALLER_ROLE_UNSPECIFIED",
+		1: "CALLER_ROLE_VIEWER",
+		2: "CALLER_ROLE_EDITOR",
+		3: "CALLER_ROLE_ORG_ADMIN",
+		4: "CALLER_ROLE_OWNER",
+	}
+	CallerRole_value = map[string]int32{
+		"CALLER_ROLE_UNSPECIFIED": 0,
+		"CALLER_ROLE_VIEWER":      1,
+		"CALLER_ROLE_EDITOR":      2,
+		"CALLER_ROLE_ORG_ADMIN":   3,
+		"CALLER_ROLE_OWNER":       4,
+	}
+)
+
+func (x CallerRole) Enum() *CallerRole {
+	p := new(CallerRole)
+	*p = x
+	return p
+}
+
+func (x CallerRole) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CallerRole) Descriptor() protoreflect.EnumDescriptor {
+	return file_scripts_scripts_proto_enumTypes[0].Descriptor()
+}
+
+func (CallerRole) Type() protoreflect.EnumType {
+	return &file_scripts_scripts_proto_enumTypes[0]
+}
+
+func (x CallerRole) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CallerRole.Descriptor instead.
+func (CallerRole) EnumDescriptor() ([]byte, []int) {
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{0}
+}
+
 // ResourceType identifies a beat-board or script sub-resource for
 // GetResourceProject. The gateway uses it to resolve which project owns a
 // resource so it can authorize a mutation against that project.
@@ -77,11 +148,11 @@ func (x ResourceType) String() string {
 }
 
 func (ResourceType) Descriptor() protoreflect.EnumDescriptor {
-	return file_scripts_scripts_proto_enumTypes[0].Descriptor()
+	return file_scripts_scripts_proto_enumTypes[1].Descriptor()
 }
 
 func (ResourceType) Type() protoreflect.EnumType {
-	return &file_scripts_scripts_proto_enumTypes[0]
+	return &file_scripts_scripts_proto_enumTypes[1]
 }
 
 func (x ResourceType) Number() protoreflect.EnumNumber {
@@ -90,7 +161,7 @@ func (x ResourceType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ResourceType.Descriptor instead.
 func (ResourceType) EnumDescriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{0}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{1}
 }
 
 // Project entity
@@ -1604,10 +1675,18 @@ func (x *CreateProjectResponse) GetProject() *Project {
 	return nil
 }
 
+// user_id is always the real authenticated actor (never empty — Orbit #360
+// removed the old empty-user_id "give me the project unauthenticated" path;
+// see GetProjectAccessMetadata for the legitimate no-actor lookup that replaced
+// it). caller_role is the gateway's resolved access level for that actor.
 type GetProjectRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId    string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1654,6 +1733,13 @@ func (x *GetProjectRequest) GetUserId() string {
 		return x.UserId
 	}
 	return ""
+}
+
+func (x *GetProjectRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
 }
 
 type GetProjectResponse struct {
@@ -2750,6 +2836,10 @@ type CreateSceneRequest struct {
 	SceneHeading  string                 `protobuf:"bytes,4,opt,name=scene_heading,json=sceneHeading,proto3" json:"scene_heading,omitempty"`
 	Content       string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
 	OrderIndex    int32                  `protobuf:"varint,6,opt,name=order_index,json=orderIndex,proto3" json:"order_index,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,7,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2826,6 +2916,13 @@ func (x *CreateSceneRequest) GetOrderIndex() int32 {
 	return 0
 }
 
+func (x *CreateSceneRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type CreateSceneResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Scene         *Scene                 `protobuf:"bytes,1,opt,name=scene,proto3" json:"scene,omitempty"`
@@ -2871,9 +2968,13 @@ func (x *CreateSceneResponse) GetScene() *Scene {
 }
 
 type GetProjectScenesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId    string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2920,6 +3021,13 @@ func (x *GetProjectScenesRequest) GetUserId() string {
 		return x.UserId
 	}
 	return ""
+}
+
+func (x *GetProjectScenesRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
 }
 
 type GetProjectScenesResponse struct {
@@ -2974,6 +3082,10 @@ type UpdateSceneRequest struct {
 	SceneHeading  *string                `protobuf:"bytes,4,opt,name=scene_heading,json=sceneHeading,proto3,oneof" json:"scene_heading,omitempty"`
 	Content       *string                `protobuf:"bytes,5,opt,name=content,proto3,oneof" json:"content,omitempty"`
 	OrderIndex    *int32                 `protobuf:"varint,6,opt,name=order_index,json=orderIndex,proto3,oneof" json:"order_index,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,7,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3050,6 +3162,13 @@ func (x *UpdateSceneRequest) GetOrderIndex() int32 {
 	return 0
 }
 
+func (x *UpdateSceneRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type UpdateSceneResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Scene         *Scene                 `protobuf:"bytes,1,opt,name=scene,proto3" json:"scene,omitempty"`
@@ -3095,9 +3214,13 @@ func (x *UpdateSceneResponse) GetScene() *Scene {
 }
 
 type DeleteSceneRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SceneId       string                 `protobuf:"bytes,1,opt,name=scene_id,json=sceneId,proto3" json:"scene_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	SceneId string                 `protobuf:"bytes,1,opt,name=scene_id,json=sceneId,proto3" json:"scene_id,omitempty"`
+	UserId  string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3144,6 +3267,13 @@ func (x *DeleteSceneRequest) GetUserId() string {
 		return x.UserId
 	}
 	return ""
+}
+
+func (x *DeleteSceneRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
 }
 
 type DeleteSceneResponse struct {
@@ -3713,8 +3843,12 @@ type DeleteScriptElementRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	ScriptElementId string                 `protobuf:"bytes,1,opt,name=script_element_id,json=scriptElementId,proto3" json:"script_element_id,omitempty"`
 	UserId          string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeleteScriptElementRequest) Reset() {
@@ -3759,6 +3893,13 @@ func (x *DeleteScriptElementRequest) GetUserId() string {
 		return x.UserId
 	}
 	return ""
+}
+
+func (x *DeleteScriptElementRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
 }
 
 type DeleteScriptElementResponse struct {
@@ -3807,14 +3948,18 @@ func (x *DeleteScriptElementResponse) GetSuccess() bool {
 
 // Element create operation for the gateway.
 type CreateElementRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	SceneId       string                 `protobuf:"bytes,3,opt,name=scene_id,json=sceneId,proto3" json:"scene_id,omitempty"`
-	ElementType   string                 `protobuf:"bytes,4,opt,name=element_type,json=elementType,proto3" json:"element_type,omitempty"` // format-specific element type, interpreted per editor
-	Content       string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
-	LineNumber    int32                  `protobuf:"varint,7,opt,name=line_number,json=lineNumber,proto3" json:"line_number,omitempty"`
-	Formatting    map[string]string      `protobuf:"bytes,8,rep,name=formatting,proto3" json:"formatting,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId   string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId      string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	SceneId     string                 `protobuf:"bytes,3,opt,name=scene_id,json=sceneId,proto3" json:"scene_id,omitempty"`
+	ElementType string                 `protobuf:"bytes,4,opt,name=element_type,json=elementType,proto3" json:"element_type,omitempty"` // format-specific element type, interpreted per editor
+	Content     string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
+	LineNumber  int32                  `protobuf:"varint,7,opt,name=line_number,json=lineNumber,proto3" json:"line_number,omitempty"`
+	Formatting  map[string]string      `protobuf:"bytes,8,rep,name=formatting,proto3" json:"formatting,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,9,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3898,6 +4043,13 @@ func (x *CreateElementRequest) GetFormatting() map[string]string {
 	return nil
 }
 
+func (x *CreateElementRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type CreateElementResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Element       *ProjectElement        `protobuf:"bytes,1,opt,name=element,proto3" json:"element,omitempty"`
@@ -3943,11 +4095,15 @@ func (x *CreateElementResponse) GetElement() *ProjectElement {
 }
 
 type UpdateElementRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ElementId     string                 `protobuf:"bytes,1,opt,name=element_id,json=elementId,proto3" json:"element_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Content       string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
-	Type          string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ElementId string                 `protobuf:"bytes,1,opt,name=element_id,json=elementId,proto3" json:"element_id,omitempty"`
+	UserId    string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Content   string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	Type      string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,5,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4010,6 +4166,13 @@ func (x *UpdateElementRequest) GetType() string {
 	return ""
 }
 
+func (x *UpdateElementRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type UpdateElementResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Element       *ProjectElement        `protobuf:"bytes,1,opt,name=element,proto3" json:"element,omitempty"`
@@ -4055,9 +4218,13 @@ func (x *UpdateElementResponse) GetElement() *ProjectElement {
 }
 
 type GetSceneElementsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SceneId       string                 `protobuf:"bytes,1,opt,name=scene_id,json=sceneId,proto3" json:"scene_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	SceneId string                 `protobuf:"bytes,1,opt,name=scene_id,json=sceneId,proto3" json:"scene_id,omitempty"`
+	UserId  string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4104,6 +4271,13 @@ func (x *GetSceneElementsRequest) GetUserId() string {
 		return x.UserId
 	}
 	return ""
+}
+
+func (x *GetSceneElementsRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
 }
 
 type GetSceneElementsResponse struct {
@@ -4257,22 +4431,26 @@ func (x *BatchCreateElementsResponse) GetCreatedElements() []*ProjectElement {
 
 // Beat Board requests/responses
 type CreateBeatRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Title         string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
-	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
-	SceneNumbers  string                 `protobuf:"bytes,5,opt,name=scene_numbers,json=sceneNumbers,proto3" json:"scene_numbers,omitempty"` // DEPRECATED: Use start_page and end_page
-	Color         string                 `protobuf:"bytes,6,opt,name=color,proto3" json:"color,omitempty"`
-	PositionX     float64                `protobuf:"fixed64,7,opt,name=position_x,json=positionX,proto3" json:"position_x,omitempty"`
-	PositionY     float64                `protobuf:"fixed64,8,opt,name=position_y,json=positionY,proto3" json:"position_y,omitempty"`
-	Width         float64                `protobuf:"fixed64,9,opt,name=width,proto3" json:"width,omitempty"`
-	Height        float64                `protobuf:"fixed64,10,opt,name=height,proto3" json:"height,omitempty"`
-	ActNumber     int32                  `protobuf:"varint,11,opt,name=act_number,json=actNumber,proto3" json:"act_number,omitempty"`
-	Order         int32                  `protobuf:"varint,12,opt,name=order,proto3" json:"order,omitempty"`
-	StartPage     int32                  `protobuf:"varint,13,opt,name=start_page,json=startPage,proto3" json:"start_page,omitempty"`
-	EndPage       int32                  `protobuf:"varint,14,opt,name=end_page,json=endPage,proto3" json:"end_page,omitempty"`
-	ImageUrl      *string                `protobuf:"bytes,15,opt,name=image_url,json=imageUrl,proto3,oneof" json:"image_url,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId    string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId       string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Title        string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	Description  string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	SceneNumbers string                 `protobuf:"bytes,5,opt,name=scene_numbers,json=sceneNumbers,proto3" json:"scene_numbers,omitempty"` // DEPRECATED: Use start_page and end_page
+	Color        string                 `protobuf:"bytes,6,opt,name=color,proto3" json:"color,omitempty"`
+	PositionX    float64                `protobuf:"fixed64,7,opt,name=position_x,json=positionX,proto3" json:"position_x,omitempty"`
+	PositionY    float64                `protobuf:"fixed64,8,opt,name=position_y,json=positionY,proto3" json:"position_y,omitempty"`
+	Width        float64                `protobuf:"fixed64,9,opt,name=width,proto3" json:"width,omitempty"`
+	Height       float64                `protobuf:"fixed64,10,opt,name=height,proto3" json:"height,omitempty"`
+	ActNumber    int32                  `protobuf:"varint,11,opt,name=act_number,json=actNumber,proto3" json:"act_number,omitempty"`
+	Order        int32                  `protobuf:"varint,12,opt,name=order,proto3" json:"order,omitempty"`
+	StartPage    int32                  `protobuf:"varint,13,opt,name=start_page,json=startPage,proto3" json:"start_page,omitempty"`
+	EndPage      int32                  `protobuf:"varint,14,opt,name=end_page,json=endPage,proto3" json:"end_page,omitempty"`
+	ImageUrl     *string                `protobuf:"bytes,15,opt,name=image_url,json=imageUrl,proto3,oneof" json:"image_url,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,16,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4412,6 +4590,13 @@ func (x *CreateBeatRequest) GetImageUrl() string {
 	return ""
 }
 
+func (x *CreateBeatRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type CreateBeatResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Beat          *Beat                  `protobuf:"bytes,1,opt,name=beat,proto3" json:"beat,omitempty"`
@@ -4457,9 +4642,13 @@ func (x *CreateBeatResponse) GetBeat() *Beat {
 }
 
 type GetBeatRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	BeatId        string                 `protobuf:"bytes,1,opt,name=beat_id,json=beatId,proto3" json:"beat_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	BeatId string                 `protobuf:"bytes,1,opt,name=beat_id,json=beatId,proto3" json:"beat_id,omitempty"`
+	UserId string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4508,6 +4697,13 @@ func (x *GetBeatRequest) GetUserId() string {
 	return ""
 }
 
+func (x *GetBeatRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type GetBeatResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Beat          *Beat                  `protobuf:"bytes,1,opt,name=beat,proto3" json:"beat,omitempty"`
@@ -4553,9 +4749,13 @@ func (x *GetBeatResponse) GetBeat() *Beat {
 }
 
 type GetProjectBeatBoardRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId    string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4604,6 +4804,13 @@ func (x *GetProjectBeatBoardRequest) GetUserId() string {
 	return ""
 }
 
+func (x *GetProjectBeatBoardRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type GetProjectBeatBoardResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BeatBoard     *BeatBoardData         `protobuf:"bytes,1,opt,name=beat_board,json=beatBoard,proto3" json:"beat_board,omitempty"`
@@ -4649,22 +4856,26 @@ func (x *GetProjectBeatBoardResponse) GetBeatBoard() *BeatBoardData {
 }
 
 type UpdateBeatRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	BeatId        string                 `protobuf:"bytes,1,opt,name=beat_id,json=beatId,proto3" json:"beat_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Title         *string                `protobuf:"bytes,3,opt,name=title,proto3,oneof" json:"title,omitempty"`
-	Description   *string                `protobuf:"bytes,4,opt,name=description,proto3,oneof" json:"description,omitempty"`
-	SceneNumbers  *string                `protobuf:"bytes,5,opt,name=scene_numbers,json=sceneNumbers,proto3,oneof" json:"scene_numbers,omitempty"` // DEPRECATED: Use start_page and end_page
-	Color         *string                `protobuf:"bytes,6,opt,name=color,proto3,oneof" json:"color,omitempty"`
-	PositionX     *float64               `protobuf:"fixed64,7,opt,name=position_x,json=positionX,proto3,oneof" json:"position_x,omitempty"`
-	PositionY     *float64               `protobuf:"fixed64,8,opt,name=position_y,json=positionY,proto3,oneof" json:"position_y,omitempty"`
-	Width         *float64               `protobuf:"fixed64,9,opt,name=width,proto3,oneof" json:"width,omitempty"`
-	Height        *float64               `protobuf:"fixed64,10,opt,name=height,proto3,oneof" json:"height,omitempty"`
-	ActNumber     *int32                 `protobuf:"varint,11,opt,name=act_number,json=actNumber,proto3,oneof" json:"act_number,omitempty"`
-	Order         *int32                 `protobuf:"varint,12,opt,name=order,proto3,oneof" json:"order,omitempty"`
-	StartPage     *int32                 `protobuf:"varint,13,opt,name=start_page,json=startPage,proto3,oneof" json:"start_page,omitempty"`
-	EndPage       *int32                 `protobuf:"varint,14,opt,name=end_page,json=endPage,proto3,oneof" json:"end_page,omitempty"`
-	ImageUrl      *string                `protobuf:"bytes,15,opt,name=image_url,json=imageUrl,proto3,oneof" json:"image_url,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	BeatId       string                 `protobuf:"bytes,1,opt,name=beat_id,json=beatId,proto3" json:"beat_id,omitempty"`
+	UserId       string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Title        *string                `protobuf:"bytes,3,opt,name=title,proto3,oneof" json:"title,omitempty"`
+	Description  *string                `protobuf:"bytes,4,opt,name=description,proto3,oneof" json:"description,omitempty"`
+	SceneNumbers *string                `protobuf:"bytes,5,opt,name=scene_numbers,json=sceneNumbers,proto3,oneof" json:"scene_numbers,omitempty"` // DEPRECATED: Use start_page and end_page
+	Color        *string                `protobuf:"bytes,6,opt,name=color,proto3,oneof" json:"color,omitempty"`
+	PositionX    *float64               `protobuf:"fixed64,7,opt,name=position_x,json=positionX,proto3,oneof" json:"position_x,omitempty"`
+	PositionY    *float64               `protobuf:"fixed64,8,opt,name=position_y,json=positionY,proto3,oneof" json:"position_y,omitempty"`
+	Width        *float64               `protobuf:"fixed64,9,opt,name=width,proto3,oneof" json:"width,omitempty"`
+	Height       *float64               `protobuf:"fixed64,10,opt,name=height,proto3,oneof" json:"height,omitempty"`
+	ActNumber    *int32                 `protobuf:"varint,11,opt,name=act_number,json=actNumber,proto3,oneof" json:"act_number,omitempty"`
+	Order        *int32                 `protobuf:"varint,12,opt,name=order,proto3,oneof" json:"order,omitempty"`
+	StartPage    *int32                 `protobuf:"varint,13,opt,name=start_page,json=startPage,proto3,oneof" json:"start_page,omitempty"`
+	EndPage      *int32                 `protobuf:"varint,14,opt,name=end_page,json=endPage,proto3,oneof" json:"end_page,omitempty"`
+	ImageUrl     *string                `protobuf:"bytes,15,opt,name=image_url,json=imageUrl,proto3,oneof" json:"image_url,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,16,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4804,6 +5015,13 @@ func (x *UpdateBeatRequest) GetImageUrl() string {
 	return ""
 }
 
+func (x *UpdateBeatRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type UpdateBeatResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Beat          *Beat                  `protobuf:"bytes,1,opt,name=beat,proto3" json:"beat,omitempty"`
@@ -4849,9 +5067,13 @@ func (x *UpdateBeatResponse) GetBeat() *Beat {
 }
 
 type DeleteBeatRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	BeatId        string                 `protobuf:"bytes,1,opt,name=beat_id,json=beatId,proto3" json:"beat_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	BeatId string                 `protobuf:"bytes,1,opt,name=beat_id,json=beatId,proto3" json:"beat_id,omitempty"`
+	UserId string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4900,6 +5122,13 @@ func (x *DeleteBeatRequest) GetUserId() string {
 	return ""
 }
 
+func (x *DeleteBeatRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type DeleteBeatResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -4945,13 +5174,17 @@ func (x *DeleteBeatResponse) GetSuccess() bool {
 }
 
 type CreateConnectionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	FromBeatId    string                 `protobuf:"bytes,3,opt,name=from_beat_id,json=fromBeatId,proto3" json:"from_beat_id,omitempty"`
-	ToBeatId      string                 `protobuf:"bytes,4,opt,name=to_beat_id,json=toBeatId,proto3" json:"to_beat_id,omitempty"`
-	FromSide      string                 `protobuf:"bytes,5,opt,name=from_side,json=fromSide,proto3" json:"from_side,omitempty"`
-	ToSide        string                 `protobuf:"bytes,6,opt,name=to_side,json=toSide,proto3" json:"to_side,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId  string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId     string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	FromBeatId string                 `protobuf:"bytes,3,opt,name=from_beat_id,json=fromBeatId,proto3" json:"from_beat_id,omitempty"`
+	ToBeatId   string                 `protobuf:"bytes,4,opt,name=to_beat_id,json=toBeatId,proto3" json:"to_beat_id,omitempty"`
+	FromSide   string                 `protobuf:"bytes,5,opt,name=from_side,json=fromSide,proto3" json:"from_side,omitempty"`
+	ToSide     string                 `protobuf:"bytes,6,opt,name=to_side,json=toSide,proto3" json:"to_side,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,7,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5028,6 +5261,13 @@ func (x *CreateConnectionRequest) GetToSide() string {
 	return ""
 }
 
+func (x *CreateConnectionRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type CreateConnectionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Connection    *Connection            `protobuf:"bytes,1,opt,name=connection,proto3" json:"connection,omitempty"`
@@ -5073,9 +5313,13 @@ func (x *CreateConnectionResponse) GetConnection() *Connection {
 }
 
 type DeleteConnectionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ConnectionId  string                 `protobuf:"bytes,1,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	ConnectionId string                 `protobuf:"bytes,1,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
+	UserId       string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5124,6 +5368,13 @@ func (x *DeleteConnectionRequest) GetUserId() string {
 	return ""
 }
 
+func (x *DeleteConnectionRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type DeleteConnectionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -5169,12 +5420,16 @@ func (x *DeleteConnectionResponse) GetSuccess() bool {
 }
 
 type CreateLaneRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Color         string                 `protobuf:"bytes,4,opt,name=color,proto3" json:"color,omitempty"`
-	Order         int32                  `protobuf:"varint,5,opt,name=order,proto3" json:"order,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId    string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name      string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Color     string                 `protobuf:"bytes,4,opt,name=color,proto3" json:"color,omitempty"`
+	Order     int32                  `protobuf:"varint,5,opt,name=order,proto3" json:"order,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,6,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5244,6 +5499,13 @@ func (x *CreateLaneRequest) GetOrder() int32 {
 	return 0
 }
 
+func (x *CreateLaneRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type CreateLaneResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Lane          *Lane                  `protobuf:"bytes,1,opt,name=lane,proto3" json:"lane,omitempty"`
@@ -5289,9 +5551,13 @@ func (x *CreateLaneResponse) GetLane() *Lane {
 }
 
 type GetProjectLanesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId    string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5340,6 +5606,13 @@ func (x *GetProjectLanesRequest) GetUserId() string {
 	return ""
 }
 
+func (x *GetProjectLanesRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type GetProjectLanesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Lanes         []*Lane                `protobuf:"bytes,1,rep,name=lanes,proto3" json:"lanes,omitempty"`
@@ -5385,12 +5658,16 @@ func (x *GetProjectLanesResponse) GetLanes() []*Lane {
 }
 
 type UpdateLaneRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	LaneId        string                 `protobuf:"bytes,1,opt,name=lane_id,json=laneId,proto3" json:"lane_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Name          *string                `protobuf:"bytes,3,opt,name=name,proto3,oneof" json:"name,omitempty"`
-	Color         *string                `protobuf:"bytes,4,opt,name=color,proto3,oneof" json:"color,omitempty"`
-	Order         *int32                 `protobuf:"varint,5,opt,name=order,proto3,oneof" json:"order,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	LaneId string                 `protobuf:"bytes,1,opt,name=lane_id,json=laneId,proto3" json:"lane_id,omitempty"`
+	UserId string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name   *string                `protobuf:"bytes,3,opt,name=name,proto3,oneof" json:"name,omitempty"`
+	Color  *string                `protobuf:"bytes,4,opt,name=color,proto3,oneof" json:"color,omitempty"`
+	Order  *int32                 `protobuf:"varint,5,opt,name=order,proto3,oneof" json:"order,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,6,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5460,6 +5737,13 @@ func (x *UpdateLaneRequest) GetOrder() int32 {
 	return 0
 }
 
+func (x *UpdateLaneRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type UpdateLaneResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Lane          *Lane                  `protobuf:"bytes,1,opt,name=lane,proto3" json:"lane,omitempty"`
@@ -5505,10 +5789,14 @@ func (x *UpdateLaneResponse) GetLane() *Lane {
 }
 
 type UpdateLaneOrderRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	LaneIds       []string               `protobuf:"bytes,3,rep,name=lane_ids,json=laneIds,proto3" json:"lane_ids,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId    string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	LaneIds   []string               `protobuf:"bytes,3,rep,name=lane_ids,json=laneIds,proto3" json:"lane_ids,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,4,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5564,6 +5852,13 @@ func (x *UpdateLaneOrderRequest) GetLaneIds() []string {
 	return nil
 }
 
+func (x *UpdateLaneOrderRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type UpdateLaneOrderResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -5609,9 +5904,13 @@ func (x *UpdateLaneOrderResponse) GetSuccess() bool {
 }
 
 type DeleteLaneRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	LaneId        string                 `protobuf:"bytes,1,opt,name=lane_id,json=laneId,proto3" json:"lane_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	LaneId string                 `protobuf:"bytes,1,opt,name=lane_id,json=laneId,proto3" json:"lane_id,omitempty"`
+	UserId string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5658,6 +5957,13 @@ func (x *DeleteLaneRequest) GetUserId() string {
 		return x.UserId
 	}
 	return ""
+}
+
+func (x *DeleteLaneRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
 }
 
 type DeleteLaneResponse struct {
@@ -5713,8 +6019,12 @@ type CreateOutlineItemRequest struct {
 	Order            int32                  `protobuf:"varint,5,opt,name=order,proto3" json:"order,omitempty"`
 	TimelinePosition float64                `protobuf:"fixed64,6,opt,name=timeline_position,json=timelinePosition,proto3" json:"timeline_position,omitempty"`
 	Width            float64                `protobuf:"fixed64,7,opt,name=width,proto3" json:"width,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,8,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateOutlineItemRequest) Reset() {
@@ -5796,6 +6106,13 @@ func (x *CreateOutlineItemRequest) GetWidth() float64 {
 	return 0
 }
 
+func (x *CreateOutlineItemRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type CreateOutlineItemResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OutlineItem   *OutlineItem           `protobuf:"bytes,1,opt,name=outline_item,json=outlineItem,proto3" json:"outline_item,omitempty"`
@@ -5849,8 +6166,12 @@ type UpdateOutlineItemRequest struct {
 	Order            *int32                 `protobuf:"varint,5,opt,name=order,proto3,oneof" json:"order,omitempty"`
 	TimelinePosition *float64               `protobuf:"fixed64,6,opt,name=timeline_position,json=timelinePosition,proto3,oneof" json:"timeline_position,omitempty"`
 	Width            *float64               `protobuf:"fixed64,7,opt,name=width,proto3,oneof" json:"width,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,8,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateOutlineItemRequest) Reset() {
@@ -5932,6 +6253,13 @@ func (x *UpdateOutlineItemRequest) GetWidth() float64 {
 	return 0
 }
 
+func (x *UpdateOutlineItemRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type UpdateOutlineItemResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OutlineItem   *OutlineItem           `protobuf:"bytes,1,opt,name=outline_item,json=outlineItem,proto3" json:"outline_item,omitempty"`
@@ -5980,6 +6308,10 @@ type DeleteOutlineItemRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OutlineItemId string                 `protobuf:"bytes,1,opt,name=outline_item_id,json=outlineItemId,proto3" json:"outline_item_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6028,6 +6360,13 @@ func (x *DeleteOutlineItemRequest) GetUserId() string {
 	return ""
 }
 
+func (x *DeleteOutlineItemRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type DeleteOutlineItemResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -6073,12 +6412,16 @@ func (x *DeleteOutlineItemResponse) GetSuccess() bool {
 }
 
 type CreateDrawingRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Kind          string                 `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
-	Data          string                 `protobuf:"bytes,4,opt,name=data,proto3" json:"data,omitempty"`
-	Order         int32                  `protobuf:"varint,5,opt,name=order,proto3" json:"order,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId    string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Kind      string                 `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
+	Data      string                 `protobuf:"bytes,4,opt,name=data,proto3" json:"data,omitempty"`
+	Order     int32                  `protobuf:"varint,5,opt,name=order,proto3" json:"order,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,6,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6148,6 +6491,13 @@ func (x *CreateDrawingRequest) GetOrder() int32 {
 	return 0
 }
 
+func (x *CreateDrawingRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type CreateDrawingResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Drawing       *Drawing               `protobuf:"bytes,1,opt,name=drawing,proto3" json:"drawing,omitempty"`
@@ -6199,8 +6549,12 @@ type UpdateDrawingRequest struct {
 	Kind      *string                `protobuf:"bytes,3,opt,name=kind,proto3,oneof" json:"kind,omitempty"`
 	// A shape is always edited whole (one gesture), so `data` is replaced, never
 	// merged — there is no partial update of a stroke.
-	Data          *string `protobuf:"bytes,4,opt,name=data,proto3,oneof" json:"data,omitempty"`
-	Order         *int32  `protobuf:"varint,5,opt,name=order,proto3,oneof" json:"order,omitempty"`
+	Data  *string `protobuf:"bytes,4,opt,name=data,proto3,oneof" json:"data,omitempty"`
+	Order *int32  `protobuf:"varint,5,opt,name=order,proto3,oneof" json:"order,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,6,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6270,6 +6624,13 @@ func (x *UpdateDrawingRequest) GetOrder() int32 {
 	return 0
 }
 
+func (x *UpdateDrawingRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type UpdateDrawingResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Drawing       *Drawing               `protobuf:"bytes,1,opt,name=drawing,proto3" json:"drawing,omitempty"`
@@ -6315,9 +6676,13 @@ func (x *UpdateDrawingResponse) GetDrawing() *Drawing {
 }
 
 type DeleteDrawingRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	DrawingId     string                 `protobuf:"bytes,1,opt,name=drawing_id,json=drawingId,proto3" json:"drawing_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	DrawingId string                 `protobuf:"bytes,1,opt,name=drawing_id,json=drawingId,proto3" json:"drawing_id,omitempty"`
+	UserId    string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Set exclusively by the gateway (the trusted internal caller) after
+	// resolving access via handlers.ResolveProjectRole — never derived from
+	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
+	CallerRole    CallerRole `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=scripts.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6364,6 +6729,13 @@ func (x *DeleteDrawingRequest) GetUserId() string {
 		return x.UserId
 	}
 	return ""
+}
+
+func (x *DeleteDrawingRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
 }
 
 type DeleteDrawingResponse struct {
@@ -6506,6 +6878,107 @@ func (x *GetResourceProjectResponse) GetProjectId() string {
 	return ""
 }
 
+// GetProjectAccessMetadata is a narrow internal lookup used while the gateway
+// is resolving access or enforcing owner-scoped quotas. It is not "read this
+// project": it returns only the ownership fields needed for those decisions
+// and performs no authorization itself, like GetResourceProject. Added for
+// Orbit #360 to replace GetProject's overloaded empty-user_id bypass.
+type GetProjectAccessMetadataRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetProjectAccessMetadataRequest) Reset() {
+	*x = GetProjectAccessMetadataRequest{}
+	mi := &file_scripts_scripts_proto_msgTypes[99]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetProjectAccessMetadataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetProjectAccessMetadataRequest) ProtoMessage() {}
+
+func (x *GetProjectAccessMetadataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_scripts_scripts_proto_msgTypes[99]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetProjectAccessMetadataRequest.ProtoReflect.Descriptor instead.
+func (*GetProjectAccessMetadataRequest) Descriptor() ([]byte, []int) {
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{99}
+}
+
+func (x *GetProjectAccessMetadataRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+type GetProjectAccessMetadataResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrgId         string                 `protobuf:"bytes,1,opt,name=org_id,json=orgId,proto3" json:"org_id,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetProjectAccessMetadataResponse) Reset() {
+	*x = GetProjectAccessMetadataResponse{}
+	mi := &file_scripts_scripts_proto_msgTypes[100]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetProjectAccessMetadataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetProjectAccessMetadataResponse) ProtoMessage() {}
+
+func (x *GetProjectAccessMetadataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_scripts_scripts_proto_msgTypes[100]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetProjectAccessMetadataResponse.ProtoReflect.Descriptor instead.
+func (*GetProjectAccessMetadataResponse) Descriptor() ([]byte, []int) {
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{100}
+}
+
+func (x *GetProjectAccessMetadataResponse) GetOrgId() string {
+	if x != nil {
+		return x.OrgId
+	}
+	return ""
+}
+
+func (x *GetProjectAccessMetadataResponse) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
+}
+
 type GetProjectLocationsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
@@ -6516,7 +6989,7 @@ type GetProjectLocationsRequest struct {
 
 func (x *GetProjectLocationsRequest) Reset() {
 	*x = GetProjectLocationsRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[99]
+	mi := &file_scripts_scripts_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6528,7 +7001,7 @@ func (x *GetProjectLocationsRequest) String() string {
 func (*GetProjectLocationsRequest) ProtoMessage() {}
 
 func (x *GetProjectLocationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[99]
+	mi := &file_scripts_scripts_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6541,7 +7014,7 @@ func (x *GetProjectLocationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectLocationsRequest.ProtoReflect.Descriptor instead.
 func (*GetProjectLocationsRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{99}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *GetProjectLocationsRequest) GetProjectId() string {
@@ -6567,7 +7040,7 @@ type GetProjectLocationsResponse struct {
 
 func (x *GetProjectLocationsResponse) Reset() {
 	*x = GetProjectLocationsResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[100]
+	mi := &file_scripts_scripts_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6579,7 +7052,7 @@ func (x *GetProjectLocationsResponse) String() string {
 func (*GetProjectLocationsResponse) ProtoMessage() {}
 
 func (x *GetProjectLocationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[100]
+	mi := &file_scripts_scripts_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6592,7 +7065,7 @@ func (x *GetProjectLocationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectLocationsResponse.ProtoReflect.Descriptor instead.
 func (*GetProjectLocationsResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{100}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *GetProjectLocationsResponse) GetLocations() []*Location {
@@ -6624,7 +7097,7 @@ type SyncChanges struct {
 
 func (x *SyncChanges) Reset() {
 	*x = SyncChanges{}
-	mi := &file_scripts_scripts_proto_msgTypes[101]
+	mi := &file_scripts_scripts_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6636,7 +7109,7 @@ func (x *SyncChanges) String() string {
 func (*SyncChanges) ProtoMessage() {}
 
 func (x *SyncChanges) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[101]
+	mi := &file_scripts_scripts_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6649,7 +7122,7 @@ func (x *SyncChanges) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncChanges.ProtoReflect.Descriptor instead.
 func (*SyncChanges) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{101}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *SyncChanges) GetProject() *Project {
@@ -6734,7 +7207,7 @@ type SyncProjectRequest struct {
 
 func (x *SyncProjectRequest) Reset() {
 	*x = SyncProjectRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[102]
+	mi := &file_scripts_scripts_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6746,7 +7219,7 @@ func (x *SyncProjectRequest) String() string {
 func (*SyncProjectRequest) ProtoMessage() {}
 
 func (x *SyncProjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[102]
+	mi := &file_scripts_scripts_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6759,7 +7232,7 @@ func (x *SyncProjectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncProjectRequest.ProtoReflect.Descriptor instead.
 func (*SyncProjectRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{102}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *SyncProjectRequest) GetProjectId() string {
@@ -6800,7 +7273,7 @@ type SyncProjectResponse struct {
 
 func (x *SyncProjectResponse) Reset() {
 	*x = SyncProjectResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[103]
+	mi := &file_scripts_scripts_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6812,7 +7285,7 @@ func (x *SyncProjectResponse) String() string {
 func (*SyncProjectResponse) ProtoMessage() {}
 
 func (x *SyncProjectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[103]
+	mi := &file_scripts_scripts_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6825,7 +7298,7 @@ func (x *SyncProjectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncProjectResponse.ProtoReflect.Descriptor instead.
 func (*SyncProjectResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{103}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *SyncProjectResponse) GetChanges() *SyncChanges {
@@ -6860,7 +7333,7 @@ type VaultFile struct {
 
 func (x *VaultFile) Reset() {
 	*x = VaultFile{}
-	mi := &file_scripts_scripts_proto_msgTypes[104]
+	mi := &file_scripts_scripts_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6872,7 +7345,7 @@ func (x *VaultFile) String() string {
 func (*VaultFile) ProtoMessage() {}
 
 func (x *VaultFile) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[104]
+	mi := &file_scripts_scripts_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6885,7 +7358,7 @@ func (x *VaultFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VaultFile.ProtoReflect.Descriptor instead.
 func (*VaultFile) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{104}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *VaultFile) GetPath() string {
@@ -6936,7 +7409,7 @@ type VaultCursor struct {
 
 func (x *VaultCursor) Reset() {
 	*x = VaultCursor{}
-	mi := &file_scripts_scripts_proto_msgTypes[105]
+	mi := &file_scripts_scripts_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6948,7 +7421,7 @@ func (x *VaultCursor) String() string {
 func (*VaultCursor) ProtoMessage() {}
 
 func (x *VaultCursor) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[105]
+	mi := &file_scripts_scripts_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6961,7 +7434,7 @@ func (x *VaultCursor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VaultCursor.ProtoReflect.Descriptor instead.
 func (*VaultCursor) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{105}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *VaultCursor) GetUpdatedAt() *common.Timestamp {
@@ -6991,7 +7464,7 @@ type SyncVaultRequest struct {
 
 func (x *SyncVaultRequest) Reset() {
 	*x = SyncVaultRequest{}
-	mi := &file_scripts_scripts_proto_msgTypes[106]
+	mi := &file_scripts_scripts_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7003,7 +7476,7 @@ func (x *SyncVaultRequest) String() string {
 func (*SyncVaultRequest) ProtoMessage() {}
 
 func (x *SyncVaultRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[106]
+	mi := &file_scripts_scripts_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7016,7 +7489,7 @@ func (x *SyncVaultRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncVaultRequest.ProtoReflect.Descriptor instead.
 func (*SyncVaultRequest) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{106}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *SyncVaultRequest) GetProjectId() string {
@@ -7065,7 +7538,7 @@ type SyncVaultResponse struct {
 
 func (x *SyncVaultResponse) Reset() {
 	*x = SyncVaultResponse{}
-	mi := &file_scripts_scripts_proto_msgTypes[107]
+	mi := &file_scripts_scripts_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7077,7 +7550,7 @@ func (x *SyncVaultResponse) String() string {
 func (*SyncVaultResponse) ProtoMessage() {}
 
 func (x *SyncVaultResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scripts_scripts_proto_msgTypes[107]
+	mi := &file_scripts_scripts_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7090,7 +7563,7 @@ func (x *SyncVaultResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncVaultResponse.ProtoReflect.Descriptor instead.
 func (*SyncVaultResponse) Descriptor() ([]byte, []int) {
-	return file_scripts_scripts_proto_rawDescGZIP(), []int{107}
+	return file_scripts_scripts_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *SyncVaultResponse) GetFiles() []*VaultFile {
@@ -7326,11 +7799,13 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\bcategory\x18\x04 \x01(\tR\bcategory\x12\x15\n" +
 	"\x06org_id\x18\x05 \x01(\tR\x05orgId\"C\n" +
 	"\x15CreateProjectResponse\x12*\n" +
-	"\aproject\x18\x01 \x01(\v2\x10.scripts.ProjectR\aproject\"K\n" +
+	"\aproject\x18\x01 \x01(\v2\x10.scripts.ProjectR\aproject\"\x81\x01\n" +
 	"\x11GetProjectRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"@\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"@\n" +
 	"\x12GetProjectResponse\x12*\n" +
 	"\aproject\x18\x01 \x01(\v2\x10.scripts.ProjectR\aproject\"\xd2\x01\n" +
 	"\x14UpdateProjectRequest\x12\x1d\n" +
@@ -7431,7 +7906,7 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\x0foutline_unit_id\x18\x01 \x01(\tR\routlineUnitId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"5\n" +
 	"\x19DeleteOutlineUnitResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xed\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xa3\x02\n" +
 	"\x12CreateSceneRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
@@ -7440,16 +7915,20 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\rscene_heading\x18\x04 \x01(\tR\fsceneHeading\x12\x18\n" +
 	"\acontent\x18\x05 \x01(\tR\acontent\x12\x1f\n" +
 	"\vorder_index\x18\x06 \x01(\x05R\n" +
-	"orderIndexB\x12\n" +
+	"orderIndex\x124\n" +
+	"\vcaller_role\x18\a \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRoleB\x12\n" +
 	"\x10_outline_unit_id\";\n" +
 	"\x13CreateSceneResponse\x12$\n" +
-	"\x05scene\x18\x01 \x01(\v2\x0e.scripts.SceneR\x05scene\"Q\n" +
+	"\x05scene\x18\x01 \x01(\v2\x0e.scripts.SceneR\x05scene\"\x87\x01\n" +
 	"\x17GetProjectScenesRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"B\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"B\n" +
 	"\x18GetProjectScenesResponse\x12&\n" +
-	"\x06scenes\x18\x01 \x03(\v2\x0e.scripts.SceneR\x06scenes\"\xa6\x02\n" +
+	"\x06scenes\x18\x01 \x03(\v2\x0e.scripts.SceneR\x06scenes\"\xdc\x02\n" +
 	"\x12UpdateSceneRequest\x12\x19\n" +
 	"\bscene_id\x18\x01 \x01(\tR\asceneId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12+\n" +
@@ -7457,17 +7936,21 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\rscene_heading\x18\x04 \x01(\tH\x01R\fsceneHeading\x88\x01\x01\x12\x1d\n" +
 	"\acontent\x18\x05 \x01(\tH\x02R\acontent\x88\x01\x01\x12$\n" +
 	"\vorder_index\x18\x06 \x01(\x05H\x03R\n" +
-	"orderIndex\x88\x01\x01B\x12\n" +
+	"orderIndex\x88\x01\x01\x124\n" +
+	"\vcaller_role\x18\a \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRoleB\x12\n" +
 	"\x10_outline_unit_idB\x10\n" +
 	"\x0e_scene_headingB\n" +
 	"\n" +
 	"\b_contentB\x0e\n" +
 	"\f_order_index\";\n" +
 	"\x13UpdateSceneResponse\x12$\n" +
-	"\x05scene\x18\x01 \x01(\v2\x0e.scripts.SceneR\x05scene\"H\n" +
+	"\x05scene\x18\x01 \x01(\v2\x0e.scripts.SceneR\x05scene\"~\n" +
 	"\x12DeleteSceneRequest\x12\x19\n" +
 	"\bscene_id\x18\x01 \x01(\tR\asceneId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"/\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"/\n" +
 	"\x13DeleteSceneResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xaa\x02\n" +
 	"\x16CreateCharacterRequest\x12\x1d\n" +
@@ -7520,12 +8003,14 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\x16CreateLocationResponse\x12-\n" +
 	"\blocation\x18\x01 \x01(\v2\x11.scripts.LocationR\blocation\"G\n" +
 	"\x16UpdateLocationResponse\x12-\n" +
-	"\blocation\x18\x01 \x01(\v2\x11.scripts.LocationR\blocation\"a\n" +
+	"\blocation\x18\x01 \x01(\v2\x11.scripts.LocationR\blocation\"\x97\x01\n" +
 	"\x1aDeleteScriptElementRequest\x12*\n" +
 	"\x11script_element_id\x18\x01 \x01(\tR\x0fscriptElementId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"7\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"7\n" +
 	"\x1bDeleteScriptElementResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xe9\x02\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\x9f\x03\n" +
 	"\x14CreateElementRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
@@ -7537,23 +8022,29 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"lineNumber\x12M\n" +
 	"\n" +
 	"formatting\x18\b \x03(\v2-.scripts.CreateElementRequest.FormattingEntryR\n" +
-	"formatting\x1a=\n" +
+	"formatting\x124\n" +
+	"\vcaller_role\x18\t \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\x1a=\n" +
 	"\x0fFormattingEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x06\x10\aR\fcharacter_id\"J\n" +
 	"\x15CreateElementResponse\x121\n" +
-	"\aelement\x18\x01 \x01(\v2\x17.scripts.ProjectElementR\aelement\"|\n" +
+	"\aelement\x18\x01 \x01(\v2\x17.scripts.ProjectElementR\aelement\"\xb2\x01\n" +
 	"\x14UpdateElementRequest\x12\x1d\n" +
 	"\n" +
 	"element_id\x18\x01 \x01(\tR\telementId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
 	"\acontent\x18\x03 \x01(\tR\acontent\x12\x12\n" +
-	"\x04type\x18\x04 \x01(\tR\x04type\"J\n" +
+	"\x04type\x18\x04 \x01(\tR\x04type\x124\n" +
+	"\vcaller_role\x18\x05 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"J\n" +
 	"\x15UpdateElementResponse\x121\n" +
-	"\aelement\x18\x01 \x01(\v2\x17.scripts.ProjectElementR\aelement\"M\n" +
+	"\aelement\x18\x01 \x01(\v2\x17.scripts.ProjectElementR\aelement\"\x83\x01\n" +
 	"\x17GetSceneElementsRequest\x12\x19\n" +
 	"\bscene_id\x18\x01 \x01(\tR\asceneId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"O\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"O\n" +
 	"\x18GetSceneElementsResponse\x123\n" +
 	"\belements\x18\x01 \x03(\v2\x17.scripts.ProjectElementR\belements\"\x89\x01\n" +
 	"\x1aBatchCreateElementsRequest\x12\x1d\n" +
@@ -7562,7 +8053,7 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x123\n" +
 	"\belements\x18\x03 \x03(\v2\x17.scripts.ProjectElementR\belements\"a\n" +
 	"\x1bBatchCreateElementsResponse\x12B\n" +
-	"\x10created_elements\x18\x01 \x03(\v2\x17.scripts.ProjectElementR\x0fcreatedElements\"\xc9\x03\n" +
+	"\x10created_elements\x18\x01 \x03(\v2\x17.scripts.ProjectElementR\x0fcreatedElements\"\xff\x03\n" +
 	"\x11CreateBeatRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
@@ -7584,23 +8075,29 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\n" +
 	"start_page\x18\r \x01(\x05R\tstartPage\x12\x19\n" +
 	"\bend_page\x18\x0e \x01(\x05R\aendPage\x12 \n" +
-	"\timage_url\x18\x0f \x01(\tH\x00R\bimageUrl\x88\x01\x01B\f\n" +
+	"\timage_url\x18\x0f \x01(\tH\x00R\bimageUrl\x88\x01\x01\x124\n" +
+	"\vcaller_role\x18\x10 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRoleB\f\n" +
 	"\n" +
 	"_image_url\"7\n" +
 	"\x12CreateBeatResponse\x12!\n" +
-	"\x04beat\x18\x01 \x01(\v2\r.scripts.BeatR\x04beat\"B\n" +
+	"\x04beat\x18\x01 \x01(\v2\r.scripts.BeatR\x04beat\"x\n" +
 	"\x0eGetBeatRequest\x12\x17\n" +
 	"\abeat_id\x18\x01 \x01(\tR\x06beatId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"4\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"4\n" +
 	"\x0fGetBeatResponse\x12!\n" +
-	"\x04beat\x18\x01 \x01(\v2\r.scripts.BeatR\x04beat\"T\n" +
+	"\x04beat\x18\x01 \x01(\v2\r.scripts.BeatR\x04beat\"\x8a\x01\n" +
 	"\x1aGetProjectBeatBoardRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"T\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"T\n" +
 	"\x1bGetProjectBeatBoardResponse\x125\n" +
 	"\n" +
-	"beat_board\x18\x01 \x01(\v2\x16.scripts.BeatBoardDataR\tbeatBoard\"\x9d\x05\n" +
+	"beat_board\x18\x01 \x01(\v2\x16.scripts.BeatBoardDataR\tbeatBoard\"\xd3\x05\n" +
 	"\x11UpdateBeatRequest\x12\x17\n" +
 	"\abeat_id\x18\x01 \x01(\tR\x06beatId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x19\n" +
@@ -7622,7 +8119,9 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"start_page\x18\r \x01(\x05H\n" +
 	"R\tstartPage\x88\x01\x01\x12\x1e\n" +
 	"\bend_page\x18\x0e \x01(\x05H\vR\aendPage\x88\x01\x01\x12 \n" +
-	"\timage_url\x18\x0f \x01(\tH\fR\bimageUrl\x88\x01\x01B\b\n" +
+	"\timage_url\x18\x0f \x01(\tH\fR\bimageUrl\x88\x01\x01\x124\n" +
+	"\vcaller_role\x18\x10 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRoleB\b\n" +
 	"\x06_titleB\x0e\n" +
 	"\f_descriptionB\x10\n" +
 	"\x0e_scene_numbersB\b\n" +
@@ -7638,12 +8137,14 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\n" +
 	"_image_url\"7\n" +
 	"\x12UpdateBeatResponse\x12!\n" +
-	"\x04beat\x18\x01 \x01(\v2\r.scripts.BeatR\x04beat\"E\n" +
+	"\x04beat\x18\x01 \x01(\v2\r.scripts.BeatR\x04beat\"{\n" +
 	"\x11DeleteBeatRequest\x12\x17\n" +
 	"\abeat_id\x18\x01 \x01(\tR\x06beatId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\".\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\".\n" +
 	"\x12DeleteBeatResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xc7\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xfd\x01\n" +
 	"\x17CreateConnectionRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
@@ -7653,54 +8154,68 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\n" +
 	"to_beat_id\x18\x04 \x01(\tR\btoBeatId\x12\x1b\n" +
 	"\tfrom_side\x18\x05 \x01(\tR\bfromSide\x12\x17\n" +
-	"\ato_side\x18\x06 \x01(\tR\x06toSide\"O\n" +
+	"\ato_side\x18\x06 \x01(\tR\x06toSide\x124\n" +
+	"\vcaller_role\x18\a \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"O\n" +
 	"\x18CreateConnectionResponse\x123\n" +
 	"\n" +
 	"connection\x18\x01 \x01(\v2\x13.scripts.ConnectionR\n" +
-	"connection\"W\n" +
+	"connection\"\x8d\x01\n" +
 	"\x17DeleteConnectionRequest\x12#\n" +
 	"\rconnection_id\x18\x01 \x01(\tR\fconnectionId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"4\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"4\n" +
 	"\x18DeleteConnectionResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\x8b\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xc1\x01\n" +
 	"\x11CreateLaneRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x14\n" +
 	"\x05color\x18\x04 \x01(\tR\x05color\x12\x14\n" +
-	"\x05order\x18\x05 \x01(\x05R\x05order\"7\n" +
+	"\x05order\x18\x05 \x01(\x05R\x05order\x124\n" +
+	"\vcaller_role\x18\x06 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"7\n" +
 	"\x12CreateLaneResponse\x12!\n" +
-	"\x04lane\x18\x01 \x01(\v2\r.scripts.LaneR\x04lane\"P\n" +
+	"\x04lane\x18\x01 \x01(\v2\r.scripts.LaneR\x04lane\"\x86\x01\n" +
 	"\x16GetProjectLanesRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\">\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\">\n" +
 	"\x17GetProjectLanesResponse\x12#\n" +
-	"\x05lanes\x18\x01 \x03(\v2\r.scripts.LaneR\x05lanes\"\xb1\x01\n" +
+	"\x05lanes\x18\x01 \x03(\v2\r.scripts.LaneR\x05lanes\"\xe7\x01\n" +
 	"\x11UpdateLaneRequest\x12\x17\n" +
 	"\alane_id\x18\x01 \x01(\tR\x06laneId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x17\n" +
 	"\x04name\x18\x03 \x01(\tH\x00R\x04name\x88\x01\x01\x12\x19\n" +
 	"\x05color\x18\x04 \x01(\tH\x01R\x05color\x88\x01\x01\x12\x19\n" +
-	"\x05order\x18\x05 \x01(\x05H\x02R\x05order\x88\x01\x01B\a\n" +
+	"\x05order\x18\x05 \x01(\x05H\x02R\x05order\x88\x01\x01\x124\n" +
+	"\vcaller_role\x18\x06 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRoleB\a\n" +
 	"\x05_nameB\b\n" +
 	"\x06_colorB\b\n" +
 	"\x06_order\"7\n" +
 	"\x12UpdateLaneResponse\x12!\n" +
-	"\x04lane\x18\x01 \x01(\v2\r.scripts.LaneR\x04lane\"k\n" +
+	"\x04lane\x18\x01 \x01(\v2\r.scripts.LaneR\x04lane\"\xa1\x01\n" +
 	"\x16UpdateLaneOrderRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x19\n" +
-	"\blane_ids\x18\x03 \x03(\tR\alaneIds\"3\n" +
+	"\blane_ids\x18\x03 \x03(\tR\alaneIds\x124\n" +
+	"\vcaller_role\x18\x04 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"3\n" +
 	"\x17UpdateLaneOrderResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"E\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"{\n" +
 	"\x11DeleteLaneRequest\x12\x17\n" +
 	"\alane_id\x18\x01 \x01(\tR\x06laneId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\".\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\".\n" +
 	"\x12DeleteLaneResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xdd\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\x93\x02\n" +
 	"\x18CreateOutlineItemRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
@@ -7709,9 +8224,11 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\alane_id\x18\x04 \x01(\tR\x06laneId\x12\x14\n" +
 	"\x05order\x18\x05 \x01(\x05R\x05order\x12+\n" +
 	"\x11timeline_position\x18\x06 \x01(\x01R\x10timelinePosition\x12\x14\n" +
-	"\x05width\x18\a \x01(\x01R\x05width\"T\n" +
+	"\x05width\x18\a \x01(\x01R\x05width\x124\n" +
+	"\vcaller_role\x18\b \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"T\n" +
 	"\x19CreateOutlineItemResponse\x127\n" +
-	"\foutline_item\x18\x01 \x01(\v2\x14.scripts.OutlineItemR\voutlineItem\"\xc1\x02\n" +
+	"\foutline_item\x18\x01 \x01(\v2\x14.scripts.OutlineItemR\voutlineItem\"\xf7\x02\n" +
 	"\x18UpdateOutlineItemRequest\x12&\n" +
 	"\x0foutline_item_id\x18\x01 \x01(\tR\routlineItemId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1c\n" +
@@ -7719,7 +8236,9 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\alane_id\x18\x04 \x01(\tH\x01R\x06laneId\x88\x01\x01\x12\x19\n" +
 	"\x05order\x18\x05 \x01(\x05H\x02R\x05order\x88\x01\x01\x120\n" +
 	"\x11timeline_position\x18\x06 \x01(\x01H\x03R\x10timelinePosition\x88\x01\x01\x12\x19\n" +
-	"\x05width\x18\a \x01(\x01H\x04R\x05width\x88\x01\x01B\n" +
+	"\x05width\x18\a \x01(\x01H\x04R\x05width\x88\x01\x01\x124\n" +
+	"\vcaller_role\x18\b \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRoleB\n" +
 	"\n" +
 	"\b_beat_idB\n" +
 	"\n" +
@@ -7728,37 +8247,45 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\x12_timeline_positionB\b\n" +
 	"\x06_width\"T\n" +
 	"\x19UpdateOutlineItemResponse\x127\n" +
-	"\foutline_item\x18\x01 \x01(\v2\x14.scripts.OutlineItemR\voutlineItem\"[\n" +
+	"\foutline_item\x18\x01 \x01(\v2\x14.scripts.OutlineItemR\voutlineItem\"\x91\x01\n" +
 	"\x18DeleteOutlineItemRequest\x12&\n" +
 	"\x0foutline_item_id\x18\x01 \x01(\tR\routlineItemId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"5\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"5\n" +
 	"\x19DeleteOutlineItemResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\x8c\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xc2\x01\n" +
 	"\x14CreateDrawingRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04kind\x18\x03 \x01(\tR\x04kind\x12\x12\n" +
 	"\x04data\x18\x04 \x01(\tR\x04data\x12\x14\n" +
-	"\x05order\x18\x05 \x01(\x05R\x05order\"C\n" +
+	"\x05order\x18\x05 \x01(\x05R\x05order\x124\n" +
+	"\vcaller_role\x18\x06 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"C\n" +
 	"\x15CreateDrawingResponse\x12*\n" +
-	"\adrawing\x18\x01 \x01(\v2\x10.scripts.DrawingR\adrawing\"\xb7\x01\n" +
+	"\adrawing\x18\x01 \x01(\v2\x10.scripts.DrawingR\adrawing\"\xed\x01\n" +
 	"\x14UpdateDrawingRequest\x12\x1d\n" +
 	"\n" +
 	"drawing_id\x18\x01 \x01(\tR\tdrawingId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x17\n" +
 	"\x04kind\x18\x03 \x01(\tH\x00R\x04kind\x88\x01\x01\x12\x17\n" +
 	"\x04data\x18\x04 \x01(\tH\x01R\x04data\x88\x01\x01\x12\x19\n" +
-	"\x05order\x18\x05 \x01(\x05H\x02R\x05order\x88\x01\x01B\a\n" +
+	"\x05order\x18\x05 \x01(\x05H\x02R\x05order\x88\x01\x01\x124\n" +
+	"\vcaller_role\x18\x06 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRoleB\a\n" +
 	"\x05_kindB\a\n" +
 	"\x05_dataB\b\n" +
 	"\x06_order\"C\n" +
 	"\x15UpdateDrawingResponse\x12*\n" +
-	"\adrawing\x18\x01 \x01(\v2\x10.scripts.DrawingR\adrawing\"N\n" +
+	"\adrawing\x18\x01 \x01(\v2\x10.scripts.DrawingR\adrawing\"\x84\x01\n" +
 	"\x14DeleteDrawingRequest\x12\x1d\n" +
 	"\n" +
 	"drawing_id\x18\x01 \x01(\tR\tdrawingId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"1\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x124\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
+	"callerRole\"1\n" +
 	"\x15DeleteDrawingResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\"x\n" +
 	"\x19GetResourceProjectRequest\x12:\n" +
@@ -7767,7 +8294,13 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"resourceId\";\n" +
 	"\x1aGetResourceProjectResponse\x12\x1d\n" +
 	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\"@\n" +
+	"\x1fGetProjectAccessMetadataRequest\x12\x1d\n" +
+	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\"T\n" +
+	" GetProjectAccessMetadataResponse\x12\x15\n" +
+	"\x06org_id\x18\x01 \x01(\tR\x05orgId\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\"T\n" +
 	"\x1aGetProjectLocationsRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
@@ -7819,7 +8352,14 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\x11SyncVaultResponse\x12(\n" +
 	"\x05files\x18\x01 \x03(\v2\x12.scripts.VaultFileR\x05files\x12,\n" +
 	"\x06cursor\x18\x02 \x01(\v2\x14.scripts.VaultCursorR\x06cursor\x12\x19\n" +
-	"\bhas_more\x18\x03 \x01(\bR\ahasMore*\xea\x01\n" +
+	"\bhas_more\x18\x03 \x01(\bR\ahasMore*\x8b\x01\n" +
+	"\n" +
+	"CallerRole\x12\x1b\n" +
+	"\x17CALLER_ROLE_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12CALLER_ROLE_VIEWER\x10\x01\x12\x16\n" +
+	"\x12CALLER_ROLE_EDITOR\x10\x02\x12\x19\n" +
+	"\x15CALLER_ROLE_ORG_ADMIN\x10\x03\x12\x15\n" +
+	"\x11CALLER_ROLE_OWNER\x10\x04*\xea\x01\n" +
 	"\fResourceType\x12\x1d\n" +
 	"\x19RESOURCE_TYPE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12RESOURCE_TYPE_BEAT\x10\x01\x12\x1c\n" +
@@ -7828,7 +8368,7 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\x1aRESOURCE_TYPE_OUTLINE_ITEM\x10\x04\x12\x19\n" +
 	"\x15RESOURCE_TYPE_ELEMENT\x10\x05\x12\x19\n" +
 	"\x15RESOURCE_TYPE_DRAWING\x10\x06\x12\x17\n" +
-	"\x13RESOURCE_TYPE_SCENE\x10\a2\x8f\x1e\n" +
+	"\x13RESOURCE_TYPE_SCENE\x10\a2\x80\x1f\n" +
 	"\x0eScriptsService\x12N\n" +
 	"\rCreateProject\x12\x1d.scripts.CreateProjectRequest\x1a\x1e.scripts.CreateProjectResponse\x12E\n" +
 	"\n" +
@@ -7880,7 +8420,8 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\rCreateDrawing\x12\x1d.scripts.CreateDrawingRequest\x1a\x1e.scripts.CreateDrawingResponse\x12N\n" +
 	"\rUpdateDrawing\x12\x1d.scripts.UpdateDrawingRequest\x1a\x1e.scripts.UpdateDrawingResponse\x12N\n" +
 	"\rDeleteDrawing\x12\x1d.scripts.DeleteDrawingRequest\x1a\x1e.scripts.DeleteDrawingResponse\x12]\n" +
-	"\x12GetResourceProject\x12\".scripts.GetResourceProjectRequest\x1a#.scripts.GetResourceProjectResponse\x12H\n" +
+	"\x12GetResourceProject\x12\".scripts.GetResourceProjectRequest\x1a#.scripts.GetResourceProjectResponse\x12o\n" +
+	"\x18GetProjectAccessMetadata\x12(.scripts.GetProjectAccessMetadataRequest\x1a).scripts.GetProjectAccessMetadataResponse\x12H\n" +
 	"\vSyncProject\x12\x1b.scripts.SyncProjectRequest\x1a\x1c.scripts.SyncProjectResponse\x12B\n" +
 	"\tSyncVault\x12\x19.scripts.SyncVaultRequest\x1a\x1a.scripts.SyncVaultResponseB!Z\x1finkwell/server/pkg/grpc/scriptsb\x06proto3"
 
@@ -7896,327 +8437,359 @@ func file_scripts_scripts_proto_rawDescGZIP() []byte {
 	return file_scripts_scripts_proto_rawDescData
 }
 
-var file_scripts_scripts_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_scripts_scripts_proto_msgTypes = make([]protoimpl.MessageInfo, 113)
+var file_scripts_scripts_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_scripts_scripts_proto_msgTypes = make([]protoimpl.MessageInfo, 115)
 var file_scripts_scripts_proto_goTypes = []any{
-	(ResourceType)(0),                    // 0: scripts.ResourceType
-	(*Project)(nil),                      // 1: scripts.Project
-	(*Scene)(nil),                        // 2: scripts.Scene
-	(*ProjectElement)(nil),               // 3: scripts.ProjectElement
-	(*OutlineUnit)(nil),                  // 4: scripts.OutlineUnit
-	(*Character)(nil),                    // 5: scripts.Character
-	(*Location)(nil),                     // 6: scripts.Location
-	(*Beat)(nil),                         // 7: scripts.Beat
-	(*Connection)(nil),                   // 8: scripts.Connection
-	(*Lane)(nil),                         // 9: scripts.Lane
-	(*OutlineItem)(nil),                  // 10: scripts.OutlineItem
-	(*Drawing)(nil),                      // 11: scripts.Drawing
-	(*BeatBoardData)(nil),                // 12: scripts.BeatBoardData
-	(*CreateProjectRequest)(nil),         // 13: scripts.CreateProjectRequest
-	(*CreateProjectResponse)(nil),        // 14: scripts.CreateProjectResponse
-	(*GetProjectRequest)(nil),            // 15: scripts.GetProjectRequest
-	(*GetProjectResponse)(nil),           // 16: scripts.GetProjectResponse
-	(*UpdateProjectRequest)(nil),         // 17: scripts.UpdateProjectRequest
-	(*UpdateProjectResponse)(nil),        // 18: scripts.UpdateProjectResponse
-	(*ToggleProjectStarRequest)(nil),     // 19: scripts.ToggleProjectStarRequest
-	(*ToggleProjectStarResponse)(nil),    // 20: scripts.ToggleProjectStarResponse
-	(*DeleteProjectRequest)(nil),         // 21: scripts.DeleteProjectRequest
-	(*DeleteProjectResponse)(nil),        // 22: scripts.DeleteProjectResponse
-	(*GetUserProjectsRequest)(nil),       // 23: scripts.GetUserProjectsRequest
-	(*GetUserProjectsResponse)(nil),      // 24: scripts.GetUserProjectsResponse
-	(*GetOrgProjectsRequest)(nil),        // 25: scripts.GetOrgProjectsRequest
-	(*GetOrgProjectsResponse)(nil),       // 26: scripts.GetOrgProjectsResponse
-	(*CreateOutlineUnitRequest)(nil),     // 27: scripts.CreateOutlineUnitRequest
-	(*CreateOutlineUnitResponse)(nil),    // 28: scripts.CreateOutlineUnitResponse
-	(*GetProjectOutlineRequest)(nil),     // 29: scripts.GetProjectOutlineRequest
-	(*GetProjectOutlineResponse)(nil),    // 30: scripts.GetProjectOutlineResponse
-	(*UpdateOutlineUnitRequest)(nil),     // 31: scripts.UpdateOutlineUnitRequest
-	(*UpdateOutlineUnitResponse)(nil),    // 32: scripts.UpdateOutlineUnitResponse
-	(*DeleteOutlineUnitRequest)(nil),     // 33: scripts.DeleteOutlineUnitRequest
-	(*DeleteOutlineUnitResponse)(nil),    // 34: scripts.DeleteOutlineUnitResponse
-	(*CreateSceneRequest)(nil),           // 35: scripts.CreateSceneRequest
-	(*CreateSceneResponse)(nil),          // 36: scripts.CreateSceneResponse
-	(*GetProjectScenesRequest)(nil),      // 37: scripts.GetProjectScenesRequest
-	(*GetProjectScenesResponse)(nil),     // 38: scripts.GetProjectScenesResponse
-	(*UpdateSceneRequest)(nil),           // 39: scripts.UpdateSceneRequest
-	(*UpdateSceneResponse)(nil),          // 40: scripts.UpdateSceneResponse
-	(*DeleteSceneRequest)(nil),           // 41: scripts.DeleteSceneRequest
-	(*DeleteSceneResponse)(nil),          // 42: scripts.DeleteSceneResponse
-	(*CreateCharacterRequest)(nil),       // 43: scripts.CreateCharacterRequest
-	(*CreateCharacterResponse)(nil),      // 44: scripts.CreateCharacterResponse
-	(*GetProjectCharactersRequest)(nil),  // 45: scripts.GetProjectCharactersRequest
-	(*GetProjectCharactersResponse)(nil), // 46: scripts.GetProjectCharactersResponse
-	(*UpdateCharacterRequest)(nil),       // 47: scripts.UpdateCharacterRequest
-	(*UpdateCharacterResponse)(nil),      // 48: scripts.UpdateCharacterResponse
-	(*CreateLocationRequest)(nil),        // 49: scripts.CreateLocationRequest
-	(*CreateLocationResponse)(nil),       // 50: scripts.CreateLocationResponse
-	(*UpdateLocationResponse)(nil),       // 51: scripts.UpdateLocationResponse
-	(*DeleteScriptElementRequest)(nil),   // 52: scripts.DeleteScriptElementRequest
-	(*DeleteScriptElementResponse)(nil),  // 53: scripts.DeleteScriptElementResponse
-	(*CreateElementRequest)(nil),         // 54: scripts.CreateElementRequest
-	(*CreateElementResponse)(nil),        // 55: scripts.CreateElementResponse
-	(*UpdateElementRequest)(nil),         // 56: scripts.UpdateElementRequest
-	(*UpdateElementResponse)(nil),        // 57: scripts.UpdateElementResponse
-	(*GetSceneElementsRequest)(nil),      // 58: scripts.GetSceneElementsRequest
-	(*GetSceneElementsResponse)(nil),     // 59: scripts.GetSceneElementsResponse
-	(*BatchCreateElementsRequest)(nil),   // 60: scripts.BatchCreateElementsRequest
-	(*BatchCreateElementsResponse)(nil),  // 61: scripts.BatchCreateElementsResponse
-	(*CreateBeatRequest)(nil),            // 62: scripts.CreateBeatRequest
-	(*CreateBeatResponse)(nil),           // 63: scripts.CreateBeatResponse
-	(*GetBeatRequest)(nil),               // 64: scripts.GetBeatRequest
-	(*GetBeatResponse)(nil),              // 65: scripts.GetBeatResponse
-	(*GetProjectBeatBoardRequest)(nil),   // 66: scripts.GetProjectBeatBoardRequest
-	(*GetProjectBeatBoardResponse)(nil),  // 67: scripts.GetProjectBeatBoardResponse
-	(*UpdateBeatRequest)(nil),            // 68: scripts.UpdateBeatRequest
-	(*UpdateBeatResponse)(nil),           // 69: scripts.UpdateBeatResponse
-	(*DeleteBeatRequest)(nil),            // 70: scripts.DeleteBeatRequest
-	(*DeleteBeatResponse)(nil),           // 71: scripts.DeleteBeatResponse
-	(*CreateConnectionRequest)(nil),      // 72: scripts.CreateConnectionRequest
-	(*CreateConnectionResponse)(nil),     // 73: scripts.CreateConnectionResponse
-	(*DeleteConnectionRequest)(nil),      // 74: scripts.DeleteConnectionRequest
-	(*DeleteConnectionResponse)(nil),     // 75: scripts.DeleteConnectionResponse
-	(*CreateLaneRequest)(nil),            // 76: scripts.CreateLaneRequest
-	(*CreateLaneResponse)(nil),           // 77: scripts.CreateLaneResponse
-	(*GetProjectLanesRequest)(nil),       // 78: scripts.GetProjectLanesRequest
-	(*GetProjectLanesResponse)(nil),      // 79: scripts.GetProjectLanesResponse
-	(*UpdateLaneRequest)(nil),            // 80: scripts.UpdateLaneRequest
-	(*UpdateLaneResponse)(nil),           // 81: scripts.UpdateLaneResponse
-	(*UpdateLaneOrderRequest)(nil),       // 82: scripts.UpdateLaneOrderRequest
-	(*UpdateLaneOrderResponse)(nil),      // 83: scripts.UpdateLaneOrderResponse
-	(*DeleteLaneRequest)(nil),            // 84: scripts.DeleteLaneRequest
-	(*DeleteLaneResponse)(nil),           // 85: scripts.DeleteLaneResponse
-	(*CreateOutlineItemRequest)(nil),     // 86: scripts.CreateOutlineItemRequest
-	(*CreateOutlineItemResponse)(nil),    // 87: scripts.CreateOutlineItemResponse
-	(*UpdateOutlineItemRequest)(nil),     // 88: scripts.UpdateOutlineItemRequest
-	(*UpdateOutlineItemResponse)(nil),    // 89: scripts.UpdateOutlineItemResponse
-	(*DeleteOutlineItemRequest)(nil),     // 90: scripts.DeleteOutlineItemRequest
-	(*DeleteOutlineItemResponse)(nil),    // 91: scripts.DeleteOutlineItemResponse
-	(*CreateDrawingRequest)(nil),         // 92: scripts.CreateDrawingRequest
-	(*CreateDrawingResponse)(nil),        // 93: scripts.CreateDrawingResponse
-	(*UpdateDrawingRequest)(nil),         // 94: scripts.UpdateDrawingRequest
-	(*UpdateDrawingResponse)(nil),        // 95: scripts.UpdateDrawingResponse
-	(*DeleteDrawingRequest)(nil),         // 96: scripts.DeleteDrawingRequest
-	(*DeleteDrawingResponse)(nil),        // 97: scripts.DeleteDrawingResponse
-	(*GetResourceProjectRequest)(nil),    // 98: scripts.GetResourceProjectRequest
-	(*GetResourceProjectResponse)(nil),   // 99: scripts.GetResourceProjectResponse
-	(*GetProjectLocationsRequest)(nil),   // 100: scripts.GetProjectLocationsRequest
-	(*GetProjectLocationsResponse)(nil),  // 101: scripts.GetProjectLocationsResponse
-	(*SyncChanges)(nil),                  // 102: scripts.SyncChanges
-	(*SyncProjectRequest)(nil),           // 103: scripts.SyncProjectRequest
-	(*SyncProjectResponse)(nil),          // 104: scripts.SyncProjectResponse
-	(*VaultFile)(nil),                    // 105: scripts.VaultFile
-	(*VaultCursor)(nil),                  // 106: scripts.VaultCursor
-	(*SyncVaultRequest)(nil),             // 107: scripts.SyncVaultRequest
-	(*SyncVaultResponse)(nil),            // 108: scripts.SyncVaultResponse
-	nil,                                  // 109: scripts.ProjectElement.FormattingEntry
-	nil,                                  // 110: scripts.Character.AttributesEntry
-	nil,                                  // 111: scripts.CreateCharacterRequest.AttributesEntry
-	nil,                                  // 112: scripts.UpdateCharacterRequest.AttributesEntry
-	nil,                                  // 113: scripts.CreateElementRequest.FormattingEntry
-	(*common.Timestamp)(nil),             // 114: common.Timestamp
-	(*common.PaginationRequest)(nil),     // 115: common.PaginationRequest
-	(*common.PaginationResponse)(nil),    // 116: common.PaginationResponse
+	(CallerRole)(0),                          // 0: scripts.CallerRole
+	(ResourceType)(0),                        // 1: scripts.ResourceType
+	(*Project)(nil),                          // 2: scripts.Project
+	(*Scene)(nil),                            // 3: scripts.Scene
+	(*ProjectElement)(nil),                   // 4: scripts.ProjectElement
+	(*OutlineUnit)(nil),                      // 5: scripts.OutlineUnit
+	(*Character)(nil),                        // 6: scripts.Character
+	(*Location)(nil),                         // 7: scripts.Location
+	(*Beat)(nil),                             // 8: scripts.Beat
+	(*Connection)(nil),                       // 9: scripts.Connection
+	(*Lane)(nil),                             // 10: scripts.Lane
+	(*OutlineItem)(nil),                      // 11: scripts.OutlineItem
+	(*Drawing)(nil),                          // 12: scripts.Drawing
+	(*BeatBoardData)(nil),                    // 13: scripts.BeatBoardData
+	(*CreateProjectRequest)(nil),             // 14: scripts.CreateProjectRequest
+	(*CreateProjectResponse)(nil),            // 15: scripts.CreateProjectResponse
+	(*GetProjectRequest)(nil),                // 16: scripts.GetProjectRequest
+	(*GetProjectResponse)(nil),               // 17: scripts.GetProjectResponse
+	(*UpdateProjectRequest)(nil),             // 18: scripts.UpdateProjectRequest
+	(*UpdateProjectResponse)(nil),            // 19: scripts.UpdateProjectResponse
+	(*ToggleProjectStarRequest)(nil),         // 20: scripts.ToggleProjectStarRequest
+	(*ToggleProjectStarResponse)(nil),        // 21: scripts.ToggleProjectStarResponse
+	(*DeleteProjectRequest)(nil),             // 22: scripts.DeleteProjectRequest
+	(*DeleteProjectResponse)(nil),            // 23: scripts.DeleteProjectResponse
+	(*GetUserProjectsRequest)(nil),           // 24: scripts.GetUserProjectsRequest
+	(*GetUserProjectsResponse)(nil),          // 25: scripts.GetUserProjectsResponse
+	(*GetOrgProjectsRequest)(nil),            // 26: scripts.GetOrgProjectsRequest
+	(*GetOrgProjectsResponse)(nil),           // 27: scripts.GetOrgProjectsResponse
+	(*CreateOutlineUnitRequest)(nil),         // 28: scripts.CreateOutlineUnitRequest
+	(*CreateOutlineUnitResponse)(nil),        // 29: scripts.CreateOutlineUnitResponse
+	(*GetProjectOutlineRequest)(nil),         // 30: scripts.GetProjectOutlineRequest
+	(*GetProjectOutlineResponse)(nil),        // 31: scripts.GetProjectOutlineResponse
+	(*UpdateOutlineUnitRequest)(nil),         // 32: scripts.UpdateOutlineUnitRequest
+	(*UpdateOutlineUnitResponse)(nil),        // 33: scripts.UpdateOutlineUnitResponse
+	(*DeleteOutlineUnitRequest)(nil),         // 34: scripts.DeleteOutlineUnitRequest
+	(*DeleteOutlineUnitResponse)(nil),        // 35: scripts.DeleteOutlineUnitResponse
+	(*CreateSceneRequest)(nil),               // 36: scripts.CreateSceneRequest
+	(*CreateSceneResponse)(nil),              // 37: scripts.CreateSceneResponse
+	(*GetProjectScenesRequest)(nil),          // 38: scripts.GetProjectScenesRequest
+	(*GetProjectScenesResponse)(nil),         // 39: scripts.GetProjectScenesResponse
+	(*UpdateSceneRequest)(nil),               // 40: scripts.UpdateSceneRequest
+	(*UpdateSceneResponse)(nil),              // 41: scripts.UpdateSceneResponse
+	(*DeleteSceneRequest)(nil),               // 42: scripts.DeleteSceneRequest
+	(*DeleteSceneResponse)(nil),              // 43: scripts.DeleteSceneResponse
+	(*CreateCharacterRequest)(nil),           // 44: scripts.CreateCharacterRequest
+	(*CreateCharacterResponse)(nil),          // 45: scripts.CreateCharacterResponse
+	(*GetProjectCharactersRequest)(nil),      // 46: scripts.GetProjectCharactersRequest
+	(*GetProjectCharactersResponse)(nil),     // 47: scripts.GetProjectCharactersResponse
+	(*UpdateCharacterRequest)(nil),           // 48: scripts.UpdateCharacterRequest
+	(*UpdateCharacterResponse)(nil),          // 49: scripts.UpdateCharacterResponse
+	(*CreateLocationRequest)(nil),            // 50: scripts.CreateLocationRequest
+	(*CreateLocationResponse)(nil),           // 51: scripts.CreateLocationResponse
+	(*UpdateLocationResponse)(nil),           // 52: scripts.UpdateLocationResponse
+	(*DeleteScriptElementRequest)(nil),       // 53: scripts.DeleteScriptElementRequest
+	(*DeleteScriptElementResponse)(nil),      // 54: scripts.DeleteScriptElementResponse
+	(*CreateElementRequest)(nil),             // 55: scripts.CreateElementRequest
+	(*CreateElementResponse)(nil),            // 56: scripts.CreateElementResponse
+	(*UpdateElementRequest)(nil),             // 57: scripts.UpdateElementRequest
+	(*UpdateElementResponse)(nil),            // 58: scripts.UpdateElementResponse
+	(*GetSceneElementsRequest)(nil),          // 59: scripts.GetSceneElementsRequest
+	(*GetSceneElementsResponse)(nil),         // 60: scripts.GetSceneElementsResponse
+	(*BatchCreateElementsRequest)(nil),       // 61: scripts.BatchCreateElementsRequest
+	(*BatchCreateElementsResponse)(nil),      // 62: scripts.BatchCreateElementsResponse
+	(*CreateBeatRequest)(nil),                // 63: scripts.CreateBeatRequest
+	(*CreateBeatResponse)(nil),               // 64: scripts.CreateBeatResponse
+	(*GetBeatRequest)(nil),                   // 65: scripts.GetBeatRequest
+	(*GetBeatResponse)(nil),                  // 66: scripts.GetBeatResponse
+	(*GetProjectBeatBoardRequest)(nil),       // 67: scripts.GetProjectBeatBoardRequest
+	(*GetProjectBeatBoardResponse)(nil),      // 68: scripts.GetProjectBeatBoardResponse
+	(*UpdateBeatRequest)(nil),                // 69: scripts.UpdateBeatRequest
+	(*UpdateBeatResponse)(nil),               // 70: scripts.UpdateBeatResponse
+	(*DeleteBeatRequest)(nil),                // 71: scripts.DeleteBeatRequest
+	(*DeleteBeatResponse)(nil),               // 72: scripts.DeleteBeatResponse
+	(*CreateConnectionRequest)(nil),          // 73: scripts.CreateConnectionRequest
+	(*CreateConnectionResponse)(nil),         // 74: scripts.CreateConnectionResponse
+	(*DeleteConnectionRequest)(nil),          // 75: scripts.DeleteConnectionRequest
+	(*DeleteConnectionResponse)(nil),         // 76: scripts.DeleteConnectionResponse
+	(*CreateLaneRequest)(nil),                // 77: scripts.CreateLaneRequest
+	(*CreateLaneResponse)(nil),               // 78: scripts.CreateLaneResponse
+	(*GetProjectLanesRequest)(nil),           // 79: scripts.GetProjectLanesRequest
+	(*GetProjectLanesResponse)(nil),          // 80: scripts.GetProjectLanesResponse
+	(*UpdateLaneRequest)(nil),                // 81: scripts.UpdateLaneRequest
+	(*UpdateLaneResponse)(nil),               // 82: scripts.UpdateLaneResponse
+	(*UpdateLaneOrderRequest)(nil),           // 83: scripts.UpdateLaneOrderRequest
+	(*UpdateLaneOrderResponse)(nil),          // 84: scripts.UpdateLaneOrderResponse
+	(*DeleteLaneRequest)(nil),                // 85: scripts.DeleteLaneRequest
+	(*DeleteLaneResponse)(nil),               // 86: scripts.DeleteLaneResponse
+	(*CreateOutlineItemRequest)(nil),         // 87: scripts.CreateOutlineItemRequest
+	(*CreateOutlineItemResponse)(nil),        // 88: scripts.CreateOutlineItemResponse
+	(*UpdateOutlineItemRequest)(nil),         // 89: scripts.UpdateOutlineItemRequest
+	(*UpdateOutlineItemResponse)(nil),        // 90: scripts.UpdateOutlineItemResponse
+	(*DeleteOutlineItemRequest)(nil),         // 91: scripts.DeleteOutlineItemRequest
+	(*DeleteOutlineItemResponse)(nil),        // 92: scripts.DeleteOutlineItemResponse
+	(*CreateDrawingRequest)(nil),             // 93: scripts.CreateDrawingRequest
+	(*CreateDrawingResponse)(nil),            // 94: scripts.CreateDrawingResponse
+	(*UpdateDrawingRequest)(nil),             // 95: scripts.UpdateDrawingRequest
+	(*UpdateDrawingResponse)(nil),            // 96: scripts.UpdateDrawingResponse
+	(*DeleteDrawingRequest)(nil),             // 97: scripts.DeleteDrawingRequest
+	(*DeleteDrawingResponse)(nil),            // 98: scripts.DeleteDrawingResponse
+	(*GetResourceProjectRequest)(nil),        // 99: scripts.GetResourceProjectRequest
+	(*GetResourceProjectResponse)(nil),       // 100: scripts.GetResourceProjectResponse
+	(*GetProjectAccessMetadataRequest)(nil),  // 101: scripts.GetProjectAccessMetadataRequest
+	(*GetProjectAccessMetadataResponse)(nil), // 102: scripts.GetProjectAccessMetadataResponse
+	(*GetProjectLocationsRequest)(nil),       // 103: scripts.GetProjectLocationsRequest
+	(*GetProjectLocationsResponse)(nil),      // 104: scripts.GetProjectLocationsResponse
+	(*SyncChanges)(nil),                      // 105: scripts.SyncChanges
+	(*SyncProjectRequest)(nil),               // 106: scripts.SyncProjectRequest
+	(*SyncProjectResponse)(nil),              // 107: scripts.SyncProjectResponse
+	(*VaultFile)(nil),                        // 108: scripts.VaultFile
+	(*VaultCursor)(nil),                      // 109: scripts.VaultCursor
+	(*SyncVaultRequest)(nil),                 // 110: scripts.SyncVaultRequest
+	(*SyncVaultResponse)(nil),                // 111: scripts.SyncVaultResponse
+	nil,                                      // 112: scripts.ProjectElement.FormattingEntry
+	nil,                                      // 113: scripts.Character.AttributesEntry
+	nil,                                      // 114: scripts.CreateCharacterRequest.AttributesEntry
+	nil,                                      // 115: scripts.UpdateCharacterRequest.AttributesEntry
+	nil,                                      // 116: scripts.CreateElementRequest.FormattingEntry
+	(*common.Timestamp)(nil),                 // 117: common.Timestamp
+	(*common.PaginationRequest)(nil),         // 118: common.PaginationRequest
+	(*common.PaginationResponse)(nil),        // 119: common.PaginationResponse
 }
 var file_scripts_scripts_proto_depIdxs = []int32{
-	114, // 0: scripts.Project.created_at:type_name -> common.Timestamp
-	114, // 1: scripts.Project.updated_at:type_name -> common.Timestamp
-	114, // 2: scripts.Project.deleted_at:type_name -> common.Timestamp
-	114, // 3: scripts.Scene.created_at:type_name -> common.Timestamp
-	114, // 4: scripts.Scene.updated_at:type_name -> common.Timestamp
-	114, // 5: scripts.Scene.deleted_at:type_name -> common.Timestamp
-	109, // 6: scripts.ProjectElement.formatting:type_name -> scripts.ProjectElement.FormattingEntry
-	114, // 7: scripts.ProjectElement.created_at:type_name -> common.Timestamp
-	114, // 8: scripts.ProjectElement.updated_at:type_name -> common.Timestamp
-	114, // 9: scripts.ProjectElement.deleted_at:type_name -> common.Timestamp
-	114, // 10: scripts.OutlineUnit.created_at:type_name -> common.Timestamp
-	114, // 11: scripts.OutlineUnit.updated_at:type_name -> common.Timestamp
-	110, // 12: scripts.Character.attributes:type_name -> scripts.Character.AttributesEntry
-	114, // 13: scripts.Character.created_at:type_name -> common.Timestamp
-	114, // 14: scripts.Character.updated_at:type_name -> common.Timestamp
-	114, // 15: scripts.Character.deleted_at:type_name -> common.Timestamp
-	114, // 16: scripts.Location.created_at:type_name -> common.Timestamp
-	114, // 17: scripts.Location.updated_at:type_name -> common.Timestamp
-	114, // 18: scripts.Location.deleted_at:type_name -> common.Timestamp
-	114, // 19: scripts.Beat.created_at:type_name -> common.Timestamp
-	114, // 20: scripts.Beat.updated_at:type_name -> common.Timestamp
-	114, // 21: scripts.Beat.deleted_at:type_name -> common.Timestamp
-	114, // 22: scripts.Connection.created_at:type_name -> common.Timestamp
-	114, // 23: scripts.Connection.updated_at:type_name -> common.Timestamp
-	114, // 24: scripts.Connection.deleted_at:type_name -> common.Timestamp
-	114, // 25: scripts.Lane.created_at:type_name -> common.Timestamp
-	114, // 26: scripts.Lane.updated_at:type_name -> common.Timestamp
-	114, // 27: scripts.Lane.deleted_at:type_name -> common.Timestamp
-	114, // 28: scripts.OutlineItem.created_at:type_name -> common.Timestamp
-	114, // 29: scripts.OutlineItem.updated_at:type_name -> common.Timestamp
-	114, // 30: scripts.OutlineItem.deleted_at:type_name -> common.Timestamp
-	114, // 31: scripts.Drawing.created_at:type_name -> common.Timestamp
-	114, // 32: scripts.Drawing.updated_at:type_name -> common.Timestamp
-	114, // 33: scripts.Drawing.deleted_at:type_name -> common.Timestamp
-	7,   // 34: scripts.BeatBoardData.beats:type_name -> scripts.Beat
-	8,   // 35: scripts.BeatBoardData.connections:type_name -> scripts.Connection
-	9,   // 36: scripts.BeatBoardData.lanes:type_name -> scripts.Lane
-	10,  // 37: scripts.BeatBoardData.outline_items:type_name -> scripts.OutlineItem
-	11,  // 38: scripts.BeatBoardData.drawings:type_name -> scripts.Drawing
-	1,   // 39: scripts.CreateProjectResponse.project:type_name -> scripts.Project
-	1,   // 40: scripts.GetProjectResponse.project:type_name -> scripts.Project
-	1,   // 41: scripts.UpdateProjectResponse.project:type_name -> scripts.Project
-	1,   // 42: scripts.ToggleProjectStarResponse.project:type_name -> scripts.Project
-	115, // 43: scripts.GetUserProjectsRequest.pagination:type_name -> common.PaginationRequest
-	1,   // 44: scripts.GetUserProjectsResponse.projects:type_name -> scripts.Project
-	116, // 45: scripts.GetUserProjectsResponse.pagination:type_name -> common.PaginationResponse
-	1,   // 46: scripts.GetOrgProjectsResponse.projects:type_name -> scripts.Project
-	4,   // 47: scripts.CreateOutlineUnitResponse.outline_unit:type_name -> scripts.OutlineUnit
-	4,   // 48: scripts.GetProjectOutlineResponse.outline_units:type_name -> scripts.OutlineUnit
-	4,   // 49: scripts.UpdateOutlineUnitResponse.outline_unit:type_name -> scripts.OutlineUnit
-	2,   // 50: scripts.CreateSceneResponse.scene:type_name -> scripts.Scene
-	2,   // 51: scripts.GetProjectScenesResponse.scenes:type_name -> scripts.Scene
-	2,   // 52: scripts.UpdateSceneResponse.scene:type_name -> scripts.Scene
-	111, // 53: scripts.CreateCharacterRequest.attributes:type_name -> scripts.CreateCharacterRequest.AttributesEntry
-	5,   // 54: scripts.CreateCharacterResponse.character:type_name -> scripts.Character
-	5,   // 55: scripts.GetProjectCharactersResponse.characters:type_name -> scripts.Character
-	112, // 56: scripts.UpdateCharacterRequest.attributes:type_name -> scripts.UpdateCharacterRequest.AttributesEntry
-	5,   // 57: scripts.UpdateCharacterResponse.character:type_name -> scripts.Character
-	6,   // 58: scripts.CreateLocationResponse.location:type_name -> scripts.Location
-	6,   // 59: scripts.UpdateLocationResponse.location:type_name -> scripts.Location
-	113, // 60: scripts.CreateElementRequest.formatting:type_name -> scripts.CreateElementRequest.FormattingEntry
-	3,   // 61: scripts.CreateElementResponse.element:type_name -> scripts.ProjectElement
-	3,   // 62: scripts.UpdateElementResponse.element:type_name -> scripts.ProjectElement
-	3,   // 63: scripts.GetSceneElementsResponse.elements:type_name -> scripts.ProjectElement
-	3,   // 64: scripts.BatchCreateElementsRequest.elements:type_name -> scripts.ProjectElement
-	3,   // 65: scripts.BatchCreateElementsResponse.created_elements:type_name -> scripts.ProjectElement
-	7,   // 66: scripts.CreateBeatResponse.beat:type_name -> scripts.Beat
-	7,   // 67: scripts.GetBeatResponse.beat:type_name -> scripts.Beat
-	12,  // 68: scripts.GetProjectBeatBoardResponse.beat_board:type_name -> scripts.BeatBoardData
-	7,   // 69: scripts.UpdateBeatResponse.beat:type_name -> scripts.Beat
-	8,   // 70: scripts.CreateConnectionResponse.connection:type_name -> scripts.Connection
-	9,   // 71: scripts.CreateLaneResponse.lane:type_name -> scripts.Lane
-	9,   // 72: scripts.GetProjectLanesResponse.lanes:type_name -> scripts.Lane
-	9,   // 73: scripts.UpdateLaneResponse.lane:type_name -> scripts.Lane
-	10,  // 74: scripts.CreateOutlineItemResponse.outline_item:type_name -> scripts.OutlineItem
-	10,  // 75: scripts.UpdateOutlineItemResponse.outline_item:type_name -> scripts.OutlineItem
-	11,  // 76: scripts.CreateDrawingResponse.drawing:type_name -> scripts.Drawing
-	11,  // 77: scripts.UpdateDrawingResponse.drawing:type_name -> scripts.Drawing
-	0,   // 78: scripts.GetResourceProjectRequest.resource_type:type_name -> scripts.ResourceType
-	6,   // 79: scripts.GetProjectLocationsResponse.locations:type_name -> scripts.Location
-	1,   // 80: scripts.SyncChanges.project:type_name -> scripts.Project
-	2,   // 81: scripts.SyncChanges.scenes:type_name -> scripts.Scene
-	3,   // 82: scripts.SyncChanges.elements:type_name -> scripts.ProjectElement
-	5,   // 83: scripts.SyncChanges.characters:type_name -> scripts.Character
-	6,   // 84: scripts.SyncChanges.locations:type_name -> scripts.Location
-	7,   // 85: scripts.SyncChanges.beats:type_name -> scripts.Beat
-	8,   // 86: scripts.SyncChanges.connections:type_name -> scripts.Connection
-	9,   // 87: scripts.SyncChanges.lanes:type_name -> scripts.Lane
-	10,  // 88: scripts.SyncChanges.outline_items:type_name -> scripts.OutlineItem
-	11,  // 89: scripts.SyncChanges.drawings:type_name -> scripts.Drawing
-	114, // 90: scripts.SyncProjectRequest.cursor:type_name -> common.Timestamp
-	102, // 91: scripts.SyncProjectRequest.changes:type_name -> scripts.SyncChanges
-	102, // 92: scripts.SyncProjectResponse.changes:type_name -> scripts.SyncChanges
-	114, // 93: scripts.SyncProjectResponse.cursor:type_name -> common.Timestamp
-	114, // 94: scripts.VaultFile.updated_at:type_name -> common.Timestamp
-	114, // 95: scripts.VaultFile.deleted_at:type_name -> common.Timestamp
-	114, // 96: scripts.VaultCursor.updated_at:type_name -> common.Timestamp
-	106, // 97: scripts.SyncVaultRequest.cursor:type_name -> scripts.VaultCursor
-	1,   // 98: scripts.SyncVaultRequest.project:type_name -> scripts.Project
-	105, // 99: scripts.SyncVaultRequest.files:type_name -> scripts.VaultFile
-	105, // 100: scripts.SyncVaultResponse.files:type_name -> scripts.VaultFile
-	106, // 101: scripts.SyncVaultResponse.cursor:type_name -> scripts.VaultCursor
-	13,  // 102: scripts.ScriptsService.CreateProject:input_type -> scripts.CreateProjectRequest
-	15,  // 103: scripts.ScriptsService.GetProject:input_type -> scripts.GetProjectRequest
-	17,  // 104: scripts.ScriptsService.UpdateProject:input_type -> scripts.UpdateProjectRequest
-	19,  // 105: scripts.ScriptsService.ToggleProjectStar:input_type -> scripts.ToggleProjectStarRequest
-	21,  // 106: scripts.ScriptsService.DeleteProject:input_type -> scripts.DeleteProjectRequest
-	23,  // 107: scripts.ScriptsService.GetUserProjects:input_type -> scripts.GetUserProjectsRequest
-	25,  // 108: scripts.ScriptsService.GetOrgProjects:input_type -> scripts.GetOrgProjectsRequest
-	27,  // 109: scripts.ScriptsService.CreateOutlineUnit:input_type -> scripts.CreateOutlineUnitRequest
-	29,  // 110: scripts.ScriptsService.GetProjectOutline:input_type -> scripts.GetProjectOutlineRequest
-	31,  // 111: scripts.ScriptsService.UpdateOutlineUnit:input_type -> scripts.UpdateOutlineUnitRequest
-	33,  // 112: scripts.ScriptsService.DeleteOutlineUnit:input_type -> scripts.DeleteOutlineUnitRequest
-	35,  // 113: scripts.ScriptsService.CreateScene:input_type -> scripts.CreateSceneRequest
-	37,  // 114: scripts.ScriptsService.GetProjectScenes:input_type -> scripts.GetProjectScenesRequest
-	39,  // 115: scripts.ScriptsService.UpdateScene:input_type -> scripts.UpdateSceneRequest
-	41,  // 116: scripts.ScriptsService.DeleteScene:input_type -> scripts.DeleteSceneRequest
-	43,  // 117: scripts.ScriptsService.CreateCharacter:input_type -> scripts.CreateCharacterRequest
-	45,  // 118: scripts.ScriptsService.GetProjectCharacters:input_type -> scripts.GetProjectCharactersRequest
-	47,  // 119: scripts.ScriptsService.UpdateCharacter:input_type -> scripts.UpdateCharacterRequest
-	49,  // 120: scripts.ScriptsService.CreateLocation:input_type -> scripts.CreateLocationRequest
-	100, // 121: scripts.ScriptsService.GetProjectLocations:input_type -> scripts.GetProjectLocationsRequest
-	54,  // 122: scripts.ScriptsService.CreateElement:input_type -> scripts.CreateElementRequest
-	56,  // 123: scripts.ScriptsService.UpdateElement:input_type -> scripts.UpdateElementRequest
-	58,  // 124: scripts.ScriptsService.GetSceneElements:input_type -> scripts.GetSceneElementsRequest
-	52,  // 125: scripts.ScriptsService.DeleteScriptElement:input_type -> scripts.DeleteScriptElementRequest
-	60,  // 126: scripts.ScriptsService.BatchCreateElements:input_type -> scripts.BatchCreateElementsRequest
-	62,  // 127: scripts.ScriptsService.CreateBeat:input_type -> scripts.CreateBeatRequest
-	64,  // 128: scripts.ScriptsService.GetBeat:input_type -> scripts.GetBeatRequest
-	66,  // 129: scripts.ScriptsService.GetProjectBeatBoard:input_type -> scripts.GetProjectBeatBoardRequest
-	68,  // 130: scripts.ScriptsService.UpdateBeat:input_type -> scripts.UpdateBeatRequest
-	70,  // 131: scripts.ScriptsService.DeleteBeat:input_type -> scripts.DeleteBeatRequest
-	72,  // 132: scripts.ScriptsService.CreateConnection:input_type -> scripts.CreateConnectionRequest
-	74,  // 133: scripts.ScriptsService.DeleteConnection:input_type -> scripts.DeleteConnectionRequest
-	76,  // 134: scripts.ScriptsService.CreateLane:input_type -> scripts.CreateLaneRequest
-	78,  // 135: scripts.ScriptsService.GetProjectLanes:input_type -> scripts.GetProjectLanesRequest
-	80,  // 136: scripts.ScriptsService.UpdateLane:input_type -> scripts.UpdateLaneRequest
-	82,  // 137: scripts.ScriptsService.UpdateLaneOrder:input_type -> scripts.UpdateLaneOrderRequest
-	84,  // 138: scripts.ScriptsService.DeleteLane:input_type -> scripts.DeleteLaneRequest
-	86,  // 139: scripts.ScriptsService.CreateOutlineItem:input_type -> scripts.CreateOutlineItemRequest
-	88,  // 140: scripts.ScriptsService.UpdateOutlineItem:input_type -> scripts.UpdateOutlineItemRequest
-	90,  // 141: scripts.ScriptsService.DeleteOutlineItem:input_type -> scripts.DeleteOutlineItemRequest
-	92,  // 142: scripts.ScriptsService.CreateDrawing:input_type -> scripts.CreateDrawingRequest
-	94,  // 143: scripts.ScriptsService.UpdateDrawing:input_type -> scripts.UpdateDrawingRequest
-	96,  // 144: scripts.ScriptsService.DeleteDrawing:input_type -> scripts.DeleteDrawingRequest
-	98,  // 145: scripts.ScriptsService.GetResourceProject:input_type -> scripts.GetResourceProjectRequest
-	103, // 146: scripts.ScriptsService.SyncProject:input_type -> scripts.SyncProjectRequest
-	107, // 147: scripts.ScriptsService.SyncVault:input_type -> scripts.SyncVaultRequest
-	14,  // 148: scripts.ScriptsService.CreateProject:output_type -> scripts.CreateProjectResponse
-	16,  // 149: scripts.ScriptsService.GetProject:output_type -> scripts.GetProjectResponse
-	18,  // 150: scripts.ScriptsService.UpdateProject:output_type -> scripts.UpdateProjectResponse
-	20,  // 151: scripts.ScriptsService.ToggleProjectStar:output_type -> scripts.ToggleProjectStarResponse
-	22,  // 152: scripts.ScriptsService.DeleteProject:output_type -> scripts.DeleteProjectResponse
-	24,  // 153: scripts.ScriptsService.GetUserProjects:output_type -> scripts.GetUserProjectsResponse
-	26,  // 154: scripts.ScriptsService.GetOrgProjects:output_type -> scripts.GetOrgProjectsResponse
-	28,  // 155: scripts.ScriptsService.CreateOutlineUnit:output_type -> scripts.CreateOutlineUnitResponse
-	30,  // 156: scripts.ScriptsService.GetProjectOutline:output_type -> scripts.GetProjectOutlineResponse
-	32,  // 157: scripts.ScriptsService.UpdateOutlineUnit:output_type -> scripts.UpdateOutlineUnitResponse
-	34,  // 158: scripts.ScriptsService.DeleteOutlineUnit:output_type -> scripts.DeleteOutlineUnitResponse
-	36,  // 159: scripts.ScriptsService.CreateScene:output_type -> scripts.CreateSceneResponse
-	38,  // 160: scripts.ScriptsService.GetProjectScenes:output_type -> scripts.GetProjectScenesResponse
-	40,  // 161: scripts.ScriptsService.UpdateScene:output_type -> scripts.UpdateSceneResponse
-	42,  // 162: scripts.ScriptsService.DeleteScene:output_type -> scripts.DeleteSceneResponse
-	44,  // 163: scripts.ScriptsService.CreateCharacter:output_type -> scripts.CreateCharacterResponse
-	46,  // 164: scripts.ScriptsService.GetProjectCharacters:output_type -> scripts.GetProjectCharactersResponse
-	48,  // 165: scripts.ScriptsService.UpdateCharacter:output_type -> scripts.UpdateCharacterResponse
-	50,  // 166: scripts.ScriptsService.CreateLocation:output_type -> scripts.CreateLocationResponse
-	101, // 167: scripts.ScriptsService.GetProjectLocations:output_type -> scripts.GetProjectLocationsResponse
-	55,  // 168: scripts.ScriptsService.CreateElement:output_type -> scripts.CreateElementResponse
-	57,  // 169: scripts.ScriptsService.UpdateElement:output_type -> scripts.UpdateElementResponse
-	59,  // 170: scripts.ScriptsService.GetSceneElements:output_type -> scripts.GetSceneElementsResponse
-	53,  // 171: scripts.ScriptsService.DeleteScriptElement:output_type -> scripts.DeleteScriptElementResponse
-	61,  // 172: scripts.ScriptsService.BatchCreateElements:output_type -> scripts.BatchCreateElementsResponse
-	63,  // 173: scripts.ScriptsService.CreateBeat:output_type -> scripts.CreateBeatResponse
-	65,  // 174: scripts.ScriptsService.GetBeat:output_type -> scripts.GetBeatResponse
-	67,  // 175: scripts.ScriptsService.GetProjectBeatBoard:output_type -> scripts.GetProjectBeatBoardResponse
-	69,  // 176: scripts.ScriptsService.UpdateBeat:output_type -> scripts.UpdateBeatResponse
-	71,  // 177: scripts.ScriptsService.DeleteBeat:output_type -> scripts.DeleteBeatResponse
-	73,  // 178: scripts.ScriptsService.CreateConnection:output_type -> scripts.CreateConnectionResponse
-	75,  // 179: scripts.ScriptsService.DeleteConnection:output_type -> scripts.DeleteConnectionResponse
-	77,  // 180: scripts.ScriptsService.CreateLane:output_type -> scripts.CreateLaneResponse
-	79,  // 181: scripts.ScriptsService.GetProjectLanes:output_type -> scripts.GetProjectLanesResponse
-	81,  // 182: scripts.ScriptsService.UpdateLane:output_type -> scripts.UpdateLaneResponse
-	83,  // 183: scripts.ScriptsService.UpdateLaneOrder:output_type -> scripts.UpdateLaneOrderResponse
-	85,  // 184: scripts.ScriptsService.DeleteLane:output_type -> scripts.DeleteLaneResponse
-	87,  // 185: scripts.ScriptsService.CreateOutlineItem:output_type -> scripts.CreateOutlineItemResponse
-	89,  // 186: scripts.ScriptsService.UpdateOutlineItem:output_type -> scripts.UpdateOutlineItemResponse
-	91,  // 187: scripts.ScriptsService.DeleteOutlineItem:output_type -> scripts.DeleteOutlineItemResponse
-	93,  // 188: scripts.ScriptsService.CreateDrawing:output_type -> scripts.CreateDrawingResponse
-	95,  // 189: scripts.ScriptsService.UpdateDrawing:output_type -> scripts.UpdateDrawingResponse
-	97,  // 190: scripts.ScriptsService.DeleteDrawing:output_type -> scripts.DeleteDrawingResponse
-	99,  // 191: scripts.ScriptsService.GetResourceProject:output_type -> scripts.GetResourceProjectResponse
-	104, // 192: scripts.ScriptsService.SyncProject:output_type -> scripts.SyncProjectResponse
-	108, // 193: scripts.ScriptsService.SyncVault:output_type -> scripts.SyncVaultResponse
-	148, // [148:194] is the sub-list for method output_type
-	102, // [102:148] is the sub-list for method input_type
-	102, // [102:102] is the sub-list for extension type_name
-	102, // [102:102] is the sub-list for extension extendee
-	0,   // [0:102] is the sub-list for field type_name
+	117, // 0: scripts.Project.created_at:type_name -> common.Timestamp
+	117, // 1: scripts.Project.updated_at:type_name -> common.Timestamp
+	117, // 2: scripts.Project.deleted_at:type_name -> common.Timestamp
+	117, // 3: scripts.Scene.created_at:type_name -> common.Timestamp
+	117, // 4: scripts.Scene.updated_at:type_name -> common.Timestamp
+	117, // 5: scripts.Scene.deleted_at:type_name -> common.Timestamp
+	112, // 6: scripts.ProjectElement.formatting:type_name -> scripts.ProjectElement.FormattingEntry
+	117, // 7: scripts.ProjectElement.created_at:type_name -> common.Timestamp
+	117, // 8: scripts.ProjectElement.updated_at:type_name -> common.Timestamp
+	117, // 9: scripts.ProjectElement.deleted_at:type_name -> common.Timestamp
+	117, // 10: scripts.OutlineUnit.created_at:type_name -> common.Timestamp
+	117, // 11: scripts.OutlineUnit.updated_at:type_name -> common.Timestamp
+	113, // 12: scripts.Character.attributes:type_name -> scripts.Character.AttributesEntry
+	117, // 13: scripts.Character.created_at:type_name -> common.Timestamp
+	117, // 14: scripts.Character.updated_at:type_name -> common.Timestamp
+	117, // 15: scripts.Character.deleted_at:type_name -> common.Timestamp
+	117, // 16: scripts.Location.created_at:type_name -> common.Timestamp
+	117, // 17: scripts.Location.updated_at:type_name -> common.Timestamp
+	117, // 18: scripts.Location.deleted_at:type_name -> common.Timestamp
+	117, // 19: scripts.Beat.created_at:type_name -> common.Timestamp
+	117, // 20: scripts.Beat.updated_at:type_name -> common.Timestamp
+	117, // 21: scripts.Beat.deleted_at:type_name -> common.Timestamp
+	117, // 22: scripts.Connection.created_at:type_name -> common.Timestamp
+	117, // 23: scripts.Connection.updated_at:type_name -> common.Timestamp
+	117, // 24: scripts.Connection.deleted_at:type_name -> common.Timestamp
+	117, // 25: scripts.Lane.created_at:type_name -> common.Timestamp
+	117, // 26: scripts.Lane.updated_at:type_name -> common.Timestamp
+	117, // 27: scripts.Lane.deleted_at:type_name -> common.Timestamp
+	117, // 28: scripts.OutlineItem.created_at:type_name -> common.Timestamp
+	117, // 29: scripts.OutlineItem.updated_at:type_name -> common.Timestamp
+	117, // 30: scripts.OutlineItem.deleted_at:type_name -> common.Timestamp
+	117, // 31: scripts.Drawing.created_at:type_name -> common.Timestamp
+	117, // 32: scripts.Drawing.updated_at:type_name -> common.Timestamp
+	117, // 33: scripts.Drawing.deleted_at:type_name -> common.Timestamp
+	8,   // 34: scripts.BeatBoardData.beats:type_name -> scripts.Beat
+	9,   // 35: scripts.BeatBoardData.connections:type_name -> scripts.Connection
+	10,  // 36: scripts.BeatBoardData.lanes:type_name -> scripts.Lane
+	11,  // 37: scripts.BeatBoardData.outline_items:type_name -> scripts.OutlineItem
+	12,  // 38: scripts.BeatBoardData.drawings:type_name -> scripts.Drawing
+	2,   // 39: scripts.CreateProjectResponse.project:type_name -> scripts.Project
+	0,   // 40: scripts.GetProjectRequest.caller_role:type_name -> scripts.CallerRole
+	2,   // 41: scripts.GetProjectResponse.project:type_name -> scripts.Project
+	2,   // 42: scripts.UpdateProjectResponse.project:type_name -> scripts.Project
+	2,   // 43: scripts.ToggleProjectStarResponse.project:type_name -> scripts.Project
+	118, // 44: scripts.GetUserProjectsRequest.pagination:type_name -> common.PaginationRequest
+	2,   // 45: scripts.GetUserProjectsResponse.projects:type_name -> scripts.Project
+	119, // 46: scripts.GetUserProjectsResponse.pagination:type_name -> common.PaginationResponse
+	2,   // 47: scripts.GetOrgProjectsResponse.projects:type_name -> scripts.Project
+	5,   // 48: scripts.CreateOutlineUnitResponse.outline_unit:type_name -> scripts.OutlineUnit
+	5,   // 49: scripts.GetProjectOutlineResponse.outline_units:type_name -> scripts.OutlineUnit
+	5,   // 50: scripts.UpdateOutlineUnitResponse.outline_unit:type_name -> scripts.OutlineUnit
+	0,   // 51: scripts.CreateSceneRequest.caller_role:type_name -> scripts.CallerRole
+	3,   // 52: scripts.CreateSceneResponse.scene:type_name -> scripts.Scene
+	0,   // 53: scripts.GetProjectScenesRequest.caller_role:type_name -> scripts.CallerRole
+	3,   // 54: scripts.GetProjectScenesResponse.scenes:type_name -> scripts.Scene
+	0,   // 55: scripts.UpdateSceneRequest.caller_role:type_name -> scripts.CallerRole
+	3,   // 56: scripts.UpdateSceneResponse.scene:type_name -> scripts.Scene
+	0,   // 57: scripts.DeleteSceneRequest.caller_role:type_name -> scripts.CallerRole
+	114, // 58: scripts.CreateCharacterRequest.attributes:type_name -> scripts.CreateCharacterRequest.AttributesEntry
+	6,   // 59: scripts.CreateCharacterResponse.character:type_name -> scripts.Character
+	6,   // 60: scripts.GetProjectCharactersResponse.characters:type_name -> scripts.Character
+	115, // 61: scripts.UpdateCharacterRequest.attributes:type_name -> scripts.UpdateCharacterRequest.AttributesEntry
+	6,   // 62: scripts.UpdateCharacterResponse.character:type_name -> scripts.Character
+	7,   // 63: scripts.CreateLocationResponse.location:type_name -> scripts.Location
+	7,   // 64: scripts.UpdateLocationResponse.location:type_name -> scripts.Location
+	0,   // 65: scripts.DeleteScriptElementRequest.caller_role:type_name -> scripts.CallerRole
+	116, // 66: scripts.CreateElementRequest.formatting:type_name -> scripts.CreateElementRequest.FormattingEntry
+	0,   // 67: scripts.CreateElementRequest.caller_role:type_name -> scripts.CallerRole
+	4,   // 68: scripts.CreateElementResponse.element:type_name -> scripts.ProjectElement
+	0,   // 69: scripts.UpdateElementRequest.caller_role:type_name -> scripts.CallerRole
+	4,   // 70: scripts.UpdateElementResponse.element:type_name -> scripts.ProjectElement
+	0,   // 71: scripts.GetSceneElementsRequest.caller_role:type_name -> scripts.CallerRole
+	4,   // 72: scripts.GetSceneElementsResponse.elements:type_name -> scripts.ProjectElement
+	4,   // 73: scripts.BatchCreateElementsRequest.elements:type_name -> scripts.ProjectElement
+	4,   // 74: scripts.BatchCreateElementsResponse.created_elements:type_name -> scripts.ProjectElement
+	0,   // 75: scripts.CreateBeatRequest.caller_role:type_name -> scripts.CallerRole
+	8,   // 76: scripts.CreateBeatResponse.beat:type_name -> scripts.Beat
+	0,   // 77: scripts.GetBeatRequest.caller_role:type_name -> scripts.CallerRole
+	8,   // 78: scripts.GetBeatResponse.beat:type_name -> scripts.Beat
+	0,   // 79: scripts.GetProjectBeatBoardRequest.caller_role:type_name -> scripts.CallerRole
+	13,  // 80: scripts.GetProjectBeatBoardResponse.beat_board:type_name -> scripts.BeatBoardData
+	0,   // 81: scripts.UpdateBeatRequest.caller_role:type_name -> scripts.CallerRole
+	8,   // 82: scripts.UpdateBeatResponse.beat:type_name -> scripts.Beat
+	0,   // 83: scripts.DeleteBeatRequest.caller_role:type_name -> scripts.CallerRole
+	0,   // 84: scripts.CreateConnectionRequest.caller_role:type_name -> scripts.CallerRole
+	9,   // 85: scripts.CreateConnectionResponse.connection:type_name -> scripts.Connection
+	0,   // 86: scripts.DeleteConnectionRequest.caller_role:type_name -> scripts.CallerRole
+	0,   // 87: scripts.CreateLaneRequest.caller_role:type_name -> scripts.CallerRole
+	10,  // 88: scripts.CreateLaneResponse.lane:type_name -> scripts.Lane
+	0,   // 89: scripts.GetProjectLanesRequest.caller_role:type_name -> scripts.CallerRole
+	10,  // 90: scripts.GetProjectLanesResponse.lanes:type_name -> scripts.Lane
+	0,   // 91: scripts.UpdateLaneRequest.caller_role:type_name -> scripts.CallerRole
+	10,  // 92: scripts.UpdateLaneResponse.lane:type_name -> scripts.Lane
+	0,   // 93: scripts.UpdateLaneOrderRequest.caller_role:type_name -> scripts.CallerRole
+	0,   // 94: scripts.DeleteLaneRequest.caller_role:type_name -> scripts.CallerRole
+	0,   // 95: scripts.CreateOutlineItemRequest.caller_role:type_name -> scripts.CallerRole
+	11,  // 96: scripts.CreateOutlineItemResponse.outline_item:type_name -> scripts.OutlineItem
+	0,   // 97: scripts.UpdateOutlineItemRequest.caller_role:type_name -> scripts.CallerRole
+	11,  // 98: scripts.UpdateOutlineItemResponse.outline_item:type_name -> scripts.OutlineItem
+	0,   // 99: scripts.DeleteOutlineItemRequest.caller_role:type_name -> scripts.CallerRole
+	0,   // 100: scripts.CreateDrawingRequest.caller_role:type_name -> scripts.CallerRole
+	12,  // 101: scripts.CreateDrawingResponse.drawing:type_name -> scripts.Drawing
+	0,   // 102: scripts.UpdateDrawingRequest.caller_role:type_name -> scripts.CallerRole
+	12,  // 103: scripts.UpdateDrawingResponse.drawing:type_name -> scripts.Drawing
+	0,   // 104: scripts.DeleteDrawingRequest.caller_role:type_name -> scripts.CallerRole
+	1,   // 105: scripts.GetResourceProjectRequest.resource_type:type_name -> scripts.ResourceType
+	7,   // 106: scripts.GetProjectLocationsResponse.locations:type_name -> scripts.Location
+	2,   // 107: scripts.SyncChanges.project:type_name -> scripts.Project
+	3,   // 108: scripts.SyncChanges.scenes:type_name -> scripts.Scene
+	4,   // 109: scripts.SyncChanges.elements:type_name -> scripts.ProjectElement
+	6,   // 110: scripts.SyncChanges.characters:type_name -> scripts.Character
+	7,   // 111: scripts.SyncChanges.locations:type_name -> scripts.Location
+	8,   // 112: scripts.SyncChanges.beats:type_name -> scripts.Beat
+	9,   // 113: scripts.SyncChanges.connections:type_name -> scripts.Connection
+	10,  // 114: scripts.SyncChanges.lanes:type_name -> scripts.Lane
+	11,  // 115: scripts.SyncChanges.outline_items:type_name -> scripts.OutlineItem
+	12,  // 116: scripts.SyncChanges.drawings:type_name -> scripts.Drawing
+	117, // 117: scripts.SyncProjectRequest.cursor:type_name -> common.Timestamp
+	105, // 118: scripts.SyncProjectRequest.changes:type_name -> scripts.SyncChanges
+	105, // 119: scripts.SyncProjectResponse.changes:type_name -> scripts.SyncChanges
+	117, // 120: scripts.SyncProjectResponse.cursor:type_name -> common.Timestamp
+	117, // 121: scripts.VaultFile.updated_at:type_name -> common.Timestamp
+	117, // 122: scripts.VaultFile.deleted_at:type_name -> common.Timestamp
+	117, // 123: scripts.VaultCursor.updated_at:type_name -> common.Timestamp
+	109, // 124: scripts.SyncVaultRequest.cursor:type_name -> scripts.VaultCursor
+	2,   // 125: scripts.SyncVaultRequest.project:type_name -> scripts.Project
+	108, // 126: scripts.SyncVaultRequest.files:type_name -> scripts.VaultFile
+	108, // 127: scripts.SyncVaultResponse.files:type_name -> scripts.VaultFile
+	109, // 128: scripts.SyncVaultResponse.cursor:type_name -> scripts.VaultCursor
+	14,  // 129: scripts.ScriptsService.CreateProject:input_type -> scripts.CreateProjectRequest
+	16,  // 130: scripts.ScriptsService.GetProject:input_type -> scripts.GetProjectRequest
+	18,  // 131: scripts.ScriptsService.UpdateProject:input_type -> scripts.UpdateProjectRequest
+	20,  // 132: scripts.ScriptsService.ToggleProjectStar:input_type -> scripts.ToggleProjectStarRequest
+	22,  // 133: scripts.ScriptsService.DeleteProject:input_type -> scripts.DeleteProjectRequest
+	24,  // 134: scripts.ScriptsService.GetUserProjects:input_type -> scripts.GetUserProjectsRequest
+	26,  // 135: scripts.ScriptsService.GetOrgProjects:input_type -> scripts.GetOrgProjectsRequest
+	28,  // 136: scripts.ScriptsService.CreateOutlineUnit:input_type -> scripts.CreateOutlineUnitRequest
+	30,  // 137: scripts.ScriptsService.GetProjectOutline:input_type -> scripts.GetProjectOutlineRequest
+	32,  // 138: scripts.ScriptsService.UpdateOutlineUnit:input_type -> scripts.UpdateOutlineUnitRequest
+	34,  // 139: scripts.ScriptsService.DeleteOutlineUnit:input_type -> scripts.DeleteOutlineUnitRequest
+	36,  // 140: scripts.ScriptsService.CreateScene:input_type -> scripts.CreateSceneRequest
+	38,  // 141: scripts.ScriptsService.GetProjectScenes:input_type -> scripts.GetProjectScenesRequest
+	40,  // 142: scripts.ScriptsService.UpdateScene:input_type -> scripts.UpdateSceneRequest
+	42,  // 143: scripts.ScriptsService.DeleteScene:input_type -> scripts.DeleteSceneRequest
+	44,  // 144: scripts.ScriptsService.CreateCharacter:input_type -> scripts.CreateCharacterRequest
+	46,  // 145: scripts.ScriptsService.GetProjectCharacters:input_type -> scripts.GetProjectCharactersRequest
+	48,  // 146: scripts.ScriptsService.UpdateCharacter:input_type -> scripts.UpdateCharacterRequest
+	50,  // 147: scripts.ScriptsService.CreateLocation:input_type -> scripts.CreateLocationRequest
+	103, // 148: scripts.ScriptsService.GetProjectLocations:input_type -> scripts.GetProjectLocationsRequest
+	55,  // 149: scripts.ScriptsService.CreateElement:input_type -> scripts.CreateElementRequest
+	57,  // 150: scripts.ScriptsService.UpdateElement:input_type -> scripts.UpdateElementRequest
+	59,  // 151: scripts.ScriptsService.GetSceneElements:input_type -> scripts.GetSceneElementsRequest
+	53,  // 152: scripts.ScriptsService.DeleteScriptElement:input_type -> scripts.DeleteScriptElementRequest
+	61,  // 153: scripts.ScriptsService.BatchCreateElements:input_type -> scripts.BatchCreateElementsRequest
+	63,  // 154: scripts.ScriptsService.CreateBeat:input_type -> scripts.CreateBeatRequest
+	65,  // 155: scripts.ScriptsService.GetBeat:input_type -> scripts.GetBeatRequest
+	67,  // 156: scripts.ScriptsService.GetProjectBeatBoard:input_type -> scripts.GetProjectBeatBoardRequest
+	69,  // 157: scripts.ScriptsService.UpdateBeat:input_type -> scripts.UpdateBeatRequest
+	71,  // 158: scripts.ScriptsService.DeleteBeat:input_type -> scripts.DeleteBeatRequest
+	73,  // 159: scripts.ScriptsService.CreateConnection:input_type -> scripts.CreateConnectionRequest
+	75,  // 160: scripts.ScriptsService.DeleteConnection:input_type -> scripts.DeleteConnectionRequest
+	77,  // 161: scripts.ScriptsService.CreateLane:input_type -> scripts.CreateLaneRequest
+	79,  // 162: scripts.ScriptsService.GetProjectLanes:input_type -> scripts.GetProjectLanesRequest
+	81,  // 163: scripts.ScriptsService.UpdateLane:input_type -> scripts.UpdateLaneRequest
+	83,  // 164: scripts.ScriptsService.UpdateLaneOrder:input_type -> scripts.UpdateLaneOrderRequest
+	85,  // 165: scripts.ScriptsService.DeleteLane:input_type -> scripts.DeleteLaneRequest
+	87,  // 166: scripts.ScriptsService.CreateOutlineItem:input_type -> scripts.CreateOutlineItemRequest
+	89,  // 167: scripts.ScriptsService.UpdateOutlineItem:input_type -> scripts.UpdateOutlineItemRequest
+	91,  // 168: scripts.ScriptsService.DeleteOutlineItem:input_type -> scripts.DeleteOutlineItemRequest
+	93,  // 169: scripts.ScriptsService.CreateDrawing:input_type -> scripts.CreateDrawingRequest
+	95,  // 170: scripts.ScriptsService.UpdateDrawing:input_type -> scripts.UpdateDrawingRequest
+	97,  // 171: scripts.ScriptsService.DeleteDrawing:input_type -> scripts.DeleteDrawingRequest
+	99,  // 172: scripts.ScriptsService.GetResourceProject:input_type -> scripts.GetResourceProjectRequest
+	101, // 173: scripts.ScriptsService.GetProjectAccessMetadata:input_type -> scripts.GetProjectAccessMetadataRequest
+	106, // 174: scripts.ScriptsService.SyncProject:input_type -> scripts.SyncProjectRequest
+	110, // 175: scripts.ScriptsService.SyncVault:input_type -> scripts.SyncVaultRequest
+	15,  // 176: scripts.ScriptsService.CreateProject:output_type -> scripts.CreateProjectResponse
+	17,  // 177: scripts.ScriptsService.GetProject:output_type -> scripts.GetProjectResponse
+	19,  // 178: scripts.ScriptsService.UpdateProject:output_type -> scripts.UpdateProjectResponse
+	21,  // 179: scripts.ScriptsService.ToggleProjectStar:output_type -> scripts.ToggleProjectStarResponse
+	23,  // 180: scripts.ScriptsService.DeleteProject:output_type -> scripts.DeleteProjectResponse
+	25,  // 181: scripts.ScriptsService.GetUserProjects:output_type -> scripts.GetUserProjectsResponse
+	27,  // 182: scripts.ScriptsService.GetOrgProjects:output_type -> scripts.GetOrgProjectsResponse
+	29,  // 183: scripts.ScriptsService.CreateOutlineUnit:output_type -> scripts.CreateOutlineUnitResponse
+	31,  // 184: scripts.ScriptsService.GetProjectOutline:output_type -> scripts.GetProjectOutlineResponse
+	33,  // 185: scripts.ScriptsService.UpdateOutlineUnit:output_type -> scripts.UpdateOutlineUnitResponse
+	35,  // 186: scripts.ScriptsService.DeleteOutlineUnit:output_type -> scripts.DeleteOutlineUnitResponse
+	37,  // 187: scripts.ScriptsService.CreateScene:output_type -> scripts.CreateSceneResponse
+	39,  // 188: scripts.ScriptsService.GetProjectScenes:output_type -> scripts.GetProjectScenesResponse
+	41,  // 189: scripts.ScriptsService.UpdateScene:output_type -> scripts.UpdateSceneResponse
+	43,  // 190: scripts.ScriptsService.DeleteScene:output_type -> scripts.DeleteSceneResponse
+	45,  // 191: scripts.ScriptsService.CreateCharacter:output_type -> scripts.CreateCharacterResponse
+	47,  // 192: scripts.ScriptsService.GetProjectCharacters:output_type -> scripts.GetProjectCharactersResponse
+	49,  // 193: scripts.ScriptsService.UpdateCharacter:output_type -> scripts.UpdateCharacterResponse
+	51,  // 194: scripts.ScriptsService.CreateLocation:output_type -> scripts.CreateLocationResponse
+	104, // 195: scripts.ScriptsService.GetProjectLocations:output_type -> scripts.GetProjectLocationsResponse
+	56,  // 196: scripts.ScriptsService.CreateElement:output_type -> scripts.CreateElementResponse
+	58,  // 197: scripts.ScriptsService.UpdateElement:output_type -> scripts.UpdateElementResponse
+	60,  // 198: scripts.ScriptsService.GetSceneElements:output_type -> scripts.GetSceneElementsResponse
+	54,  // 199: scripts.ScriptsService.DeleteScriptElement:output_type -> scripts.DeleteScriptElementResponse
+	62,  // 200: scripts.ScriptsService.BatchCreateElements:output_type -> scripts.BatchCreateElementsResponse
+	64,  // 201: scripts.ScriptsService.CreateBeat:output_type -> scripts.CreateBeatResponse
+	66,  // 202: scripts.ScriptsService.GetBeat:output_type -> scripts.GetBeatResponse
+	68,  // 203: scripts.ScriptsService.GetProjectBeatBoard:output_type -> scripts.GetProjectBeatBoardResponse
+	70,  // 204: scripts.ScriptsService.UpdateBeat:output_type -> scripts.UpdateBeatResponse
+	72,  // 205: scripts.ScriptsService.DeleteBeat:output_type -> scripts.DeleteBeatResponse
+	74,  // 206: scripts.ScriptsService.CreateConnection:output_type -> scripts.CreateConnectionResponse
+	76,  // 207: scripts.ScriptsService.DeleteConnection:output_type -> scripts.DeleteConnectionResponse
+	78,  // 208: scripts.ScriptsService.CreateLane:output_type -> scripts.CreateLaneResponse
+	80,  // 209: scripts.ScriptsService.GetProjectLanes:output_type -> scripts.GetProjectLanesResponse
+	82,  // 210: scripts.ScriptsService.UpdateLane:output_type -> scripts.UpdateLaneResponse
+	84,  // 211: scripts.ScriptsService.UpdateLaneOrder:output_type -> scripts.UpdateLaneOrderResponse
+	86,  // 212: scripts.ScriptsService.DeleteLane:output_type -> scripts.DeleteLaneResponse
+	88,  // 213: scripts.ScriptsService.CreateOutlineItem:output_type -> scripts.CreateOutlineItemResponse
+	90,  // 214: scripts.ScriptsService.UpdateOutlineItem:output_type -> scripts.UpdateOutlineItemResponse
+	92,  // 215: scripts.ScriptsService.DeleteOutlineItem:output_type -> scripts.DeleteOutlineItemResponse
+	94,  // 216: scripts.ScriptsService.CreateDrawing:output_type -> scripts.CreateDrawingResponse
+	96,  // 217: scripts.ScriptsService.UpdateDrawing:output_type -> scripts.UpdateDrawingResponse
+	98,  // 218: scripts.ScriptsService.DeleteDrawing:output_type -> scripts.DeleteDrawingResponse
+	100, // 219: scripts.ScriptsService.GetResourceProject:output_type -> scripts.GetResourceProjectResponse
+	102, // 220: scripts.ScriptsService.GetProjectAccessMetadata:output_type -> scripts.GetProjectAccessMetadataResponse
+	107, // 221: scripts.ScriptsService.SyncProject:output_type -> scripts.SyncProjectResponse
+	111, // 222: scripts.ScriptsService.SyncVault:output_type -> scripts.SyncVaultResponse
+	176, // [176:223] is the sub-list for method output_type
+	129, // [129:176] is the sub-list for method input_type
+	129, // [129:129] is the sub-list for extension type_name
+	129, // [129:129] is the sub-list for extension extendee
+	0,   // [0:129] is the sub-list for field type_name
 }
 
 func init() { file_scripts_scripts_proto_init() }
@@ -8242,8 +8815,8 @@ func file_scripts_scripts_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_scripts_scripts_proto_rawDesc), len(file_scripts_scripts_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   113,
+			NumEnums:      2,
+			NumMessages:   115,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

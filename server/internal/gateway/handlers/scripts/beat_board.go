@@ -60,7 +60,7 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *createBeatBody) (*BeatResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
+			role, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, authErr
 			}
@@ -83,7 +83,8 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 
 			resp, err := h.scriptsClient.CreateBeat(r.Context(), &scriptspb.CreateBeatRequest{
 				ProjectId:    projectID,
-				UserId:       resolvedID,
+				UserId:       userID,
+				CallerRole:   callerRoleToProto(role),
 				Title:        req.Title,
 				Description:  req.Description,
 				SceneNumbers: req.SceneNumbers,
@@ -117,14 +118,15 @@ func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Requ
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*BeatBoardDataResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
+			role, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.GetProjectBeatBoard(r.Context(), &scriptspb.GetProjectBeatBoardRequest{
-				ProjectId: projectID,
-				UserId:    resolvedID,
+				ProjectId:  projectID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			})
 
 			if err != nil {
@@ -137,31 +139,33 @@ func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Requ
 }
 
 // resolveAccessOrForbidden authorizes userID against projectID for action and
-// returns the effective downstream user id — the owner's id, or "" for every
-// other role the policy permits. A denial or a resolution failure returns a
-// ready-to-return *apierror.Error (403 for denial; whatever
-// handlers.RequireProjectAccess makes of a dependency failure otherwise —
-// never 403 for the latter). projectID MUST be read from the resource being
-// acted on (see the authorize* helpers below), never taken from the client,
-// so authorization always runs against the resource's real project.
-func (h *ScriptsHandler) resolveAccessOrForbidden(ctx context.Context, userID, projectID string, action handlers.ProjectAction) (string, error) {
-	return handlers.RequireProjectAccess(ctx, userID, projectID, action, h.scriptsClient, h.collabClient, h.workspaceClient)
+// returns the resolved role — the caller sends userID (always real, Orbit
+// #360) and callerRoleToProto(role) on the outgoing scripts request; there is
+// no more owner-id-or-bypass-sentinel to collapse to. A denial or a
+// resolution failure returns a ready-to-return *apierror.Error (403 for
+// denial; whatever handlers.RequireProjectRole makes of a dependency failure
+// otherwise — never 403 for the latter). projectID MUST be read from the
+// resource being acted on (see the authorize* helpers below), never taken
+// from the client, so authorization always runs against the resource's real
+// project.
+func (h *ScriptsHandler) resolveAccessOrForbidden(ctx context.Context, userID, projectID string, action handlers.ProjectAction) (handlers.ProjectRole, error) {
+	return handlers.RequireProjectRole(ctx, userID, projectID, action, h.scriptsClient, h.collabClient, h.workspaceClient)
 }
 
 // authorizeResource resolves the project that owns a sub-resource (via the
 // scripts service's GetResourceProject lookup) and authorizes the caller
-// against it for action, returning the effective downstream user id. The
-// project is read from the resource itself, never supplied by the client, so
-// a caller can't authorize a project they own while acting on a resource in
-// another. A non-nil error means the resource is missing or the caller may
-// not perform action; in both cases the mutation must not proceed.
-func (h *ScriptsHandler) authorizeResource(ctx context.Context, userID string, resourceType scriptspb.ResourceType, resourceID string, action handlers.ProjectAction) (string, error) {
+// against it for action, returning the resolved role. The project is read
+// from the resource itself, never supplied by the client, so a caller can't
+// authorize a project they own while acting on a resource in another. A
+// non-nil error means the resource is missing or the caller may not perform
+// action; in both cases the mutation must not proceed.
+func (h *ScriptsHandler) authorizeResource(ctx context.Context, userID string, resourceType scriptspb.ResourceType, resourceID string, action handlers.ProjectAction) (handlers.ProjectRole, error) {
 	resp, err := h.scriptsClient.GetResourceProject(ctx, &scriptspb.GetResourceProjectRequest{
 		ResourceType: resourceType,
 		ResourceId:   resourceID,
 	})
 	if err != nil {
-		return "", err
+		return handlers.RoleNone, err
 	}
 	return h.resolveAccessOrForbidden(ctx, userID, resp.ProjectId, action)
 }
@@ -201,14 +205,15 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *updateBeatBody) (*BeatResponse, error) {
 			beatID := chi.URLParam(r, "beatId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_BEAT, beatID, handlers.ActionEditContent)
+			role, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_BEAT, beatID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
 
 			grpcReq := &scriptspb.UpdateBeatRequest{
-				BeatId: beatID,
-				UserId: resolvedID,
+				BeatId:     beatID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			}
 
 			if req.Title != nil {
@@ -276,13 +281,18 @@ func (h *ScriptsHandler) GetBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*BeatResponse, error) {
 			beatID := chi.URLParam(r, "beatId")
 
-			// Read the beat to discover its project, then authorize the caller
-			// against that real project before returning it.
-			resp, err := h.scriptsClient.GetBeat(r.Context(), &scriptspb.GetBeatRequest{BeatId: beatID})
+			// Resolve the beat's real project without reading its contents, then
+			// authorize before issuing the protected read.
+			role, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_BEAT, beatID, handlers.ActionRead)
 			if err != nil {
 				return nil, err
 			}
-			if _, err := h.resolveAccessOrForbidden(r.Context(), userID, resp.Beat.ProjectId, handlers.ActionRead); err != nil {
+			resp, err := h.scriptsClient.GetBeat(r.Context(), &scriptspb.GetBeatRequest{
+				BeatId:     beatID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
+			})
+			if err != nil {
 				return nil, err
 			}
 
@@ -301,14 +311,15 @@ func (h *ScriptsHandler) DeleteBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			beatID := chi.URLParam(r, "beatId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_BEAT, beatID, handlers.ActionEditContent)
+			role, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_BEAT, beatID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
 
 			_, err = h.scriptsClient.DeleteBeat(r.Context(), &scriptspb.DeleteBeatRequest{
-				BeatId: beatID,
-				UserId: resolvedID,
+				BeatId:     beatID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, err
@@ -342,14 +353,15 @@ func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request
 		Handle: func(r *http.Request, userID string, req *createConnectionBody) (*ConnectionResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
+			role, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.CreateConnection(r.Context(), &scriptspb.CreateConnectionRequest{
 				ProjectId:  projectID,
-				UserId:     resolvedID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 				FromBeatId: req.FromBeatID,
 				ToBeatId:   req.ToBeatID,
 				FromSide:   req.FromSide,
@@ -375,14 +387,15 @@ func (h *ScriptsHandler) DeleteConnection(w http.ResponseWriter, r *http.Request
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			connectionID := chi.URLParam(r, "connectionId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_CONNECTION, connectionID, handlers.ActionEditContent)
+			role, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_CONNECTION, connectionID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
 
 			_, err = h.scriptsClient.DeleteConnection(r.Context(), &scriptspb.DeleteConnectionRequest{
 				ConnectionId: connectionID,
-				UserId:       resolvedID,
+				UserId:       userID,
+				CallerRole:   callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, err
@@ -415,17 +428,18 @@ func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *createLaneBody) (*LaneResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
+			role, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.CreateLane(r.Context(), &scriptspb.CreateLaneRequest{
-				ProjectId: projectID,
-				UserId:    resolvedID,
-				Name:      req.Name,
-				Color:     req.Color,
-				Order:     req.Order,
+				ProjectId:  projectID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
+				Name:       req.Name,
+				Color:      req.Color,
+				Order:      req.Order,
 			})
 
 			if err != nil {
@@ -446,14 +460,15 @@ func (h *ScriptsHandler) GetProjectLanes(w http.ResponseWriter, r *http.Request)
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]LaneResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
+			role, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.GetProjectLanes(r.Context(), &scriptspb.GetProjectLanesRequest{
-				ProjectId: projectID,
-				UserId:    resolvedID,
+				ProjectId:  projectID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			})
 
 			if err != nil {
@@ -493,14 +508,15 @@ func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *updateLaneBody) (*LaneResponse, error) {
 			laneID := chi.URLParam(r, "laneId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_LANE, laneID, handlers.ActionEditContent)
+			role, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_LANE, laneID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
 
 			grpcReq := &scriptspb.UpdateLaneRequest{
-				LaneId: laneID,
-				UserId: resolvedID,
+				LaneId:     laneID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			}
 
 			if req.Name != nil {
@@ -544,7 +560,7 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 		Handle: func(r *http.Request, userID string, req *updateLaneOrderBody) (*struct{}, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
+			role, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, authErr
 			}
@@ -555,9 +571,10 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 			}
 
 			_, err := h.scriptsClient.UpdateLaneOrder(r.Context(), &scriptspb.UpdateLaneOrderRequest{
-				ProjectId: projectID,
-				UserId:    resolvedID,
-				LaneIds:   laneIds,
+				ProjectId:  projectID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
+				LaneIds:    laneIds,
 			})
 
 			if err != nil {
@@ -579,14 +596,15 @@ func (h *ScriptsHandler) DeleteLane(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			laneID := chi.URLParam(r, "laneId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_LANE, laneID, handlers.ActionEditContent)
+			role, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_LANE, laneID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
 
 			_, err = h.scriptsClient.DeleteLane(r.Context(), &scriptspb.DeleteLaneRequest{
-				LaneId: laneID,
-				UserId: resolvedID,
+				LaneId:     laneID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, err
@@ -621,14 +639,15 @@ func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Reques
 		Handle: func(r *http.Request, userID string, req *createOutlineItemBody) (*OutlineItemResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
+			role, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.CreateOutlineItem(r.Context(), &scriptspb.CreateOutlineItemRequest{
 				ProjectId:        projectID,
-				UserId:           resolvedID,
+				UserId:           userID,
+				CallerRole:       callerRoleToProto(role),
 				BeatId:           req.BeatID,
 				LaneId:           req.LaneID,
 				Order:            req.Order,
@@ -668,14 +687,15 @@ func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Reques
 		Handle: func(r *http.Request, userID string, req *updateOutlineItemBody) (*OutlineItemResponse, error) {
 			outlineItemID := chi.URLParam(r, "itemId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_OUTLINE_ITEM, outlineItemID, handlers.ActionEditContent)
+			role, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_OUTLINE_ITEM, outlineItemID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
 
 			grpcReq := &scriptspb.UpdateOutlineItemRequest{
 				OutlineItemId: outlineItemID,
-				UserId:        resolvedID,
+				UserId:        userID,
+				CallerRole:    callerRoleToProto(role),
 			}
 
 			if req.BeatID != nil {
@@ -714,14 +734,15 @@ func (h *ScriptsHandler) DeleteOutlineItem(w http.ResponseWriter, r *http.Reques
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			outlineItemID := chi.URLParam(r, "itemId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_OUTLINE_ITEM, outlineItemID, handlers.ActionEditContent)
+			role, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_OUTLINE_ITEM, outlineItemID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
 
 			_, err = h.scriptsClient.DeleteOutlineItem(r.Context(), &scriptspb.DeleteOutlineItemRequest{
 				OutlineItemId: outlineItemID,
-				UserId:        resolvedID,
+				UserId:        userID,
+				CallerRole:    callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, err
@@ -840,7 +861,7 @@ func (h *ScriptsHandler) CreateDrawing(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *createDrawingBody) (*DrawingResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
+			role, authErr := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
 				return nil, authErr
 			}
@@ -851,11 +872,12 @@ func (h *ScriptsHandler) CreateDrawing(w http.ResponseWriter, r *http.Request) {
 			}
 
 			resp, err := h.scriptsClient.CreateDrawing(r.Context(), &scriptspb.CreateDrawingRequest{
-				ProjectId: projectID,
-				UserId:    resolvedID,
-				Kind:      req.Kind,
-				Data:      data,
-				Order:     req.Order,
+				ProjectId:  projectID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
+				Kind:       req.Kind,
+				Data:       data,
+				Order:      req.Order,
 			})
 			if err != nil {
 				return nil, err
@@ -887,16 +909,17 @@ func (h *ScriptsHandler) UpdateDrawing(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *updateDrawingBody) (*DrawingResponse, error) {
 			drawingID := chi.URLParam(r, "drawingId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_DRAWING, drawingID, handlers.ActionEditContent)
+			role, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_DRAWING, drawingID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
 
 			out := &scriptspb.UpdateDrawingRequest{
-				DrawingId: drawingID,
-				UserId:    resolvedID,
-				Kind:      req.Kind,
-				Order:     req.Order,
+				DrawingId:  drawingID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
+				Kind:       req.Kind,
+				Order:      req.Order,
 			}
 			if req.Data != nil {
 				data := string(*req.Data)
@@ -923,14 +946,15 @@ func (h *ScriptsHandler) DeleteDrawing(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			drawingID := chi.URLParam(r, "drawingId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_DRAWING, drawingID, handlers.ActionEditContent)
+			role, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_DRAWING, drawingID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
 
 			_, err = h.scriptsClient.DeleteDrawing(r.Context(), &scriptspb.DeleteDrawingRequest{
-				DrawingId: drawingID,
-				UserId:    resolvedID,
+				DrawingId:  drawingID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, err

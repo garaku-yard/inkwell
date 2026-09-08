@@ -76,10 +76,8 @@ func (h *ScriptsHandler) CreateProject(ctx context.Context, req *scriptspb.Creat
 	}, nil
 }
 
-// GetProject retrieves a single project by ID. When req.UserId is non-empty the
-// service enforces ownership; passing an empty user_id bypasses the ownership
-// check and is used by the gateway after it has already confirmed collaborator
-// access via the collab service.
+// GetProject retrieves a single project by ID. user_id is always the real actor;
+// caller_role carries the gateway's explicit authorization assertion.
 func (h *ScriptsHandler) GetProject(ctx context.Context, req *scriptspb.GetProjectRequest) (*scriptspb.GetProjectResponse, error) {
 	// Validate input
 	if req.ProjectId == "" {
@@ -91,18 +89,19 @@ func (h *ScriptsHandler) GetProject(ctx context.Context, req *scriptspb.GetProje
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	// userID is optional — if empty, the service skips the owner check (collaborator access
-	// is already verified by the gateway before making this call)
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no more
+	// empty-user_id bypass. callerRole is what the gateway resolved for them.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	// Get project via service
-	project, err := h.service.GetProject(ctx, projectID, userID)
+	project, err := h.service.GetProject(ctx, projectID, userID, callerRole)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -314,9 +313,6 @@ func (h *ScriptsHandler) DeleteOutlineUnit(ctx context.Context, req *scriptspb.D
 // are required; the service enforces that the caller owns or has write access to
 // the project. outline_unit_id is optional and links the scene to a beat-board
 // outline unit when provided.
-// userID is optional — empty means collaborator/org access already verified
-// by the gateway (see handlers.RequireProjectAccess); the service's
-// verifyProjectAccess treats uuid.Nil as that bypass.
 func (h *ScriptsHandler) CreateScene(ctx context.Context, req *scriptspb.CreateSceneRequest) (*scriptspb.CreateSceneResponse, error) {
 	// Validate request
 	if req.ProjectId == "" {
@@ -329,13 +325,17 @@ func (h *ScriptsHandler) CreateScene(ctx context.Context, req *scriptspb.CreateS
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	// Create scene object
 	scene := &domain.Scene{
@@ -354,7 +354,7 @@ func (h *ScriptsHandler) CreateScene(ctx context.Context, req *scriptspb.CreateS
 	}
 
 	// Call service
-	createdScene, err := h.service.CreateScene(ctx, projectID, userID, scene)
+	createdScene, err := h.service.CreateScene(ctx, projectID, userID, callerRole, scene)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -386,8 +386,7 @@ func (h *ScriptsHandler) CreateScene(ctx context.Context, req *scriptspb.CreateS
 }
 
 // GetProjectScenes returns all scenes for a project, ordered by their index.
-// Passing an empty user_id bypasses the ownership check; the gateway does this
-// when collaborator access has already been confirmed by the collab service.
+// user_id is the real actor and caller_role must grant read access.
 func (h *ScriptsHandler) GetProjectScenes(ctx context.Context, req *scriptspb.GetProjectScenesRequest) (*scriptspb.GetProjectScenesResponse, error) {
 	// Parse project ID
 	projectID, err := uuid.Parse(req.ProjectId)
@@ -395,17 +394,20 @@ func (h *ScriptsHandler) GetProjectScenes(ctx context.Context, req *scriptspb.Ge
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project ID: %v", err)
 	}
 
-	// userID is optional — empty means collaborator access already verified by gateway
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	// Get scenes from service
-	scenes, err := h.service.GetProjectScenes(ctx, projectID, userID)
+	scenes, err := h.service.GetProjectScenes(ctx, projectID, userID, callerRole)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -432,13 +434,17 @@ func (h *ScriptsHandler) UpdateScene(ctx context.Context, req *scriptspb.UpdateS
 		return nil, status.Errorf(codes.InvalidArgument, "invalid scene ID: %v", err)
 	}
 
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	// Create domain scene for updates
 	updates := &domain.Scene{}
@@ -455,7 +461,7 @@ func (h *ScriptsHandler) UpdateScene(ctx context.Context, req *scriptspb.UpdateS
 	}
 
 	// Update scene through service
-	updatedScene, err := h.service.UpdateScene(ctx, sceneID, userID, updates)
+	updatedScene, err := h.service.UpdateScene(ctx, sceneID, userID, callerRole, updates)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -479,16 +485,20 @@ func (h *ScriptsHandler) DeleteScene(ctx context.Context, req *scriptspb.DeleteS
 		return nil, status.Errorf(codes.InvalidArgument, "invalid scene ID: %v", err)
 	}
 
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	// Delete scene through service
-	err = h.service.DeleteScene(ctx, sceneID, userID)
+	err = h.service.DeleteScene(ctx, sceneID, userID, callerRole)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -532,18 +542,20 @@ func (h *ScriptsHandler) DeleteScriptElement(ctx context.Context, req *scriptspb
 		return nil, status.Errorf(codes.InvalidArgument, "invalid script element ID: %v", err)
 	}
 
-	// userID is optional — empty means collaborator access already verified by
-	// the gateway; uuid.Nil makes the service skip the ownership check.
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	// Call service to delete script element
-	err = h.service.DeleteScriptElement(ctx, elementID, userID)
+	err = h.service.DeleteScriptElement(ctx, elementID, userID, callerRole)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -664,6 +676,10 @@ func handleServiceError(err error) error {
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, domain.ErrInvalidProjectData):
 		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, domain.ErrMissingActor):
+		// A malformed request with no actor identity, not a real checked-and-
+		// denied answer.
+		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, quota.ErrQuotaExceeded):
 		// Hitting a plan limit is an expected, actionable condition — surface
 		// it as ResourceExhausted so the gateway maps it to 429 rather than a
@@ -675,8 +691,6 @@ func handleServiceError(err error) error {
 
 // CreateElement adds a single typed element (a paragraph, line, panel, stat
 // block, passage body, etc., depending on the format) to a scene/container.
-// userID is optional — empty means collaborator/org access already verified
-// by the gateway (see handlers.RequireProjectAccess).
 func (h *ScriptsHandler) CreateElement(ctx context.Context, req *scriptspb.CreateElementRequest) (*scriptspb.CreateElementResponse, error) {
 	// Parse project ID
 	projectID, err := uuid.Parse(req.ProjectId)
@@ -684,13 +698,17 @@ func (h *ScriptsHandler) CreateElement(ctx context.Context, req *scriptspb.Creat
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project ID: %v", err)
 	}
 
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	// Parse required scene ID
 	sceneID, err := uuid.Parse(req.SceneId)
@@ -709,7 +727,7 @@ func (h *ScriptsHandler) CreateElement(ctx context.Context, req *scriptspb.Creat
 	}
 
 	// Create element through service
-	createdElement, err := h.service.CreateElement(ctx, userID, element)
+	createdElement, err := h.service.CreateElement(ctx, userID, callerRole, element)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -731,17 +749,20 @@ func (h *ScriptsHandler) UpdateElement(ctx context.Context, req *scriptspb.Updat
 		return nil, status.Errorf(codes.InvalidArgument, "invalid element ID: %v", err)
 	}
 
-	// userID is optional — empty string means collaborator access already verified by gateway
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	// Update element through service
-	updatedElement, err := h.service.UpdateElementContent(ctx, userID, elementID, req.Content)
+	updatedElement, err := h.service.UpdateElementContent(ctx, userID, elementID, callerRole, req.Content)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -755,8 +776,7 @@ func (h *ScriptsHandler) UpdateElement(ctx context.Context, req *scriptspb.Updat
 }
 
 // GetSceneElements returns all script elements belonging to a scene, ordered by
-// line number. Passing an empty user_id bypasses the ownership check; the gateway
-// does this when collaborator access has already been confirmed by the collab service.
+// line number. user_id is the real actor and caller_role must grant read access.
 func (h *ScriptsHandler) GetSceneElements(ctx context.Context, req *scriptspb.GetSceneElementsRequest) (*scriptspb.GetSceneElementsResponse, error) {
 	// Parse scene ID
 	sceneID, err := uuid.Parse(req.SceneId)
@@ -764,17 +784,20 @@ func (h *ScriptsHandler) GetSceneElements(ctx context.Context, req *scriptspb.Ge
 		return nil, status.Errorf(codes.InvalidArgument, "invalid scene ID: %v", err)
 	}
 
-	// userID is optional — empty means collaborator access already verified by gateway
-	userID := uuid.Nil
-	if req.UserId != "" {
-		userID, err = uuid.Parse(req.UserId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
-		}
+	// userID is always the real authenticated actor now (Orbit #360) — no
+	// more empty-user_id bypass. callerRole is what the gateway resolved for
+	// this actor.
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	callerRole := callerRoleFromProto(req.CallerRole)
 
 	// Get elements through service
-	elements, err := h.service.GetSceneElements(ctx, userID, sceneID)
+	elements, err := h.service.GetSceneElements(ctx, userID, sceneID, callerRole)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -922,6 +945,26 @@ func (h *ScriptsHandler) DeleteOutlineItem(ctx context.Context, req *scriptspb.D
 	return h.beatBoardHandler.DeleteOutlineItem(ctx, req)
 }
 
+// callerRoleFromProto maps the proto CallerRole to the domain CallerRole.
+// Orbit #360: called on every protected RPC now that user_id is always a
+// real actor — an unrecognised or unset value maps to CallerRoleUnspecified,
+// which verifyProjectAccess rejects for any non-owner caller (see its doc
+// comment) rather than guessing.
+func callerRoleFromProto(r scriptspb.CallerRole) domain.CallerRole {
+	switch r {
+	case scriptspb.CallerRole_CALLER_ROLE_VIEWER:
+		return domain.CallerRoleViewer
+	case scriptspb.CallerRole_CALLER_ROLE_EDITOR:
+		return domain.CallerRoleEditor
+	case scriptspb.CallerRole_CALLER_ROLE_ORG_ADMIN:
+		return domain.CallerRoleOrgAdmin
+	case scriptspb.CallerRole_CALLER_ROLE_OWNER:
+		return domain.CallerRoleOwner
+	default:
+		return domain.CallerRoleUnspecified
+	}
+}
+
 // resourceKindFromProto maps the proto ResourceType to the domain ResourceKind.
 func resourceKindFromProto(t scriptspb.ResourceType) (domain.ResourceKind, bool) {
 	switch t {
@@ -963,4 +1006,24 @@ func (h *ScriptsHandler) GetResourceProject(ctx context.Context, req *scriptspb.
 	}
 
 	return &scriptspb.GetResourceProjectResponse{ProjectId: projectID.String()}, nil
+}
+
+// GetProjectAccessMetadata returns only the ownership fields the gateway needs
+// to resolve access and enforce owner-scoped policy. It is an internal lookup,
+// not an authorization decision or a general project read.
+func (h *ScriptsHandler) GetProjectAccessMetadata(ctx context.Context, req *scriptspb.GetProjectAccessMetadataRequest) (*scriptspb.GetProjectAccessMetadataResponse, error) {
+	projectID, err := uuid.Parse(req.ProjectId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
+	}
+
+	ownerID, orgID, err := h.service.GetProjectAccessMetadata(ctx, projectID)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+	resp := &scriptspb.GetProjectAccessMetadataResponse{OwnerId: ownerID.String()}
+	if orgID != nil {
+		resp.OrgId = orgID.String()
+	}
+	return resp, nil
 }
