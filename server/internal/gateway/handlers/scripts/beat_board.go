@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/handlers"
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 
@@ -61,9 +60,9 @@ func (h *ScriptsHandler) CreateBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *createBeatBody) (*BeatResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
+			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
-				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+				return nil, authErr
 			}
 
 			log.Printf("CreateBeat: Received request with imageUrl: %v", req.ImageUrl)
@@ -118,9 +117,9 @@ func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Requ
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*BeatBoardDataResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
+			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
-				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.GetProjectBeatBoard(r.Context(), &scriptspb.GetProjectBeatBoardRequest{
@@ -137,28 +136,26 @@ func (h *ScriptsHandler) GetProjectBeatBoard(w http.ResponseWriter, r *http.Requ
 	}.ServeHTTP(w, r)
 }
 
-// resolveAccessOrForbidden authorizes userID against projectID and returns the
-// effective downstream user id — the owner's id, or "" for an active
-// collaborator. It maps the no-access case to a 403. projectID MUST be read
-// from the resource being acted on (see the authorize* helpers below), never
-// taken from the client, so authorization always runs against the resource's
-// real project.
-func (h *ScriptsHandler) resolveAccessOrForbidden(ctx context.Context, userID, projectID string) (string, error) {
-	resolvedID, err := handlers.ResolveProjectAccess(ctx, userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
-	if err != nil {
-		return "", apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
-	}
-	return resolvedID, nil
+// resolveAccessOrForbidden authorizes userID against projectID for action and
+// returns the effective downstream user id — the owner's id, or "" for every
+// other role the policy permits. A denial or a resolution failure returns a
+// ready-to-return *apierror.Error (403 for denial; whatever
+// handlers.RequireProjectAccess makes of a dependency failure otherwise —
+// never 403 for the latter). projectID MUST be read from the resource being
+// acted on (see the authorize* helpers below), never taken from the client,
+// so authorization always runs against the resource's real project.
+func (h *ScriptsHandler) resolveAccessOrForbidden(ctx context.Context, userID, projectID string, action handlers.ProjectAction) (string, error) {
+	return handlers.RequireProjectAccess(ctx, userID, projectID, action, h.scriptsClient, h.collabClient, h.workspaceClient)
 }
 
 // authorizeResource resolves the project that owns a sub-resource (via the
 // scripts service's GetResourceProject lookup) and authorizes the caller
-// against it, returning the effective downstream user id. The project is read
-// from the resource itself, never supplied by the client, so a caller can't
-// authorize a project they own while acting on a resource in another. A non-nil
-// error means the resource is missing or the caller has no access; in both
-// cases the mutation must not proceed.
-func (h *ScriptsHandler) authorizeResource(ctx context.Context, userID string, resourceType scriptspb.ResourceType, resourceID string) (string, error) {
+// against it for action, returning the effective downstream user id. The
+// project is read from the resource itself, never supplied by the client, so
+// a caller can't authorize a project they own while acting on a resource in
+// another. A non-nil error means the resource is missing or the caller may
+// not perform action; in both cases the mutation must not proceed.
+func (h *ScriptsHandler) authorizeResource(ctx context.Context, userID string, resourceType scriptspb.ResourceType, resourceID string, action handlers.ProjectAction) (string, error) {
 	resp, err := h.scriptsClient.GetResourceProject(ctx, &scriptspb.GetResourceProjectRequest{
 		ResourceType: resourceType,
 		ResourceId:   resourceID,
@@ -166,7 +163,7 @@ func (h *ScriptsHandler) authorizeResource(ctx context.Context, userID string, r
 	if err != nil {
 		return "", err
 	}
-	return h.resolveAccessOrForbidden(ctx, userID, resp.ProjectId)
+	return h.resolveAccessOrForbidden(ctx, userID, resp.ProjectId, action)
 }
 
 // UpdateBeat handles PUT/PATCH /beats/{beatID}
@@ -204,7 +201,7 @@ func (h *ScriptsHandler) UpdateBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *updateBeatBody) (*BeatResponse, error) {
 			beatID := chi.URLParam(r, "beatId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_BEAT, beatID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_BEAT, beatID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
@@ -285,7 +282,7 @@ func (h *ScriptsHandler) GetBeat(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return nil, err
 			}
-			if _, err := h.resolveAccessOrForbidden(r.Context(), userID, resp.Beat.ProjectId); err != nil {
+			if _, err := h.resolveAccessOrForbidden(r.Context(), userID, resp.Beat.ProjectId, handlers.ActionRead); err != nil {
 				return nil, err
 			}
 
@@ -304,7 +301,7 @@ func (h *ScriptsHandler) DeleteBeat(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			beatID := chi.URLParam(r, "beatId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_BEAT, beatID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_BEAT, beatID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
@@ -345,9 +342,9 @@ func (h *ScriptsHandler) CreateConnection(w http.ResponseWriter, r *http.Request
 		Handle: func(r *http.Request, userID string, req *createConnectionBody) (*ConnectionResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
+			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
-				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.CreateConnection(r.Context(), &scriptspb.CreateConnectionRequest{
@@ -378,7 +375,7 @@ func (h *ScriptsHandler) DeleteConnection(w http.ResponseWriter, r *http.Request
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			connectionID := chi.URLParam(r, "connectionId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_CONNECTION, connectionID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_CONNECTION, connectionID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
@@ -418,9 +415,9 @@ func (h *ScriptsHandler) CreateLane(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *createLaneBody) (*LaneResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
+			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
-				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.CreateLane(r.Context(), &scriptspb.CreateLaneRequest{
@@ -449,9 +446,9 @@ func (h *ScriptsHandler) GetProjectLanes(w http.ResponseWriter, r *http.Request)
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*[]LaneResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
+			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
-				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.GetProjectLanes(r.Context(), &scriptspb.GetProjectLanesRequest{
@@ -496,7 +493,7 @@ func (h *ScriptsHandler) UpdateLane(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *updateLaneBody) (*LaneResponse, error) {
 			laneID := chi.URLParam(r, "laneId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_LANE, laneID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_LANE, laneID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
@@ -547,9 +544,9 @@ func (h *ScriptsHandler) UpdateLaneOrder(w http.ResponseWriter, r *http.Request)
 		Handle: func(r *http.Request, userID string, req *updateLaneOrderBody) (*struct{}, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
+			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
-				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+				return nil, authErr
 			}
 
 			laneIds := req.LaneIDs
@@ -582,7 +579,7 @@ func (h *ScriptsHandler) DeleteLane(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			laneID := chi.URLParam(r, "laneId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_LANE, laneID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_LANE, laneID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
@@ -624,9 +621,9 @@ func (h *ScriptsHandler) CreateOutlineItem(w http.ResponseWriter, r *http.Reques
 		Handle: func(r *http.Request, userID string, req *createOutlineItemBody) (*OutlineItemResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
+			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
-				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.CreateOutlineItem(r.Context(), &scriptspb.CreateOutlineItemRequest{
@@ -671,7 +668,7 @@ func (h *ScriptsHandler) UpdateOutlineItem(w http.ResponseWriter, r *http.Reques
 		Handle: func(r *http.Request, userID string, req *updateOutlineItemBody) (*OutlineItemResponse, error) {
 			outlineItemID := chi.URLParam(r, "itemId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_OUTLINE_ITEM, outlineItemID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_OUTLINE_ITEM, outlineItemID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
@@ -717,7 +714,7 @@ func (h *ScriptsHandler) DeleteOutlineItem(w http.ResponseWriter, r *http.Reques
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			outlineItemID := chi.URLParam(r, "itemId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_OUTLINE_ITEM, outlineItemID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_OUTLINE_ITEM, outlineItemID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
@@ -843,9 +840,9 @@ func (h *ScriptsHandler) CreateDrawing(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *createDrawingBody) (*DrawingResponse, error) {
 			projectID := chi.URLParam(r, "projectId")
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
+			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
-				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+				return nil, authErr
 			}
 
 			data := "{}"
@@ -890,7 +887,7 @@ func (h *ScriptsHandler) UpdateDrawing(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, req *updateDrawingBody) (*DrawingResponse, error) {
 			drawingID := chi.URLParam(r, "drawingId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_DRAWING, drawingID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_DRAWING, drawingID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
@@ -926,7 +923,7 @@ func (h *ScriptsHandler) DeleteDrawing(w http.ResponseWriter, r *http.Request) {
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*struct{}, error) {
 			drawingID := chi.URLParam(r, "drawingId")
 
-			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_DRAWING, drawingID)
+			resolvedID, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_DRAWING, drawingID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}

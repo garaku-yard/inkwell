@@ -116,8 +116,8 @@ func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetProject fetches a single project by ID. It requires a userID from the
-// request context and calls handlers.ResolveProjectAccess to verify the caller is either
-// the project owner or an active collaborator. Returns 403 if neither holds.
+// request context and calls handlers.RequireProjectAccess (ActionRead) to
+// verify the caller is at least a viewer. Returns 403 if not.
 func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[struct{}, map[string]interface{}]{
 		Method: http.MethodGet,
@@ -129,9 +129,9 @@ func (h *ScriptsHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Project ID is required")
 			}
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
+			resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
-				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.GetProject(r.Context(), &scriptspb.GetProjectRequest{
@@ -155,8 +155,10 @@ type deleteProjectResponse struct {
 	Success bool `json:"success"`
 }
 
-// DeleteProject removes a project. It requires a userID from the request context
-// and delegates ownership enforcement to the scripts service.
+// DeleteProject removes a project. Requires a userID from the request context;
+// gated on ActionDeleteProject (owner-only), matching the scripts service's own
+// strict owner check underneath — the gateway check exists so the classification
+// is explicit and the caller gets the shared apierror envelope on denial.
 func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[struct{}, deleteProjectResponse]{
 		Method: http.MethodDelete,
@@ -166,6 +168,10 @@ func (h *ScriptsHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 			projectID := chi.URLParam(r, "projectId")
 			if projectID == "" {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project ID is required")
+			}
+
+			if _, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionDeleteProject, h.scriptsClient, h.collabClient, h.workspaceClient); authErr != nil {
+				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.DeleteProject(r.Context(), &scriptspb.DeleteProjectRequest{
@@ -186,7 +192,10 @@ type projectResponse struct {
 }
 
 // ToggleProjectStar flips the starred state of a project for the authenticated
-// user. Requires a userID from the request context.
+// user. Requires a userID from the request context; gated on
+// ActionManageProject (owner-only — is_starred is a single project-level flag,
+// not a per-viewer bookmark, matching the scripts service's own strict owner
+// check underneath).
 func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[struct{}, projectResponse]{
 		Method: http.MethodPatch,
@@ -196,6 +205,10 @@ func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Reques
 			projectID := chi.URLParam(r, "projectId")
 			if projectID == "" {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project ID is required")
+			}
+
+			if _, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionManageProject, h.scriptsClient, h.collabClient, h.workspaceClient); authErr != nil {
+				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.ToggleProjectStar(r.Context(), &scriptspb.ToggleProjectStarRequest{
@@ -221,8 +234,10 @@ type updateProjectBody struct {
 }
 
 // UpdateProject handles PUT /projects/{projectId}: rename/description edits and
-// archive/restore (status). Authorization is enforced by the scripts service
-// against the authenticated caller, matching DeleteProject.
+// archive/restore (status). Gated on ActionManageProject (owner-only), matching
+// the scripts service's own strict owner check underneath — see ActionManageProject's
+// doc comment on handlers.Can for why this stays owner-only rather than
+// "owner + org admin" as the matrix's "edit content" language might suggest.
 func (h *ScriptsHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[updateProjectBody, projectResponse]{
 		Method: http.MethodPut,
@@ -232,6 +247,10 @@ func (h *ScriptsHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 			projectID := chi.URLParam(r, "projectId")
 			if projectID == "" {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project ID is required")
+			}
+
+			if _, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionManageProject, h.scriptsClient, h.collabClient, h.workspaceClient); authErr != nil {
+				return nil, authErr
 			}
 
 			resp, err := h.scriptsClient.UpdateProject(r.Context(), &scriptspb.UpdateProjectRequest{
@@ -441,9 +460,14 @@ func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
+			resolvedID, authErr := handlers.RequireProjectAccess(ctx, userID, req.ProjectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
+			if authErr != nil {
+				return nil, authErr
+			}
+
 			response, err := h.scriptsClient.CreateScene(ctx, &scriptspb.CreateSceneRequest{
 				ProjectId:     req.ProjectID,
-				UserId:        userID,
+				UserId:        resolvedID,
 				OutlineUnitId: &req.OutlineUnitID,
 				SceneHeading:  req.SceneHeading,
 				Content:       req.Content,
@@ -463,7 +487,7 @@ func (h *ScriptsHandler) CreateScene(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetProjectScenes returns all scenes for a project. Requires a userID from the
-// request context and verifies access via handlers.ResolveProjectAccess before fetching.
+// request context and verifies access via handlers.RequireProjectAccess (ActionRead) before fetching.
 func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[struct{}, map[string]interface{}]{
 		Method: http.MethodGet,
@@ -478,9 +502,9 @@ func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			resolvedID, authErr := handlers.ResolveProjectAccess(ctx, userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
+			resolvedID, authErr := handlers.RequireProjectAccess(ctx, userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
 			if authErr != nil {
-				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Unauthorized")
+				return nil, authErr
 			}
 
 			response, err := h.scriptsClient.GetProjectScenes(ctx, &scriptspb.GetProjectScenesRequest{
@@ -535,9 +559,14 @@ func (h *ScriptsHandler) UpdateScene(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
+			resolvedID, authErr := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_SCENE, sceneID, handlers.ActionEditContent)
+			if authErr != nil {
+				return nil, authErr
+			}
+
 			response, err := h.scriptsClient.UpdateScene(ctx, &scriptspb.UpdateSceneRequest{
 				SceneId:      sceneID,
-				UserId:       userID,
+				UserId:       resolvedID,
 				SceneHeading: req.SceneHeading,
 				Content:      req.Content,
 				OrderIndex:   req.OrderIndex,
@@ -570,9 +599,14 @@ func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
+			resolvedID, authErr := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_SCENE, sceneID, handlers.ActionEditContent)
+			if authErr != nil {
+				return nil, authErr
+			}
+
 			_, err := h.scriptsClient.DeleteScene(ctx, &scriptspb.DeleteSceneRequest{
 				SceneId: sceneID,
-				UserId:  userID,
+				UserId:  resolvedID,
 			})
 
 			if err != nil {
@@ -616,9 +650,14 @@ func (h *ScriptsHandler) CreateElement(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
+			resolvedID, authErr := handlers.RequireProjectAccess(ctx, userID, req.ProjectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
+			if authErr != nil {
+				return nil, authErr
+			}
+
 			response, err := h.scriptsClient.CreateElement(ctx, &scriptspb.CreateElementRequest{
 				ProjectId:   req.ProjectID,
-				UserId:      userID,
+				UserId:      resolvedID,
 				SceneId:     req.SceneID,
 				ElementType: req.ElementType,
 				Content:     req.Content,
@@ -670,7 +709,7 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			resolvedID, err := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT, elementID)
+			resolvedID, err := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT, elementID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
@@ -716,7 +755,7 @@ func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			resolvedID, err := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT, elementID)
+			resolvedID, err := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_ELEMENT, elementID, handlers.ActionEditContent)
 			if err != nil {
 				return nil, err
 			}
@@ -736,10 +775,11 @@ func (h *ScriptsHandler) DeleteElement(w http.ResponseWriter, r *http.Request) {
 	}.ServeHTTP(w, r)
 }
 
-// GetSceneElements returns all elements for a scene. If the initial request fails
-// due to an ownership mismatch it retries with an empty userID — a bypass sentinel
-// that skips the ownership check. This handles collaborator access where project
-// membership is already verified by the auth middleware.
+// GetSceneElements returns all elements for a scene. Authorizes against the
+// scene's real project (RESOURCE_TYPE_SCENE) before fetching — previously
+// this retried unconditionally with the empty-user bypass sentinel on any
+// failure, granting read access to any authenticated caller who knew a valid
+// scene_id, no membership check at all.
 func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[struct{}, map[string]interface{}]{
 		Method: http.MethodGet,
@@ -754,20 +794,17 @@ func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
+			resolvedID, authErr := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_SCENE, sceneID, handlers.ActionRead)
+			if authErr != nil {
+				return nil, authErr
+			}
+
 			response, err := h.scriptsClient.GetSceneElements(ctx, &scriptspb.GetSceneElementsRequest{
 				SceneId: sceneID,
-				UserId:  userID,
+				UserId:  resolvedID,
 			})
 			if err != nil {
-				// Retry with empty userId — collaborator access is verified by JWT auth middleware
-				// and the user must have already loaded scenes successfully to know this scene_id
-				response, err = h.scriptsClient.GetSceneElements(ctx, &scriptspb.GetSceneElementsRequest{
-					SceneId: sceneID,
-					UserId:  "",
-				})
-				if err != nil {
-					return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to get elements")
-				}
+				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to get elements")
 			}
 
 			elements := make([]map[string]interface{}, len(response.Elements))

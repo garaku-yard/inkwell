@@ -35,6 +35,11 @@ const (
 	ResourceType_RESOURCE_TYPE_OUTLINE_ITEM ResourceType = 4
 	ResourceType_RESOURCE_TYPE_ELEMENT      ResourceType = 5
 	ResourceType_RESOURCE_TYPE_DRAWING      ResourceType = 6
+	// Added for Orbit #359: scenes had no resolver, so the gateway could not
+	// authorize UpdateScene/DeleteScene/GetSceneElements against the scene's
+	// real project and fell back to trusting the raw caller id or an
+	// unconditional bypass-and-retry (see the ADR 0029 gap this closes).
+	ResourceType_RESOURCE_TYPE_SCENE ResourceType = 7
 )
 
 // Enum value maps for ResourceType.
@@ -47,6 +52,7 @@ var (
 		4: "RESOURCE_TYPE_OUTLINE_ITEM",
 		5: "RESOURCE_TYPE_ELEMENT",
 		6: "RESOURCE_TYPE_DRAWING",
+		7: "RESOURCE_TYPE_SCENE",
 	}
 	ResourceType_value = map[string]int32{
 		"RESOURCE_TYPE_UNSPECIFIED":  0,
@@ -56,6 +62,7 @@ var (
 		"RESOURCE_TYPE_OUTLINE_ITEM": 4,
 		"RESOURCE_TYPE_ELEMENT":      5,
 		"RESOURCE_TYPE_DRAWING":      6,
+		"RESOURCE_TYPE_SCENE":        7,
 	}
 )
 
@@ -7812,7 +7819,7 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\x11SyncVaultResponse\x12(\n" +
 	"\x05files\x18\x01 \x03(\v2\x12.scripts.VaultFileR\x05files\x12,\n" +
 	"\x06cursor\x18\x02 \x01(\v2\x14.scripts.VaultCursorR\x06cursor\x12\x19\n" +
-	"\bhas_more\x18\x03 \x01(\bR\ahasMore*\xd1\x01\n" +
+	"\bhas_more\x18\x03 \x01(\bR\ahasMore*\xea\x01\n" +
 	"\fResourceType\x12\x1d\n" +
 	"\x19RESOURCE_TYPE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12RESOURCE_TYPE_BEAT\x10\x01\x12\x1c\n" +
@@ -7820,7 +7827,8 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\x12RESOURCE_TYPE_LANE\x10\x03\x12\x1e\n" +
 	"\x1aRESOURCE_TYPE_OUTLINE_ITEM\x10\x04\x12\x19\n" +
 	"\x15RESOURCE_TYPE_ELEMENT\x10\x05\x12\x19\n" +
-	"\x15RESOURCE_TYPE_DRAWING\x10\x062\x8f\x1e\n" +
+	"\x15RESOURCE_TYPE_DRAWING\x10\x06\x12\x17\n" +
+	"\x13RESOURCE_TYPE_SCENE\x10\a2\x8f\x1e\n" +
 	"\x0eScriptsService\x12N\n" +
 	"\rCreateProject\x12\x1d.scripts.CreateProjectRequest\x1a\x1e.scripts.CreateProjectResponse\x12E\n" +
 	"\n" +

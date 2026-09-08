@@ -19,7 +19,7 @@ never been written up as ADRs.
 | [0004](./0004-storage-abstraction.md) | One `Storage` interface, local + remote impls | Accepted |
 | [0005](./0005-frameless-themed-titlebar.md) | Frameless transparent themed titlebar | Accepted |
 | [0006](./0006-vault-notes-as-files.md) | Vault notes are real `.md` files on disk | Accepted |
-| [0007](./0007-gateway-thin-proxy-db-per-service.md) | Gateway as thin proxy; one DB per service | Partially superseded by [0029](./0029-gateway-application-gateway-service-authorities.md) |
+| [0007](./0007-gateway-thin-proxy-db-per-service.md) | Gateway as thin proxy; one DB per service | Partially superseded by [0029](./0029-gateway-application-gateway-service-authorities.md), [0030](./0030-role-aware-project-authorization-policy.md) |
 | [0008](./0008-byo-key-ai-only.md) | BYO-key AI only; delete the Python AI service | Accepted |
 | [0009](./0009-openai-compatible-allowlist.md) | `openai_compatible` operator allowlist | Accepted |
 | [0010](./0010-aes-gcm-key-vault.md) | AES-256-GCM key vault with AAD binding | Accepted |
@@ -42,6 +42,7 @@ never been written up as ADRs.
 | [0027](./0027-inkwell-owns-the-destructive-gate.md) | Inkwell owns the gate in front of destructive tool calls | Accepted |
 | [0028](./0028-polyform-shield-supersedes-noncommercial.md) | PolyForm Shield 1.0.0 supersedes PolyForm Noncommercial | Accepted |
 | [0029](./0029-gateway-application-gateway-service-authorities.md) | Gateway as application gateway/BFF; one authority per fact | Accepted |
+| [0030](./0030-role-aware-project-authorization-policy.md) | Role-aware project authorization: typed policy over bypass sentinel | Accepted |
 
 **Adding one:** next number, same five headings. If it reverses an earlier
 decision, set the old one's Status to `Superseded by NNNN` (that one edit to the

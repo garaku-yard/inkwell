@@ -54,6 +54,24 @@ func NewCollaborationHandler(clients *grpcclient.Registry, notifier InviteNotifi
 	}
 }
 
+// authorizeCollabResource resolves the project that owns a collab-service
+// sub-resource (a collaborator row or a comment — neither request carries a
+// project_id of its own) via collab's GetResourceProject, and authorizes the
+// caller against it for action, returning the effective downstream user id.
+// The project is read from the resource itself, never supplied by the
+// client. A non-nil error means the resource is missing or the caller may not
+// perform action; in both cases the mutation must not proceed.
+func (h *CollaborationHandler) authorizeCollabResource(ctx context.Context, userID string, resourceType collab.ResourceType, resourceID string, action handlers.ProjectAction) (string, error) {
+	resp, err := h.client.GetResourceProject(ctx, &collab.GetResourceProjectRequest{
+		ResourceType: resourceType,
+		ResourceId:   resourceID,
+	})
+	if err != nil {
+		return "", err
+	}
+	return handlers.RequireProjectAccess(ctx, userID, resp.ProjectId, action, h.scriptsClient, h.client, h.workspaceClient)
+}
+
 // addCollaboratorBody is the JSON request shape for AddCollaborator.
 type addCollaboratorBody struct {
 	ProjectID string `json:"project_id"`
@@ -72,6 +90,10 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 		Decode:        handlers.JSONBody[addCollaboratorBody],
 		SuccessStatus: http.StatusCreated,
 		Handle: func(r *http.Request, userID string, req *addCollaboratorBody) (*map[string]interface{}, error) {
+			if req.ProjectID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project_id is required")
+			}
+
 			// Validate role — owner cannot be assigned via invitation
 			validRoles := map[string]bool{
 				"editor": true,
@@ -79,6 +101,14 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 			}
 			if !validRoles[req.Role] {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Invalid role. Must be 'editor' or 'viewer'")
+			}
+
+			// Only the owner or an org admin may invite collaborators — not an
+			// editor, and not a total stranger to the project (previously this
+			// endpoint ran no project-access check at all: any authenticated
+			// caller who knew a project_id could add themselves as its editor).
+			if _, authErr := handlers.RequireProjectAccess(r.Context(), userID, req.ProjectID, handlers.ActionManageCollaborators, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
+				return nil, authErr
 			}
 
 			// Resolve email or user tag to actual email address
@@ -220,6 +250,10 @@ func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r 
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
 
+			if _, authErr := handlers.RequireProjectAccess(ctx, userID, projectID, handlers.ActionRead, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
+				return nil, authErr
+			}
+
 			resp, err := h.client.GetProjectCollaborators(ctx, &collab.GetProjectCollaboratorsRequest{
 				ProjectId: projectID,
 				UserId:    userID,
@@ -328,9 +362,20 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 		Decode:        handlers.JSONBody[addCommentBody],
 		SuccessStatus: http.StatusCreated,
 		Handle: func(r *http.Request, userID string, req *addCommentBody) (*map[string]interface{}, error) {
+			if req.ProjectID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project_id is required")
+			}
+
 			// Call collaboration service
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
+
+			// Previously this endpoint ran no project-access check at all: any
+			// authenticated caller who knew a project_id could comment on it.
+			// ActionCommentAdd is granted to every real role, viewer included.
+			if _, authErr := handlers.RequireProjectAccess(ctx, userID, req.ProjectID, handlers.ActionCommentAdd, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
+				return nil, authErr
+			}
 
 			resp, err := h.client.AddComment(ctx, &collab.AddCommentRequest{
 				ProjectId:       req.ProjectID,
@@ -398,8 +443,8 @@ func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Reques
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
 
-			if _, err := handlers.ResolveProjectAccess(ctx, userID, screenplayID, h.scriptsClient, h.client, h.workspaceClient); err != nil {
-				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "Forbidden")
+			if _, err := handlers.RequireProjectAccess(ctx, userID, screenplayID, handlers.ActionRead, h.scriptsClient, h.client, h.workspaceClient); err != nil {
+				return nil, err
 			}
 
 			// Call collaboration service
@@ -462,9 +507,19 @@ func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Req
 		Auth:   true,
 		Decode: handlers.JSONBody[updatePresenceBody],
 		Handle: func(r *http.Request, userID string, req *updatePresenceBody) (*map[string]interface{}, error) {
+			if req.ProjectID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project_id is required")
+			}
+
 			// Call collaboration service
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
+
+			// Reporting a cursor position is harmless to grant every real role,
+			// same as ActionRead — this endpoint previously ran no check at all.
+			if _, authErr := handlers.RequireProjectAccess(ctx, userID, req.ProjectID, handlers.ActionRead, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
+				return nil, authErr
+			}
 
 			resp, err := h.client.UpdatePresence(ctx, &collab.UpdatePresenceRequest{
 				UserId:         userID,
@@ -783,7 +838,9 @@ type updateRoleBody struct {
 
 // UpdateCollaboratorRole changes the role of an existing collaborator. The caller
 // must supply a valid role: OWNER, WRITER, EDITOR, or REVIEWER. The collaborator
-// ID is extracted from the URL path.
+// ID is extracted from the URL path. Gated on ActionManageCollaborators (owner or
+// org admin) — resolved from the collaborator row's own project via
+// authorizeCollabResource, previously not checked at all.
 func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[updateRoleBody, map[string]interface{}]{
 		// Registered under two PATCH routes (/collaborators/{collaboratorId}
@@ -814,8 +871,16 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
 
+			// Only the owner or an org admin may reassign a collaborator's role
+			// (ActionManageCollaborators) — this endpoint previously ran no
+			// project-access check at all.
+			resolvedID, authErr := h.authorizeCollabResource(ctx, userID, collab.ResourceType_RESOURCE_TYPE_COLLABORATOR, collaboratorID, handlers.ActionManageCollaborators)
+			if authErr != nil {
+				return nil, authErr
+			}
+
 			resp, err := h.client.UpdateCollaboratorRole(ctx, &collab.UpdateCollaboratorRoleRequest{
-				UserId:         userID,
+				UserId:         resolvedID,
 				CollaboratorId: collaboratorID,
 				NewRole:        req.Role,
 			})
@@ -839,7 +904,9 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *
 }
 
 // RemoveCollaborator removes a collaborator from a project. The collaborator ID is
-// extracted from the URL path. Requires a userID from the request context.
+// extracted from the URL path. Gated on ActionManageCollaborators (owner or org
+// admin) — resolved from the collaborator row's own project via
+// authorizeCollabResource, previously not checked at all.
 func (h *CollaborationHandler) RemoveCollaborator(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[struct{}, map[string]string]{
 		Method: http.MethodDelete,
@@ -857,8 +924,16 @@ func (h *CollaborationHandler) RemoveCollaborator(w http.ResponseWriter, r *http
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
 
+			// Only the owner or an org admin may remove a collaborator
+			// (ActionManageCollaborators) — this endpoint previously ran no
+			// project-access check at all.
+			resolvedID, authErr := h.authorizeCollabResource(ctx, userID, collab.ResourceType_RESOURCE_TYPE_COLLABORATOR, collaboratorID, handlers.ActionManageCollaborators)
+			if authErr != nil {
+				return nil, authErr
+			}
+
 			_, err := h.client.RemoveCollaborator(ctx, &collab.RemoveCollaboratorRequest{
-				UserId:         userID,
+				UserId:         resolvedID,
 				CollaboratorId: collaboratorID,
 			})
 			if err != nil {
@@ -899,6 +974,22 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 			// Call collaboration service
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
+
+			// Coarse gate: the caller must have some real relationship to the
+			// comment's project (ActionCommentAdd — viewer+ — since a viewer may
+			// edit their own comment). This endpoint previously ran no
+			// project-access check at all, so a total stranger could edit or
+			// resolve any comment.
+			//
+			// Deliberately forwards the caller's real userID below, not the
+			// bypass sentinel authorizeCollabResource's other callers use:
+			// collab-service's own UpdateComment/ResolveComment need the real
+			// identity to tell "editing my own comment" (self-authorship, viewer
+			// included) apart from "moderating someone else's" (editor+), a
+			// distinction the sentinel would erase.
+			if _, authErr := h.authorizeCollabResource(ctx, userID, collab.ResourceType_RESOURCE_TYPE_COMMENT, commentID, handlers.ActionCommentAdd); authErr != nil {
+				return nil, authErr
+			}
 
 			req := &collab.UpdateCommentRequest{
 				CommentId: commentID,
@@ -955,6 +1046,14 @@ func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Requ
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
 
+			// Coarse gate, same reasoning as UpdateComment: the caller must have
+			// some real relationship to the project, and the real userID (not
+			// the bypass sentinel) is forwarded so collab-service's own
+			// authorship-or-editor check keeps working.
+			if _, authErr := h.authorizeCollabResource(ctx, userID, collab.ResourceType_RESOURCE_TYPE_COMMENT, commentID, handlers.ActionCommentAdd); authErr != nil {
+				return nil, authErr
+			}
+
 			resp, err := h.client.DeleteComment(ctx, &collab.DeleteCommentRequest{
 				CommentId: commentID,
 				UserId:    userID,
@@ -1002,10 +1101,9 @@ func (h *CollaborationHandler) GetEditSessions(w http.ResponseWriter, r *http.Re
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
 
-			// Same access gate the WebSocket uses: owner / org member / active
-			// collaborator only.
-			if _, err := handlers.ResolveProjectAccess(ctx, userID, projectID, h.scriptsClient, h.client, h.workspaceClient); err != nil {
-				return nil, apierror.New(apierror.CodePermissionDenied, http.StatusForbidden, "You do not have access to this project")
+			// Same access gate the WebSocket uses: at least a viewer.
+			if _, err := handlers.RequireProjectAccess(ctx, userID, projectID, handlers.ActionRead, h.scriptsClient, h.client, h.workspaceClient); err != nil {
+				return nil, err
 			}
 
 			resp, err := h.client.GetActiveSessions(ctx, &collab.GetActiveSessionsRequest{ProjectId: projectID})

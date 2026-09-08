@@ -295,6 +295,26 @@ message GetUserCollaborationsResponse {
   repeated Collaborator collaborations = 1;
 }
 
+// ResourceType identifies a collab-owned sub-resource for GetResourceProject,
+// mirroring scripts.ResourceType — the gateway uses it to resolve which
+// project owns a collaborator row or a comment (neither request carries a
+// project_id of its own) so it can authorize a mutation against that project
+// without trusting a client-supplied id. Added for Orbit #359.
+enum ResourceType {
+  RESOURCE_TYPE_UNSPECIFIED = 0;
+  RESOURCE_TYPE_COLLABORATOR = 1;
+  RESOURCE_TYPE_COMMENT = 2;
+}
+
+message GetResourceProjectRequest {
+  ResourceType resource_type = 1;
+  string resource_id = 2;
+}
+
+message GetResourceProjectResponse {
+  string project_id = 1;
+}
+
 // Collaboration service definition
 service CollaborationService {
   // Collaborator management
@@ -304,7 +324,13 @@ service CollaborationService {
   rpc GetProjectSeatUsage(GetProjectSeatUsageRequest) returns (GetProjectSeatUsageResponse);
   rpc UpdateCollaboratorRole(UpdateCollaboratorRoleRequest) returns (UpdateCollaboratorRoleResponse);
   rpc RemoveCollaborator(RemoveCollaboratorRequest) returns (RemoveCollaboratorResponse);
-  
+  // GetResourceProject resolves which project owns a collaborator row or a
+  // comment, so the gateway can authorize a mutation against that project
+  // (neither UpdateCollaboratorRoleRequest, RemoveCollaboratorRequest,
+  // UpdateCommentRequest, nor DeleteCommentRequest carries a project_id).
+  // A pure lookup with no ownership check of its own.
+  rpc GetResourceProject(GetResourceProjectRequest) returns (GetResourceProjectResponse);
+
   // Comment management
   rpc AddComment(AddCommentRequest) returns (AddCommentResponse);
   rpc GetComments(GetCommentsRequest) returns (GetCommentsResponse);
