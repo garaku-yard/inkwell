@@ -278,8 +278,11 @@ func (h *CollaborationHandler) RemoveCollaborator(ctx context.Context, req *coll
 }
 
 // GetResourceProject resolves which project owns a collaborator row or a
-// comment by id. It is a pure lookup with no ownership check — callers (the
-// gateway) must authorize the returned project before mutating. Mirrors
+// comment by id, plus the resource's own author/subject (owner_user_id) so
+// the gateway can distinguish a caller acting on their own resource from one
+// acting on someone else's without a second round-trip. It is a pure lookup
+// with no ownership check — callers (the gateway) must authorize the
+// returned project before mutating. Mirrors
 // scripts.ScriptsService.GetResourceProject. An unknown kind or a missing
 // resource returns an error (codes.NotFound for the latter, so the gateway's
 // isDefiniteDenial can tell "this id doesn't exist" apart from "the database
@@ -299,7 +302,10 @@ func (h *CollaborationHandler) GetResourceProject(ctx context.Context, req *coll
 			}
 			return nil, status.Errorf(codes.Internal, "failed to look up collaborator: %v", err)
 		}
-		return &collab_pb.GetResourceProjectResponse{ProjectId: collaborator.ProjectID.String()}, nil
+		return &collab_pb.GetResourceProjectResponse{
+			ProjectId:   collaborator.ProjectID.String(),
+			OwnerUserId: collaborator.UserID.String(),
+		}, nil
 	case collab_pb.ResourceType_RESOURCE_TYPE_COMMENT:
 		comment, err := h.service.GetCommentByID(ctx, resourceID)
 		if err != nil {
@@ -308,7 +314,10 @@ func (h *CollaborationHandler) GetResourceProject(ctx context.Context, req *coll
 			}
 			return nil, status.Errorf(codes.Internal, "failed to look up comment: %v", err)
 		}
-		return &collab_pb.GetResourceProjectResponse{ProjectId: comment.ProjectID.String()}, nil
+		return &collab_pb.GetResourceProjectResponse{
+			ProjectId:   comment.ProjectID.String(),
+			OwnerUserId: comment.UserID.String(),
+		}, nil
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "unknown resource type: %v", req.ResourceType)
 	}

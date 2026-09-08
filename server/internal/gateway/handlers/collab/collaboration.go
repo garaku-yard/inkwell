@@ -120,7 +120,7 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 			// Enforce the per-project collaborator cap from the project owner's
 			// billing tier. Best-effort / fail-open: only blocks when the project
 			// is positively over its limit (see checkCollaboratorQuota).
-			if err := h.checkCollaboratorQuota(r.Context(), req.ProjectID, userID); err != nil {
+			if err := h.checkCollaboratorQuota(r.Context(), req.ProjectID); err != nil {
 				return nil, err
 			}
 
@@ -175,15 +175,22 @@ func (h *CollaborationHandler) AddCollaborator(w http.ResponseWriter, r *http.Re
 // The limit is read from the project OWNER's plan (not the inviter's), since the
 // owner is who pays for the project. Pending invitations count toward the cap —
 // they occupy a seat the moment they are issued.
-func (h *CollaborationHandler) checkCollaboratorQuota(ctx context.Context, projectID, userID string) error {
+func (h *CollaborationHandler) checkCollaboratorQuota(ctx context.Context, projectID string) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	// Resolve the project to find its real owner. Never trust a client-supplied
-	// owner id; read it from the project record.
+	// Resolve the project to find its real owner, via the same trusted
+	// nil-user bypass ResolveProjectRole's org-metadata read uses — a
+	// read-only lookup, not a grant. The caller here has already passed
+	// ActionManageCollaborators (owner or org admin); using their own id for
+	// this second, unrelated lookup would fail it for every org admin (only
+	// the literal owner passes scripts' ownership check) and silently skip
+	// the quota check entirely via the fail-open path below — exactly the
+	// bypass this comment used to invite. Never trust a client-supplied
+	// owner id either way; read it from the project record.
 	projResp, err := h.scriptsClient.GetProject(ctx, &scripts.GetProjectRequest{
 		ProjectId: projectID,
-		UserId:    userID,
+		UserId:    "",
 	})
 	if err != nil || projResp.GetProject() == nil {
 		return nil // fail open
@@ -975,19 +982,35 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
 
-			// Coarse gate: the caller must have some real relationship to the
-			// comment's project (ActionCommentAdd — viewer+ — since a viewer may
-			// edit their own comment). This endpoint previously ran no
-			// project-access check at all, so a total stranger could edit or
-			// resolve any comment.
-			//
+			// This endpoint previously ran no project-access check at all, so a
+			// total stranger could edit or resolve any comment. Fixed with a
+			// precise gate, not merely a coarse one: a self-edit of your own
+			// comment's content is ActionCommentAdd (viewer-permitted), but
+			// resolving a thread is always moderation regardless of authorship
+			// (matching collab-service's own ResolveComment, which requires
+			// editor unconditionally), and editing someone else's comment is
+			// always moderation too. An org-only viewer (no collab.collaborators
+			// row) editing their own comment must still pass — that's why this
+			// compares against the resource's real author rather than routing
+			// every non-owner through ActionCommentAdd, which is what let an org
+			// viewer moderate a stranger's comment via collab's CheckPermission
+			// fallback (#366) before this fix.
+			resourceResp, lookupErr := h.client.GetResourceProject(ctx, &collab.GetResourceProjectRequest{
+				ResourceType: collab.ResourceType_RESOURCE_TYPE_COMMENT,
+				ResourceId:   commentID,
+			})
+			if lookupErr != nil {
+				return nil, lookupErr
+			}
+			resolvingThread := updateData.IsResolved != nil && *updateData.IsResolved
+			action := handlers.ActionCommentModerate
+			if userID == resourceResp.OwnerUserId && !resolvingThread {
+				action = handlers.ActionCommentAdd
+			}
 			// Deliberately forwards the caller's real userID below, not the
-			// bypass sentinel authorizeCollabResource's other callers use:
-			// collab-service's own UpdateComment/ResolveComment need the real
-			// identity to tell "editing my own comment" (self-authorship, viewer
-			// included) apart from "moderating someone else's" (editor+), a
-			// distinction the sentinel would erase.
-			if _, authErr := h.authorizeCollabResource(ctx, userID, collab.ResourceType_RESOURCE_TYPE_COMMENT, commentID, handlers.ActionCommentAdd); authErr != nil {
+			// bypass sentinel: collab-service's own UpdateComment/ResolveComment
+			// need the real identity for the same self-authorship comparison.
+			if _, authErr := handlers.RequireProjectAccess(ctx, userID, resourceResp.ProjectId, action, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
 				return nil, authErr
 			}
 
@@ -1046,11 +1069,26 @@ func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Requ
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
 
-			// Coarse gate, same reasoning as UpdateComment: the caller must have
-			// some real relationship to the project, and the real userID (not
-			// the bypass sentinel) is forwarded so collab-service's own
-			// authorship-or-editor check keeps working.
-			if _, authErr := h.authorizeCollabResource(ctx, userID, collab.ResourceType_RESOURCE_TYPE_COMMENT, commentID, handlers.ActionCommentAdd); authErr != nil {
+			// Precise gate, same reasoning as UpdateComment: deleting your own
+			// comment is ActionCommentAdd (viewer-permitted), deleting someone
+			// else's is always ActionCommentModerate (editor+) — comparing
+			// against the resource's real author, not just "has some access",
+			// closes the same org-viewer-moderates-a-stranger's-comment gap
+			// (#366) UpdateComment's fix closes.
+			resourceResp, lookupErr := h.client.GetResourceProject(ctx, &collab.GetResourceProjectRequest{
+				ResourceType: collab.ResourceType_RESOURCE_TYPE_COMMENT,
+				ResourceId:   commentID,
+			})
+			if lookupErr != nil {
+				return nil, lookupErr
+			}
+			action := handlers.ActionCommentModerate
+			if userID == resourceResp.OwnerUserId {
+				action = handlers.ActionCommentAdd
+			}
+			// Real userID forwarded below, not the bypass sentinel — collab's
+			// own DeleteComment needs it for the same self-authorship check.
+			if _, authErr := handlers.RequireProjectAccess(ctx, userID, resourceResp.ProjectId, action, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
 				return nil, authErr
 			}
 

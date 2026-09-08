@@ -313,6 +313,12 @@ message GetResourceProjectRequest {
 
 message GetResourceProjectResponse {
   string project_id = 1;
+  // owner_user_id is the resource's own author/subject — the comment's
+  // author for RESOURCE_TYPE_COMMENT, the collaborator's own user_id for
+  // RESOURCE_TYPE_COLLABORATOR — so the gateway can tell "the caller acting
+  // on their own resource" apart from "the caller acting on someone else's"
+  // without a second round-trip. Not an authorization grant by itself.
+  string owner_user_id = 2;
 }
 
 // Collaboration service definition
