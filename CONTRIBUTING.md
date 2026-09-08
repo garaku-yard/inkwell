@@ -58,7 +58,7 @@ Each backend service owns its database. Services never query each other's DB dir
 | aisettings    | user_ai_providers (encrypted BYO keys)        | —                              |
 | notifications | notification prefs, in-app feed, delivery log | **consumes** user/collab/comment events → in-app + email |
 
-The gateway is **not** a service — it is a thin HTTP-to-gRPC proxy. It authenticates requests (JWT → identity-service), enforces rate limits (Redis), and routes to the appropriate service.
+The gateway is **not** a service — it is the public application gateway (BFF). It authenticates requests (JWT → identity-service), enforces rate limits (Redis), resolves project authorization, and routes to the appropriate service. See [.orbit/docs/decisions/0029](.orbit/docs/decisions/0029-gateway-application-gateway-service-authorities.md).
 
 ---
 

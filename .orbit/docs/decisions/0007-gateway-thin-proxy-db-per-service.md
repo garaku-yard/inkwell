@@ -1,6 +1,9 @@
 # 0007 — Gateway as a thin proxy; one database per service
 
-**Status:** Accepted
+**Status:** Accepted · **"thin proxy" characterization partially superseded by
+[0029](./0029-gateway-application-gateway-service-authorities.md)** — the
+gateway does orchestration, policy and response composition, not "no business
+logic"; one-database-per-service stands unchanged.
 
 ## Context
 
