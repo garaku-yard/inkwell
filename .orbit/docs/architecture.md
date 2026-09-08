@@ -93,9 +93,13 @@ per-route rate limits, sets CSP/security headers, and routes to services
 through a `grpcclient` registry with `sony/gobreaker` circuit breakers.
 Handlers use the `Endpoint[Req,Resp]` + `Wrap()` helper to collapse
 method-guard/auth/decode/call/error boilerplate. Sub-resource mutations
-(beats/lanes/connections/outline items/elements) are authorized against the
-resource's **real** owning project (`GetResourceProject` →
-`ResolveProjectAccess`), never a client-supplied id. It holds no *domain*
+(scenes/beats/lanes/connections/outline items/elements/drawings; collab-owned
+collaborators/comments via the same pattern in collab-service) are authorized
+against the resource's **real** owning project (`GetResourceProject` →
+`handlers.RequireProjectAccess`), never a client-supplied id, and against a
+typed role/action policy (`handlers.Can`,
+[decisions/0030](./decisions/0030-role-aware-project-authorization-policy.md))
+— not just "has some access". It holds no *domain*
 logic — it doesn't decide what a valid scene or outline item looks like — but
 it is not a passthrough either.
 [decisions/0007](./decisions/0007-gateway-thin-proxy-db-per-service.md),

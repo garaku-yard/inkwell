@@ -314,21 +314,27 @@ func (h *ScriptsHandler) DeleteOutlineUnit(ctx context.Context, req *scriptspb.D
 // are required; the service enforces that the caller owns or has write access to
 // the project. outline_unit_id is optional and links the scene to a beat-board
 // outline unit when provided.
+// userID is optional — empty means collaborator/org access already verified
+// by the gateway (see handlers.RequireProjectAccess); the service's
+// verifyProjectAccess treats uuid.Nil as that bypass.
 func (h *ScriptsHandler) CreateScene(ctx context.Context, req *scriptspb.CreateSceneRequest) (*scriptspb.CreateSceneResponse, error) {
 	// Validate request
-	if req.ProjectId == "" || req.UserId == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "project_id and user_id are required")
+	if req.ProjectId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "project_id is required")
 	}
 
-	// Parse UUIDs
+	// Parse project ID
 	projectID, err := uuid.Parse(req.ProjectId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
 	}
 
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+		}
 	}
 
 	// Create scene object
@@ -417,7 +423,8 @@ func (h *ScriptsHandler) GetProjectScenes(ctx context.Context, req *scriptspb.Ge
 
 // UpdateScene applies a partial update to a scene. Only the non-nil optional
 // fields (SceneHeading, Content, OrderIndex) are forwarded to the service; omitted
-// fields are left unchanged.
+// fields are left unchanged. userID is optional — empty means collaborator/org
+// access already verified by the gateway (see handlers.RequireProjectAccess).
 func (h *ScriptsHandler) UpdateScene(ctx context.Context, req *scriptspb.UpdateSceneRequest) (*scriptspb.UpdateSceneResponse, error) {
 	// Parse scene ID
 	sceneID, err := uuid.Parse(req.SceneId)
@@ -425,10 +432,12 @@ func (h *ScriptsHandler) UpdateScene(ctx context.Context, req *scriptspb.UpdateS
 		return nil, status.Errorf(codes.InvalidArgument, "invalid scene ID: %v", err)
 	}
 
-	// Parse user ID
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+		}
 	}
 
 	// Create domain scene for updates
@@ -461,6 +470,8 @@ func (h *ScriptsHandler) UpdateScene(ctx context.Context, req *scriptspb.UpdateS
 
 // DeleteScene permanently removes a scene and its elements. The service enforces
 // that only a user with write access to the project may delete its scenes.
+// userID is optional — empty means collaborator/org access already verified
+// by the gateway (see handlers.RequireProjectAccess).
 func (h *ScriptsHandler) DeleteScene(ctx context.Context, req *scriptspb.DeleteSceneRequest) (*scriptspb.DeleteSceneResponse, error) {
 	// Parse scene ID
 	sceneID, err := uuid.Parse(req.SceneId)
@@ -468,10 +479,12 @@ func (h *ScriptsHandler) DeleteScene(ctx context.Context, req *scriptspb.DeleteS
 		return nil, status.Errorf(codes.InvalidArgument, "invalid scene ID: %v", err)
 	}
 
-	// Parse user ID
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+		}
 	}
 
 	// Delete scene through service
@@ -662,6 +675,8 @@ func handleServiceError(err error) error {
 
 // CreateElement adds a single typed element (a paragraph, line, panel, stat
 // block, passage body, etc., depending on the format) to a scene/container.
+// userID is optional — empty means collaborator/org access already verified
+// by the gateway (see handlers.RequireProjectAccess).
 func (h *ScriptsHandler) CreateElement(ctx context.Context, req *scriptspb.CreateElementRequest) (*scriptspb.CreateElementResponse, error) {
 	// Parse project ID
 	projectID, err := uuid.Parse(req.ProjectId)
@@ -669,10 +684,12 @@ func (h *ScriptsHandler) CreateElement(ctx context.Context, req *scriptspb.Creat
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project ID: %v", err)
 	}
 
-	// Parse user ID
-	userID, err := uuid.Parse(req.UserId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	userID := uuid.Nil
+	if req.UserId != "" {
+		userID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+		}
 	}
 
 	// Parse required scene ID
@@ -920,6 +937,8 @@ func resourceKindFromProto(t scriptspb.ResourceType) (domain.ResourceKind, bool)
 		return domain.ResourceKindElement, true
 	case scriptspb.ResourceType_RESOURCE_TYPE_DRAWING:
 		return domain.ResourceKindDrawing, true
+	case scriptspb.ResourceType_RESOURCE_TYPE_SCENE:
+		return domain.ResourceKindScene, true
 	default:
 		return domain.ResourceKindUnspecified, false
 	}

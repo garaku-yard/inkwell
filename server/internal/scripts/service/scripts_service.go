@@ -392,6 +392,12 @@ func (s *scriptsService) GetResourceProject(ctx context.Context, kind domain.Res
 			return uuid.Nil, err
 		}
 		return drawing.ProjectID, nil
+	case domain.ResourceKindScene:
+		scene, err := s.repo.Scene.GetScene(ctx, resourceID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return scene.ProjectID, nil
 	default:
 		return uuid.Nil, fmt.Errorf("unknown resource kind: %d", kind)
 	}

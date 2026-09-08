@@ -7,9 +7,9 @@ import (
 )
 
 // ResourceKind identifies a project sub-resource (beat, lane, connection,
-// outline item, or element) for project-ownership resolution. The gateway uses
-// it via ScriptsService.GetResourceProject to learn which project owns a
-// resource before authorizing a mutation against it.
+// outline item, element, or scene) for project-ownership resolution. The
+// gateway uses it via ScriptsService.GetResourceProject to learn which
+// project owns a resource before authorizing a mutation against it.
 type ResourceKind int
 
 const (
@@ -20,6 +20,7 @@ const (
 	ResourceKindOutlineItem
 	ResourceKindElement
 	ResourceKindDrawing
+	ResourceKindScene
 )
 
 // Beat represents a story beat in the beat board

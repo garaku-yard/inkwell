@@ -11,6 +11,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
 
+	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
@@ -31,9 +32,11 @@ const (
 )
 
 // Handler upgrades project editing sessions to WebSockets and joins them to the
-// per-project room. Access is authorized with the same ResolveProjectAccess the
-// REST handlers use, so owners, org members, and active collaborators are
-// admitted and everyone else is rejected before the upgrade.
+// per-project room. Access is authorized with the same handlers.ResolveProjectRole
+// the REST handlers use: any real role is admitted (a viewer may watch),
+// everyone else is rejected before the upgrade. The resolved role is then
+// carried on the connection to gate inbound TypeEdit frames — a viewer can
+// receive updates but not emit them.
 type Handler struct {
 	hub            *Hub
 	clients        *grpcclient.Registry
@@ -112,11 +115,17 @@ func (h *Handler) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reuse the REST access check: owner / org member / active collaborator.
-	if _, err := handlers.ResolveProjectAccess(
+	// Reuse the REST access check: connecting only needs read access — a
+	// viewer may watch, edit frames are gated per-frame in readPump.
+	role, err := handlers.ResolveProjectRole(
 		r.Context(), userID, projectID,
 		h.clients.Scripts, h.clients.Collab, h.clients.Workspace,
-	); err != nil {
+	)
+	if err != nil {
+		apierror.Write(w, apierror.FromError(err))
+		return
+	}
+	if !handlers.Can(role, handlers.ActionRead) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -143,6 +152,7 @@ func (h *Handler) HandleWS(w http.ResponseWriter, r *http.Request) {
 		userID:    userID,
 		name:      name,
 		avatarURL: avatarURL,
+		role:      role,
 		limiter:   newTokenBucket(editBucketCapacity, editBucketRefill, time.Now()),
 		send:      make(chan []byte, sendBuffer),
 	}
@@ -242,6 +252,12 @@ func (h *Handler) readPump(ctx context.Context, ws *websocket.Conn, c *conn, pro
 		case TypeEdit:
 			// Live content change — relay verbatim; the DB stays source of truth
 			// via the sender's autosave. The sender is excluded by broadcast.
+			// A viewer may join and receive updates but must not emit them: the
+			// role resolved once at connect time (HandleWS) gates this, same
+			// policy as the REST ActionEditContent check.
+			if !handlers.Can(c.role, handlers.ActionRealtimeEdit) {
+				continue
+			}
 			h.hub.broadcast(projectID, c, data)
 		case TypeCaret:
 			// Live cursor position — relay with server-stamped identity. Unlike

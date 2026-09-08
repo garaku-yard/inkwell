@@ -25,6 +25,7 @@ const (
 	CollaborationService_GetProjectSeatUsage_FullMethodName     = "/collab.CollaborationService/GetProjectSeatUsage"
 	CollaborationService_UpdateCollaboratorRole_FullMethodName  = "/collab.CollaborationService/UpdateCollaboratorRole"
 	CollaborationService_RemoveCollaborator_FullMethodName      = "/collab.CollaborationService/RemoveCollaborator"
+	CollaborationService_GetResourceProject_FullMethodName      = "/collab.CollaborationService/GetResourceProject"
 	CollaborationService_AddComment_FullMethodName              = "/collab.CollaborationService/AddComment"
 	CollaborationService_GetComments_FullMethodName             = "/collab.CollaborationService/GetComments"
 	CollaborationService_UpdateComment_FullMethodName           = "/collab.CollaborationService/UpdateComment"
@@ -55,6 +56,12 @@ type CollaborationServiceClient interface {
 	GetProjectSeatUsage(ctx context.Context, in *GetProjectSeatUsageRequest, opts ...grpc.CallOption) (*GetProjectSeatUsageResponse, error)
 	UpdateCollaboratorRole(ctx context.Context, in *UpdateCollaboratorRoleRequest, opts ...grpc.CallOption) (*UpdateCollaboratorRoleResponse, error)
 	RemoveCollaborator(ctx context.Context, in *RemoveCollaboratorRequest, opts ...grpc.CallOption) (*RemoveCollaboratorResponse, error)
+	// GetResourceProject resolves which project owns a collaborator row or a
+	// comment, so the gateway can authorize a mutation against that project
+	// (neither UpdateCollaboratorRoleRequest, RemoveCollaboratorRequest,
+	// UpdateCommentRequest, nor DeleteCommentRequest carries a project_id).
+	// A pure lookup with no ownership check of its own.
+	GetResourceProject(ctx context.Context, in *GetResourceProjectRequest, opts ...grpc.CallOption) (*GetResourceProjectResponse, error)
 	// Comment management
 	AddComment(ctx context.Context, in *AddCommentRequest, opts ...grpc.CallOption) (*AddCommentResponse, error)
 	GetComments(ctx context.Context, in *GetCommentsRequest, opts ...grpc.CallOption) (*GetCommentsResponse, error)
@@ -138,6 +145,16 @@ func (c *collaborationServiceClient) RemoveCollaborator(ctx context.Context, in 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RemoveCollaboratorResponse)
 	err := c.cc.Invoke(ctx, CollaborationService_RemoveCollaborator_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *collaborationServiceClient) GetResourceProject(ctx context.Context, in *GetResourceProjectRequest, opts ...grpc.CallOption) (*GetResourceProjectResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetResourceProjectResponse)
+	err := c.cc.Invoke(ctx, CollaborationService_GetResourceProject_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -307,6 +324,12 @@ type CollaborationServiceServer interface {
 	GetProjectSeatUsage(context.Context, *GetProjectSeatUsageRequest) (*GetProjectSeatUsageResponse, error)
 	UpdateCollaboratorRole(context.Context, *UpdateCollaboratorRoleRequest) (*UpdateCollaboratorRoleResponse, error)
 	RemoveCollaborator(context.Context, *RemoveCollaboratorRequest) (*RemoveCollaboratorResponse, error)
+	// GetResourceProject resolves which project owns a collaborator row or a
+	// comment, so the gateway can authorize a mutation against that project
+	// (neither UpdateCollaboratorRoleRequest, RemoveCollaboratorRequest,
+	// UpdateCommentRequest, nor DeleteCommentRequest carries a project_id).
+	// A pure lookup with no ownership check of its own.
+	GetResourceProject(context.Context, *GetResourceProjectRequest) (*GetResourceProjectResponse, error)
 	// Comment management
 	AddComment(context.Context, *AddCommentRequest) (*AddCommentResponse, error)
 	GetComments(context.Context, *GetCommentsRequest) (*GetCommentsResponse, error)
@@ -353,6 +376,9 @@ func (UnimplementedCollaborationServiceServer) UpdateCollaboratorRole(context.Co
 }
 func (UnimplementedCollaborationServiceServer) RemoveCollaborator(context.Context, *RemoveCollaboratorRequest) (*RemoveCollaboratorResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveCollaborator not implemented")
+}
+func (UnimplementedCollaborationServiceServer) GetResourceProject(context.Context, *GetResourceProjectRequest) (*GetResourceProjectResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetResourceProject not implemented")
 }
 func (UnimplementedCollaborationServiceServer) AddComment(context.Context, *AddCommentRequest) (*AddCommentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AddComment not implemented")
@@ -524,6 +550,24 @@ func _CollaborationService_RemoveCollaborator_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CollaborationServiceServer).RemoveCollaborator(ctx, req.(*RemoveCollaboratorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CollaborationService_GetResourceProject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetResourceProjectRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CollaborationServiceServer).GetResourceProject(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CollaborationService_GetResourceProject_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CollaborationServiceServer).GetResourceProject(ctx, req.(*GetResourceProjectRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -828,6 +872,10 @@ var CollaborationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveCollaborator",
 			Handler:    _CollaborationService_RemoveCollaborator_Handler,
+		},
+		{
+			MethodName: "GetResourceProject",
+			Handler:    _CollaborationService_GetResourceProject_Handler,
 		},
 		{
 			MethodName: "AddComment",

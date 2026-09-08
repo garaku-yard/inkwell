@@ -3,7 +3,12 @@
 **Status:** Accepted · **"thin proxy" characterization partially superseded by
 [0029](./0029-gateway-application-gateway-service-authorities.md)** — the
 gateway does orchestration, policy and response composition, not "no business
-logic"; one-database-per-service stands unchanged.
+logic"; one-database-per-service stands unchanged. · **the
+`ResolveProjectAccess` mechanism named in Consequences below is superseded by
+[0030](./0030-role-aware-project-authorization-policy.md)** — sub-resource
+authorization is still resolved server-side against the resource's real
+project; the function is now `handlers.RequireProjectAccess`, checked against
+a typed role/action policy rather than granting on "any access at all".
 
 ## Context
 

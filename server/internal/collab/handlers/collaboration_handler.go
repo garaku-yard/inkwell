@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -273,6 +275,43 @@ func (h *CollaborationHandler) RemoveCollaborator(ctx context.Context, req *coll
 	return &collab_pb.RemoveCollaboratorResponse{
 		Success: true,
 	}, nil
+}
+
+// GetResourceProject resolves which project owns a collaborator row or a
+// comment by id. It is a pure lookup with no ownership check — callers (the
+// gateway) must authorize the returned project before mutating. Mirrors
+// scripts.ScriptsService.GetResourceProject. An unknown kind or a missing
+// resource returns an error (codes.NotFound for the latter, so the gateway's
+// isDefiniteDenial can tell "this id doesn't exist" apart from "the database
+// didn't answer").
+func (h *CollaborationHandler) GetResourceProject(ctx context.Context, req *collab_pb.GetResourceProjectRequest) (*collab_pb.GetResourceProjectResponse, error) {
+	resourceID, err := parseUUID(req.ResourceId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid resource ID: %v", err)
+	}
+
+	switch req.ResourceType {
+	case collab_pb.ResourceType_RESOURCE_TYPE_COLLABORATOR:
+		collaborator, err := h.service.GetCollaboratorByID(ctx, resourceID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, status.Error(codes.NotFound, "collaborator not found")
+			}
+			return nil, status.Errorf(codes.Internal, "failed to look up collaborator: %v", err)
+		}
+		return &collab_pb.GetResourceProjectResponse{ProjectId: collaborator.ProjectID.String()}, nil
+	case collab_pb.ResourceType_RESOURCE_TYPE_COMMENT:
+		comment, err := h.service.GetCommentByID(ctx, resourceID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, status.Error(codes.NotFound, "comment not found")
+			}
+			return nil, status.Errorf(codes.Internal, "failed to look up comment: %v", err)
+		}
+		return &collab_pb.GetResourceProjectResponse{ProjectId: comment.ProjectID.String()}, nil
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unknown resource type: %v", req.ResourceType)
+	}
 }
 
 // AddComment attaches a comment to a project. Supports optional anchoring to a

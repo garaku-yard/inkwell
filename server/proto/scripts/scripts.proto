@@ -692,6 +692,11 @@ enum ResourceType {
   RESOURCE_TYPE_OUTLINE_ITEM = 4;
   RESOURCE_TYPE_ELEMENT = 5;
   RESOURCE_TYPE_DRAWING = 6;
+  // Added for Orbit #359: scenes had no resolver, so the gateway could not
+  // authorize UpdateScene/DeleteScene/GetSceneElements against the scene's
+  // real project and fell back to trusting the raw caller id or an
+  // unconditional bypass-and-retry (see the ADR 0029 gap this closes).
+  RESOURCE_TYPE_SCENE = 7;
 }
 
 message GetResourceProjectRequest {

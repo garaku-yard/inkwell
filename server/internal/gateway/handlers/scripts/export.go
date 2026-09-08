@@ -25,9 +25,10 @@ import (
 // ExportProject the exporters consume: it fans out GetProjectScenes +
 // GetSceneElements in parallel to avoid sequential round-trips.
 //
-// Access control: the caller must be the project owner or an active
-// collaborator, enforced via the same handlers.ResolveProjectAccess helper used by
-// GetProject. Authorization happens before any export work is attempted.
+// Access control: the caller must have at least read access to the project
+// (ActionExport — every real role, viewer included, may export), enforced via
+// the same handlers.RequireProjectAccess helper used by GetProject.
+// Authorization happens before any export work is attempted.
 func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		apierror.WriteStatus(w, http.StatusMethodNotAllowed, apierror.CodeInvalidArgument, "method not allowed")
@@ -60,9 +61,9 @@ func (h *ScriptsHandler) ExportProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resolvedID, authErr := handlers.ResolveProjectAccess(r.Context(), userID, projectID, h.scriptsClient, h.collabClient, h.workspaceClient)
+	resolvedID, authErr := handlers.RequireProjectAccess(r.Context(), userID, projectID, handlers.ActionExport, h.scriptsClient, h.collabClient, h.workspaceClient)
 	if authErr != nil {
-		apierror.WriteStatus(w, http.StatusForbidden, apierror.CodePermissionDenied, "forbidden")
+		apierror.Write(w, authErr)
 		return
 	}
 

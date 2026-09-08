@@ -73,19 +73,25 @@ func (f *fakeScriptsClient) DeleteScriptElement(_ context.Context, in *scriptspb
 	return &scriptspb.DeleteScriptElementResponse{Success: true}, nil
 }
 
-// fakeCollabClient reports a single active collaborator (activeUserID). An empty
-// activeUserID means the project has no collaborators.
+// fakeCollabClient reports a single active collaborator (activeUserID) with
+// role activeRole ("editor" if unset — the common case in these tests). An
+// empty activeUserID means the project has no collaborators.
 type fakeCollabClient struct {
 	collab.CollaborationServiceClient
 	activeUserID string
+	activeRole   string
 }
 
 func (f *fakeCollabClient) GetProjectCollaborators(_ context.Context, _ *collab.GetProjectCollaboratorsRequest, _ ...grpc.CallOption) (*collab.GetProjectCollaboratorsResponse, error) {
 	if f.activeUserID == "" {
 		return &collab.GetProjectCollaboratorsResponse{}, nil
 	}
+	role := f.activeRole
+	if role == "" {
+		role = "editor"
+	}
 	return &collab.GetProjectCollaboratorsResponse{
-		Collaborators: []*collab.Collaborator{{UserId: f.activeUserID, Status: "active"}},
+		Collaborators: []*collab.Collaborator{{UserId: f.activeUserID, Status: "active", Role: role}},
 	}, nil
 }
 
@@ -210,6 +216,33 @@ func TestSubResourceDeleteAsCollaborator(t *testing.T) {
 			}
 			if sc.deletedUser != "" {
 				t.Errorf("collaborator delete dispatched with user %q, want empty bypass sentinel", sc.deletedUser)
+			}
+		})
+	}
+}
+
+// TestSubResourceDeleteViewerForbidden is the Orbit #359 regression: a
+// collaborator with role "viewer" is real membership (ActionRead passes) but
+// must not be able to mutate content — ActionEditContent is editor+. Before
+// the role-aware policy, ResolveProjectAccess granted the same bypass
+// sentinel to every active collaborator regardless of role, so a viewer could
+// delete beat-board content exactly like an editor.
+func TestSubResourceDeleteViewerForbidden(t *testing.T) {
+	for _, tc := range subResourceCases {
+		t.Run(tc.name, func(t *testing.T) {
+			sc := &fakeScriptsClient{projectID: "proj-1", ownerUserID: "owner-9"}
+			cc := &fakeCollabClient{activeUserID: "viewer-4", activeRole: "viewer"}
+			h := &ScriptsHandler{scriptsClient: sc, collabClient: cc}
+
+			req := httptest.NewRequest(http.MethodDelete, tc.path, nil)
+			rec := httptest.NewRecorder()
+			deleteRouter(h, "viewer-4").ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
+			}
+			if sc.deleteCalled {
+				t.Errorf("delete was dispatched for a viewer (id=%q user=%q)", sc.deletedID, sc.deletedUser)
 			}
 		})
 	}

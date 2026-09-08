@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+
+	"inkwell/server/internal/gateway/handlers"
 )
 
 // conn is one live editing session — a single user's WebSocket. Identity is set
@@ -23,6 +25,13 @@ type conn struct {
 	userID    string
 	name      string
 	avatarURL string
+
+	// role is resolved once at connect time (HandleWS) and never re-checked
+	// for the connection's lifetime — a mid-session demotion takes effect on
+	// the next reconnect, same granularity as every REST call re-resolving
+	// per-request. Gates inbound TypeEdit frames in readPump: a viewer may
+	// join and receive updates, but not send content-mutating frames.
+	role handlers.ProjectRole
 
 	// focus state — mutated on inbound focus frames, read when building a
 	// roster for a joiner. Guarded by Hub.mu.
