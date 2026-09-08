@@ -1003,20 +1003,35 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 				return nil, lookupErr
 			}
 			resolvingThread := updateData.IsResolved != nil && *updateData.IsResolved
+			isSelf := userID == resourceResp.OwnerUserId
 			action := handlers.ActionCommentModerate
-			if userID == resourceResp.OwnerUserId && !resolvingThread {
+			if isSelf && !resolvingThread {
 				action = handlers.ActionCommentAdd
 			}
-			// Deliberately forwards the caller's real userID below, not the
-			// bypass sentinel: collab-service's own UpdateComment/ResolveComment
-			// need the real identity for the same self-authorship comparison.
 			if _, authErr := handlers.RequireProjectAccess(ctx, userID, resourceResp.ProjectId, action, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
 				return nil, authErr
 			}
 
+			// Downstream identity: the real caller only for the self-edit tier,
+			// where collab-service's own UpdateComment skips CheckPermission
+			// entirely on the authorship match (comment.UserID == userID) — the
+			// one case forwarding the real id is both needed and safe. For the
+			// moderate tier (someone else's comment, or resolving a thread at
+			// all — ResolveComment never has a self-exception), forward the
+			// bypass sentinel instead: the gateway has already verified
+			// ActionCommentModerate across every source (org role and direct
+			// collaborator row combined, ADR 0030), but collab's own
+			// CheckPermission only ever sees the direct collaborator row —
+			// forwarding the real id there would make it re-derive a narrower
+			// answer than the gateway just gave, rejecting (say) an org editor
+			// who also holds a lower direct viewer row. See ADR 0030 and #366.
+			downstreamID := ""
+			if action == handlers.ActionCommentAdd {
+				downstreamID = userID
+			}
 			req := &collab.UpdateCommentRequest{
 				CommentId: commentID,
-				UserId:    userID,
+				UserId:    downstreamID,
 			}
 
 			if updateData.Content != nil {
@@ -1082,19 +1097,28 @@ func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Requ
 			if lookupErr != nil {
 				return nil, lookupErr
 			}
+			isSelf := userID == resourceResp.OwnerUserId
 			action := handlers.ActionCommentModerate
-			if userID == resourceResp.OwnerUserId {
+			if isSelf {
 				action = handlers.ActionCommentAdd
 			}
-			// Real userID forwarded below, not the bypass sentinel — collab's
-			// own DeleteComment needs it for the same self-authorship check.
 			if _, authErr := handlers.RequireProjectAccess(ctx, userID, resourceResp.ProjectId, action, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
 				return nil, authErr
 			}
 
+			// Downstream identity: real caller only for the self-delete tier,
+			// where collab-service's own DeleteComment skips CheckPermission
+			// entirely on the authorship match — the bypass sentinel otherwise,
+			// same reasoning as UpdateComment above (a narrower org-blind
+			// recompute in collab must not override the gateway's combined
+			// org+direct decision). See ADR 0030 and #366.
+			downstreamID := ""
+			if action == handlers.ActionCommentAdd {
+				downstreamID = userID
+			}
 			resp, err := h.client.DeleteComment(ctx, &collab.DeleteCommentRequest{
 				CommentId: commentID,
-				UserId:    userID,
+				UserId:    downstreamID,
 			})
 			if err != nil {
 				return nil, err

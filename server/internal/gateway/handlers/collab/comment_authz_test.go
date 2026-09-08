@@ -48,23 +48,34 @@ func (s orgOnlyWorkspaceStub) GetOrgMember(_ context.Context, in *workspacepb.Ge
 	return nil, status.Error(codes.NotFound, "not a member")
 }
 
-// commentCollabStub has no collaborator rows for anyone (org-only
-// membership — GetProjectCollaborators always empty), answers
-// GetResourceProject for one fixed comment (id, project, real author), and
-// records whether UpdateComment/DeleteComment actually reached collab —
-// the thing that must not happen for a denied caller.
+// commentCollabStub answers GetResourceProject for one fixed comment (id,
+// project, real author), optionally reports one direct collaborator row
+// (directUserID/directRole — leave directUserID empty for "org-only, no
+// collab.collaborators row at all"), and records whether UpdateComment/
+// DeleteComment actually reached collab and — critically — which UserId
+// they were dispatched with, so a test can prove the gateway forwards the
+// bypass sentinel for the moderate tier rather than letting collab
+// re-derive a narrower role from the direct row alone (see #366).
 type commentCollabStub struct {
 	collab.CollaborationServiceClient
 	projectID      string
 	commentID      string
 	commentOwnerID string
+	directUserID   string
+	directRole     string
 
-	updateCalled bool
-	deleteCalled bool
+	updateCalled     bool
+	deleteCalled     bool
+	dispatchedUserID string
 }
 
 func (s *commentCollabStub) GetProjectCollaborators(context.Context, *collab.GetProjectCollaboratorsRequest, ...grpc.CallOption) (*collab.GetProjectCollaboratorsResponse, error) {
-	return &collab.GetProjectCollaboratorsResponse{}, nil
+	if s.directUserID == "" {
+		return &collab.GetProjectCollaboratorsResponse{}, nil
+	}
+	return &collab.GetProjectCollaboratorsResponse{
+		Collaborators: []*collab.Collaborator{{UserId: s.directUserID, Status: "active", Role: s.directRole}},
+	}, nil
 }
 
 func (s *commentCollabStub) GetResourceProject(_ context.Context, in *collab.GetResourceProjectRequest, _ ...grpc.CallOption) (*collab.GetResourceProjectResponse, error) {
@@ -74,13 +85,15 @@ func (s *commentCollabStub) GetResourceProject(_ context.Context, in *collab.Get
 	return &collab.GetResourceProjectResponse{ProjectId: s.projectID, OwnerUserId: s.commentOwnerID}, nil
 }
 
-func (s *commentCollabStub) UpdateComment(_ context.Context, _ *collab.UpdateCommentRequest, _ ...grpc.CallOption) (*collab.UpdateCommentResponse, error) {
+func (s *commentCollabStub) UpdateComment(_ context.Context, req *collab.UpdateCommentRequest, _ ...grpc.CallOption) (*collab.UpdateCommentResponse, error) {
 	s.updateCalled = true
+	s.dispatchedUserID = req.UserId
 	return &collab.UpdateCommentResponse{Comment: &collab.Comment{Id: s.commentID, ProjectId: s.projectID, UserId: s.commentOwnerID}}, nil
 }
 
-func (s *commentCollabStub) DeleteComment(_ context.Context, _ *collab.DeleteCommentRequest, _ ...grpc.CallOption) (*collab.DeleteCommentResponse, error) {
+func (s *commentCollabStub) DeleteComment(_ context.Context, req *collab.DeleteCommentRequest, _ ...grpc.CallOption) (*collab.DeleteCommentResponse, error) {
 	s.deleteCalled = true
+	s.dispatchedUserID = req.UserId
 	return &collab.DeleteCommentResponse{Success: true}, nil
 }
 
@@ -117,6 +130,28 @@ func newOrgOnlyCommentHandler(commentOwnerID string) (*CollaborationHandler, *co
 		client:          cc,
 		scriptsClient:   orgOnlyScriptsStub{orgID: orgViewerOrgID},
 		workspaceClient: orgOnlyWorkspaceStub{orgID: orgViewerOrgID, memberUserID: orgViewerUserID, role: "viewer"},
+	}
+	return h, cc
+}
+
+// newRoleCommentHandler builds a handler for callerID with an org role of
+// orgRole and, when directRole is non-empty, an additional direct
+// collaborator row of that role for the same user — the "mixed role"
+// shape the second review round covered.
+func newRoleCommentHandler(commentOwnerID, callerID, orgRole, directRole string) (*CollaborationHandler, *commentCollabStub) {
+	cc := &commentCollabStub{
+		projectID:      orgViewerProjectID,
+		commentID:      orgViewerCommentID,
+		commentOwnerID: commentOwnerID,
+	}
+	if directRole != "" {
+		cc.directUserID = callerID
+		cc.directRole = directRole
+	}
+	h := &CollaborationHandler{
+		client:          cc,
+		scriptsClient:   orgOnlyScriptsStub{orgID: orgViewerOrgID},
+		workspaceClient: orgOnlyWorkspaceStub{orgID: orgViewerOrgID, memberUserID: callerID, role: orgRole},
 	}
 	return h, cc
 }
@@ -186,6 +221,102 @@ func TestDeleteComment_OrgOnlyViewer(t *testing.T) {
 		}
 		if cc.deleteCalled {
 			t.Error("DeleteComment reached collab for a viewer moderating another user's comment — the #366 gap")
+		}
+	})
+}
+
+// TestModerateComment_ForwardsBypassSentinelNotRealID is the second review
+// round's regression: the gateway resolves an editor's effective role by
+// combining org membership and a direct collaborator row (ADR 0030,
+// "highest wins"), but collab-service's own CheckPermission only ever sees
+// the direct row — it has no concept of org membership at all
+// (GetUserProjectRole queries nothing but the collaborators table). Forwarding
+// the real caller id to collab's moderate-tier calls therefore lets it
+// re-derive a role narrower than the one the gateway already verified,
+// rejecting an action the gateway just allowed. Fixed by forwarding the
+// bypass sentinel ("") for the moderate tier instead — proven here by
+// asserting on the dispatched UserId, not just the HTTP status, so the fix
+// can't silently regress back to forwarding the real id.
+func TestModerateComment_ForwardsBypassSentinelNotRealID(t *testing.T) {
+	cases := []struct {
+		name       string
+		orgRole    string
+		directRole string // "" = org-only, no direct collaborator row
+	}{
+		{"org editor with a lower direct viewer row", "editor", "viewer"},
+		{"org-only editor, no direct row at all", "editor", ""},
+		{"org admin, no direct row at all", "admin", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			const callerID = "mixed-role-caller"
+
+			t.Run("UpdateComment", func(t *testing.T) {
+				h, cc := newRoleCommentHandler(orgViewerAuthorID, callerID, tc.orgRole, tc.directRole)
+				req := authedRequest(t, http.MethodPatch, "/comments/"+orgViewerCommentID, callerID, `{"content":"moderated"}`)
+				rec := httptest.NewRecorder()
+				h.UpdateComment(rec, req)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("status = %d, want 200 (org role %q should permit moderation) body=%s", rec.Code, tc.orgRole, rec.Body.String())
+				}
+				if !cc.updateCalled {
+					t.Fatal("UpdateComment was not dispatched")
+				}
+				if cc.dispatchedUserID != "" {
+					t.Errorf("dispatched with UserId %q, want the empty bypass sentinel — forwarding the real id here lets collab re-derive a narrower role from the direct row alone and reject what the gateway just allowed", cc.dispatchedUserID)
+				}
+			})
+
+			t.Run("DeleteComment", func(t *testing.T) {
+				h, cc := newRoleCommentHandler(orgViewerAuthorID, callerID, tc.orgRole, tc.directRole)
+				req := authedRequest(t, http.MethodDelete, "/comments/"+orgViewerCommentID, callerID, "")
+				rec := httptest.NewRecorder()
+				h.DeleteComment(rec, req)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("status = %d, want 200 (org role %q should permit moderation) body=%s", rec.Code, tc.orgRole, rec.Body.String())
+				}
+				if !cc.deleteCalled {
+					t.Fatal("DeleteComment was not dispatched")
+				}
+				if cc.dispatchedUserID != "" {
+					t.Errorf("dispatched with UserId %q, want the empty bypass sentinel", cc.dispatchedUserID)
+				}
+			})
+		})
+	}
+}
+
+// TestSelfEditComment_ForwardsRealID is the counterpart: the self-edit tier
+// still needs the real caller id, because collab-service's own UpdateComment/
+// DeleteComment skip CheckPermission entirely on an authorship match — using
+// the sentinel there would defeat that match and misroute a legitimate
+// self-edit through the moderate-only path.
+func TestSelfEditComment_ForwardsRealID(t *testing.T) {
+	const callerID = "self-editor"
+
+	t.Run("UpdateComment", func(t *testing.T) {
+		h, cc := newRoleCommentHandler(callerID, callerID, "viewer", "")
+		req := authedRequest(t, http.MethodPatch, "/comments/"+orgViewerCommentID, callerID, `{"content":"my own edit"}`)
+		rec := httptest.NewRecorder()
+		h.UpdateComment(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+		}
+		if cc.dispatchedUserID != callerID {
+			t.Errorf("dispatched with UserId %q, want the real caller id %q", cc.dispatchedUserID, callerID)
+		}
+	})
+
+	t.Run("DeleteComment", func(t *testing.T) {
+		h, cc := newRoleCommentHandler(callerID, callerID, "viewer", "")
+		req := authedRequest(t, http.MethodDelete, "/comments/"+orgViewerCommentID, callerID, "")
+		rec := httptest.NewRecorder()
+		h.DeleteComment(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+		}
+		if cc.dispatchedUserID != callerID {
+			t.Errorf("dispatched with UserId %q, want the real caller id %q", cc.dispatchedUserID, callerID)
 		}
 	})
 }
