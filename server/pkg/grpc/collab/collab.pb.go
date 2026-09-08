@@ -2837,8 +2837,14 @@ func (x *GetResourceProjectRequest) GetResourceId() string {
 }
 
 type GetResourceProjectResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	// owner_user_id is the resource's own author/subject — the comment's
+	// author for RESOURCE_TYPE_COMMENT, the collaborator's own user_id for
+	// RESOURCE_TYPE_COLLABORATOR — so the gateway can tell "the caller acting
+	// on their own resource" apart from "the caller acting on someone else's"
+	// without a second round-trip. Not an authorization grant by itself.
+	OwnerUserId   string `protobuf:"bytes,2,opt,name=owner_user_id,json=ownerUserId,proto3" json:"owner_user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2876,6 +2882,13 @@ func (*GetResourceProjectResponse) Descriptor() ([]byte, []int) {
 func (x *GetResourceProjectResponse) GetProjectId() string {
 	if x != nil {
 		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *GetResourceProjectResponse) GetOwnerUserId() string {
+	if x != nil {
+		return x.OwnerUserId
 	}
 	return ""
 }
@@ -3099,10 +3112,11 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\x19GetResourceProjectRequest\x129\n" +
 	"\rresource_type\x18\x01 \x01(\x0e2\x14.collab.ResourceTypeR\fresourceType\x12\x1f\n" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
-	"resourceId\";\n" +
+	"resourceId\"_\n" +
 	"\x1aGetResourceProjectResponse\x12\x1d\n" +
 	"\n" +
-	"project_id\x18\x01 \x01(\tR\tprojectId*h\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\"\n" +
+	"\rowner_user_id\x18\x02 \x01(\tR\vownerUserId*h\n" +
 	"\fResourceType\x12\x1d\n" +
 	"\x19RESOURCE_TYPE_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aRESOURCE_TYPE_COLLABORATOR\x10\x01\x12\x19\n" +

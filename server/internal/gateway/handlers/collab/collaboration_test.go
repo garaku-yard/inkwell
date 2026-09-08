@@ -108,7 +108,6 @@ func wantAllowed(t *testing.T, err error) {
 func TestCheckCollaboratorQuota(t *testing.T) {
 	const (
 		projectID = "proj-1"
-		callerID  = "user-1"
 		ownerID   = "owner-9"
 	)
 
@@ -191,7 +190,7 @@ func TestCheckCollaboratorQuota(t *testing.T) {
 				scriptsClient: tc.scripts,
 				billingClient: tc.billing,
 			}
-			err := h.checkCollaboratorQuota(context.Background(), projectID, callerID)
+			err := h.checkCollaboratorQuota(context.Background(), projectID)
 			if tc.blocked {
 				wantBlocked(t, err)
 			} else {
@@ -210,7 +209,7 @@ func TestCheckCollaboratorQuotaUsesOwnerTier(t *testing.T) {
 		scriptsClient: &fakeScriptsClient{ownerID: "owner-9", project: true},
 		billingClient: billing,
 	}
-	if err := h.checkCollaboratorQuota(context.Background(), "proj-1", "caller-1"); err != nil {
+	if err := h.checkCollaboratorQuota(context.Background(), "proj-1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if billing.gotUser != "owner-9" {

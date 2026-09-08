@@ -121,7 +121,12 @@ func TestResolveProjectRole_Collaborator(t *testing.T) {
 		collabRole string
 		want       ProjectRole
 	}{
-		{"owner", RoleOwner},
+		// "owner" is deliberately RoleNone, not RoleOwner: only scripts'
+		// literal owner_id check (the fast path, which already failed for
+		// this caller — fakeScripts.ownerUserID is a different user — before
+		// this function is ever reached) is authoritative for ownership. See
+		// TestResolveProjectRole_StaleCollabOwnerRowIgnored below.
+		{"owner", RoleNone},
 		{"editor", RoleEditor},
 		{"viewer", RoleViewer},
 		{"", RoleNone}, // a row the two services' vocabularies drifted on must not guess allow
@@ -136,6 +141,71 @@ func TestResolveProjectRole_Collaborator(t *testing.T) {
 			}
 			if role != tc.want {
 				t.Errorf("collab role %q → %s, want %s", tc.collabRole, role, tc.want)
+			}
+		})
+	}
+}
+
+// TestResolveProjectRole_StaleCollabOwnerRowIgnored is the regression a
+// reviewer asked for: a non-owner (per scripts, the authoritative source)
+// with a stale/mistaken collab.collaborators row of role "owner" must not be
+// granted RoleOwner — and combined with a real org role, must be capped at
+// that org role, never elevated by the untrusted "owner" row.
+func TestResolveProjectRole_StaleCollabOwnerRowIgnored(t *testing.T) {
+	t.Run("collab owner row alone grants nothing", func(t *testing.T) {
+		sc := &fakeScripts{ownerUserID: "the-real-owner"} // not this caller
+		cc := &fakeCollab{collabUserID: "impostor-1", collabRole: "owner"}
+		role, err := ResolveProjectRole(context.Background(), "impostor-1", "proj-1", sc, cc, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if role != RoleNone {
+			t.Errorf("role = %s, want none — a collab 'owner' row must never grant access on its own", role)
+		}
+	})
+
+	t.Run("combined with a real org role, capped at the org role", func(t *testing.T) {
+		sc := &fakeScripts{ownerUserID: "the-real-owner", orgID: "org-1"}
+		wc := &fakeWorkspace{orgID: "org-1", memberUserID: "impostor-1", memberRole: "editor"}
+		cc := &fakeCollab{collabUserID: "impostor-1", collabRole: "owner"}
+		role, err := ResolveProjectRole(context.Background(), "impostor-1", "proj-1", sc, cc, wc)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if role != RoleEditor {
+			t.Errorf("role = %s, want editor (the org role) — the stale collab 'owner' row must not elevate it further", role)
+		}
+	})
+}
+
+// TestResolveProjectRole_CombinesOrgAndDirectRoles is the reviewer's "mixed
+// org/direct role, both directions" regression: a direct project role must
+// not mask a higher org role, and an org role must not mask a higher direct
+// grant — ResolveProjectRole must check both sources and return whichever
+// grants more, not whichever it happened to check first.
+func TestResolveProjectRole_CombinesOrgAndDirectRoles(t *testing.T) {
+	cases := []struct {
+		name       string
+		orgRole    string
+		collabRole string
+		want       ProjectRole
+	}{
+		{"org viewer, direct editor → editor wins", "viewer", "editor", RoleEditor},
+		{"org editor, direct viewer → org wins", "editor", "viewer", RoleEditor},
+		{"org admin, direct viewer → org wins", "admin", "viewer", RoleOrgAdmin},
+		{"org viewer, direct viewer → viewer either way", "viewer", "viewer", RoleViewer},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sc := &fakeScripts{ownerUserID: "owner-1", orgID: "org-1"}
+			wc := &fakeWorkspace{orgID: "org-1", memberUserID: "member-1", memberRole: tc.orgRole}
+			cc := &fakeCollab{collabUserID: "member-1", collabRole: tc.collabRole}
+			role, err := ResolveProjectRole(context.Background(), "member-1", "proj-1", sc, cc, wc)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if role != tc.want {
+				t.Errorf("org=%q direct=%q → %s, want %s", tc.orgRole, tc.collabRole, role, tc.want)
 			}
 		})
 	}

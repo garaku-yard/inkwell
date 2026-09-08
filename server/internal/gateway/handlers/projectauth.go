@@ -64,10 +64,21 @@ func mapOrgRole(role string) ProjectRole {
 // vocabularies have drifted on, or a zero-value in a test fixture) maps to
 // RoleNone rather than guessing — silently granting access on an unknown
 // value is exactly the failure mode this policy exists to close.
+//
+// "owner" also maps to RoleNone, deliberately — never RoleOwner. Only
+// scripts.projects.owner_id (checked by ResolveProjectRole's fast path,
+// before this function is ever reached) is authoritative for ownership per
+// 0029's authority table; a collab collaborator row is a projection of that
+// fact, not a second source of it (AddCollaboratorDirect writes one when
+// CreateProject registers the real owner, but it can go stale — collab.go's
+// own comment on that call names it as fire-and-forget, non-fatal, and
+// currently undocumented as a projection — see #362). Reaching this function
+// with role=="owner" therefore only happens when scripts has already said
+// "you are not the owner": trusting the row anyway would let a stale,
+// mistaken, or corrupt projection manufacture owner-level access —
+// including collaborator management — that scripts itself just refused.
 func mapCollabRole(role string) ProjectRole {
 	switch role {
-	case "owner":
-		return RoleOwner
 	case "editor":
 		return RoleEditor
 	case "viewer":
@@ -77,15 +88,22 @@ func mapCollabRole(role string) ProjectRole {
 	}
 }
 
-// ResolveProjectRole determines userID's role on projectID by checking, in
-// order: literal project ownership (scripts is authoritative for
-// projects.owner_id), membership in the project's org (if any), and an
-// active collab-service collaborator row. It returns (RoleNone, nil) when
-// none of the three holds — that is a real "no access" answer, distinct from
-// a non-nil error, which always means a dependency could not give a
-// trustworthy answer (see isDefiniteDenial) and must be treated as
-// unavailable, never as "no access". Callers that need an HTTP-facing
-// decision should use RequireProjectAccess instead of calling this directly.
+// ResolveProjectRole determines userID's role on projectID by checking
+// literal project ownership (scripts is authoritative for
+// projects.owner_id) first, then combining two independent, non-exclusive
+// sources: membership in the project's org (if any) and an active
+// collab-service collaborator row. A caller can legitimately hold both at
+// once — an org viewer explicitly added as a direct project editor, say —
+// and this returns whichever grants more, never the one that happened to be
+// checked first: a direct project role does not mask a higher org role, and
+// an org role does not mask a higher direct grant.
+//
+// It returns (RoleNone, nil) when none of the checks holds — that is a real
+// "no access" answer, distinct from a non-nil error, which always means a
+// dependency could not give a trustworthy answer (see isDefiniteDenial) and
+// must be treated as unavailable, never as "no access". Callers that need an
+// HTTP-facing decision should use RequireProjectAccess instead of calling
+// this directly.
 func ResolveProjectRole(
 	ctx context.Context,
 	userID, projectID string,
@@ -93,12 +111,16 @@ func ResolveProjectRole(
 	cc collab.CollaborationServiceClient,
 	wc workspacepb.WorkspaceServiceClient,
 ) (ProjectRole, error) {
-	// Fast path: owner check.
+	// Fast path: owner check. The only source that can ever produce
+	// RoleOwner — see mapCollabRole's doc comment for why a collab
+	// collaborator row must not be able to.
 	if _, err := sc.GetProject(ctx, &scriptspb.GetProjectRequest{ProjectId: projectID, UserId: userID}); err == nil {
 		return RoleOwner, nil
 	} else if !isDefiniteDenial(err) {
 		return RoleNone, err
 	}
+
+	best := RoleNone
 
 	// Org path: read the project's metadata with the nil-user bypass (a
 	// read-only lookup to learn the org id, not a grant of access — the
@@ -113,17 +135,20 @@ func ResolveProjectRole(
 				member, err := wc.GetOrgMember(ctx, &workspacepb.GetOrgMemberRequest{OrgId: orgID, UserId: userID})
 				switch {
 				case err == nil:
-					return mapOrgRole(member.GetMember().GetRole()), nil
+					if r := mapOrgRole(member.GetMember().GetRole()); r > best {
+						best = r
+					}
 				case !isDefiniteDenial(err):
 					return RoleNone, err
 				}
-				// Definite denial (not an org member): fall through to the
-				// collaborator check below.
+				// Definite denial (not an org member) contributes nothing —
+				// still check the collaborator path below.
 			}
 		}
 	}
 
-	// Collaborator path: an active row in collab-service.
+	// Collaborator path: an active row in collab-service. Combined with the
+	// org result above via "highest wins", not returned early.
 	if cc != nil {
 		collabResp, err := cc.GetProjectCollaborators(ctx, &collab.GetProjectCollaboratorsRequest{
 			ProjectId: projectID,
@@ -136,13 +161,16 @@ func ResolveProjectRole(
 		} else {
 			for _, c := range collabResp.Collaborators {
 				if c.UserId == userID && c.Status == "active" {
-					return mapCollabRole(c.Role), nil
+					if r := mapCollabRole(c.Role); r > best {
+						best = r
+					}
+					break
 				}
 			}
 		}
 	}
 
-	return RoleNone, nil
+	return best, nil
 }
 
 // RequireProjectAccess resolves userID's role on projectID, checks it against
