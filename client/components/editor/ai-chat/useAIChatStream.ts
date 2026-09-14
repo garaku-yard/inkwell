@@ -20,7 +20,7 @@ export interface ChatMessage {
     checkpointId: string
     tool: string
     arguments: Record<string, unknown>
-    status: "pending" | "approving" | "approved" | "denied"
+    status: "pending" | "approving" | "approved" | "denied" | "failed"
   }
 }
 
@@ -90,8 +90,9 @@ export function useAIChatStream({
         : item))
       if (decision === "approve") onToolComplete?.(tool, args)
     } catch (error) {
+      const message = error instanceof Error ? error.message : "The proposed change could not be applied."
       setMessages((current) => current.map((item) => item.id === messageId && item.approval
-        ? { ...item, content: friendlyChatError(error), error: true, approval: { ...item.approval, status: "pending" } }
+        ? { ...item, content: `Couldn't apply this proposal: ${message}`, error: true, approval: { ...item.approval, status: "failed" } }
         : item))
     }
   }, [projectId, setMessages, onToolComplete])

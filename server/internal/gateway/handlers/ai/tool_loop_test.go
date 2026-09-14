@@ -106,6 +106,27 @@ func TestHostedToolsAreProjectScoped(t *testing.T) {
 	}
 }
 
+func TestRequestAllowsWritesOnlyForExplicitActionTurns(t *testing.T) {
+	for _, tc := range []struct {
+		message string
+		want    bool
+	}{
+		{"What could I add to this passage?", false},
+		{"Give me some suggestions for what to write next", false},
+		{"What do you think would be a good follow-up story?", false},
+		{"Add the second suggestion to this passage", true},
+		{"Yes please, go ahead", true},
+		{"Rewrite this in a darker style", true},
+		{"Tell me about the protagonist", false},
+	} {
+		t.Run(tc.message, func(t *testing.T) {
+			if got := requestAllowsWrites([]ChatMessage{{Role: "user", Content: tc.message}}); got != tc.want {
+				t.Fatalf("requestAllowsWrites=%v want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestToolLoopDeduplicatesRedeliveredToolCall(t *testing.T) {
 	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "stable-call", Name: "list_scenes", Arguments: `{}`}}}
 	a := &loopAdapter{streams: []aiadapter.Stream{&loopStream{chunks: []aiadapter.Chunk{call}}, &loopStream{chunks: []aiadapter.Chunk{{Delta: "done", Done: true}}}}}

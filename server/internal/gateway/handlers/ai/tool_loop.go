@@ -21,6 +21,42 @@ import (
 
 const maxHostedToolIterations = 4
 
+func requestAllowsWrites(messages []ChatMessage) bool {
+	latest := ""
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "user" {
+			latest = strings.ToLower(strings.TrimSpace(messages[i].Content))
+			break
+		}
+	}
+	if latest == "" {
+		return false
+	}
+	// Discussion and ideation stay read-only even if the question happens to
+	// mention a write verb ("what can I add?", "how should I rewrite this?").
+	for _, prefix := range []string{"what ", "what's ", "how ", "why ", "can you suggest", "could you suggest", "would you suggest"} {
+		if strings.HasPrefix(latest, prefix) {
+			return false
+		}
+	}
+	for _, prefix := range []string{"add ", "write ", "apply ", "insert ", "rename ", "replace ", "delete ", "create ", "update ", "change "} {
+		if strings.HasPrefix(latest, prefix) {
+			return true
+		}
+	}
+	for _, marker := range []string{"suggestion", "suggestions", "ideas", "feedback", "what do you think"} {
+		if strings.Contains(latest, marker) {
+			return false
+		}
+	}
+	for _, marker := range []string{"add ", "write ", "apply ", "insert ", "rename ", "replace ", "delete ", "create ", "update ", "change ", "go ahead", "proceed", "do it"} {
+		if strings.Contains(latest, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 func hostedTools(projectID string, destructive bool) []aiadapter.Tool {
 	names := []string{"list_projects", "create_project"}
 	if projectID != "" {
