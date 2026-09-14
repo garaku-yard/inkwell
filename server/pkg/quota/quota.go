@@ -32,18 +32,15 @@ const (
 	// currently enforced — Require/Track are called for it on project create
 	// (see scripts_service.go), checked against the tier's `max_projects`.
 	MetricProjects Metric = "projects"
-	// MetricCollaborators counts collaborators added to the user's projects.
-	// Reserved — NOT yet enforced: no Require/Track call site exists and the
-	// collab service does not import quota. Intended limit:
-	// `max_collaborators_per_project`.
+	// MetricCollaborators identifies collaborator usage. The gateway enforces
+	// this as a per-project seat count (active collaborators plus pending
+	// invitations) against the project owner's tier.
 	MetricCollaborators Metric = "collaborators"
-	// MetricAITokens counts AI chat tokens consumed. Reserved — NOT yet
-	// enforced, and billingadapter.planLimit has no arm for it (so it would
-	// read as unlimited). Intended limit: `ai_tokens`.
+	// MetricAITokens counts managed AI tokens consumed in the current month.
+	// BYO providers are intentionally not metered.
 	MetricAITokens Metric = "ai_tokens"
-	// MetricExports counts document exports (PDF/FDX). Reserved — NOT yet
-	// enforced, and billingadapter.planLimit has no arm for it (so it would
-	// read as unlimited). Intended limit: `exports_per_month`.
+	// MetricExports is retained as a stable historical metric name. Standard
+	// exports are ungated by the approved tier model, so no tier maps a limit.
 	MetricExports Metric = "exports"
 )
 
@@ -120,7 +117,7 @@ func limitKeyFor(metric Metric) string {
 	case MetricCollaborators:
 		return "max_collaborators_per_project"
 	case MetricAITokens:
-		return "ai_tokens"
+		return "max_ai_tokens_per_month"
 	case MetricExports:
 		return "exports_per_month"
 	default:

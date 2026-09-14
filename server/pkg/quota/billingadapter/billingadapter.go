@@ -30,7 +30,8 @@ func New(billing billingpb.BillingServiceClient) *Client {
 // users are capped at the free limits, not treated as unlimited. -1 signals
 // unlimited. If billing can't resolve a tier at all (e.g. no default
 // configured / billing down), the limit stays -1 so the system fails open
-// rather than locking everyone out.
+// rather than locking everyone out. Callers that need a per-project usage
+// value, such as collaborator seats, resolve that usage at their own boundary.
 func (c *Client) Check(ctx context.Context, userID string, metric quota.Metric) (used int64, limit int64, err error) {
 	if _, err := uuid.Parse(userID); err != nil {
 		return 0, 0, fmt.Errorf("quota: invalid user_id: %w", err)
@@ -88,6 +89,10 @@ func planLimit(plan *billingpb.Plan, metric quota.Metric) int64 {
 	case quota.MetricCollaborators:
 		if plan.GetMaxCollaboratorsPerProject() > 0 {
 			return int64(plan.GetMaxCollaboratorsPerProject())
+		}
+	case quota.MetricAITokens:
+		if plan.GetAiTokensPerMonth() > 0 {
+			return plan.GetAiTokensPerMonth()
 		}
 	}
 	return -1
