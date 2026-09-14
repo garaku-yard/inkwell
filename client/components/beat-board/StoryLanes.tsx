@@ -59,7 +59,9 @@ export function StoryLanes({
   const [dropIndicator, setDropIndicator] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
 
-  const adjustedPageInterval = zoomLevel >= 2 ? 1 : zoomLevel >= 1 ? 2 : 5;
+  // Keep ruler labels readable at the default 120-page scale. Every page still
+  // gets a tick; zoom only controls how often we print a number beside one.
+  const adjustedPageInterval = zoomLevel >= 4 ? 2 : zoomLevel >= 2 ? 5 : zoomLevel >= 1 ? 10 : 20;
 
   const getPagePosition = (page: number) => (page / totalPages) * 100;
   const snapToEighthOfPage = (positionPercent: number) => { const totalEighths = totalPages * 8; const currentEighth = (positionPercent / 100) * totalEighths; const snappedEighth = Math.round(currentEighth); return (snappedEighth / totalEighths) * 100; };
