@@ -17,6 +17,7 @@ type Checkpoint struct {
 	ID            string              `json:"id"`
 	UserID        string              `json:"user_id"`
 	ProjectID     string              `json:"project_id"`
+	Category      string              `json:"category,omitempty"`
 	Tool          aiadapter.ToolCall  `json:"tool"`
 	Messages      []aiadapter.Message `json:"messages"`
 	Model         string              `json:"model"`

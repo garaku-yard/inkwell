@@ -228,7 +228,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.WriteHeader(http.StatusOK)
 
-	h.runToolLoop(r.Context(), w, flusher, adapter, input, firstStream, userID, req.ProjectID, req.ActiveSceneID, req.ProviderID, managed)
+	h.runToolLoop(r.Context(), w, flusher, adapter, input, firstStream, userID, req.ProjectID, req.ActiveSceneID, req.Category, req.ProviderID, managed)
 }
 
 // overManagedQuota reports whether the user has exhausted their tier's monthly

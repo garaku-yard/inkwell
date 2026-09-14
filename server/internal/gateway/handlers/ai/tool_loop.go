@@ -43,7 +43,7 @@ func hostedTools(projectID string, destructive bool) []aiadapter.Tool {
 	return out
 }
 
-func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.Flusher, adapter aiadapter.Adapter, input aiadapter.Input, stream aiadapter.Stream, userID, projectID, activeSceneID, providerID string, managed bool) {
+func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.Flusher, adapter aiadapter.Adapter, input aiadapter.Input, stream aiadapter.Stream, userID, projectID, activeSceneID, category, providerID string, managed bool) {
 	encoder := json.NewEncoder(w)
 	totalTokens := 0
 	toolResults := map[string]string{}
@@ -109,7 +109,7 @@ func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.F
 				}
 				args, _ := json.Marshal(normalized)
 				call.Arguments = string(args)
-				checkpoint, err := h.approvals.Create(ctx, approval.Checkpoint{UserID: userID, ProjectID: projectID, Tool: call, Messages: input.Messages, Model: input.Model, ProviderID: providerID, CorrelationID: grpcmeta.CorrelationID(ctx)}, 15*time.Minute)
+				checkpoint, err := h.approvals.Create(ctx, approval.Checkpoint{UserID: userID, ProjectID: projectID, Category: category, Tool: call, Messages: input.Messages, Model: input.Model, ProviderID: providerID, CorrelationID: grpcmeta.CorrelationID(ctx)}, 15*time.Minute)
 				if err != nil {
 					_ = encoder.Encode(map[string]string{"error": "approval service unavailable"})
 					flusher.Flush()

@@ -72,7 +72,7 @@ func (h *AIHandler) DecideApproval(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		before = current
-		result, err = h.writes.RewriteScene(r.Context(), userID, c.ProjectID, args.SceneID, args.Content)
+		result, err = h.writes.RewriteScene(r.Context(), userID, c.ProjectID, args.SceneID, args.Content, c.Category)
 	case "delete_scene":
 		before, err = h.writes.DeleteScene(r.Context(), userID, c.ProjectID, args.SceneID)
 		result = map[string]bool{"deleted": err == nil}

@@ -64,6 +64,8 @@ type destructiveScripts struct {
 	scriptspb.ScriptsServiceClient
 	owner            string
 	content          string
+	elementType      string
+	elementContent   string
 	updates, deletes int
 }
 
@@ -78,6 +80,10 @@ func (s *destructiveScripts) GetProjectScenes(context.Context, *scriptspb.GetPro
 }
 func (s *destructiveScripts) GetSceneElements(context.Context, *scriptspb.GetSceneElementsRequest, ...grpc.CallOption) (*scriptspb.GetSceneElementsResponse, error) {
 	return &scriptspb.GetSceneElementsResponse{}, nil
+}
+func (s *destructiveScripts) CreateElement(_ context.Context, r *scriptspb.CreateElementRequest, _ ...grpc.CallOption) (*scriptspb.CreateElementResponse, error) {
+	s.elementType, s.elementContent = r.ElementType, r.Content
+	return &scriptspb.CreateElementResponse{Element: &scriptspb.ProjectElement{Id: "e1", SceneId: r.SceneId, Type: r.ElementType, Content: r.Content}}, nil
 }
 func (s *destructiveScripts) UpdateScene(_ context.Context, r *scriptspb.UpdateSceneRequest, _ ...grpc.CallOption) (*scriptspb.UpdateSceneResponse, error) {
 	s.updates++
@@ -104,7 +110,7 @@ func TestApprovalApproveReplayWrongUserAndAuthorizationChange(t *testing.T) {
 	store := &memoryApprovals{values: map[string]approval.Checkpoint{}}
 	scripts := &destructiveScripts{owner: "u1", content: "before"}
 	h := &AIHandler{approvals: store, reads: scriptreads.New(scripts, nil, nil), writes: scriptwrites.New(scripts, nil, nil)}
-	cp, _ := store.Create(context.Background(), approval.Checkpoint{ID: "cp", UserID: "u1", ProjectID: "p1", Tool: aiadapter.ToolCall{Name: "rewrite_scene", Arguments: `{"scene_id":"s1","content":"after"}`}}, time.Minute)
+	cp, _ := store.Create(context.Background(), approval.Checkpoint{ID: "cp", UserID: "u1", ProjectID: "p1", Category: "interactive_fiction", Tool: aiadapter.ToolCall{Name: "rewrite_scene", Arguments: `{"scene_id":"s1","content":"after"}`}}, time.Minute)
 	if w := approvalRequest(h, cp.ID, "attacker", `{"decision":"approve","projectId":"p1"}`); w.Code != http.StatusNotFound {
 		t.Fatalf("wrong user status=%d", w.Code)
 	}
@@ -116,8 +122,8 @@ func TestApprovalApproveReplayWrongUserAndAuthorizationChange(t *testing.T) {
 	if w := approvalRequest(h2, cp.ID, "u1", `{"decision":"approve","projectId":"p1"}`); w.Code != http.StatusOK {
 		t.Fatalf("approve status=%d body=%s", w.Code, w.Body.String())
 	}
-	if scripts.updates != 1 || scripts.content != "after" || len(store.audits) != 1 {
-		t.Fatalf("updates=%d content=%q audits=%d", scripts.updates, scripts.content, len(store.audits))
+	if scripts.updates != 1 || scripts.content != "after" || scripts.elementType != "body" || scripts.elementContent != "after" || len(store.audits) != 1 {
+		t.Fatalf("updates=%d content=%q element=(%q,%q) audits=%d", scripts.updates, scripts.content, scripts.elementType, scripts.elementContent, len(store.audits))
 	}
 	if w := approvalRequest(h, cp.ID, "u1", `{"decision":"approve","projectId":"p1"}`); w.Code != http.StatusNotFound || scripts.updates != 1 {
 		t.Fatalf("replay status=%d updates=%d", w.Code, scripts.updates)

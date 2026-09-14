@@ -127,10 +127,41 @@ func (w *Writer) AddBeat(ctx context.Context, userID, projectID string, in AddBe
 	return r.Beat, nil
 }
 
-func (w *Writer) RewriteScene(ctx context.Context, userID, projectID, sceneID, content string) (*scriptspb.Scene, error) {
+func (w *Writer) RewriteScene(ctx context.Context, userID, projectID, sceneID, content, category string) (*scriptspb.Scene, error) {
 	role, err := w.sceneRole(ctx, userID, projectID, sceneID)
 	if err != nil {
 		return nil, err
+	}
+	current, err := w.reads.ReadScene(ctx, userID, projectID, sceneID)
+	if err != nil {
+		return nil, err
+	}
+	elementType := "paragraph"
+	switch category {
+	case "screenplay":
+		elementType = "ACTION"
+	case "comic_script":
+		elementType = "panel"
+	case "poetry", "lyrics":
+		elementType = "line"
+	case "interactive_fiction", "tabletop_rpg":
+		elementType = "body"
+	}
+	callerRole := handlers.ScriptsCallerRole(role)
+	if len(current.Elements) == 0 {
+		if _, err = w.scripts.CreateElement(ctx, &scriptspb.CreateElementRequest{ProjectId: projectID, UserId: userID, CallerRole: callerRole, SceneId: sceneID, ElementType: elementType, Content: content, LineNumber: 1}); err != nil {
+			return nil, err
+		}
+	} else {
+		first := current.Elements[0]
+		if _, err = w.scripts.UpdateElement(ctx, &scriptspb.UpdateElementRequest{ElementId: first.Id, UserId: userID, CallerRole: callerRole, Content: &content, Type: &elementType}); err != nil {
+			return nil, err
+		}
+		for _, element := range current.Elements[1:] {
+			if _, err = w.scripts.DeleteScriptElement(ctx, &scriptspb.DeleteScriptElementRequest{ScriptElementId: element.Id, UserId: userID, CallerRole: callerRole}); err != nil {
+				return nil, err
+			}
+		}
 	}
 	r, err := w.scripts.UpdateScene(ctx, &scriptspb.UpdateSceneRequest{SceneId: sceneID, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role), Content: &content})
 	if err != nil {
