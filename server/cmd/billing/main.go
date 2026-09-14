@@ -18,6 +18,7 @@ import (
 	"inkwell/server/pkg/events"
 	billingpb "inkwell/server/pkg/grpc/billing"
 	"inkwell/server/pkg/grpclimits"
+	"inkwell/server/pkg/grpcmeta"
 	"inkwell/server/pkg/outbox"
 	"inkwell/server/pkg/paddle"
 	redisclient "inkwell/server/pkg/redis"
@@ -128,7 +129,7 @@ func main() {
 
 	grpcServer := grpc.NewServer(append(
 		grpclimits.ServerOptions(),
-		grpc.UnaryInterceptor(loggingInterceptor),
+		grpc.UnaryInterceptor(grpcmeta.ServerInterceptor("billing")),
 	)...)
 
 	billingpb.RegisterBillingServiceServer(grpcServer, billingHandler)

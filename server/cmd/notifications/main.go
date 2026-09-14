@@ -27,6 +27,7 @@ import (
 	identitypb "inkwell/server/pkg/grpc/identity"
 	notificationspb "inkwell/server/pkg/grpc/notifications"
 	"inkwell/server/pkg/grpclimits"
+	"inkwell/server/pkg/grpcmeta"
 )
 
 func main() {
@@ -73,7 +74,7 @@ func main() {
 	// Identity client — resolves user ids to email addresses for events that
 	// carry only UUIDs (e.g. collaboration.added). Lazy connect: a dial here
 	// doesn't block startup if identity is briefly unavailable.
-	identityConn, err := grpc.NewClient(cfg.IdentityServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	identityConn, err := grpc.NewClient(cfg.IdentityServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithUnaryInterceptor(grpcmeta.ClientInterceptor("identity")))
 	if err != nil {
 		log.Fatalf("Failed to create identity client: %v", err)
 	}
@@ -101,7 +102,7 @@ func main() {
 		log.Println("KAFKA_BROKERS not set — in-app delivery disabled (preferences still served)")
 	}
 
-	grpcServer := grpc.NewServer(append(grpclimits.ServerOptions(), grpc.UnaryInterceptor(loggingInterceptor))...)
+	grpcServer := grpc.NewServer(append(grpclimits.ServerOptions(), grpc.UnaryInterceptor(grpcmeta.ServerInterceptor("notifications")))...)
 	notificationspb.RegisterNotificationsServiceServer(grpcServer, h)
 	reflection.Register(grpcServer)
 

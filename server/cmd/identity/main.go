@@ -25,6 +25,7 @@ import (
 	"inkwell/server/pkg/events"
 	identitypb "inkwell/server/pkg/grpc/identity"
 	"inkwell/server/pkg/grpclimits"
+	"inkwell/server/pkg/grpcmeta"
 	"inkwell/server/pkg/outbox"
 )
 
@@ -101,7 +102,7 @@ func main() {
 
 	grpcServer := grpc.NewServer(append(
 		grpclimits.ServerOptions(),
-		grpc.UnaryInterceptor(loggingInterceptor),
+		grpc.UnaryInterceptor(grpcmeta.ServerInterceptor("identity")),
 	)...)
 
 	identitypb.RegisterIdentityServiceServer(grpcServer, identityHandler)

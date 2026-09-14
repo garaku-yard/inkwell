@@ -119,11 +119,11 @@ func TestOutboxMigrationsUpAndDown(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	cases := []struct{ table, base, up, down string }{
-		{"identity_outbox", "../../internal/identity/migrations/000002_add_outbox.up.sql", "../../internal/identity/migrations/000006_harden_outbox.up.sql", "../../internal/identity/migrations/000006_harden_outbox.down.sql"},
-		{"collab_outbox", "../../internal/collab/migrations/000002_add_outbox.up.sql", "../../internal/collab/migrations/000005_harden_outbox.up.sql", "../../internal/collab/migrations/000005_harden_outbox.down.sql"},
-		{"scripts_outbox", "../../internal/scripts/migrations/000003_add_outbox.up.sql", "../../internal/scripts/migrations/000009_harden_outbox.up.sql", "../../internal/scripts/migrations/000009_harden_outbox.down.sql"},
-		{"billing_outbox", "../../internal/billing/migrations/000003_add_outbox.up.sql", "../../internal/billing/migrations/000008_harden_outbox.up.sql", "../../internal/billing/migrations/000008_harden_outbox.down.sql"},
+	cases := []struct{ table, base, up, correlationUp, correlationDown, down string }{
+		{"identity_outbox", "../../internal/identity/migrations/000002_add_outbox.up.sql", "../../internal/identity/migrations/000006_harden_outbox.up.sql", "../../internal/identity/migrations/000007_outbox_correlation.up.sql", "../../internal/identity/migrations/000007_outbox_correlation.down.sql", "../../internal/identity/migrations/000006_harden_outbox.down.sql"},
+		{"collab_outbox", "../../internal/collab/migrations/000002_add_outbox.up.sql", "../../internal/collab/migrations/000005_harden_outbox.up.sql", "../../internal/collab/migrations/000006_outbox_correlation.up.sql", "../../internal/collab/migrations/000006_outbox_correlation.down.sql", "../../internal/collab/migrations/000005_harden_outbox.down.sql"},
+		{"scripts_outbox", "../../internal/scripts/migrations/000003_add_outbox.up.sql", "../../internal/scripts/migrations/000009_harden_outbox.up.sql", "../../internal/scripts/migrations/000010_outbox_correlation.up.sql", "../../internal/scripts/migrations/000010_outbox_correlation.down.sql", "../../internal/scripts/migrations/000009_harden_outbox.down.sql"},
+		{"billing_outbox", "../../internal/billing/migrations/000003_add_outbox.up.sql", "../../internal/billing/migrations/000008_harden_outbox.up.sql", "../../internal/billing/migrations/000009_outbox_correlation.up.sql", "../../internal/billing/migrations/000009_outbox_correlation.down.sql", "../../internal/billing/migrations/000008_harden_outbox.down.sql"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.table, func(t *testing.T) {
@@ -136,7 +136,7 @@ func TestOutboxMigrationsUpAndDown(t *testing.T) {
 			if _, err := tx.Exec(`CREATE SCHEMA ` + schema + `; SET LOCAL search_path TO ` + schema + `, public`); err != nil {
 				t.Fatal(err)
 			}
-			for _, path := range []string{tc.base, tc.up} {
+			for _, path := range []string{tc.base, tc.up, tc.correlationUp} {
 				sqlBytes, err := os.ReadFile(path)
 				if err != nil {
 					t.Fatal(err)
@@ -151,6 +151,19 @@ func TestOutboxMigrationsUpAndDown(t *testing.T) {
 			}
 			if columns != 5 {
 				t.Fatalf("hardened columns=%d, want 5", columns)
+			}
+			if err := tx.QueryRow(`SELECT count(*) FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name='correlation_id'`, schema, tc.table).Scan(&columns); err != nil {
+				t.Fatal(err)
+			}
+			if columns != 1 {
+				t.Fatal("correlation_id migration was not applied")
+			}
+			correlationDownSQL, err := os.ReadFile(tc.correlationDown)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := tx.Exec(string(correlationDownSQL)); err != nil {
+				t.Fatalf("down %s: %v", tc.correlationDown, err)
 			}
 			downSQL, err := os.ReadFile(tc.down)
 			if err != nil {
@@ -190,7 +203,7 @@ func openDatabase(t *testing.T) (*sql.DB, string) {
 		id UUID PRIMARY KEY, event_type TEXT NOT NULL, payload JSONB NOT NULL,
 		published_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		claimed_at TIMESTAMPTZ, claimed_by TEXT, attempts INTEGER NOT NULL DEFAULT 0,
-		last_error TEXT, dead_lettered_at TIMESTAMPTZ)`)
+		last_error TEXT, dead_lettered_at TIMESTAMPTZ, correlation_id TEXT)`)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,6 +9,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"inkwell/server/pkg/grpcmeta"
 
 	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/pkg/grpc/identity"
@@ -24,7 +25,7 @@ type AuthMiddleware struct {
 // NewAuthMiddleware creates a new AuthMiddleware. blocklist may be nil, in which
 // case revocation checks are skipped (useful in tests without Redis).
 func NewAuthMiddleware(identityServiceURL string, blocklist *TokenBlocklist) (*AuthMiddleware, error) {
-	conn, err := grpc.NewClient(identityServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(identityServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithUnaryInterceptor(grpcmeta.ClientInterceptor("identity")))
 	if err != nil {
 		return nil, err
 	}

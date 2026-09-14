@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	kafkago "github.com/segmentio/kafka-go"
+
+	"inkwell/server/pkg/grpcmeta"
 )
 
 // KafkaPublisher implements Publisher using segmentio/kafka-go.
@@ -42,10 +44,11 @@ func (p *KafkaPublisher) Publish(ctx context.Context, eventType string, payload 
 	}
 
 	return p.PublishEvent(ctx, Event{
-		ID:         uuid.New().String(),
-		Type:       eventType,
-		OccurredAt: time.Now().UTC(),
-		Payload:    json.RawMessage(raw),
+		ID:            uuid.New().String(),
+		Type:          eventType,
+		OccurredAt:    time.Now().UTC(),
+		Payload:       json.RawMessage(raw),
+		CorrelationID: grpcmeta.CorrelationID(ctx),
 	})
 }
 
@@ -76,7 +79,7 @@ func (p *KafkaPublisher) PublishEvent(ctx context.Context, env Event) error {
 		return fmt.Errorf("events: write to topic %s: %w", topic, err)
 	}
 
-	slog.Info("event published", "event_type", env.Type, "event_id", env.ID, "topic", topic)
+	slog.Info("event published", "event_type", env.Type, "event_id", env.ID, "correlation_id", env.CorrelationID, "causation_id", env.CausationID, "topic", topic)
 	return nil
 }
 

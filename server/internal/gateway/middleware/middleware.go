@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"inkwell/server/pkg/grpcmeta"
 )
 
 // correlationIDKey is the context key for the request correlation ID.
@@ -127,6 +128,7 @@ func RequestLogger() func(http.Handler) http.Handler {
 
 			// Attach correlation ID to context so handlers can log it.
 			ctx := context.WithValue(r.Context(), correlationIDKey{}, correlationID)
+			ctx = grpcmeta.WithCorrelationID(ctx, correlationID)
 			r = r.WithContext(ctx)
 			w.Header().Set("X-Correlation-ID", correlationID)
 

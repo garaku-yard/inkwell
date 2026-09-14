@@ -19,6 +19,7 @@ import (
 	"inkwell/server/pkg/events"
 	"inkwell/server/pkg/grpc/collab"
 	"inkwell/server/pkg/grpclimits"
+	"inkwell/server/pkg/grpcmeta"
 	"inkwell/server/pkg/outbox"
 
 	"github.com/joho/godotenv"
@@ -98,7 +99,7 @@ func main() {
 
 	grpcServer := grpc.NewServer(append(
 		grpclimits.ServerOptions(),
-		grpc.UnaryInterceptor(loggingInterceptor),
+		grpc.UnaryInterceptor(grpcmeta.ServerInterceptor("collab")),
 	)...)
 
 	collab.RegisterCollaborationServiceServer(grpcServer, handler)

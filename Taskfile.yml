@@ -386,6 +386,14 @@ tasks:
     cmds:
       - go test -race -count=1 -tags=dbintegration ./integration/outbox
 
+  test:patch:db:
+    desc: Run PostgreSQL HTTP-to-persistence patch test (requires PATCH_TEST_DATABASE_URL)
+    dir: server
+    requires:
+      vars: [PATCH_TEST_DATABASE_URL]
+    cmds:
+      - go test -race -count=1 -tags=dbintegration ./integration/patch
+
   test:client:
     desc: Run client tests
     dir: client

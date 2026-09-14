@@ -86,7 +86,7 @@ func (c *Consumer) deliver(ctx context.Context, m kafkago.Message) bool {
 		return true
 	}
 	if err := c.proc.Process(ctx, evt); err != nil {
-		c.log.Error("process failed; will retry", "error", err, "type", evt.Type, "event_id", evt.ID)
+		c.log.Error("process failed; will retry", "error", err, "event_type", evt.Type, "event_id", evt.ID, "correlation_id", evt.CorrelationID, "causation_id", evt.CausationID)
 		return false
 	}
 	return true

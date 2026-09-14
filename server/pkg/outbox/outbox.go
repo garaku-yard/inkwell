@@ -48,6 +48,7 @@ import (
 	"github.com/google/uuid"
 
 	"inkwell/server/pkg/events"
+	"inkwell/server/pkg/grpcmeta"
 )
 
 var ErrClaimLost = fmt.Errorf("outbox: claim no longer owned")
@@ -64,9 +65,10 @@ type Event struct {
 	// Payload is the raw JSON body persisted and later re-emitted verbatim.
 	Payload json.RawMessage
 	// CreatedAt is set by Store.EnqueueTx; callers should leave it zero.
-	CreatedAt time.Time
-	Attempt   int
-	ClaimedBy string
+	CreatedAt     time.Time
+	Attempt       int
+	ClaimedBy     string
+	CorrelationID string
 }
 
 // Store is the minimum interface an outbox implementation must provide.
@@ -108,13 +110,16 @@ func (s *PostgresStore) EnqueueTx(ctx context.Context, tx *sql.Tx, event Event) 
 		event.ID = uuid.New()
 	}
 	event.CreatedAt = time.Now()
+	if event.CorrelationID == "" {
+		event.CorrelationID = grpcmeta.CorrelationID(ctx)
+	}
 
 	// #nosec G201 — tableName is service-owned configuration, not user input.
 	query := fmt.Sprintf(
-		`INSERT INTO %s (id, event_type, payload, created_at) VALUES ($1, $2, $3, $4)`,
+		`INSERT INTO %s (id, event_type, payload, created_at, correlation_id) VALUES ($1, $2, $3, $4, $5)`,
 		s.tableName,
 	)
-	if _, err := tx.ExecContext(ctx, query, event.ID, event.Type, []byte(event.Payload), event.CreatedAt); err != nil {
+	if _, err := tx.ExecContext(ctx, query, event.ID, event.Type, []byte(event.Payload), event.CreatedAt, event.CorrelationID); err != nil {
 		return fmt.Errorf("outbox: enqueue to %s: %w", s.tableName, err)
 	}
 	return nil
@@ -133,7 +138,7 @@ func (s *PostgresStore) ClaimPending(ctx context.Context, claimant string, limit
 	)
 	UPDATE %s o SET claimed_at = NOW(), claimed_by = $3, attempts = o.attempts + 1
 	FROM candidates c WHERE o.id = c.id
-	RETURNING o.id, o.event_type, o.payload, o.created_at, o.attempts, o.claimed_by`, s.tableName, s.tableName)
+	RETURNING o.id, o.event_type, o.payload, o.created_at, o.attempts, o.claimed_by, COALESCE(o.correlation_id, '')`, s.tableName, s.tableName)
 	rows, err := s.db.QueryContext(ctx, query, lease.Seconds(), limit, claimant)
 	if err != nil {
 		return nil, fmt.Errorf("outbox: list pending from %s: %w", s.tableName, err)
@@ -144,7 +149,7 @@ func (s *PostgresStore) ClaimPending(ctx context.Context, claimant string, limit
 	for rows.Next() {
 		var e Event
 		var payload []byte
-		if err := rows.Scan(&e.ID, &e.Type, &payload, &e.CreatedAt, &e.Attempt, &e.ClaimedBy); err != nil {
+		if err := rows.Scan(&e.ID, &e.Type, &payload, &e.CreatedAt, &e.Attempt, &e.ClaimedBy, &e.CorrelationID); err != nil {
 			return nil, fmt.Errorf("outbox: scan row from %s: %w", s.tableName, err)
 		}
 		e.Payload = payload
@@ -259,7 +264,7 @@ func (p *Poller) drain(ctx context.Context) {
 		return
 	}
 	for _, e := range pending {
-		envelope := events.Event{ID: e.ID.String(), Type: e.Type, OccurredAt: e.CreatedAt.UTC(), Payload: e.Payload}
+		envelope := events.Event{ID: e.ID.String(), Type: e.Type, OccurredAt: e.CreatedAt.UTC(), Payload: e.Payload, CorrelationID: e.CorrelationID}
 		if err := events.PublishEvent(ctx, p.publisher, envelope); err != nil {
 			p.logger.Warn("outbox publish failed", "event_id", e.ID, "event_type", e.Type, "attempt", e.Attempt, "age", time.Since(e.CreatedAt), "claimed_by", p.claimant, "result", "retry", "error", err)
 			if markErr := p.store.MarkFailed(ctx, e.ID, p.claimant, err.Error(), p.maxAttempts); markErr != nil {

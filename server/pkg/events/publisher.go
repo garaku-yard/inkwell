@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"time"
+
+	"inkwell/server/pkg/grpcmeta"
 )
 
 // Publisher is the single interface that all services use to emit domain events.
@@ -27,6 +29,9 @@ type EnvelopePublisher interface {
 // PublishEvent preserves event when publisher supports envelopes, and falls
 // back to the original Publisher contract for legacy implementations.
 func PublishEvent(ctx context.Context, publisher Publisher, event Event) error {
+	if event.CorrelationID == "" {
+		event.CorrelationID = grpcmeta.CorrelationID(ctx)
+	}
 	if p, ok := publisher.(EnvelopePublisher); ok {
 		return p.PublishEvent(ctx, event)
 	}
@@ -43,7 +48,9 @@ type Event struct {
 	// OccurredAt is the wall-clock time the event was emitted.
 	OccurredAt time.Time `json:"occurred_at"`
 	// Payload contains the event-specific data.
-	Payload json.RawMessage `json:"payload"`
+	Payload       json.RawMessage `json:"payload"`
+	CorrelationID string          `json:"correlation_id,omitempty"`
+	CausationID   string          `json:"causation_id,omitempty"`
 }
 
 // Event type constants — the canonical strings that travel on the wire.

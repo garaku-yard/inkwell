@@ -19,6 +19,7 @@ import (
 	billingpb "inkwell/server/pkg/grpc/billing"
 	scriptspb "inkwell/server/pkg/grpc/scripts"
 	"inkwell/server/pkg/grpclimits"
+	"inkwell/server/pkg/grpcmeta"
 	"inkwell/server/pkg/outbox"
 	"inkwell/server/pkg/quota"
 	"inkwell/server/pkg/quota/billingadapter"
@@ -84,7 +85,7 @@ func main() {
 	// the scripts service can boot even when billing is down.
 	var quotaClient quota.Client
 	billingAddr := cfg.BillingConfig.Host + ":" + cfg.BillingConfig.Port
-	billingConn, err := grpc.NewClient(billingAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	billingConn, err := grpc.NewClient(billingAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithUnaryInterceptor(grpcmeta.ClientInterceptor("billing")))
 	if err != nil {
 		slog.Warn("billing client unavailable, quota enforcement disabled", "address", billingAddr, "error", err)
 	} else {
@@ -139,7 +140,7 @@ func main() {
 
 	grpcServer := grpc.NewServer(append(
 		grpclimits.ServerOptions(),
-		grpc.UnaryInterceptor(loggingInterceptor),
+		grpc.UnaryInterceptor(grpcmeta.ServerInterceptor("scripts")),
 	)...)
 
 	scriptspb.RegisterScriptsServiceServer(grpcServer, scriptsHandler)

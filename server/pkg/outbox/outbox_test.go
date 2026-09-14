@@ -96,3 +96,12 @@ func TestPollerRecordsPublishFailure(t *testing.T) {
 		t.Fatalf("failed=%v published=%v, want recorded failure only", store.failed, store.published)
 	}
 }
+
+func TestPollerForwardsPersistedCorrelationID(t *testing.T) {
+	store := &memoryStore{event: Event{ID: uuid.New(), Type: "test", Payload: json.RawMessage(`{}`), CreatedAt: time.Now(), CorrelationID: "request-789"}}
+	publisher := &recordingPublisher{}
+	NewPoller(store, publisher, time.Second, 1).drain(context.Background())
+	if len(publisher.events) != 1 || publisher.events[0].CorrelationID != "request-789" {
+		t.Fatalf("published events = %+v", publisher.events)
+	}
+}

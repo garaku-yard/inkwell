@@ -29,6 +29,7 @@ import (
 	"inkwell/server/pkg/database"
 	aisettingspb "inkwell/server/pkg/grpc/aisettings"
 	"inkwell/server/pkg/grpclimits"
+	"inkwell/server/pkg/grpcmeta"
 )
 
 func main() {
@@ -116,7 +117,7 @@ func main() {
 
 	h := handler.New(svc)
 
-	grpcServer := grpc.NewServer(append(grpclimits.ServerOptions(), grpc.UnaryInterceptor(loggingInterceptor))...)
+	grpcServer := grpc.NewServer(append(grpclimits.ServerOptions(), grpc.UnaryInterceptor(grpcmeta.ServerInterceptor("aisettings")))...)
 	aisettingspb.RegisterAISettingsServiceServer(grpcServer, h)
 	reflection.Register(grpcServer)
 

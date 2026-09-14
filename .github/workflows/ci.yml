@@ -87,6 +87,11 @@ jobs:
           OUTBOX_TEST_DATABASE_URL: postgres://inkwell_test:inkwell_test@localhost:5432/inkwell_test?sslmode=disable
         run: go test -race -count=1 -tags=dbintegration ./integration/outbox
 
+      - name: HTTP-to-persistence patch semantics
+        env:
+          PATCH_TEST_DATABASE_URL: postgres://inkwell_test:inkwell_test@localhost:5432/inkwell_test?sslmode=disable
+        run: go test -race -count=1 -tags=dbintegration ./integration/patch
+
   client:
     name: Client — typecheck, lint, test, build
     runs-on: ubuntu-latest

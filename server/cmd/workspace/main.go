@@ -22,6 +22,7 @@ import (
 	"inkwell/server/pkg/database"
 	workspacepb "inkwell/server/pkg/grpc/workspace"
 	"inkwell/server/pkg/grpclimits"
+	"inkwell/server/pkg/grpcmeta"
 )
 
 func main() {
@@ -64,7 +65,7 @@ func main() {
 	svc := service.NewWorkspaceService(repo)
 	h := handler.NewWorkspaceHandler(svc)
 
-	grpcServer := grpc.NewServer(append(grpclimits.ServerOptions(), grpc.UnaryInterceptor(loggingInterceptor))...)
+	grpcServer := grpc.NewServer(append(grpclimits.ServerOptions(), grpc.UnaryInterceptor(grpcmeta.ServerInterceptor("workspace")))...)
 	workspacepb.RegisterWorkspaceServiceServer(grpcServer, h)
 	reflection.Register(grpcServer)
 
