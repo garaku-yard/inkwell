@@ -36,6 +36,7 @@ func NewBillingHandler(clients *grpcclient.Registry) *BillingHandler {
 type tierLimitsDTO struct {
 	MaxProjects                int64 `json:"maxProjects"`
 	MaxCollaboratorsPerProject int64 `json:"maxCollaboratorsPerProject"`
+	MaxAITokensPerMonth        int64 `json:"maxAiTokensPerMonth"`
 	BusinessWorkspaces         bool  `json:"businessWorkspaces"`
 }
 
@@ -86,6 +87,7 @@ func protoTierToDTO(t *billingpb.SubscriptionTier) tierDTO {
 		Limits: tierLimitsDTO{
 			MaxProjects:                limitOr("max_projects", -1),
 			MaxCollaboratorsPerProject: limitOr("max_collaborators_per_project", -1),
+			MaxAITokensPerMonth:        limitOr("max_ai_tokens_per_month", -1),
 			BusinessWorkspaces:         limitOr("business_workspaces", 0) == 1,
 		},
 		FeatureBullets: bullets,
@@ -111,6 +113,7 @@ func dtoToProtoTier(d *tierDTO) *billingpb.SubscriptionTier {
 		Limits: map[string]int64{
 			"max_projects":                  d.Limits.MaxProjects,
 			"max_collaborators_per_project": d.Limits.MaxCollaboratorsPerProject,
+			"max_ai_tokens_per_month":       d.Limits.MaxAITokensPerMonth,
 			"business_workspaces":           bw,
 		},
 		FeatureBullets: d.FeatureBullets,

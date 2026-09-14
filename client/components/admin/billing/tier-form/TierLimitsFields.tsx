@@ -31,6 +31,14 @@ export function TierLimitsFields({ form, update }: Props) {
         onValue={(v) => update({ maxCollaborators: v })}
         onUnlimited={(v) => update({ maxCollaboratorsUnlimited: v })}
       />
+      <CapRow
+        id="max-ai-tokens"
+        label="Managed AI tokens per month"
+        value={form.maxAiTokens}
+        unlimited={form.maxAiTokensUnlimited}
+        onValue={(v) => update({ maxAiTokens: v })}
+        onUnlimited={(v) => update({ maxAiTokensUnlimited: v })}
+      />
 
       <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
         <div>

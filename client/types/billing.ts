@@ -48,6 +48,8 @@ export interface SubscriptionTier {
   limits: {
     maxProjects: number
     maxCollaboratorsPerProject: number
+    /** Monthly managed-AI token allowance; -1 means unlimited. */
+    maxAiTokensPerMonth: number
     businessWorkspaces: boolean
   }
   /** Marketing bullet list shown on the pricing page (display only). */

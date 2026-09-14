@@ -167,6 +167,14 @@ export function TiersManagement() {
                                 : tier.limits.maxCollaboratorsPerProject}
                             </span>
                           </div>
+                          <div>
+                            <span className="text-gray-500">AI tokens:</span>{" "}
+                            <span className="font-medium">
+                              {tier.limits.maxAiTokensPerMonth < 0
+                                ? "∞"
+                                : tier.limits.maxAiTokensPerMonth.toLocaleString()}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       <div className="flex gap-2">

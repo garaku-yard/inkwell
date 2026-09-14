@@ -18,6 +18,8 @@ export interface TierFormState {
   maxProjectsUnlimited: boolean
   maxCollaborators: string
   maxCollaboratorsUnlimited: boolean
+  maxAiTokens: string
+  maxAiTokensUnlimited: boolean
   businessWorkspaces: boolean
   featureBullets: string[]
 }
@@ -36,6 +38,8 @@ function blank(): TierFormState {
     maxProjectsUnlimited: false,
     maxCollaborators: "1",
     maxCollaboratorsUnlimited: false,
+    maxAiTokens: "50000",
+    maxAiTokensUnlimited: false,
     businessWorkspaces: false,
     featureBullets: [],
   }
@@ -56,6 +60,8 @@ function fromTier(t: SubscriptionTier): TierFormState {
     maxProjectsUnlimited: t.limits.maxProjects < 0,
     maxCollaborators: cap(t.limits.maxCollaboratorsPerProject, "1"),
     maxCollaboratorsUnlimited: t.limits.maxCollaboratorsPerProject < 0,
+    maxAiTokens: cap(t.limits.maxAiTokensPerMonth, "50000"),
+    maxAiTokensUnlimited: t.limits.maxAiTokensPerMonth < 0,
     businessWorkspaces: t.limits.businessWorkspaces,
     featureBullets: t.featureBullets ?? [],
   }
@@ -94,6 +100,7 @@ export function useTierForm(tier: SubscriptionTier | null) {
       limits: {
         maxProjects: toCap(form.maxProjects, form.maxProjectsUnlimited),
         maxCollaboratorsPerProject: toCap(form.maxCollaborators, form.maxCollaboratorsUnlimited),
+        maxAiTokensPerMonth: toCap(form.maxAiTokens, form.maxAiTokensUnlimited),
         businessWorkspaces: form.businessWorkspaces,
       },
       featureBullets: form.featureBullets.map((b) => b.trim()).filter(Boolean),
