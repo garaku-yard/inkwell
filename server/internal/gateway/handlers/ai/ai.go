@@ -206,7 +206,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		if req.Category == "interactive_fiction" {
 			resource = "passage (represented as a scene by the tools)"
 		}
-		instruction := fmt.Sprintf("The user is editing %s id %s. When their request refers to this, the current, selected, or visible %s, use that id; do not ask them for an id or URL. This is an editor assistant: when the user provides a creative direction, continuation, revision, or style request with clear writing intent, apply it to the selected writing using the appropriate tool. Ask a question only when the intent is genuinely ambiguous. Never expose internal IDs in the prose response.", resource, req.ActiveSceneID, resource)
+		instruction := fmt.Sprintf("The user is editing %s id %s. When their request refers to this, the current, selected, or visible %s, use that id; do not ask them for an id or URL. Conversation is the default: questions, brainstorming, critique, suggestions, and phrases such as 'what could I add?' must receive a normal conversational answer without a mutation tool. Use a write tool only when the user explicitly asks to change the manuscript, for example add/write/apply/insert this, rename it, replace it, or delete it. A write tool creates an approval proposal; it never means the change is already accepted. Never expose internal IDs in the prose response.", resource, req.ActiveSceneID, resource)
 		messages = append([]aiadapter.Message{{Role: "system", Content: instruction}}, messages...)
 	}
 	input := aiadapter.Input{Messages: messages, Model: model, APIKey: apiKey, BaseURL: baseURL, Tools: hostedTools(req.ProjectID, h.approvals != nil)}
