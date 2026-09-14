@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/application/scriptreads"
 	"inkwell/server/internal/gateway/application/scriptwrites"
@@ -17,6 +18,7 @@ import (
 	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
+	"inkwell/server/internal/gateway/handlers/ai/approval"
 	"inkwell/server/pkg/aiadapter"
 	aisettingspb "inkwell/server/pkg/grpc/aisettings"
 	billingpb "inkwell/server/pkg/grpc/billing"
@@ -43,13 +45,14 @@ type AIHandler struct {
 	writes                *scriptwrites.Writer
 	adapterFor            func(aiadapter.ProviderKind) (aiadapter.Adapter, error)
 	executeTool           func(context.Context, string, string, aiadapter.ToolCall) string
+	approvals             approval.Store
 }
 
 // NewAIHandler wires the chat handler to the ai-settings + billing gRPC clients,
 // the operator-supplied openai_compatible host allowlist, and the managed AI
 // provider keys. The clients registry is taken as input instead of assembled
 // locally so test doubles can be injected.
-func NewAIHandler(cfg *config.Config, clients *grpcclient.Registry) (*AIHandler, error) {
+func NewAIHandler(cfg *config.Config, clients *grpcclient.Registry, redisClient *redis.Client) (*AIHandler, error) {
 	return &AIHandler{
 		aiSettings:            clients.AISettings,
 		billing:               clients.Billing,
@@ -58,6 +61,7 @@ func NewAIHandler(cfg *config.Config, clients *grpcclient.Registry) (*AIHandler,
 		reads:                 scriptreads.New(clients.Scripts, clients.Collab, clients.Workspace),
 		writes:                scriptwrites.New(clients.Scripts, clients.Collab, clients.Workspace),
 		adapterFor:            aiadapter.Get,
+		approvals:             approval.NewRedisStore(redisClient),
 	}, nil
 }
 
@@ -195,7 +199,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	for i, m := range req.Messages {
 		messages[i] = aiadapter.Message{Role: m.Role, Content: m.Content}
 	}
-	input := aiadapter.Input{Messages: messages, Model: model, APIKey: apiKey, BaseURL: baseURL, Tools: hostedTools(req.ProjectID)}
+	input := aiadapter.Input{Messages: messages, Model: model, APIKey: apiKey, BaseURL: baseURL, Tools: hostedTools(req.ProjectID, h.approvals != nil)}
 	firstStream, err := adapter.StreamChat(r.Context(), input)
 	if err != nil {
 		log.Printf("ai dispatch error (kind=%s): %v", kind, err)
@@ -215,7 +219,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.WriteHeader(http.StatusOK)
 
-	h.runToolLoop(r.Context(), w, flusher, adapter, input, firstStream, userID, req.ProjectID, managed)
+	h.runToolLoop(r.Context(), w, flusher, adapter, input, firstStream, userID, req.ProjectID, req.ProviderID, managed)
 }
 
 // overManagedQuota reports whether the user has exhausted their tier's monthly

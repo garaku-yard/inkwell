@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/redis/go-redis/v9"
 )
 
 // SetupRouter creates and configures the HTTP router, connecting all middleware,
@@ -110,7 +111,11 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 	workspaceHandler := workspace.NewWorkspaceHandler(clients)
 	billingHandler := billing.NewBillingHandler(clients)
 
-	aiHandler, err := ai.NewAIHandler(cfg, clients)
+	var aiRedis *redis.Client
+	if redisClient != nil {
+		aiRedis = redisClient.Raw()
+	}
+	aiHandler, err := ai.NewAIHandler(cfg, clients, aiRedis)
 	if err != nil {
 		return nil, err
 	}
@@ -321,6 +326,7 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 			// AI — chat goes through the per-user limiter because provider
 			// bills accrue per account, not per IP.
 			r.Post("/ai/chat", aiLimit(aiHandler.Chat))
+			r.Post("/ai/approvals/{checkpointId}", aiLimit(aiHandler.DecideApproval))
 			// Managed AI providers offered by this deployment (Inkwell-keyed).
 			r.Get("/ai/managed", aiHandler.ManagedProviders)
 

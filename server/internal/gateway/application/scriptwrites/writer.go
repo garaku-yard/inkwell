@@ -126,3 +126,33 @@ func (w *Writer) AddBeat(ctx context.Context, userID, projectID string, in AddBe
 	}
 	return r.Beat, nil
 }
+
+func (w *Writer) RewriteScene(ctx context.Context, userID, projectID, sceneID, content string) (*scriptspb.Scene, error) {
+	role, err := w.sceneRole(ctx, userID, projectID, sceneID)
+	if err != nil {
+		return nil, err
+	}
+	r, err := w.scripts.UpdateScene(ctx, &scriptspb.UpdateSceneRequest{SceneId: sceneID, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role), Content: &content})
+	if err != nil {
+		return nil, err
+	}
+	return r.Scene, nil
+}
+func (w *Writer) DeleteScene(ctx context.Context, userID, projectID, sceneID string) (*scriptreads.SceneContent, error) {
+	before, err := w.reads.ReadScene(ctx, userID, projectID, sceneID)
+	if err != nil {
+		return nil, err
+	}
+	if before.Scene == nil {
+		return nil, errors.New("scene not found")
+	}
+	role, err := w.sceneRole(ctx, userID, projectID, sceneID)
+	if err != nil {
+		return nil, err
+	}
+	_, err = w.scripts.DeleteScene(ctx, &scriptspb.DeleteSceneRequest{SceneId: sceneID, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role)})
+	if err != nil {
+		return nil, err
+	}
+	return before, nil
+}

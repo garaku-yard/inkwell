@@ -39,9 +39,9 @@ const (
 type Message struct {
 	Role       string     `json:"role"`
 	Content    string     `json:"content"`
-	ToolCalls  []ToolCall `json:"-"`
-	ToolCallID string     `json:"-"`
-	Name       string     `json:"-"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+	Name       string     `json:"name,omitempty"`
 }
 
 type Tool struct {
@@ -50,7 +50,11 @@ type Tool struct {
 	Parameters  map[string]any
 }
 
-type ToolCall struct{ ID, Name, Arguments string }
+type ToolCall struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
 
 // Input carries everything an adapter needs to open a streaming chat.
 type Input struct {

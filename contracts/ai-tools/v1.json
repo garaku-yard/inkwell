@@ -55,6 +55,16 @@
       "name": "rename_scene", "description": "Rename a scene in the project this conversation is open on.",
       "parameters": {"type":"object","properties":{"scene_id":{"type":"string"},"scene_heading":{"type":"string"}},"required":["scene_id","scene_heading"]},
       "scope":"project", "mutation":"write", "surfaces":["hosted"]
+    },
+    {
+      "name":"rewrite_scene", "description":"Replace the complete content of a scene. This requires explicit user approval before execution.",
+      "parameters":{"type":"object","properties":{"scene_id":{"type":"string"},"content":{"type":"string"}},"required":["scene_id","content"]},
+      "scope":"project", "mutation":"destructive", "surfaces":["hosted"]
+    },
+    {
+      "name":"delete_scene", "description":"Delete a scene and its content. This requires explicit user approval before execution.",
+      "parameters":{"type":"object","properties":{"scene_id":{"type":"string"}},"required":["scene_id"]},
+      "scope":"project", "mutation":"destructive", "surfaces":["hosted"]
     }
   ]
 }

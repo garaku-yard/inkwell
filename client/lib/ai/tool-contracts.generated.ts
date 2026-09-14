@@ -149,6 +149,40 @@ export const SHARED_TOOL_CONTRACTS: Record<string, ToolSpec> = {
         "scene_heading"
       ]
     }
+  },
+  "rewrite_scene": {
+    "name": "rewrite_scene",
+    "description": "Replace the complete content of a scene. This requires explicit user approval before execution.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "scene_id": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scene_id",
+        "content"
+      ]
+    }
+  },
+  "delete_scene": {
+    "name": "delete_scene",
+    "description": "Delete a scene and its content. This requires explicit user approval before execution.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "scene_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scene_id"
+      ]
+    }
   }
 }
 

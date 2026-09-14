@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"inkwell/server/internal/gateway/application/scriptwrites"
+	"inkwell/server/internal/gateway/handlers/ai/approval"
 	"inkwell/server/internal/gateway/toolcontracts"
 	"inkwell/server/pkg/aiadapter"
 	"inkwell/server/pkg/grpcmeta"
@@ -18,10 +19,13 @@ import (
 
 const maxHostedToolIterations = 4
 
-func hostedTools(projectID string) []aiadapter.Tool {
+func hostedTools(projectID string, destructive bool) []aiadapter.Tool {
 	names := []string{"list_projects", "create_project"}
 	if projectID != "" {
 		names = append(names, "list_scenes", "read_scene", "create_scene", "append_to_scene", "add_beat", "rename_scene")
+		if destructive {
+			names = append(names, "rewrite_scene", "delete_scene")
+		}
 	}
 	out := make([]aiadapter.Tool, 0, len(names))
 	for _, name := range names {
@@ -34,7 +38,7 @@ func hostedTools(projectID string) []aiadapter.Tool {
 	return out
 }
 
-func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.Flusher, adapter aiadapter.Adapter, input aiadapter.Input, stream aiadapter.Stream, userID, projectID string, managed bool) {
+func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.Flusher, adapter aiadapter.Adapter, input aiadapter.Input, stream aiadapter.Stream, userID, projectID, providerID string, managed bool) {
 	encoder := json.NewEncoder(w)
 	totalTokens := 0
 	toolResults := map[string]string{}
@@ -81,6 +85,30 @@ func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.F
 		}
 		input.Messages = append(input.Messages, aiadapter.Message{Role: "assistant", Content: assistantText, ToolCalls: calls})
 		for _, call := range calls {
+			if call.Name == "rewrite_scene" || call.Name == "delete_scene" {
+				if h.approvals == nil {
+					_ = encoder.Encode(map[string]string{"error": "destructive tools are unavailable"})
+					flusher.Flush()
+					return
+				}
+				var normalized any
+				if json.Unmarshal([]byte(call.Arguments), &normalized) != nil {
+					_ = encoder.Encode(map[string]string{"error": "invalid destructive tool arguments"})
+					flusher.Flush()
+					return
+				}
+				args, _ := json.Marshal(normalized)
+				call.Arguments = string(args)
+				checkpoint, err := h.approvals.Create(ctx, approval.Checkpoint{UserID: userID, ProjectID: projectID, Tool: call, Messages: input.Messages, Model: input.Model, ProviderID: providerID, CorrelationID: grpcmeta.CorrelationID(ctx)}, 15*time.Minute)
+				if err != nil {
+					_ = encoder.Encode(map[string]string{"error": "approval service unavailable"})
+					flusher.Flush()
+					return
+				}
+				_ = encoder.Encode(map[string]any{"approval_required": map[string]any{"checkpoint_id": checkpoint.ID, "tool": call.Name, "arguments": json.RawMessage(call.Arguments), "expires_at": checkpoint.ExpiresAt}, "done": true})
+				flusher.Flush()
+				return
+			}
 			started := time.Now()
 			result, ok := toolResults[call.ID]
 			if !ok || call.ID == "" {
