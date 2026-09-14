@@ -6,12 +6,12 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"inkwell/server/internal/gateway/apierror"
+	"inkwell/server/internal/gateway/application/scriptreads"
 	"inkwell/server/internal/gateway/grpcclient"
 	"inkwell/server/internal/gateway/handlers"
 	"inkwell/server/pkg/grpc/collab"
@@ -28,6 +28,10 @@ type ScriptsHandler struct {
 	scriptsClient   scriptspb.ScriptsServiceClient
 	collabClient    collab.CollaborationServiceClient
 	workspaceClient workspacepb.WorkspaceServiceClient
+}
+
+func (h *ScriptsHandler) reads() *scriptreads.Reader {
+	return scriptreads.New(h.scriptsClient, h.collabClient, h.workspaceClient)
 }
 
 // NewScriptsHandler creates a ScriptsHandler using the gRPC clients in the
@@ -47,18 +51,7 @@ func NewScriptsHandler(clients *grpcclient.Registry) *ScriptsHandler {
 // site checks handlers.RequireProjectRole's error first, and Can() never
 // permits an action for RoleNone.
 func callerRoleToProto(role handlers.ProjectRole) scriptspb.CallerRole {
-	switch role {
-	case handlers.RoleOwner:
-		return scriptspb.CallerRole_CALLER_ROLE_OWNER
-	case handlers.RoleOrgAdmin:
-		return scriptspb.CallerRole_CALLER_ROLE_ORG_ADMIN
-	case handlers.RoleEditor:
-		return scriptspb.CallerRole_CALLER_ROLE_EDITOR
-	case handlers.RoleViewer:
-		return scriptspb.CallerRole_CALLER_ROLE_VIEWER
-	default:
-		return scriptspb.CallerRole_CALLER_ROLE_UNSPECIFIED
-	}
+	return handlers.ScriptsCallerRole(role)
 }
 
 // CreateProject creates a new writing project. scripts.projects.owner_id is
@@ -302,54 +295,15 @@ func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request)
 				}
 			}
 
-			// Call Scripts service
-			resp, err := h.scriptsClient.GetUserProjects(r.Context(), &scriptspb.GetUserProjectsRequest{
-				UserId: userID,
-				Pagination: &common.PaginationRequest{
-					Page:  page,
-					Limit: limit,
-				},
-			})
+			resp, err := h.reads().ListOwnedProjects(r.Context(), userID, page, limit)
 			if err != nil {
 				return nil, err
-			}
-
-			// Fetch collaborator counts for all projects in parallel (one gRPC call per project).
-			// This keeps N+1 within the backend (cheap intra-datacenter gRPC) rather than
-			// forcing the frontend to make N separate HTTP calls.
-			type countResult struct {
-				index int
-				count int
-			}
-			counts := make([]int, len(resp.Projects))
-			resultCh := make(chan countResult, len(resp.Projects))
-			var wg sync.WaitGroup
-			for i, p := range resp.Projects {
-				wg.Add(1)
-				go func(idx int, projectID string) {
-					defer wg.Done()
-					collabResp, err := h.collabClient.GetProjectCollaborators(r.Context(), &collab.GetProjectCollaboratorsRequest{
-						ProjectId:  projectID,
-						UserId:     userID,
-						CallerRole: collab.CallerRole_CALLER_ROLE_VIEWER,
-					})
-					if err != nil {
-						resultCh <- countResult{index: idx, count: 0}
-						return
-					}
-					resultCh <- countResult{index: idx, count: len(collabResp.Collaborators)}
-				}(i, p.Id)
-			}
-			wg.Wait()
-			close(resultCh)
-			for cr := range resultCh {
-				counts[cr.index] = cr.count
 			}
 
 			projects := make([]map[string]interface{}, len(resp.Projects))
 			for i, project := range resp.Projects {
 				p := convertProjectFromProto(project)
-				p["collaborator_count"] = counts[i]
+				p["collaborator_count"] = resp.CollaboratorCounts[i]
 				projects[i] = p
 			}
 
@@ -516,23 +470,18 @@ func (h *ScriptsHandler) GetProjectScenes(w http.ResponseWriter, r *http.Request
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			role, authErr := handlers.RequireProjectRole(ctx, userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
-			if authErr != nil {
-				return nil, authErr
-			}
-
-			response, err := h.scriptsClient.GetProjectScenes(ctx, &scriptspb.GetProjectScenesRequest{
-				ProjectId:  projectID,
-				UserId:     userID,
-				CallerRole: callerRoleToProto(role),
-			})
+			response, err := h.reads().ListScenes(ctx, userID, projectID)
 
 			if err != nil {
+				var authErr *apierror.Error
+				if errors.As(err, &authErr) {
+					return nil, err
+				}
 				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to get scenes")
 			}
 
-			scenes := make([]map[string]interface{}, len(response.Scenes))
-			for i, scene := range response.Scenes {
+			scenes := make([]map[string]interface{}, len(response))
+			for i, scene := range response {
 				scenes[i] = convertSceneFromProto(scene)
 			}
 
@@ -814,22 +763,17 @@ func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request
 			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
-			role, authErr := h.authorizeResource(ctx, userID, scriptspb.ResourceType_RESOURCE_TYPE_SCENE, sceneID, handlers.ActionRead)
-			if authErr != nil {
-				return nil, authErr
-			}
-
-			response, err := h.scriptsClient.GetSceneElements(ctx, &scriptspb.GetSceneElementsRequest{
-				SceneId:    sceneID,
-				UserId:     userID,
-				CallerRole: callerRoleToProto(role),
-			})
+			response, err := h.reads().ListSceneElements(ctx, userID, sceneID)
 			if err != nil {
+				var authErr *apierror.Error
+				if errors.As(err, &authErr) {
+					return nil, err
+				}
 				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to get elements")
 			}
 
-			elements := make([]map[string]interface{}, len(response.Elements))
-			for i, element := range response.Elements {
+			elements := make([]map[string]interface{}, len(response))
+			for i, element := range response {
 				elements[i] = convertElementFromProto(element)
 			}
 

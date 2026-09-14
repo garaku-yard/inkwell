@@ -30,6 +30,9 @@ jobs:
       - name: Download modules
         run: go mod download
 
+      - name: Shared AI tool contract drift
+        run: node ../scripts/generate-tool-contracts.mjs --check
+
       - name: Format check
         run: test -z "$(gofmt -l .)" || { echo 'gofmt found unformatted files:'; gofmt -l .; exit 1; }
 

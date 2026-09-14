@@ -1,4 +1,5 @@
 import type { Project } from "@/services/project"
+import { sharedToolSpec } from "@/lib/ai/tool-contracts.generated"
 
 import { organizations } from "../organizations"
 import { projects } from "../projects"
@@ -27,14 +28,7 @@ function line(project: Project, owner: string): string {
  *  rather than an error that hides the projects this device can see perfectly
  *  well. */
 export const listProjects: ToolEntry = {
-  spec: {
-    name: "list_projects",
-    description:
-      "List the writer's projects: title, format, status and id for each. Use " +
-      "it to answer questions about their body of work, or to find the id of " +
-      "a project you need to act on.",
-    parameters: { type: "object", properties: {}, required: [] },
-  },
+  spec: sharedToolSpec("list_projects"),
   scope: "account",
   mutates: false,
   label: () => "Listing projects",

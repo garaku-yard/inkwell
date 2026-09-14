@@ -1,18 +1,12 @@
 import { scenes } from "../scenes"
+import { sharedToolSpec } from "@/lib/ai/tool-contracts.generated"
 import { LOCAL_USER_ID } from "../shared"
 import type { ToolEntry } from "./types"
 
 /** The index of the open project: what scenes exist, in reading order, and
  *  the ids the other scene tools need. */
 export const listScenes: ToolEntry = {
-  spec: {
-    name: "list_scenes",
-    description:
-      "List the scenes of the project this conversation is open on, in " +
-      "reading order, with the id needed to read one. Call this first when " +
-      "you need a scene id, or to get your bearings in the manuscript.",
-    parameters: { type: "object", properties: {}, required: [] },
-  },
+  spec: sharedToolSpec("list_scenes"),
   mutates: false,
   label: () => "Listing scenes",
   async run(_args, ctx) {

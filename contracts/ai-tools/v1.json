@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "name": "list_projects",
+      "description": "List the writer's projects: title, format, status and id for each. Use it to answer questions about their body of work, or to find the id of a project you need to act on.",
+      "parameters": { "type": "object", "properties": {}, "required": [] },
+      "scope": "account",
+      "mutation": "read",
+      "surfaces": ["desktop", "hosted"]
+    },
+    {
+      "name": "list_scenes",
+      "description": "List the scenes of the project this conversation is open on, in reading order, with the id needed to read one. Call this first when you need a scene id, or to get your bearings in the manuscript.",
+      "parameters": { "type": "object", "properties": {}, "required": [] },
+      "scope": "project",
+      "mutation": "read",
+      "surfaces": ["desktop", "hosted"]
+    },
+    {
+      "name": "read_scene",
+      "description": "Read one scene of the project this conversation is open on, in full. Each line is prefixed with its element type — [paragraph], [dialogue], [action], [character] and so on — so you can see the shape of the writing and not only its words. Scene ids come from list_scenes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scene_id": { "type": "string", "description": "The scene's id, as returned by list_scenes." }
+        },
+        "required": ["scene_id"]
+      },
+      "scope": "project",
+      "mutation": "read",
+      "surfaces": ["desktop", "hosted"]
+    }
+  ]
+}
