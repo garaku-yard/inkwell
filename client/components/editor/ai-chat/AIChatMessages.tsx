@@ -1,17 +1,21 @@
 import { forwardRef } from "react"
 import Link from "next/link"
 import { AlertCircle, Bot, Check } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 
 import type { ChatMessage } from "./useAIChatStream"
+import { extractChatChoices } from "./choices"
 
 interface AIChatMessagesProps {
   messages: ChatMessage[]
   isTyping: boolean
   showEmptyState: boolean
   onApprovalDecision: (messageId: string, checkpointId: string, tool: string, args: Record<string, unknown>, decision: "approve" | "deny") => void
+  onQuickReply: (content: string) => void
   category?: string
 }
 
@@ -21,7 +25,7 @@ interface AIChatMessagesProps {
  *  or glow), so the panel has character without breaking the calm register of
  *  the editor canvas. The ref is the bottom anchor for scroll-into-view. */
 export const AIChatMessages = forwardRef<HTMLDivElement, AIChatMessagesProps>(
-  function AIChatMessages({ messages, isTyping, showEmptyState, onApprovalDecision, category }, anchorRef) {
+  function AIChatMessages({ messages, isTyping, showEmptyState, onApprovalDecision, onQuickReply, category }, anchorRef) {
     // The stream adds an empty assistant message up front and keeps isTyping
     // true for the whole reply. Show the standalone dots ONLY while we're still
     // waiting for the first token; once text starts streaming, the growing
@@ -56,7 +60,7 @@ export const AIChatMessages = forwardRef<HTMLDivElement, AIChatMessagesProps>(
             messages.map((message) =>
               // Hide the empty assistant placeholder — the dots stand in for it.
               message.type === "ai" && message.content === "" && !message.error && !message.activities?.length ? null : (
-                <MessageBubble key={message.id} message={message} category={category} onApprovalDecision={onApprovalDecision} />
+                <MessageBubble key={message.id} message={message} category={category} onApprovalDecision={onApprovalDecision} onQuickReply={onQuickReply} showChoices={!isTyping || message.id !== last?.id} />
               ),
             )
           )}
@@ -90,7 +94,7 @@ function Timestamp({ at }: { at: Date }) {
   )
 }
 
-function MessageBubble({ message, onApprovalDecision, category }: { message: ChatMessage; onApprovalDecision: AIChatMessagesProps["onApprovalDecision"]; category?: string }) {
+function MessageBubble({ message, onApprovalDecision, onQuickReply, showChoices, category }: { message: ChatMessage; onApprovalDecision: AIChatMessagesProps["onApprovalDecision"]; onQuickReply: AIChatMessagesProps["onQuickReply"]; showChoices: boolean; category?: string }) {
   if (message.type === "user") {
     return (
       <div className="flex flex-col items-end gap-1">
@@ -101,6 +105,9 @@ function MessageBubble({ message, onApprovalDecision, category }: { message: Cha
       </div>
     )
   }
+  const choices = showChoices && !message.error && !message.approval
+    ? extractChatChoices(message.content)
+    : []
   return (
     <div className="flex gap-2.5">
       <BuddyMark error={message.error} />
@@ -120,7 +127,34 @@ function MessageBubble({ message, onApprovalDecision, category }: { message: Cha
               : "bg-muted text-foreground",
           )}
         >
-          {message.content}
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+              ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
+              ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
+              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+              code: ({ children }) => <code className="rounded bg-background/70 px-1 py-0.5 font-mono text-xs">{children}</code>,
+              a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2">{children}</a>,
+            }}
+          >
+            {message.content}
+          </ReactMarkdown>
+          {choices.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-3" aria-label="Suggested replies">
+              {choices.map((choice) => (
+                <button
+                  key={`${choice.key}-${choice.label}`}
+                  type="button"
+                  className="rounded-md border bg-background px-3 py-2 text-left text-xs transition-colors hover:border-primary hover:bg-primary/5"
+                  onClick={() => onQuickReply(`I choose ${choice.key}: ${choice.label}`)}
+                >
+                  <span className="mr-1.5 font-semibold text-primary">{choice.key}.</span>
+                  {choice.label}
+                </button>
+              ))}
+            </div>
+          )}
           {message.approval && (
             <div className="mt-3 border-t border-border/60 pt-3">
               <p className="mb-2 text-xs text-muted-foreground">

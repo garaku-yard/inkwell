@@ -124,6 +124,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId, c
           isTyping={isTyping}
           showEmptyState={showEmptyState}
           onApprovalDecision={(messageId, checkpointId, tool, args, decision) => void decideApproval(messageId, checkpointId, tool, args, decision)}
+          onQuickReply={(content) => void sendMessage(content, messages)}
           category={category}
         />
         <AIChatComposer
