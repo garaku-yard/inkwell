@@ -104,3 +104,10 @@ func TestCheckPermission(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateRoleRejectsProjectOwnerProjection(t *testing.T) {
+	svc := NewCollaborationService(nil, roleStubRepo{}, nil, nil)
+	if err := svc.ValidateRole("owner"); !errors.Is(err, domain.ErrInvalidRole) {
+		t.Fatalf("ValidateRole(owner) = %v, want ErrInvalidRole", err)
+	}
+}

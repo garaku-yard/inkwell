@@ -774,7 +774,7 @@ func (x *AddCollaboratorResponse) GetCollaborator() *Collaborator {
 	return nil
 }
 
-// Direct collaborator addition by user ID (for owners, bypasses invitation system)
+// Direct non-owner collaborator addition by user ID (bypasses invitation system)
 type AddCollaboratorDirectRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
@@ -1143,13 +1143,13 @@ func (x *GetProjectSeatUsageRequest) GetProjectId() string {
 }
 
 // GetProjectSeatUsageResponse reports how many collaborator "seats" a project is
-// currently consuming, split by source. A seat is held by every non-owner
+// currently consuming, split by source. A seat is held by every
 // collaborator that has not been removed, plus every outstanding (unaccepted,
 // unexpired) email invitation. The gateway sums these against the project
 // owner's billing tier to enforce the per-project collaborator cap.
 type GetProjectSeatUsageResponse struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
-	ActiveCollaborators int32                  `protobuf:"varint,1,opt,name=active_collaborators,json=activeCollaborators,proto3" json:"active_collaborators,omitempty"` // non-owner collaborator rows not in the "removed" state
+	ActiveCollaborators int32                  `protobuf:"varint,1,opt,name=active_collaborators,json=activeCollaborators,proto3" json:"active_collaborators,omitempty"` // collaborator rows not in the "removed" state
 	PendingInvitations  int32                  `protobuf:"varint,2,opt,name=pending_invitations,json=pendingInvitations,proto3" json:"pending_invitations,omitempty"`    // outstanding email invitations (accepted = false, not expired)
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache

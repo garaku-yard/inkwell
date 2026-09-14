@@ -84,6 +84,15 @@ func (h *CollaborationHandler) authorizeCollabResource(ctx context.Context, user
 	if err != nil {
 		return handlers.RoleNone, err
 	}
+	if resourceType == collab.ResourceType_RESOURCE_TYPE_COLLABORATOR {
+		metadata, err := h.scriptsClient.GetProjectAccessMetadata(ctx, &scripts.GetProjectAccessMetadataRequest{ProjectId: resp.ProjectId})
+		if err != nil {
+			return handlers.RoleNone, apierror.FromError(err)
+		}
+		if resp.OwnerUserId != "" && resp.OwnerUserId == metadata.OwnerId {
+			return handlers.RoleNone, apierror.New(apierror.CodeFailedPrecondition, http.StatusUnprocessableEntity, "the project owner cannot be removed or reassigned")
+		}
+	}
 	return handlers.RequireProjectRole(ctx, userID, resp.ProjectId, action, h.scriptsClient, h.client, h.workspaceClient)
 }
 
@@ -282,11 +291,28 @@ func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r 
 			if err != nil {
 				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to get collaborators")
 			}
+			metadata, err := h.scriptsClient.GetProjectAccessMetadata(ctx, &scripts.GetProjectAccessMetadataRequest{ProjectId: projectID})
+			if err != nil {
+				return nil, apierror.FromError(err)
+			}
+			// Ownership is synthesized from scripts, its sole authority. Ignore
+			// any legacy owner projection while rolling through migration 000004.
+			members := make([]*collab.Collaborator, 0, len(resp.Collaborators)+1)
+			if metadata.OwnerId != "" {
+				members = append(members, &collab.Collaborator{
+					ProjectId: projectID, UserId: metadata.OwnerId, Role: "owner", Status: "active", InvitedBy: metadata.OwnerId,
+				})
+			}
+			for _, member := range resp.Collaborators {
+				if member.Role != "owner" {
+					members = append(members, member)
+				}
+			}
 
 			// Convert response to JSON and lookup user details
 			// Initialize as empty slice to ensure JSON encodes as [] not null
 			collaborators := make([]map[string]interface{}, 0)
-			for _, collab := range resp.Collaborators {
+			for _, collab := range members {
 				collaboratorData := map[string]interface{}{
 					"id":         collab.Id,
 					"project_id": collab.ProjectId,

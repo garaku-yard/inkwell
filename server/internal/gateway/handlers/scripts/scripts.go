@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"sync"
@@ -62,12 +61,8 @@ func callerRoleToProto(role handlers.ProjectRole) scriptspb.CallerRole {
 	}
 }
 
-// CreateProject creates a new writing project and immediately registers its
-// creator as an "owner" collaborator in the collab service. The owner is
-// always the authenticated caller — client-supplied owner fields are ignored
-// so a signed-in user cannot mint projects owned by someone else. If the
-// collab call fails the project is still returned; the error is logged but
-// not surfaced to the client.
+// CreateProject creates a new writing project. scripts.projects.owner_id is
+// the sole ownership record; collab stores only non-owner collaborators.
 type createProjectBody struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
@@ -87,7 +82,7 @@ type createProjectResponse struct {
 // Reference implementation for the Wrap[Req, Resp] generic: all boilerplate
 // (method guard, JSON decode, auth, error envelope, response writer) lives in
 // the Endpoint declaration; the Handle closure carries only business logic —
-// field validation, the gRPC call, and the owner-as-collaborator side effect.
+// field validation and the gRPC call.
 func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[createProjectBody, createProjectResponse]{
 		Method:        http.MethodPost,
@@ -117,18 +112,6 @@ func (h *ScriptsHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 			})
 			if err != nil {
 				return nil, err
-			}
-
-			// Register the owner as a collaborator with the "owner" role so they
-			// appear in collaborator listings. Failures are logged but non-fatal —
-			// the project itself already committed.
-			if _, err := h.collabClient.AddCollaboratorDirect(r.Context(), &collab.AddCollaboratorDirectRequest{
-				ProjectId: resp.Project.Id,
-				UserId:    userID,
-				InviterId: userID,
-				Role:      "owner",
-			}); err != nil {
-				slog.Warn("failed to register owner as collaborator", "user_id", userID, "project_id", resp.Project.Id, "error", err)
 			}
 
 			return &createProjectResponse{Project: convertProjectFromProto(resp.Project)}, nil

@@ -12,6 +12,7 @@ import (
 
 	"inkwell/server/internal/collab/config"
 	"inkwell/server/internal/collab/handlers"
+	"inkwell/server/internal/collab/projectevents"
 	"inkwell/server/internal/collab/repository"
 	"inkwell/server/internal/collab/service"
 	"inkwell/server/pkg/database"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	kafkago "github.com/segmentio/kafka-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -84,6 +86,9 @@ func main() {
 		NewPoller(outboxStore, publisher, 10*time.Second, 50).
 		WithLogger(slog.Default().With("component", "collab_outbox"))
 	go poller.Run(pollerCtx)
+	if brokers := cfg.KafkaConfig.Brokers; len(brokers) > 0 && brokers[0] != "" {
+		go runProjectEventConsumer(pollerCtx, brokers, projectevents.NewProcessor(collabService))
+	}
 
 	// Stale edit-session sweeper — closes durable advisory locks abandoned
 	// without a clean disconnect (crashed client / killed gateway). Reads
@@ -122,6 +127,44 @@ func main() {
 	poller.Wait()
 	grpcServer.GracefulStop()
 	slog.Info("collaboration service stopped")
+}
+
+// runProjectEventConsumer applies project.deleted cleanup with manual commits:
+// a message is acknowledged only after collab's idempotent local transaction
+// succeeds, so a crash or database failure causes Kafka redelivery.
+func runProjectEventConsumer(ctx context.Context, brokers []string, processor *projectevents.Processor) {
+	reader := kafkago.NewReader(kafkago.ReaderConfig{
+		Brokers: brokers,
+		Topic:   "project-events",
+		GroupID: "collab-project-cleanup",
+	})
+	defer reader.Close()
+	for {
+		message, err := reader.FetchMessage(ctx)
+		if err != nil {
+			if ctx.Err() == nil {
+				slog.Error("project event fetch failed", "error", err)
+			}
+			return
+		}
+		for {
+			if err := processor.Process(ctx, message.Value); err != nil {
+				slog.Error("project event cleanup failed; retrying before commit", "partition", message.Partition, "offset", message.Offset, "error", err)
+				timer := time.NewTimer(time.Second)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					return
+				case <-timer.C:
+					continue
+				}
+			}
+			break
+		}
+		if err := reader.CommitMessages(ctx, message); err != nil {
+			slog.Error("project event commit failed", "partition", message.Partition, "offset", message.Offset, "error", err)
+		}
+	}
 }
 
 // runEditSessionSweeper periodically closes edit sessions abandoned without a

@@ -65,14 +65,12 @@ func mapOrgRole(role string) ProjectRole {
 // RoleNone rather than guessing — silently granting access on an unknown
 // value is exactly the failure mode this policy exists to close.
 //
-// "owner" also maps to RoleNone, deliberately — never RoleOwner. Only
+// Legacy "owner" projection rows map to RoleNone — never RoleOwner. Only
 // scripts.projects.owner_id (checked by ResolveProjectRole's fast path,
 // before this function is ever reached) is authoritative for ownership per
 // 0029's authority table; a collab collaborator row is a projection of that
-// fact, not a second source of it (AddCollaboratorDirect writes one when
-// CreateProject registers the real owner, but it can go stale — collab.go's
-// own comment on that call names it as fire-and-forget, non-fatal, and
-// currently undocumented as a projection — see #362). Reaching this function
+// fact, not a second source of it. New project creation no longer writes that
+// projection; migration 000004 removes existing rows. Reaching this function
 // with role=="owner" therefore only happens when scripts has already said
 // "you are not the owner": trusting the row anyway would let a stale,
 // mistaken, or corrupt projection manufacture owner-level access —

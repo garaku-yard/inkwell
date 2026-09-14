@@ -15,6 +15,41 @@ type PostgresCollaborationRepository struct {
 	db *sql.DB
 }
 
+// DeleteProjectData removes all collaboration data owned by projectID in one
+// local transaction. Repeating it is safe and succeeds after rows are gone.
+func (r *PostgresCollaborationRepository) DeleteProjectData(ctx context.Context, projectID uuid.UUID) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	statements := []struct {
+		table string
+		sql   string
+	}{
+		{"edit_operations", `DELETE FROM edit_operations WHERE session_id IN (SELECT session_id FROM edit_sessions WHERE project_id = $1)`},
+		{"edit_sessions", `DELETE FROM edit_sessions WHERE project_id = $1`},
+		{"user_presence", `DELETE FROM user_presence WHERE project_id = $1`},
+		{"comments", `DELETE FROM comments WHERE project_id = $1`},
+		{"invitations", `DELETE FROM invitations WHERE project_id = $1`},
+		{"collaborators", `DELETE FROM collaborators WHERE project_id = $1`},
+	}
+	for _, statement := range statements {
+		var exists bool
+		if err := tx.QueryRowContext(ctx, `SELECT to_regclass($1) IS NOT NULL`, statement.table).Scan(&exists); err != nil {
+			return fmt.Errorf("check collaboration table %s: %w", statement.table, err)
+		}
+		if !exists {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, statement.sql, projectID); err != nil {
+			return fmt.Errorf("delete project collaboration data: %w", err)
+		}
+	}
+	return tx.Commit()
+}
+
 func NewPostgresCollaborationRepository(db *sql.DB) CollaborationRepository {
 	return &PostgresCollaborationRepository{db: db}
 }

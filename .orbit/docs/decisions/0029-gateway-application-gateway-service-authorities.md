@@ -88,6 +88,16 @@ target state, so the gaps below are named rather than fixed here:
 | Invitations (create/accept/revoke) | collab-owned directly, no cross-service read on the write path | n/a |
 | Notifications (in-app feed + email) | eventual · retried | Kafka outbox + poller, consumed by notifications-service, at-least-once; hardened further by #363 |
 
+### Ownership implementation status (2026-09-14)
+
+#362 chose read-time composition instead of retaining an owner projection.
+`scripts.projects.owner_id` is the only stored project-ownership fact. Project
+creation no longer calls `AddCollaboratorDirect`; collaborator-list responses
+synthesize the owner from scripts metadata and filter legacy owner rows during
+rolling deployment. Collab migration 000004 removes those rows and prevents new
+ones. Collab also consumes `project.deleted` with manual Kafka commits and
+idempotently deletes its project-scoped rows before acknowledging the event.
+
 ## Alternatives considered & why not
 
 - **Leave the "thin proxy" wording and treat the sentinel bug as one call site

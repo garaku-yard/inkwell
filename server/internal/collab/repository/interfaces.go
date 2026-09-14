@@ -12,6 +12,9 @@ import (
 
 // CollaborationRepository defines the interface for collaboration data access
 type CollaborationRepository interface {
+	// DeleteProjectData removes every collab-owned row for a deleted project.
+	// Implementations must be idempotent for event redelivery.
+	DeleteProjectData(ctx context.Context, projectID uuid.UUID) error
 	// Collaborator operations
 	CreateCollaborator(ctx context.Context, collaborator *domain.Collaborator) error
 	// CreateCollaboratorTx inserts a collaborator inside the given

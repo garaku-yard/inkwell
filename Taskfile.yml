@@ -370,6 +370,14 @@ tasks:
     cmds:
       - go test -race -count=1 -tags=boundaryintegration ./integration/...
 
+  test:boundary:db:
+    desc: Run PostgreSQL ownership boundary tests (requires COLLAB_TEST_DATABASE_URL)
+    dir: server
+    requires:
+      vars: [COLLAB_TEST_DATABASE_URL]
+    cmds:
+      - go test -race -count=1 -tags=dbintegration ./integration/ownership
+
   test:client:
     desc: Run client tests
     dir: client

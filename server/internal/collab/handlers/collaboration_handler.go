@@ -150,9 +150,8 @@ func (h *CollaborationHandler) AddCollaborator(ctx context.Context, req *collab_
 	}, nil
 }
 
-// AddCollaboratorDirect registers a collaborator by user ID without the invitation flow.
-// Used internally by the scripts gateway handler immediately after project creation
-// to record the creator as the "owner" collaborator.
+// AddCollaboratorDirect registers a non-owner collaborator by user ID without
+// the invitation flow. Project ownership is stored only by scripts-service.
 func (h *CollaborationHandler) AddCollaboratorDirect(ctx context.Context, req *collab_pb.AddCollaboratorDirectRequest) (*collab_pb.AddCollaboratorDirectResponse, error) {
 	projectID, err := parseUUID(req.ProjectId)
 	if err != nil {

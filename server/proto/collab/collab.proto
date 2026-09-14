@@ -95,7 +95,7 @@ message AddCollaboratorResponse {
   Collaborator collaborator = 1;
 }
 
-// Direct collaborator addition by user ID (for owners, bypasses invitation system)
+// Direct non-owner collaborator addition by user ID (bypasses invitation system)
 message AddCollaboratorDirectRequest {
   string project_id = 1;
   string user_id = 2; // User ID to add directly
@@ -135,12 +135,12 @@ message GetProjectSeatUsageRequest {
 }
 
 // GetProjectSeatUsageResponse reports how many collaborator "seats" a project is
-// currently consuming, split by source. A seat is held by every non-owner
+// currently consuming, split by source. A seat is held by every
 // collaborator that has not been removed, plus every outstanding (unaccepted,
 // unexpired) email invitation. The gateway sums these against the project
 // owner's billing tier to enforce the per-project collaborator cap.
 message GetProjectSeatUsageResponse {
-  int32 active_collaborators = 1; // non-owner collaborator rows not in the "removed" state
+  int32 active_collaborators = 1; // collaborator rows not in the "removed" state
   int32 pending_invitations = 2;  // outstanding email invitations (accepted = false, not expired)
 }
 

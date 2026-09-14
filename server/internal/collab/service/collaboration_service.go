@@ -47,7 +47,6 @@ func NewCollaborationService(db *sql.DB, repo repository.CollaborationRepository
 // ValidateRole checks if a role is valid
 func (s *CollaborationService) ValidateRole(role string) error {
 	validRoles := map[string]bool{
-		"owner":  true,
 		"editor": true,
 		"viewer": true,
 	}
@@ -134,11 +133,7 @@ func (s *CollaborationService) AddCollaborator(ctx context.Context, projectID, u
 		}
 	}
 
-	// Set initial status - owners are active immediately, others are pending
 	initialStatus := "pending"
-	if role == "owner" {
-		initialStatus = "active"
-	}
 
 	collaborator := &domain.Collaborator{
 		ID:        uuid.New(),
@@ -264,8 +259,14 @@ func (s *CollaborationService) GetDirectProjectRole(ctx context.Context, userID,
 	return s.repo.GetUserProjectRole(ctx, userID, projectID)
 }
 
+// DeleteProjectData handles project.deleted events. Repository deletion is
+// idempotent so redelivery and consumer restarts are safe.
+func (s *CollaborationService) DeleteProjectData(ctx context.Context, projectID uuid.UUID) error {
+	return s.repo.DeleteProjectData(ctx, projectID)
+}
+
 // GetProjectSeatUsage reports how many collaborator seats a project is consuming:
-// non-owner collaborator rows that have not been removed (active or pending
+// collaborator rows that have not been removed (active or pending
 // direct-adds), plus outstanding email invitations. It performs no permission
 // check — the result is an aggregate count with no per-user detail, and the
 // gateway, which is the sole caller, authorizes the surrounding operation and
@@ -276,6 +277,8 @@ func (s *CollaborationService) GetProjectSeatUsage(ctx context.Context, projectI
 		return 0, 0, err
 	}
 	for _, c := range collaborators {
+		// Ignore legacy owner projections during rolling deployment. New rows
+		// cannot use this role after migration 000004.
 		if c.Role == "owner" || c.Status == "removed" {
 			continue
 		}

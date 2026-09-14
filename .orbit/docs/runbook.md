@@ -106,6 +106,9 @@ gofmt -l .                 # must be empty
 # cross-service boundary suite (in-memory gRPC; no Docker required)
 task test:boundary
 
+# ownership migration/cleanup suite (PostgreSQL required)
+COLLAB_TEST_DATABASE_URL='postgres://user:password@localhost:5434/collab_db?sslmode=disable' task test:boundary:db
+
 # client
 cd client
 npm run lint               # eslint flat config; fails on error-level rules
