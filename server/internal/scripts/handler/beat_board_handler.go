@@ -174,45 +174,22 @@ func (h *BeatBoardHandler) UpdateBeat(ctx context.Context, req *scriptspb.Update
 	}
 	callerRole := callerRoleFromProto(req.CallerRole)
 
-	updates := &domain.Beat{}
-	if req.Title != nil {
-		updates.Title = *req.Title
-	}
-	if req.Description != nil {
-		updates.Description = *req.Description
-	}
-	if req.SceneNumbers != nil {
-		updates.SceneNumbers = *req.SceneNumbers
-	}
-	if req.Color != nil {
-		updates.Color = *req.Color
-	}
+	updates := &domain.BeatPatch{Title: req.Title, Description: req.Description, SceneNumbers: req.SceneNumbers, Color: req.Color, ActNumber: req.ActNumber, Order: req.Order, StartPage: req.StartPage, EndPage: req.EndPage, ImageURL: req.ImageUrl}
 	if req.PositionX != nil {
-		updates.PositionX = int32(*req.PositionX)
+		v := int32(*req.PositionX)
+		updates.PositionX = &v
 	}
 	if req.PositionY != nil {
-		updates.PositionY = int32(*req.PositionY)
+		v := int32(*req.PositionY)
+		updates.PositionY = &v
 	}
 	if req.Width != nil {
-		updates.Width = int32(*req.Width)
+		v := int32(*req.Width)
+		updates.Width = &v
 	}
 	if req.Height != nil {
-		updates.Height = int32(*req.Height)
-	}
-	if req.ActNumber != nil {
-		updates.ActNumber = *req.ActNumber
-	}
-	if req.Order != nil {
-		updates.Order = *req.Order
-	}
-	if req.StartPage != nil {
-		updates.StartPage = *req.StartPage
-	}
-	if req.EndPage != nil {
-		updates.EndPage = *req.EndPage
-	}
-	if req.ImageUrl != nil {
-		updates.ImageURL = req.ImageUrl
+		v := int32(*req.Height)
+		updates.Height = &v
 	}
 
 	updated, err := h.service.UpdateBeat(ctx, beatID, userID, callerRole, updates)
@@ -440,16 +417,7 @@ func (h *BeatBoardHandler) UpdateLane(ctx context.Context, req *scriptspb.Update
 	}
 	callerRole := callerRoleFromProto(req.CallerRole)
 
-	updates := &domain.Lane{}
-	if req.Name != nil {
-		updates.Name = *req.Name
-	}
-	if req.Color != nil {
-		updates.Color = *req.Color
-	}
-	if req.Order != nil {
-		updates.Order = *req.Order
-	}
+	updates := &domain.LanePatch{Name: req.Name, Color: req.Color, Order: req.Order}
 
 	updated, err := h.service.UpdateLane(ctx, laneID, userID, callerRole, updates)
 	if err != nil {
@@ -608,29 +576,20 @@ func (h *BeatBoardHandler) UpdateOutlineItem(ctx context.Context, req *scriptspb
 	}
 	callerRole := callerRoleFromProto(req.CallerRole)
 
-	updates := &domain.OutlineItem{}
+	updates := &domain.OutlineItemPatch{Order: req.Order, TimelinePosition: req.TimelinePosition, Width: req.Width}
 	if req.BeatId != nil {
 		beatID, err := uuid.Parse(*req.BeatId)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid beat_id: %v", err)
 		}
-		updates.BeatID = beatID
+		updates.BeatID = &beatID
 	}
 	if req.LaneId != nil {
 		laneID, err := uuid.Parse(*req.LaneId)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid lane_id: %v", err)
 		}
-		updates.LaneID = laneID
-	}
-	if req.Order != nil {
-		updates.Order = *req.Order
-	}
-	if req.TimelinePosition != nil {
-		updates.TimelinePosition = *req.TimelinePosition
-	}
-	if req.Width != nil {
-		updates.Width = *req.Width
+		updates.LaneID = &laneID
 	}
 
 	updated, err := h.service.UpdateOutlineItem(ctx, itemID, userID, callerRole, updates)

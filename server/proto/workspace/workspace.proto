@@ -115,9 +115,9 @@ message ListUserWorkspacesResponse {
 
 message UpdateWorkspaceRequest {
   string workspace_id = 1;
-  string name         = 2;
-  string description  = 3;
-  string avatar_url   = 4;
+  optional string name         = 2;
+  optional string description  = 3;
+  optional string avatar_url   = 4;
 }
 
 message UpdateWorkspaceResponse {
@@ -260,9 +260,9 @@ message ListOrganizationsForUserResponse {
 
 message UpdateOrganizationRequest {
   string org_id      = 1;
-  string name        = 2;
-  string description  = 3;
-  string avatar_url  = 4;
+  optional string name        = 2;
+  optional string description  = 3;
+  optional string avatar_url  = 4;
 }
 
 message UpdateOrganizationResponse {

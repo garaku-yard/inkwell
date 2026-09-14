@@ -45,6 +45,13 @@ type Beat struct {
 	DeletedAt    *time.Time `json:"deletedAt,omitempty" db:"deleted_at"`
 }
 
+type BeatPatch struct {
+	Title, Description, SceneNumbers, Color *string
+	PositionX, PositionY, Width, Height     *int32
+	ActNumber, Order, StartPage, EndPage    *int32
+	ImageURL                                *string
+}
+
 // Connection represents a connection between two beats
 type Connection struct {
 	ID        uuid.UUID  `json:"id" db:"connection_id"`
@@ -70,6 +77,11 @@ type Lane struct {
 	DeletedAt *time.Time `json:"deletedAt,omitempty" db:"deleted_at"`
 }
 
+type LanePatch struct {
+	Name, Color *string
+	Order       *int32
+}
+
 // OutlineItem represents a beat placed on a timeline lane
 type OutlineItem struct {
 	ID               uuid.UUID  `json:"id" db:"outline_item_id"`
@@ -82,6 +94,12 @@ type OutlineItem struct {
 	CreatedAt        time.Time  `json:"createdAt" db:"created_at"`
 	UpdatedAt        time.Time  `json:"updatedAt" db:"updated_at"`
 	DeletedAt        *time.Time `json:"deletedAt,omitempty" db:"deleted_at"`
+}
+
+type OutlineItemPatch struct {
+	BeatID, LaneID          *uuid.UUID
+	Order                   *int32
+	TimelinePosition, Width *float64
 }
 
 // SyncChanges bundles per-project rows for a bidirectional sync round-trip in
@@ -121,11 +139,6 @@ type Drawing struct {
 
 // DrawingPatch is a partial update to a shape. Fields are pointers so "absent"
 // and "set to the zero value" are distinguishable.
-//
-// The other beat-board updates use the zero value itself as the absent sentinel
-// (`if updates.Order != 0 { ... }`), which quietly makes 0 unsettable. For a
-// drawing that's a real defect and not a hypothetical one: `order` is a z-index
-// whose default *is* 0, so "send this shape to the back" would silently no-op.
 type DrawingPatch struct {
 	Kind  *string
 	Data  *string

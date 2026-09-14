@@ -103,7 +103,7 @@ func (h *WorkspaceHandler) UpdateWorkspace(ctx context.Context, req *workspacepb
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid workspace_id")
 	}
-	w, err := h.svc.UpdateWorkspace(ctx, id, req.Name, req.Description, req.AvatarUrl)
+	w, err := h.svc.UpdateWorkspace(ctx, id, service.MetadataPatch{Name: req.Name, Description: req.Description, AvatarURL: req.AvatarUrl})
 	if err != nil {
 		return nil, h.handleError(err)
 	}
@@ -275,6 +275,8 @@ func (h *WorkspaceHandler) handleError(err error) error {
 		return status.Error(codes.PermissionDenied, "only the owner can perform this action")
 	case domain.ErrCannotRemoveOwner:
 		return status.Error(codes.FailedPrecondition, "cannot remove the workspace owner")
+	case domain.ErrInvalidInput:
+		return status.Error(codes.InvalidArgument, "name cannot be empty")
 	case domain.ErrOrgNotFound:
 		return status.Error(codes.NotFound, "organization not found")
 	case domain.ErrOrgSlugTaken:

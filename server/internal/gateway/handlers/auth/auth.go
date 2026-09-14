@@ -228,8 +228,11 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 // UpdateProfileRequest carries the profile fields to update for the authenticated user.
 // Only non-empty fields are forwarded to the identity service; omitted fields are left unchanged.
 type UpdateProfileRequest struct {
-	Username string `json:"username,omitempty"`
-	Email    string `json:"email,omitempty"`
+	Username  *string `json:"username"`
+	Email     *string `json:"email"`
+	FirstName *string `json:"firstName"`
+	LastName  *string `json:"lastName"`
+	AvatarURL *string `json:"avatarUrl"`
 }
 
 // UpdateProfile applies a partial profile update for the authenticated user.
@@ -254,12 +257,8 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 			grpcReq := &identitypb.UpdateUserRequest{
 				UserId: userID,
 			}
-			if req.Email != "" {
-				grpcReq.Email = &req.Email
-			}
-			if req.Username != "" {
-				grpcReq.Username = &req.Username
-			}
+			grpcReq.Email, grpcReq.Username = req.Email, req.Username
+			grpcReq.FirstName, grpcReq.LastName, grpcReq.AvatarUrl = req.FirstName, req.LastName, req.AvatarURL
 
 			grpcResp, err := h.identityClient.UpdateUser(ctx, grpcReq)
 			if err != nil {

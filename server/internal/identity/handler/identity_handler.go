@@ -244,16 +244,7 @@ func (h *IdentityHandler) UpdateUser(ctx context.Context, req *identitypb.Update
 		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
 	}
 
-	serviceReq := &service.UpdateProfileRequest{}
-	if req.Email != nil {
-		serviceReq.Email = *req.Email
-	}
-	if req.Username != nil {
-		serviceReq.Username = *req.Username
-	}
-	if req.AvatarUrl != nil {
-		serviceReq.AvatarURL = *req.AvatarUrl
-	}
+	serviceReq := &service.UpdateProfileRequest{Email: req.Email, Username: req.Username, FirstName: req.FirstName, LastName: req.LastName, AvatarURL: req.AvatarUrl}
 
 	if err := h.authService.UpdateUserProfile(ctx, userID, serviceReq); err != nil {
 		return nil, h.handleError(err)

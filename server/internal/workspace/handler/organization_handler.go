@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"inkwell/server/internal/workspace/domain"
+	"inkwell/server/internal/workspace/service"
 	workspacepb "inkwell/server/pkg/grpc/workspace"
 )
 
@@ -62,7 +63,7 @@ func (h *WorkspaceHandler) UpdateOrganization(ctx context.Context, req *workspac
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid org_id")
 	}
-	o, err := h.svc.UpdateOrganization(ctx, orgID, req.Name, req.Description, req.AvatarUrl)
+	o, err := h.svc.UpdateOrganization(ctx, orgID, service.MetadataPatch{Name: req.Name, Description: req.Description, AvatarURL: req.AvatarUrl})
 	if err != nil {
 		return nil, h.handleError(err)
 	}

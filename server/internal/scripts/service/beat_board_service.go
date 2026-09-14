@@ -16,7 +16,7 @@ type BeatBoardService interface {
 	CreateBeat(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, beat *domain.Beat) (*domain.Beat, error)
 	GetBeat(ctx context.Context, beatID, userID uuid.UUID, callerRole domain.CallerRole) (*domain.Beat, error)
 	GetProjectBeatBoard(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) (*domain.BeatBoardData, error)
-	UpdateBeat(ctx context.Context, beatID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Beat) (*domain.Beat, error)
+	UpdateBeat(ctx context.Context, beatID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.BeatPatch) (*domain.Beat, error)
 	DeleteBeat(ctx context.Context, beatID, userID uuid.UUID, callerRole domain.CallerRole) error
 
 	// Connection operations
@@ -26,13 +26,13 @@ type BeatBoardService interface {
 	// Lane operations
 	CreateLane(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, lane *domain.Lane) (*domain.Lane, error)
 	GetProjectLanes(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) ([]*domain.Lane, error)
-	UpdateLane(ctx context.Context, laneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Lane) (*domain.Lane, error)
+	UpdateLane(ctx context.Context, laneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.LanePatch) (*domain.Lane, error)
 	UpdateLaneOrder(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, laneIDs []uuid.UUID) error
 	DeleteLane(ctx context.Context, laneID, userID uuid.UUID, callerRole domain.CallerRole) error
 
 	// Outline item operations
 	CreateOutlineItem(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, item *domain.OutlineItem) (*domain.OutlineItem, error)
-	UpdateOutlineItem(ctx context.Context, itemID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.OutlineItem) (*domain.OutlineItem, error)
+	UpdateOutlineItem(ctx context.Context, itemID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.OutlineItemPatch) (*domain.OutlineItem, error)
 	DeleteOutlineItem(ctx context.Context, itemID, userID uuid.UUID, callerRole domain.CallerRole) error
 
 	CreateDrawing(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, d *domain.Drawing) (*domain.Drawing, error)
@@ -164,7 +164,7 @@ func (s *beatBoardService) GetProjectBeatBoard(ctx context.Context, projectID, u
 }
 
 // UpdateBeat updates an existing beat
-func (s *beatBoardService) UpdateBeat(ctx context.Context, beatID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Beat) (*domain.Beat, error) {
+func (s *beatBoardService) UpdateBeat(ctx context.Context, beatID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.BeatPatch) (*domain.Beat, error) {
 	// Get existing beat
 	beat, err := s.repo.Beat.GetBeat(ctx, beatID)
 	if err != nil {
@@ -176,45 +176,8 @@ func (s *beatBoardService) UpdateBeat(ctx context.Context, beatID, userID uuid.U
 		return nil, err
 	}
 
-	// Update fields
-	if updates.Title != "" {
-		beat.Title = updates.Title
-	}
-	if updates.Description != "" {
-		beat.Description = updates.Description
-	}
-	if updates.SceneNumbers != "" {
-		beat.SceneNumbers = updates.SceneNumbers
-	}
-	if updates.Color != "" {
-		beat.Color = updates.Color
-	}
-	if updates.PositionX != 0 {
-		beat.PositionX = updates.PositionX
-	}
-	if updates.PositionY != 0 {
-		beat.PositionY = updates.PositionY
-	}
-	if updates.Width != 0 {
-		beat.Width = updates.Width
-	}
-	if updates.Height != 0 {
-		beat.Height = updates.Height
-	}
-	if updates.ActNumber != 0 {
-		beat.ActNumber = updates.ActNumber
-	}
-	if updates.Order != 0 {
-		beat.Order = updates.Order
-	}
-	if updates.StartPage != 0 {
-		beat.StartPage = updates.StartPage
-	}
-	if updates.EndPage != 0 {
-		beat.EndPage = updates.EndPage
-	}
-	if updates.ImageURL != nil {
-		beat.ImageURL = updates.ImageURL
+	if err := applyBeatPatch(beat, updates); err != nil {
+		return nil, err
 	}
 
 	if err := s.repo.Beat.UpdateBeat(ctx, beat); err != nil {
@@ -222,6 +185,53 @@ func (s *beatBoardService) UpdateBeat(ctx context.Context, beatID, userID uuid.U
 	}
 
 	return beat, nil
+}
+
+func applyBeatPatch(beat *domain.Beat, updates *domain.BeatPatch) error {
+	if updates.Title != nil {
+		beat.Title = *updates.Title
+	}
+	if updates.Description != nil {
+		beat.Description = *updates.Description
+	}
+	if updates.SceneNumbers != nil {
+		beat.SceneNumbers = *updates.SceneNumbers
+	}
+	if updates.Color != nil {
+		beat.Color = *updates.Color
+	}
+	if updates.PositionX != nil {
+		beat.PositionX = *updates.PositionX
+	}
+	if updates.PositionY != nil {
+		beat.PositionY = *updates.PositionY
+	}
+	if updates.Width != nil {
+		beat.Width = *updates.Width
+	}
+	if updates.Height != nil {
+		beat.Height = *updates.Height
+	}
+	if updates.ActNumber != nil {
+		beat.ActNumber = *updates.ActNumber
+	}
+	if updates.Order != nil {
+		beat.Order = *updates.Order
+	}
+	if updates.StartPage != nil {
+		beat.StartPage = *updates.StartPage
+	}
+	if updates.EndPage != nil {
+		beat.EndPage = *updates.EndPage
+	}
+	if updates.ImageURL != nil {
+		if *updates.ImageURL == "" {
+			beat.ImageURL = nil
+		} else {
+			beat.ImageURL = updates.ImageURL
+		}
+	}
+	return nil
 }
 
 // DeleteBeat deletes a beat
@@ -314,7 +324,7 @@ func (s *beatBoardService) GetProjectLanes(ctx context.Context, projectID, userI
 }
 
 // UpdateLane updates an existing lane
-func (s *beatBoardService) UpdateLane(ctx context.Context, laneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Lane) (*domain.Lane, error) {
+func (s *beatBoardService) UpdateLane(ctx context.Context, laneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.LanePatch) (*domain.Lane, error) {
 	// Get existing lane
 	lane, err := s.repo.Lane.GetLane(ctx, laneID)
 	if err != nil {
@@ -326,15 +336,8 @@ func (s *beatBoardService) UpdateLane(ctx context.Context, laneID, userID uuid.U
 		return nil, err
 	}
 
-	// Update fields
-	if updates.Name != "" {
-		lane.Name = updates.Name
-	}
-	if updates.Color != "" {
-		lane.Color = updates.Color
-	}
-	if updates.Order != 0 {
-		lane.Order = updates.Order
+	if err := applyLanePatch(lane, updates); err != nil {
+		return nil, err
 	}
 
 	if err := s.repo.Lane.UpdateLane(ctx, lane); err != nil {
@@ -342,6 +345,23 @@ func (s *beatBoardService) UpdateLane(ctx context.Context, laneID, userID uuid.U
 	}
 
 	return lane, nil
+}
+
+func applyLanePatch(lane *domain.Lane, updates *domain.LanePatch) error {
+	if updates.Name != nil {
+		if *updates.Name == "" {
+			return fmt.Errorf("%w: lane name cannot be empty", domain.ErrInvalidProjectData)
+		}
+		lane.Name = *updates.Name
+	}
+	if updates.Color != nil {
+		lane.Color = *updates.Color
+	}
+	if updates.Order != nil {
+		lane.Order = *updates.Order
+	}
+
+	return nil
 }
 
 // UpdateLaneOrder updates the order of lanes in a project
@@ -396,7 +416,7 @@ func (s *beatBoardService) CreateOutlineItem(ctx context.Context, projectID, use
 }
 
 // UpdateOutlineItem updates an existing outline item
-func (s *beatBoardService) UpdateOutlineItem(ctx context.Context, itemID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.OutlineItem) (*domain.OutlineItem, error) {
+func (s *beatBoardService) UpdateOutlineItem(ctx context.Context, itemID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.OutlineItemPatch) (*domain.OutlineItem, error) {
 	// Get existing item
 	item, err := s.repo.OutlineItem.GetOutlineItem(ctx, itemID)
 	if err != nil {
@@ -408,28 +428,32 @@ func (s *beatBoardService) UpdateOutlineItem(ctx context.Context, itemID, userID
 		return nil, err
 	}
 
-	// Update fields
-	if updates.BeatID != uuid.Nil {
-		item.BeatID = updates.BeatID
-	}
-	if updates.LaneID != uuid.Nil {
-		item.LaneID = updates.LaneID
-	}
-	if updates.Order != 0 {
-		item.Order = updates.Order
-	}
-	if updates.TimelinePosition != 0 {
-		item.TimelinePosition = updates.TimelinePosition
-	}
-	if updates.Width != 0 {
-		item.Width = updates.Width
-	}
+	applyOutlineItemPatch(item, updates)
 
 	if err := s.repo.OutlineItem.UpdateOutlineItem(ctx, item); err != nil {
 		return nil, fmt.Errorf("failed to update outline item: %w", err)
 	}
 
 	return item, nil
+}
+
+func applyOutlineItemPatch(item *domain.OutlineItem, updates *domain.OutlineItemPatch) {
+	if updates.BeatID != nil {
+		item.BeatID = *updates.BeatID
+	}
+	if updates.LaneID != nil {
+		item.LaneID = *updates.LaneID
+	}
+	if updates.Order != nil {
+		item.Order = *updates.Order
+	}
+	if updates.TimelinePosition != nil {
+		item.TimelinePosition = *updates.TimelinePosition
+	}
+	if updates.Width != nil {
+		item.Width = *updates.Width
+	}
+
 }
 
 // DeleteOutlineItem deletes an outline item

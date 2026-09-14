@@ -447,18 +447,22 @@ func (h *ScriptsHandler) UpdateScene(ctx context.Context, req *scriptspb.UpdateS
 	callerRole := callerRoleFromProto(req.CallerRole)
 
 	// Create domain scene for updates
-	updates := &domain.Scene{}
+	updates := &domain.ScenePatch{SceneHeading: req.SceneHeading, Content: req.Content, OrderIndex: req.OrderIndex}
+	if req.OutlineUnitId != nil {
+		if *req.OutlineUnitId == "" {
+			var cleared *uuid.UUID
+			updates.OutlineUnitID = &cleared
+		} else {
+			outlineID, err := uuid.Parse(*req.OutlineUnitId)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid outline_unit_id: %v", err)
+			}
+			linked := &outlineID
+			updates.OutlineUnitID = &linked
+		}
+	}
 
 	// Set fields if provided (handle optional fields)
-	if req.SceneHeading != nil {
-		updates.SceneHeading = *req.SceneHeading
-	}
-	if req.Content != nil {
-		updates.Content = *req.Content
-	}
-	if req.OrderIndex != nil {
-		updates.OrderIndex = *req.OrderIndex
-	}
 
 	// Update scene through service
 	updatedScene, err := h.service.UpdateScene(ctx, sceneID, userID, callerRole, updates)
@@ -762,7 +766,7 @@ func (h *ScriptsHandler) UpdateElement(ctx context.Context, req *scriptspb.Updat
 	callerRole := callerRoleFromProto(req.CallerRole)
 
 	// Update element through service
-	updatedElement, err := h.service.UpdateElementContent(ctx, userID, elementID, callerRole, req.Content)
+	updatedElement, err := h.service.UpdateElementContent(ctx, userID, elementID, callerRole, &domain.ElementPatch{Content: req.Content, Type: req.Type})
 	if err != nil {
 		return nil, handleServiceError(err)
 	}

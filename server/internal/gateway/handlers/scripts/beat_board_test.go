@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -35,6 +36,12 @@ type fakeScriptsClient struct {
 	deletedUser  string // user id passed to the dispatched delete
 	deletedRole  scriptspb.CallerRole
 	deleteCalled bool
+	updatedBeat  *scriptspb.UpdateBeatRequest
+}
+
+func (f *fakeScriptsClient) UpdateBeat(_ context.Context, in *scriptspb.UpdateBeatRequest, _ ...grpc.CallOption) (*scriptspb.UpdateBeatResponse, error) {
+	f.updatedBeat = in
+	return &scriptspb.UpdateBeatResponse{Beat: &scriptspb.Beat{Id: in.BeatId, ProjectId: f.projectID}}, nil
 }
 
 func (f *fakeScriptsClient) GetResourceProject(_ context.Context, in *scriptspb.GetResourceProjectRequest, _ ...grpc.CallOption) (*scriptspb.GetResourceProjectResponse, error) {
@@ -181,6 +188,32 @@ func TestSubResourceDeleteAsOwner(t *testing.T) {
 				t.Errorf("deleted as user %q, want owner %q", sc.deletedUser, "user-1")
 			}
 		})
+	}
+}
+
+func TestUpdateBeatPreservesJSONFieldPresence(t *testing.T) {
+	sc := &fakeScriptsClient{projectID: "proj-1", ownerUserID: "user-1"}
+	h := &ScriptsHandler{scriptsClient: sc, collabClient: &fakeCollabClient{}}
+	router := chi.NewRouter()
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(contextx.WithUserID(r.Context(), "user-1")))
+		})
+	})
+	router.Patch("/api/v1/beats/{beatId}", h.UpdateBeat)
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/beats/beat-1", strings.NewReader(`{"title":"","positionX":0,"order":0}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	got := sc.updatedBeat
+	if got == nil || got.Title == nil || *got.Title != "" || got.PositionX == nil || *got.PositionX != 0 || got.Order == nil || *got.Order != 0 {
+		t.Fatalf("presence lost: %+v", got)
+	}
+	if got.Width != nil {
+		t.Fatal("omitted width was forwarded")
 	}
 }
 

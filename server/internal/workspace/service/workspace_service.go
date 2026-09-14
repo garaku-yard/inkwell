@@ -21,7 +21,7 @@ type WorkspaceService interface {
 	CreateOrgWorkspace(ctx context.Context, ownerID uuid.UUID, name, description string, categorySlugs []string) (*domain.Workspace, error)
 	GetWorkspace(ctx context.Context, workspaceID uuid.UUID) (*domain.Workspace, error)
 	ListUserWorkspaces(ctx context.Context, userID uuid.UUID) (personal []domain.Workspace, org []domain.Workspace, err error)
-	UpdateWorkspace(ctx context.Context, workspaceID uuid.UUID, name, description, avatarURL string) (*domain.Workspace, error)
+	UpdateWorkspace(ctx context.Context, workspaceID uuid.UUID, patch MetadataPatch) (*domain.Workspace, error)
 	DeleteWorkspace(ctx context.Context, workspaceID, userID uuid.UUID) error
 
 	// Workspace categories (org only)
@@ -46,7 +46,7 @@ type WorkspaceService interface {
 	CreateOrganization(ctx context.Context, ownerID uuid.UUID, name, description string) (*domain.Organization, error)
 	GetOrganization(ctx context.Context, orgID, userID uuid.UUID) (*domain.Organization, error)
 	ListOrganizationsForUser(ctx context.Context, userID uuid.UUID) ([]domain.Organization, error)
-	UpdateOrganization(ctx context.Context, orgID uuid.UUID, name, description, avatarURL string) (*domain.Organization, error)
+	UpdateOrganization(ctx context.Context, orgID uuid.UUID, patch MetadataPatch) (*domain.Organization, error)
 	DeleteOrganization(ctx context.Context, orgID, userID uuid.UUID) error
 
 	// Organization members
@@ -64,6 +64,8 @@ type WorkspaceService interface {
 	DeclineOrgInvite(ctx context.Context, token string) error
 	ListIncomingOrgInvites(ctx context.Context, email string) ([]domain.IncomingOrgInvite, error)
 }
+
+type MetadataPatch struct{ Name, Description, AvatarURL *string }
 
 type workspaceService struct {
 	repo repository.WorkspaceRepository
@@ -224,24 +226,42 @@ func (s *workspaceService) ListUserWorkspaces(ctx context.Context, userID uuid.U
 	return personalOnly, ownedOrg, nil
 }
 
-func (s *workspaceService) UpdateWorkspace(ctx context.Context, workspaceID uuid.UUID, name, description, avatarURL string) (*domain.Workspace, error) {
+func (s *workspaceService) UpdateWorkspace(ctx context.Context, workspaceID uuid.UUID, patch MetadataPatch) (*domain.Workspace, error) {
 	w, err := s.repo.GetWorkspaceByID(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
-	if name != "" {
-		w.Name = name
-	}
-	if description != "" {
-		w.Description = &description
-	}
-	if avatarURL != "" {
-		w.AvatarURL = &avatarURL
+	if err := applyWorkspacePatch(w, patch); err != nil {
+		return nil, err
 	}
 	if err := s.repo.UpdateWorkspace(ctx, w); err != nil {
 		return nil, err
 	}
 	return w, nil
+}
+
+func applyWorkspacePatch(w *domain.Workspace, patch MetadataPatch) error {
+	if patch.Name != nil {
+		if *patch.Name == "" {
+			return domain.ErrInvalidInput
+		}
+		w.Name = *patch.Name
+	}
+	if patch.Description != nil {
+		if *patch.Description == "" {
+			w.Description = nil
+		} else {
+			w.Description = patch.Description
+		}
+	}
+	if patch.AvatarURL != nil {
+		if *patch.AvatarURL == "" {
+			w.AvatarURL = nil
+		} else {
+			w.AvatarURL = patch.AvatarURL
+		}
+	}
+	return nil
 }
 
 func (s *workspaceService) DeleteWorkspace(ctx context.Context, workspaceID, userID uuid.UUID) error {

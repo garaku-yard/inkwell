@@ -4098,8 +4098,8 @@ type UpdateElementRequest struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	ElementId string                 `protobuf:"bytes,1,opt,name=element_id,json=elementId,proto3" json:"element_id,omitempty"`
 	UserId    string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Content   string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
-	Type      string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
+	Content   *string                `protobuf:"bytes,3,opt,name=content,proto3,oneof" json:"content,omitempty"`
+	Type      *string                `protobuf:"bytes,4,opt,name=type,proto3,oneof" json:"type,omitempty"`
 	// Set exclusively by the gateway (the trusted internal caller) after
 	// resolving access via handlers.ResolveProjectRole — never derived from
 	// client input. Orbit #360: replaces the empty-user_id bypass sentinel.
@@ -4153,15 +4153,15 @@ func (x *UpdateElementRequest) GetUserId() string {
 }
 
 func (x *UpdateElementRequest) GetContent() string {
-	if x != nil {
-		return x.Content
+	if x != nil && x.Content != nil {
+		return *x.Content
 	}
 	return ""
 }
 
 func (x *UpdateElementRequest) GetType() string {
-	if x != nil {
-		return x.Type
+	if x != nil && x.Type != nil {
+		return *x.Type
 	}
 	return ""
 }
@@ -8029,15 +8029,18 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x06\x10\aR\fcharacter_id\"J\n" +
 	"\x15CreateElementResponse\x121\n" +
-	"\aelement\x18\x01 \x01(\v2\x17.scripts.ProjectElementR\aelement\"\xb2\x01\n" +
+	"\aelement\x18\x01 \x01(\v2\x17.scripts.ProjectElementR\aelement\"\xd1\x01\n" +
 	"\x14UpdateElementRequest\x12\x1d\n" +
 	"\n" +
 	"element_id\x18\x01 \x01(\tR\telementId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
-	"\acontent\x18\x03 \x01(\tR\acontent\x12\x12\n" +
-	"\x04type\x18\x04 \x01(\tR\x04type\x124\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1d\n" +
+	"\acontent\x18\x03 \x01(\tH\x00R\acontent\x88\x01\x01\x12\x17\n" +
+	"\x04type\x18\x04 \x01(\tH\x01R\x04type\x88\x01\x01\x124\n" +
 	"\vcaller_role\x18\x05 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
-	"callerRole\"J\n" +
+	"callerRoleB\n" +
+	"\n" +
+	"\b_contentB\a\n" +
+	"\x05_type\"J\n" +
 	"\x15UpdateElementResponse\x121\n" +
 	"\aelement\x18\x01 \x01(\v2\x17.scripts.ProjectElementR\aelement\"\x83\x01\n" +
 	"\x17GetSceneElementsRequest\x12\x19\n" +
@@ -8805,6 +8808,7 @@ func file_scripts_scripts_proto_init() {
 	file_scripts_scripts_proto_msgTypes[34].OneofWrappers = []any{}
 	file_scripts_scripts_proto_msgTypes[38].OneofWrappers = []any{}
 	file_scripts_scripts_proto_msgTypes[46].OneofWrappers = []any{}
+	file_scripts_scripts_proto_msgTypes[55].OneofWrappers = []any{}
 	file_scripts_scripts_proto_msgTypes[61].OneofWrappers = []any{}
 	file_scripts_scripts_proto_msgTypes[67].OneofWrappers = []any{}
 	file_scripts_scripts_proto_msgTypes[79].OneofWrappers = []any{}

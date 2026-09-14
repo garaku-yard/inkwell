@@ -79,24 +79,42 @@ func (s *workspaceService) ListOrganizationsForUser(ctx context.Context, userID 
 	return s.repo.GetOrganizationsForUser(ctx, userID)
 }
 
-func (s *workspaceService) UpdateOrganization(ctx context.Context, orgID uuid.UUID, name, description, avatarURL string) (*domain.Organization, error) {
+func (s *workspaceService) UpdateOrganization(ctx context.Context, orgID uuid.UUID, patch MetadataPatch) (*domain.Organization, error) {
 	o, err := s.repo.GetOrganizationByID(ctx, orgID)
 	if err != nil {
 		return nil, err
 	}
-	if name != "" {
-		o.Name = name
-	}
-	if description != "" {
-		o.Description = &description
-	}
-	if avatarURL != "" {
-		o.AvatarURL = &avatarURL
+	if err := applyOrganizationPatch(o, patch); err != nil {
+		return nil, err
 	}
 	if err := s.repo.UpdateOrganization(ctx, o); err != nil {
 		return nil, err
 	}
 	return o, nil
+}
+
+func applyOrganizationPatch(o *domain.Organization, patch MetadataPatch) error {
+	if patch.Name != nil {
+		if *patch.Name == "" {
+			return domain.ErrInvalidInput
+		}
+		o.Name = *patch.Name
+	}
+	if patch.Description != nil {
+		if *patch.Description == "" {
+			o.Description = nil
+		} else {
+			o.Description = patch.Description
+		}
+	}
+	if patch.AvatarURL != nil {
+		if *patch.AvatarURL == "" {
+			o.AvatarURL = nil
+		} else {
+			o.AvatarURL = patch.AvatarURL
+		}
+	}
+	return nil
 }
 
 func (s *workspaceService) DeleteOrganization(ctx context.Context, orgID, userID uuid.UUID) error {

@@ -36,6 +36,8 @@ type ProjectElement struct {
 	DeletedAt  *time.Time        `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
+type ElementPatch struct{ Content, Type *string }
+
 // Scene represents a scene in the screenplay
 type Scene struct {
 	ID            uuid.UUID  `json:"id" db:"scene_id"`
@@ -47,6 +49,12 @@ type Scene struct {
 	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
 	DeletedAt     *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
+}
+
+type ScenePatch struct {
+	OutlineUnitID         **uuid.UUID
+	SceneHeading, Content *string
+	OrderIndex            *int32
 }
 
 // OutlineUnit represents story structure elements (acts, sequences, beats, sub-beats)
@@ -66,6 +74,12 @@ type OutlineUnit struct {
 	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
 }
 
+type OutlineUnitPatch struct {
+	Title, Description, Color, Icon *string
+	Tags                            *[]string
+	OrderIndex                      *int32
+}
+
 // Character represents a character in the screenplay
 type Character struct {
 	ID          uuid.UUID         `json:"id" db:"character_id"`
@@ -77,6 +91,11 @@ type Character struct {
 	CreatedAt   time.Time         `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at" db:"updated_at"`
 	DeletedAt   *time.Time        `json:"deleted_at,omitempty" db:"deleted_at"`
+}
+
+type CharacterPatch struct {
+	Name, Description, Role *string
+	Attributes              *map[string]string
 }
 
 // Location represents a location in the screenplay

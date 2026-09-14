@@ -986,9 +986,9 @@ func (x *ListUserWorkspacesResponse) GetOrg() []*Workspace {
 type UpdateWorkspaceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	WorkspaceId   string                 `protobuf:"bytes,1,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	AvatarUrl     string                 `protobuf:"bytes,4,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
+	Name          *string                `protobuf:"bytes,2,opt,name=name,proto3,oneof" json:"name,omitempty"`
+	Description   *string                `protobuf:"bytes,3,opt,name=description,proto3,oneof" json:"description,omitempty"`
+	AvatarUrl     *string                `protobuf:"bytes,4,opt,name=avatar_url,json=avatarUrl,proto3,oneof" json:"avatar_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1031,22 +1031,22 @@ func (x *UpdateWorkspaceRequest) GetWorkspaceId() string {
 }
 
 func (x *UpdateWorkspaceRequest) GetName() string {
-	if x != nil {
-		return x.Name
+	if x != nil && x.Name != nil {
+		return *x.Name
 	}
 	return ""
 }
 
 func (x *UpdateWorkspaceRequest) GetDescription() string {
-	if x != nil {
-		return x.Description
+	if x != nil && x.Description != nil {
+		return *x.Description
 	}
 	return ""
 }
 
 func (x *UpdateWorkspaceRequest) GetAvatarUrl() string {
-	if x != nil {
-		return x.AvatarUrl
+	if x != nil && x.AvatarUrl != nil {
+		return *x.AvatarUrl
 	}
 	return ""
 }
@@ -2458,9 +2458,9 @@ func (x *ListOrganizationsForUserResponse) GetOrganizations() []*Organization {
 type UpdateOrganizationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrgId         string                 `protobuf:"bytes,1,opt,name=org_id,json=orgId,proto3" json:"org_id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	AvatarUrl     string                 `protobuf:"bytes,4,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
+	Name          *string                `protobuf:"bytes,2,opt,name=name,proto3,oneof" json:"name,omitempty"`
+	Description   *string                `protobuf:"bytes,3,opt,name=description,proto3,oneof" json:"description,omitempty"`
+	AvatarUrl     *string                `protobuf:"bytes,4,opt,name=avatar_url,json=avatarUrl,proto3,oneof" json:"avatar_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2503,22 +2503,22 @@ func (x *UpdateOrganizationRequest) GetOrgId() string {
 }
 
 func (x *UpdateOrganizationRequest) GetName() string {
-	if x != nil {
-		return x.Name
+	if x != nil && x.Name != nil {
+		return *x.Name
 	}
 	return ""
 }
 
 func (x *UpdateOrganizationRequest) GetDescription() string {
-	if x != nil {
-		return x.Description
+	if x != nil && x.Description != nil {
+		return *x.Description
 	}
 	return ""
 }
 
 func (x *UpdateOrganizationRequest) GetAvatarUrl() string {
-	if x != nil {
-		return x.AvatarUrl
+	if x != nil && x.AvatarUrl != nil {
+		return *x.AvatarUrl
 	}
 	return ""
 }
@@ -3798,13 +3798,16 @@ const file_workspace_workspace_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"v\n" +
 	"\x1aListUserWorkspacesResponse\x120\n" +
 	"\bpersonal\x18\x01 \x03(\v2\x14.workspace.WorkspaceR\bpersonal\x12&\n" +
-	"\x03org\x18\x02 \x03(\v2\x14.workspace.WorkspaceR\x03org\"\x90\x01\n" +
+	"\x03org\x18\x02 \x03(\v2\x14.workspace.WorkspaceR\x03org\"\xc7\x01\n" +
 	"\x16UpdateWorkspaceRequest\x12!\n" +
-	"\fworkspace_id\x18\x01 \x01(\tR\vworkspaceId\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x1d\n" +
+	"\fworkspace_id\x18\x01 \x01(\tR\vworkspaceId\x12\x17\n" +
+	"\x04name\x18\x02 \x01(\tH\x00R\x04name\x88\x01\x01\x12%\n" +
+	"\vdescription\x18\x03 \x01(\tH\x01R\vdescription\x88\x01\x01\x12\"\n" +
 	"\n" +
-	"avatar_url\x18\x04 \x01(\tR\tavatarUrl\"M\n" +
+	"avatar_url\x18\x04 \x01(\tH\x02R\tavatarUrl\x88\x01\x01B\a\n" +
+	"\x05_nameB\x0e\n" +
+	"\f_descriptionB\r\n" +
+	"\v_avatar_url\"M\n" +
 	"\x17UpdateWorkspaceResponse\x122\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x14.workspace.WorkspaceR\tworkspace\"T\n" +
 	"\x16DeleteWorkspaceRequest\x12!\n" +
@@ -3880,13 +3883,16 @@ const file_workspace_workspace_proto_rawDesc = "" +
 	"\x1fListOrganizationsForUserRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"a\n" +
 	" ListOrganizationsForUserResponse\x12=\n" +
-	"\rorganizations\x18\x01 \x03(\v2\x17.workspace.OrganizationR\rorganizations\"\x87\x01\n" +
+	"\rorganizations\x18\x01 \x03(\v2\x17.workspace.OrganizationR\rorganizations\"\xbe\x01\n" +
 	"\x19UpdateOrganizationRequest\x12\x15\n" +
-	"\x06org_id\x18\x01 \x01(\tR\x05orgId\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x1d\n" +
+	"\x06org_id\x18\x01 \x01(\tR\x05orgId\x12\x17\n" +
+	"\x04name\x18\x02 \x01(\tH\x00R\x04name\x88\x01\x01\x12%\n" +
+	"\vdescription\x18\x03 \x01(\tH\x01R\vdescription\x88\x01\x01\x12\"\n" +
 	"\n" +
-	"avatar_url\x18\x04 \x01(\tR\tavatarUrl\"Y\n" +
+	"avatar_url\x18\x04 \x01(\tH\x02R\tavatarUrl\x88\x01\x01B\a\n" +
+	"\x05_nameB\x0e\n" +
+	"\f_descriptionB\r\n" +
+	"\v_avatar_url\"Y\n" +
 	"\x1aUpdateOrganizationResponse\x12;\n" +
 	"\forganization\x18\x01 \x01(\v2\x17.workspace.OrganizationR\forganization\"K\n" +
 	"\x19DeleteOrganizationRequest\x12\x15\n" +
@@ -4182,6 +4188,8 @@ func file_workspace_workspace_proto_init() {
 	if File_workspace_workspace_proto != nil {
 		return
 	}
+	file_workspace_workspace_proto_msgTypes[15].OneofWrappers = []any{}
+	file_workspace_workspace_proto_msgTypes[45].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

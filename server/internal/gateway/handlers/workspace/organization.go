@@ -136,9 +136,9 @@ func (h *WorkspaceHandler) GetOrganization(w http.ResponseWriter, r *http.Reques
 // UpdateOrganization applies partial updates. Requires owner or admin.
 func (h *WorkspaceHandler) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 	type updateOrgBody struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		AvatarURL   string `json:"avatar_url"`
+		Name        *string `json:"name"`
+		Description *string `json:"description"`
+		AvatarURL   *string `json:"avatar_url"`
 	}
 	handlers.Endpoint[updateOrgBody, workspacepb.Organization]{
 		Auth:   true,
@@ -149,10 +149,8 @@ func (h *WorkspaceHandler) UpdateOrganization(w http.ResponseWriter, r *http.Req
 				return nil, err
 			}
 			resp, err := h.client.UpdateOrganization(r.Context(), &workspacepb.UpdateOrganizationRequest{
-				OrgId:       orgID,
-				Name:        body.Name,
-				Description: body.Description,
-				AvatarUrl:   body.AvatarURL,
+				OrgId: orgID,
+				Name:  body.Name, Description: body.Description, AvatarUrl: body.AvatarURL,
 			})
 			if err != nil {
 				return nil, err

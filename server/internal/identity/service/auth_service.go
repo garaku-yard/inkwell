@@ -144,9 +144,7 @@ type UserProfileResponse struct {
 }
 
 type UpdateProfileRequest struct {
-	Email     string `json:"email" validate:"omitempty,email"`
-	Username  string `json:"username" validate:"omitempty,min=3,max=30"`
-	AvatarURL string `json:"avatar_url" validate:"omitempty,url|startswith=/"`
+	Email, Username, FirstName, LastName, AvatarURL *string
 }
 
 type ChangePasswordRequest struct {
@@ -481,26 +479,9 @@ func (s *authService) UpdateUserProfile(ctx context.Context, userID uuid.UUID, r
 		return fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// Update fields if provided
-	if req.Email != "" {
-		if err := domain.ValidateEmail(req.Email); err != nil {
-			return err
-		}
-		user.Email = req.Email
-	}
-
-	usernameChanged := false
-	if req.Username != "" {
-		if err := domain.ValidateUsername(req.Username); err != nil {
-			return err
-		}
-		usernameChanged = req.Username != user.Username
-		user.Username = req.Username
-	}
-
-	if req.AvatarURL != "" {
-		avatar := req.AvatarURL
-		user.AvatarURL = &avatar
+	usernameChanged, err := applyProfilePatch(user, req)
+	if err != nil {
+		return err
 	}
 
 	user.UpdatedAt = time.Now()
@@ -524,6 +505,48 @@ func (s *authService) UpdateUserProfile(ctx context.Context, userID uuid.UUID, r
 		}
 		return err
 	}
+}
+
+func applyProfilePatch(user *domain.User, req *UpdateProfileRequest) (bool, error) {
+	if req.Email != nil {
+		if err := domain.ValidateEmail(*req.Email); err != nil {
+			return false, err
+		}
+		user.Email = *req.Email
+	}
+
+	usernameChanged := false
+	if req.Username != nil {
+		if err := domain.ValidateUsername(*req.Username); err != nil {
+			return false, err
+		}
+		usernameChanged = *req.Username != user.Username
+		user.Username = *req.Username
+	}
+
+	if req.FirstName != nil {
+		if *req.FirstName == "" {
+			user.FirstName = nil
+		} else {
+			user.FirstName = req.FirstName
+		}
+	}
+	if req.LastName != nil {
+		if *req.LastName == "" {
+			user.LastName = nil
+		} else {
+			user.LastName = req.LastName
+		}
+	}
+	if req.AvatarURL != nil {
+		if *req.AvatarURL == "" {
+			user.AvatarURL = nil
+		} else {
+			user.AvatarURL = req.AvatarURL
+		}
+	}
+
+	return usernameChanged, nil
 }
 
 // ChangePassword changes user password

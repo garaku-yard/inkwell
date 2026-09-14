@@ -739,11 +739,11 @@ func (h *ScriptsHandler) UpdateElement(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if req.Content != nil {
-				updateReq.Content = *req.Content
+				updateReq.Content = req.Content
 			}
 
 			if req.ElementType != nil {
-				updateReq.Type = *req.ElementType
+				updateReq.Type = req.ElementType
 			}
 
 			response, err := h.scriptsClient.UpdateElement(ctx, updateReq)

@@ -228,9 +228,9 @@ func (h *WorkspaceHandler) GetWorkspace(w http.ResponseWriter, r *http.Request) 
 // avatar URL. The workspace ID is extracted from the "workspaceId" chi URL parameter.
 func (h *WorkspaceHandler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 	type updateWorkspaceBody struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		AvatarURL   string `json:"avatar_url"`
+		Name        *string `json:"name"`
+		Description *string `json:"description"`
+		AvatarURL   *string `json:"avatar_url"`
 	}
 	// Router mounts this on both PUT and PATCH, so the endpoint accepts any verb.
 	handlers.Endpoint[updateWorkspaceBody, workspacepb.Workspace]{
@@ -239,9 +239,7 @@ func (h *WorkspaceHandler) UpdateWorkspace(w http.ResponseWriter, r *http.Reques
 			workspaceID := chi.URLParam(r, "workspaceId")
 			resp, err := h.client.UpdateWorkspace(r.Context(), &workspacepb.UpdateWorkspaceRequest{
 				WorkspaceId: workspaceID,
-				Name:        body.Name,
-				Description: body.Description,
-				AvatarUrl:   body.AvatarURL,
+				Name:        body.Name, Description: body.Description, AvatarUrl: body.AvatarURL,
 			})
 			if err != nil {
 				return nil, err

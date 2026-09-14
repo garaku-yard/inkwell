@@ -467,8 +467,8 @@ message CreateElementResponse {
 message UpdateElementRequest {
   string element_id = 1;
   string user_id = 2;
-  string content = 3;
-  string type = 4;
+  optional string content = 3;
+  optional string type = 4;
   // Set exclusively by the gateway (the trusted internal caller) after
   // resolving access via handlers.ResolveProjectRole — never derived from
   // client input. Orbit #360: replaces the empty-user_id bypass sentinel.

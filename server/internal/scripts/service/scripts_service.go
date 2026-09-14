@@ -55,14 +55,14 @@ type ScriptsService interface {
 	// Scene operations
 	CreateScene(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, scene *domain.Scene) (*domain.Scene, error)
 	GetProjectScenes(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) ([]*domain.Scene, error)
-	UpdateScene(ctx context.Context, sceneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Scene) (*domain.Scene, error)
+	UpdateScene(ctx context.Context, sceneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.ScenePatch) (*domain.Scene, error)
 	DeleteScene(ctx context.Context, sceneID, userID uuid.UUID, callerRole domain.CallerRole) error
 
 	// Character operations — unimplemented at the gRPC handler layer today;
 	// callerRole is threaded through anyway for signature consistency.
 	CreateCharacter(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, character *domain.Character) (*domain.Character, error)
 	GetProjectCharacters(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) ([]*domain.Character, error)
-	UpdateCharacter(ctx context.Context, characterID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Character) (*domain.Character, error)
+	UpdateCharacter(ctx context.Context, characterID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.CharacterPatch) (*domain.Character, error)
 
 	// Location operations — unimplemented at the gRPC handler layer today.
 	CreateLocation(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, location *domain.Location) (*domain.Location, error)
@@ -71,12 +71,12 @@ type ScriptsService interface {
 	// Outline operations — unimplemented at the gRPC handler layer today.
 	CreateOutlineUnit(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, unit *domain.OutlineUnit) (*domain.OutlineUnit, error)
 	GetProjectOutline(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, typeFilter string) ([]*domain.OutlineUnit, error)
-	UpdateOutlineUnit(ctx context.Context, unitID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.OutlineUnit) (*domain.OutlineUnit, error)
+	UpdateOutlineUnit(ctx context.Context, unitID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.OutlineUnitPatch) (*domain.OutlineUnit, error)
 	DeleteOutlineUnit(ctx context.Context, unitID, userID uuid.UUID, callerRole domain.CallerRole) error
 
 	// Simplified element operations for gateway
 	CreateElement(ctx context.Context, userID uuid.UUID, callerRole domain.CallerRole, element *domain.ProjectElement) (*domain.ProjectElement, error)
-	UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, callerRole domain.CallerRole, content string) (*domain.ProjectElement, error)
+	UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, callerRole domain.CallerRole, patch *domain.ElementPatch) (*domain.ProjectElement, error)
 	GetSceneElements(ctx context.Context, userID, sceneID uuid.UUID, callerRole domain.CallerRole) ([]*domain.ProjectElement, error)
 	// BatchCreateElements is only ever called for a project the caller just
 	// created (ImportFDX) — no callerRole parameter; see the implementation's
@@ -234,12 +234,20 @@ func (s *scriptsService) UpdateProject(ctx context.Context, projectID, userID uu
 
 	// Apply updates
 	if title != nil {
+		if *title == "" {
+			return nil, fmt.Errorf("%w: project title cannot be empty", domain.ErrInvalidProjectData)
+		}
 		project.Title = *title
 	}
 	if description != nil {
 		project.Description = *description
 	}
 	if status != nil {
+		switch *status {
+		case "draft", "active", "completed", "archived":
+		default:
+			return nil, fmt.Errorf("%w: invalid project status", domain.ErrInvalidProjectData)
+		}
 		project.Status = *status
 	}
 	project.UpdatedAt = time.Now()
@@ -577,7 +585,7 @@ func (s *scriptsService) GetProjectScenes(ctx context.Context, projectID, userID
 	return s.repo.Scene.GetProjectScenes(ctx, projectID)
 }
 
-func (s *scriptsService) UpdateScene(ctx context.Context, sceneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Scene) (*domain.Scene, error) {
+func (s *scriptsService) UpdateScene(ctx context.Context, sceneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.ScenePatch) (*domain.Scene, error) {
 	scene, err := s.repo.Scene.GetScene(ctx, sceneID)
 	if err != nil {
 		return nil, err
@@ -589,14 +597,17 @@ func (s *scriptsService) UpdateScene(ctx context.Context, sceneID, userID uuid.U
 
 	// Apply updates
 	scene.UpdatedAt = time.Now()
-	if updates.SceneHeading != "" {
-		scene.SceneHeading = updates.SceneHeading
+	if updates.OutlineUnitID != nil {
+		scene.OutlineUnitID = *updates.OutlineUnitID
 	}
-	if updates.Content != "" {
-		scene.Content = updates.Content
+	if updates.SceneHeading != nil {
+		scene.SceneHeading = *updates.SceneHeading
 	}
-	if updates.OrderIndex != 0 {
-		scene.OrderIndex = updates.OrderIndex
+	if updates.Content != nil {
+		scene.Content = *updates.Content
+	}
+	if updates.OrderIndex != nil {
+		scene.OrderIndex = *updates.OrderIndex
 	}
 
 	if err := s.repo.Scene.UpdateScene(ctx, scene); err != nil {
@@ -649,7 +660,7 @@ func (s *scriptsService) GetProjectCharacters(ctx context.Context, projectID, us
 	return s.repo.Character.GetProjectCharacters(ctx, projectID)
 }
 
-func (s *scriptsService) UpdateCharacter(ctx context.Context, characterID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.Character) (*domain.Character, error) {
+func (s *scriptsService) UpdateCharacter(ctx context.Context, characterID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.CharacterPatch) (*domain.Character, error) {
 	character, err := s.repo.Character.GetCharacter(ctx, characterID)
 	if err != nil {
 		return nil, err
@@ -660,17 +671,20 @@ func (s *scriptsService) UpdateCharacter(ctx context.Context, characterID, userI
 	}
 
 	character.UpdatedAt = time.Now()
-	if updates.Name != "" {
-		character.Name = updates.Name
+	if updates.Name != nil {
+		if *updates.Name == "" {
+			return nil, fmt.Errorf("%w: character name cannot be empty", domain.ErrInvalidProjectData)
+		}
+		character.Name = *updates.Name
 	}
-	if updates.Description != "" {
-		character.Description = updates.Description
+	if updates.Description != nil {
+		character.Description = *updates.Description
 	}
-	if updates.Role != "" {
-		character.Role = updates.Role
+	if updates.Role != nil {
+		character.Role = *updates.Role
 	}
 	if updates.Attributes != nil {
-		character.Attributes = updates.Attributes
+		character.Attributes = *updates.Attributes
 	}
 
 	if err := s.repo.Character.UpdateCharacter(ctx, character); err != nil {
@@ -732,7 +746,7 @@ func (s *scriptsService) GetProjectOutline(ctx context.Context, projectID, userI
 	return s.repo.Outline.GetProjectOutline(ctx, projectID, typeFilter)
 }
 
-func (s *scriptsService) UpdateOutlineUnit(ctx context.Context, unitID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.OutlineUnit) (*domain.OutlineUnit, error) {
+func (s *scriptsService) UpdateOutlineUnit(ctx context.Context, unitID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.OutlineUnitPatch) (*domain.OutlineUnit, error) {
 	unit, err := s.repo.Outline.GetOutlineUnit(ctx, unitID)
 	if err != nil {
 		return nil, err
@@ -743,23 +757,26 @@ func (s *scriptsService) UpdateOutlineUnit(ctx context.Context, unitID, userID u
 	}
 
 	unit.UpdatedAt = time.Now()
-	if updates.Title != "" {
-		unit.Title = updates.Title
+	if updates.Title != nil {
+		if *updates.Title == "" {
+			return nil, fmt.Errorf("%w: outline title cannot be empty", domain.ErrInvalidProjectData)
+		}
+		unit.Title = *updates.Title
 	}
-	if updates.Description != "" {
-		unit.Description = updates.Description
+	if updates.Description != nil {
+		unit.Description = *updates.Description
 	}
-	if updates.Color != "" {
-		unit.Color = updates.Color
+	if updates.Color != nil {
+		unit.Color = *updates.Color
 	}
 	if updates.Tags != nil {
-		unit.Tags = updates.Tags
+		unit.Tags = *updates.Tags
 	}
-	if updates.Icon != "" {
-		unit.Icon = updates.Icon
+	if updates.Icon != nil {
+		unit.Icon = *updates.Icon
 	}
-	if updates.OrderIndex != 0 {
-		unit.OrderIndex = updates.OrderIndex
+	if updates.OrderIndex != nil {
+		unit.OrderIndex = *updates.OrderIndex
 	}
 
 	if err := s.repo.Outline.UpdateOutlineUnit(ctx, unit); err != nil {
@@ -809,7 +826,7 @@ func (s *scriptsService) CreateElement(ctx context.Context, userID uuid.UUID, ca
 }
 
 // UpdateElementContent updates the content of a script element (simplified version)
-func (s *scriptsService) UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, callerRole domain.CallerRole, content string) (*domain.ProjectElement, error) {
+func (s *scriptsService) UpdateElementContent(ctx context.Context, userID, elementID uuid.UUID, callerRole domain.CallerRole, patch *domain.ElementPatch) (*domain.ProjectElement, error) {
 	// Get existing element
 	element, err := s.repo.ProjectElement.GetScriptElement(ctx, elementID)
 	if err != nil {
@@ -822,7 +839,15 @@ func (s *scriptsService) UpdateElementContent(ctx context.Context, userID, eleme
 	}
 
 	// Update content and timestamp
-	element.Content = content
+	if patch.Content != nil {
+		element.Content = *patch.Content
+	}
+	if patch.Type != nil {
+		if *patch.Type == "" {
+			return nil, fmt.Errorf("%w: element type cannot be empty", domain.ErrInvalidProjectData)
+		}
+		element.Type = *patch.Type
+	}
 	element.UpdatedAt = time.Now()
 
 	// Update through repository

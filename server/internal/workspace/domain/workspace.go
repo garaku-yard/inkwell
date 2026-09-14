@@ -20,6 +20,7 @@ var (
 	ErrInviteAlreadyUsed   = errors.New("invite has already been used")
 	ErrNotOwner            = errors.New("only the owner can perform this action")
 	ErrCannotRemoveOwner   = errors.New("cannot remove the workspace owner")
+	ErrInvalidInput        = errors.New("invalid workspace input")
 )
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
