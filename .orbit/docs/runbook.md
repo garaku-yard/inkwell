@@ -18,10 +18,15 @@
 ```sh
 cd client
 npm install
-npm run tauri:dev        # Next dev + Tauri window, fully local-first
+npm run tauri:dev        # Next Webpack dev server + Tauri window, fully local-first
 npm test                 # Vitest + RTL smoke suite (client/__tests__)
 npm run test:watch       # watch mode
 ```
+
+Tauri deliberately starts Next with Webpack through `npm run dev:tauri`.
+Next 16's default Turbopack development chunks fail to load in the Linux WebKit
+webview even though the same chunks work in Chromium. Keep the ordinary
+`npm run dev` command on Next's default bundler for browser-only development.
 
 The desktop build talks to local SQLite + on-disk files through
 `client/lib/storage`; it needs no backend. Local data lands at:

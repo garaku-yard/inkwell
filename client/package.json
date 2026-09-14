@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:tauri": "next dev --webpack",
     "build": "next build",
     "build:tauri": "cross-env BUILD_TARGET=tauri next build",
     "start": "next start",
