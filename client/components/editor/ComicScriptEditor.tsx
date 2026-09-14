@@ -21,10 +21,11 @@ import { RemoteCarets } from "./shared/RemoteCarets"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
+import { useEditorDocument } from "./shared/useEditorDocument"
+import { useEditorCommentTarget } from "./shared/useEditorCommentTarget"
 import {
   EditorSidebar,
   type EditorSidebarItem,
-  type EditorSidebarCommentTarget,
 } from "./shared/EditorSidebar"
 import { useEditorComments } from "./shared/useEditorComments"
 import { PagedSheets } from "./shared/PagedSheets"
@@ -33,7 +34,6 @@ import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
-  getFullProject,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
@@ -109,20 +109,18 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
     focusId: activePageId,
     focusLabel: pages.find((p) => p.id === activePageId)?.scene_heading || "Page",
   })
+  const { handleContentChange, refreshDocument } = useEditorDocument({
+    projectId: projectData.id,
+    userId: user?.id,
+    units: pages,
+    setUnits: setPages,
+    scheduleSave,
+    broadcastEdit,
+  })
 
   const totalPanels = pages.reduce((acc, p) => acc + panelCount(p.elements ?? []), 0)
 
-  const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
-    if (focusedElementId) {
-      for (const p of pages) {
-        const el = (p.elements ?? []).find((e) => e.id === focusedElementId)
-        if (el) return { item: el, isScene: false }
-      }
-    }
-    // Fall back to the page in view so the Comments tab is never a dead end.
-    const page = pages.find((p) => p.id === activePageId) ?? pages[0]
-    return page ? { item: page, isScene: true } : null
-  }, [focusedElementId, pages, activePageId])
+  const activeCommentTarget = useEditorCommentTarget({ units: pages, focusedElementId, activeUnitId: activePageId })
 
   const sidebarItems = useMemo<EditorSidebarItem[]>(
     () =>
@@ -140,19 +138,6 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
       }),
     [pages, peersByElement],
   )
-
-  const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
-    if (isScene) {
-      setPages(prev => prev.map(p => p.id === id ? { ...p, scene_heading: content } : p))
-    } else {
-      setPages(prev => prev.map(p => ({
-        ...p,
-        elements: (p.elements ?? []).map(el => el.id === id ? { ...el, content } : el),
-      })))
-    }
-    scheduleSave(id, content, isScene)
-    broadcastEdit(id, content, isScene)
-  }, [scheduleSave, broadcastEdit])
 
   const handleAddPage = async () => {
     if (!user?.id) return
@@ -538,10 +523,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
             category={projectData.category}
             projectId={projectData.id}
             currentUnitId={activePageId ?? pages[0]?.id}
-            onToolComplete={() => {
-              if (!user?.id) return
-              void getFullProject(projectData.id, user.id).then((fresh) => setPages(fresh.scenes ?? [])).catch(() => {})
-            }}
+            onToolComplete={() => void refreshDocument().catch(() => {})}
           />
           <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
         </div>

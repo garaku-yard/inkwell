@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react"
+import { useState, useCallback, useMemo, useRef } from "react"
 import { BookOpen, Pilcrow, Quote, Heading, Heading1, Heading2, Heading3, Clock, Asterisk, Hash, Type } from "lucide-react"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { PagedSheets } from "./shared/PagedSheets"
 import {
   EditorSidebar,
   type EditorSidebarItem,
-  type EditorSidebarCommentTarget,
 } from "./shared/EditorSidebar"
 import { useEditorComments } from "./shared/useEditorComments"
 import { cn } from "@/lib/utils"
@@ -30,10 +29,11 @@ import { RemoteCarets } from "./shared/RemoteCarets"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
+import { useEditorDocument } from "./shared/useEditorDocument"
+import { useEditorCommentTarget } from "./shared/useEditorCommentTarget"
 import {
   createScene,
   createSceneElement,
-  getFullProject,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
@@ -121,34 +121,15 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     focusLabel: scenes.find((s) => s.id === activeChapterId)?.scene_heading || "Untitled",
   })
 
-  // Every chapter needs at least one real `paragraph` element to write into. A
-  // chapter with zero elements renders the "Start writing…" placeholder, whose
-  // input is a phantom: it isn't persisted and — crucially — isn't broadcast to
-  // co-editors, so typing there never syncs (and is lost on reload). Provision a
-  // real paragraph lazily for any empty chapter — new, imported, or created before
-  // this fix — so the write surface is always a wired element. Guarded so React
-  // StrictMode's double-effect (and a burst of re-renders) can't duplicate it.
-  const provisioningRef = useRef<Set<string>>(new Set())
-  useEffect(() => {
-    const uid = user?.id
-    if (!uid) return
-    for (const s of scenes) {
-      if ((s.elements?.length ?? 0) > 0 || provisioningRef.current.has(s.id)) continue
-      provisioningRef.current.add(s.id)
-      void (async () => {
-        try {
-          const el = await createSceneElement(projectData.id, s.id, uid, {
-            element_type: "paragraph",
-            content: "",
-            order_index: 0,
-          })
-          setScenes((prev) => prev.map((x) => (x.id === s.id ? { ...x, elements: [el] } : x)))
-        } catch {
-          provisioningRef.current.delete(s.id) // allow a later retry
-        }
-      })()
-    }
-  }, [scenes, user?.id, projectData.id])
+  const { handleContentChange, refreshDocument } = useEditorDocument({
+    projectId: projectData.id,
+    userId: user?.id,
+    units: scenes,
+    setUnits: setScenes,
+    scheduleSave,
+    broadcastEdit,
+    emptyUnitElementType: "paragraph",
+  })
 
   // Track the last-focused block so the right-edge tool rail knows where to act:
   // an empty focused line is transformed into the chosen type, otherwise a new
@@ -162,21 +143,12 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
 
   // What a new comment attaches to: the focused body element, or the chapter
   // heading (a scene) when the heading itself is focused.
-  const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
-    if (activeElement) {
-      const scene = scenes.find((s) => s.id === activeElement.sceneId)
-      if (scene) {
-        if (activeElement.elementId) {
-          const el = (scene.elements ?? []).find((e) => e.id === activeElement.elementId)
-          if (el) return { item: el, isScene: false }
-        }
-        return { item: scene, isScene: true }
-      }
-    }
-    // Fall back to the chapter in view so the Comments tab is never a dead end.
-    const fallback = scenes.find((s) => s.id === activeChapterId) ?? scenes[0]
-    return fallback ? { item: fallback, isScene: true } : null
-  }, [activeElement, scenes, activeChapterId])
+  const activeCommentTarget = useEditorCommentTarget({
+    units: scenes,
+    focusedElementId: activeElement?.elementId,
+    focusedUnitId: activeElement?.sceneId,
+    activeUnitId: activeChapterId,
+  })
 
   const sidebarItems = useMemo<EditorSidebarItem[]>(
     () =>
@@ -194,19 +166,6 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
       }),
     [scenes, peersByElement],
   )
-
-  const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
-    if (isScene) {
-      setScenes(prev => prev.map(s => s.id === id ? { ...s, scene_heading: content } : s))
-    } else {
-      setScenes(prev => prev.map(s => ({
-        ...s,
-        elements: (s.elements ?? []).map(el => el.id === id ? { ...el, content } : el),
-      })))
-    }
-    scheduleSave(id, content, isScene)
-    broadcastEdit(id, content, isScene)
-  }, [scheduleSave, broadcastEdit])
 
   const handleAddChapter = async () => {
     if (!user?.id) return
@@ -700,10 +659,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
             category={projectData.category}
             projectId={projectData.id}
             currentUnitId={activeElement?.sceneId ?? activeChapterId ?? scenes[0]?.id}
-            onToolComplete={() => {
-              if (!user?.id) return
-              void getFullProject(projectData.id, user.id).then((fresh) => setScenes(fresh.scenes ?? [])).catch(() => {})
-            }}
+            onToolComplete={() => void refreshDocument().catch(() => {})}
           />
           <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
         </div>

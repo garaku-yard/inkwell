@@ -26,18 +26,18 @@ import { StableContentEditable } from "./shared/StableContentEditable"
 import {
   EditorSidebar,
   type EditorSidebarItem,
-  type EditorSidebarCommentTarget,
 } from "./shared/EditorSidebar"
 import { useEditorComments } from "./shared/useEditorComments"
 import { PagedSheets } from "./shared/PagedSheets"
 import { RemoteCarets } from "./shared/RemoteCarets"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
+import { useEditorDocument } from "./shared/useEditorDocument"
+import { useEditorCommentTarget } from "./shared/useEditorCommentTarget"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
-  getFullProject,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
@@ -171,18 +171,16 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     focusId: activePassageId,
     focusLabel: activePassage?.scene_heading || "Untitled",
   })
+  const { handleContentChange, refreshDocument } = useEditorDocument({
+    projectId: projectData.id,
+    userId: user?.id,
+    units: passages,
+    setUnits: setPassages,
+    scheduleSave,
+    broadcastEdit,
+  })
 
-  const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
-    if (focusedElementId) {
-      for (const p of passages) {
-        const el = (p.elements ?? []).find((e) => e.id === focusedElementId)
-        if (el) return { item: el, isScene: false }
-      }
-    }
-    // Fall back to the active passage so the Comments tab is never a dead end.
-    const passage = passages.find((p) => p.id === activePassageId) ?? passages[0]
-    return passage ? { item: passage, isScene: true } : null
-  }, [focusedElementId, passages, activePassageId])
+  const activeCommentTarget = useEditorCommentTarget({ units: passages, focusedElementId, activeUnitId: activePassageId })
 
   const sidebarItems = useMemo<EditorSidebarItem[]>(
     () =>
@@ -212,19 +210,6 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
 
   const totalLinks = passages.reduce((acc, p) =>
     acc + (p.elements ?? []).reduce((a, el) => a + parseLinks(el.content).length, 0), 0)
-
-  const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
-    if (isScene) {
-      setPassages(prev => prev.map(p => p.id === id ? { ...p, scene_heading: content } : p))
-    } else {
-      setPassages(prev => prev.map(p => ({
-        ...p,
-        elements: (p.elements ?? []).map(el => el.id === id ? { ...el, content } : el),
-      })))
-    }
-    scheduleSave(id, content, isScene)
-    broadcastEdit(id, content, isScene)
-  }, [scheduleSave, broadcastEdit])
 
   // A passage created with no elements would render an empty-state placeholder
   // whose keystrokes were never persisted (a real body element was only created
@@ -1089,12 +1074,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           category={projectData.category}
           projectId={projectData.id}
           currentUnitId={activePassageId ?? passages[0]?.id}
-          onToolComplete={() => {
-            if (!user?.id) return
-            void getFullProject(projectData.id, user.id).then((fresh) => {
-              setPassages(fresh.scenes ?? [])
-            }).catch(() => {})
-          }}
+          onToolComplete={() => void refreshDocument().catch(() => {})}
         />
         </div>
     </ProjectShell>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react"
+import { useState, useCallback, useMemo, useRef } from "react"
 import { ChevronRight, ChevronDown, Table, Pencil, Dice6, Library, Type, Pilcrow, Heading2, Boxes, Shield, StickyNote, ScrollText } from "lucide-react"
 import { StatBlockTemplatePicker } from "./ttrpg/StatBlockTemplatePicker"
 import { cn } from "@/lib/utils"
@@ -25,10 +25,11 @@ import { RemoteCarets } from "./shared/RemoteCarets"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
+import { useEditorDocument } from "./shared/useEditorDocument"
+import { useEditorCommentTarget } from "./shared/useEditorCommentTarget"
 import {
   EditorSidebar,
   type EditorSidebarItem,
-  type EditorSidebarCommentTarget,
 } from "./shared/EditorSidebar"
 import { useEditorComments } from "./shared/useEditorComments"
 import { PagedSheets } from "./shared/PagedSheets"
@@ -37,7 +38,6 @@ import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
-  getFullProject,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
@@ -154,50 +154,20 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     focusId: activeSectionId,
     focusLabel: sections.find((s) => s.id === activeSectionId)?.scene_heading || "Untitled",
   })
-
-  // Every section needs at least one real `body` element to write into. A section
-  // with zero elements renders the "Start writing…" placeholder, whose input is a
-  // phantom: it isn't persisted and — crucially — isn't broadcast to co-editors, so
-  // typing there never syncs (and is lost on reload). Provision a real body element
-  // lazily for any empty section — new, imported, or created before this fix — so
-  // the write surface is always a wired element. Guarded so React StrictMode's
-  // double-effect (and a burst of re-renders) can't duplicate it.
-  const provisioningRef = useRef<Set<string>>(new Set())
-  useEffect(() => {
-    const uid = user?.id
-    if (!uid) return
-    for (const s of sections) {
-      if ((s.elements?.length ?? 0) > 0 || provisioningRef.current.has(s.id)) continue
-      provisioningRef.current.add(s.id)
-      void (async () => {
-        try {
-          const el = await createSceneElement(projectData.id, s.id, uid, {
-            element_type: "body",
-            content: "",
-            order_index: 0,
-          })
-          setSections((prev) => prev.map((x) => (x.id === s.id ? { ...x, elements: [el] } : x)))
-        } catch {
-          provisioningRef.current.delete(s.id) // allow a later retry
-        }
-      })()
-    }
-  }, [sections, user?.id, projectData.id])
+  const { handleContentChange, refreshDocument } = useEditorDocument({
+    projectId: projectData.id,
+    userId: user?.id,
+    units: sections,
+    setUnits: setSections,
+    scheduleSave,
+    broadcastEdit,
+    emptyUnitElementType: "body",
+  })
 
   const totalWords = sections.reduce((acc, s) =>
     acc + (s.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0), 0)
 
-  const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
-    if (focusedElementId) {
-      for (const s of sections) {
-        const el = (s.elements ?? []).find((e) => e.id === focusedElementId)
-        if (el) return { item: el, isScene: false }
-      }
-    }
-    // Fall back to the section in view so the Comments tab is never a dead end.
-    const section = sections.find((s) => s.id === activeSectionId) ?? sections[0]
-    return section ? { item: section, isScene: true } : null
-  }, [focusedElementId, sections, activeSectionId])
+  const activeCommentTarget = useEditorCommentTarget({ units: sections, focusedElementId, activeUnitId: activeSectionId })
 
   const sidebarItems = useMemo<EditorSidebarItem[]>(
     () =>
@@ -221,19 +191,6 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       }),
     [sections, peersByElement],
   )
-
-  const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
-    if (isScene) {
-      setSections(prev => prev.map(s => s.id === id ? { ...s, scene_heading: content } : s))
-    } else {
-      setSections(prev => prev.map(s => ({
-        ...s,
-        elements: (s.elements ?? []).map(el => el.id === id ? { ...el, content } : el),
-      })))
-    }
-    scheduleSave(id, content, isScene)
-    broadcastEdit(id, content, isScene)
-  }, [scheduleSave, broadcastEdit])
 
   const handleAddSection = async () => {
     if (!user?.id) return
@@ -877,10 +834,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
             category={projectData.category}
             projectId={projectData.id}
             currentUnitId={activeSectionId ?? sections[0]?.id}
-            onToolComplete={() => {
-              if (!user?.id) return
-              void getFullProject(projectData.id, user.id).then((fresh) => setSections(fresh.scenes ?? [])).catch(() => {})
-            }}
+            onToolComplete={() => void refreshDocument().catch(() => {})}
           />
           <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
         </div>

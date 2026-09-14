@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react"
+import { useState, useCallback, useMemo, useRef } from "react"
 import { AlignCenter, AlignLeft, Music, Hash, Feather, Minus, Tag } from "lucide-react"
 import { syllable } from "syllable"
 import { Button } from "@/components/ui/button"
@@ -26,10 +26,11 @@ import { RemoteCarets } from "./shared/RemoteCarets"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
+import { useEditorDocument } from "./shared/useEditorDocument"
+import { useEditorCommentTarget } from "./shared/useEditorCommentTarget"
 import {
   EditorSidebar,
   type EditorSidebarItem,
-  type EditorSidebarCommentTarget,
 } from "./shared/EditorSidebar"
 import { useEditorComments } from "./shared/useEditorComments"
 import { PagedSheets } from "./shared/PagedSheets"
@@ -38,7 +39,6 @@ import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
-  getFullProject,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
@@ -102,48 +102,19 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     focusLabel: scenes.find((s) => s.id === activePoemId)?.scene_heading || "Untitled",
   })
 
-  // Every poem needs at least one real `line` element to write into. A poem with
-  // zero elements renders the "First line…" placeholder, whose input is a phantom:
-  // it isn't persisted and — crucially — isn't broadcast to co-editors, so typing
-  // there never syncs (and is lost on reload). Provision a real line lazily for any
-  // empty poem — new, imported, or created before this fix — so the write surface
-  // is always a wired element. Guarded so React StrictMode's double-effect (and a
-  // burst of re-renders) can't create duplicates.
-  const provisioningRef = useRef<Set<string>>(new Set())
-  useEffect(() => {
-    const uid = user?.id
-    if (!uid) return
-    for (const s of scenes) {
-      if ((s.elements?.length ?? 0) > 0 || provisioningRef.current.has(s.id)) continue
-      provisioningRef.current.add(s.id)
-      void (async () => {
-        try {
-          const el = await createSceneElement(projectData.id, s.id, uid, {
-            element_type: "line",
-            content: "",
-            order_index: 0,
-          })
-          setScenes((prev) => prev.map((x) => (x.id === s.id ? { ...x, elements: [el] } : x)))
-        } catch {
-          provisioningRef.current.delete(s.id) // allow a later retry
-        }
-      })()
-    }
-  }, [scenes, user?.id, projectData.id])
+  const { handleContentChange, refreshDocument } = useEditorDocument({
+    projectId: projectData.id,
+    userId: user?.id,
+    units: scenes,
+    setUnits: setScenes,
+    scheduleSave,
+    broadcastEdit,
+    emptyUnitElementType: "line",
+  })
 
   const totalLines = scenes.reduce((acc, s) => acc + countLines(s.elements ?? []), 0)
 
-  const activeCommentTarget = useMemo<EditorSidebarCommentTarget | null>(() => {
-    if (focusedElementId) {
-      for (const s of scenes) {
-        const el = (s.elements ?? []).find((e) => e.id === focusedElementId)
-        if (el) return { item: el, isScene: false }
-      }
-    }
-    // Fall back to the poem in view so the Comments tab is never a dead end.
-    const scene = scenes.find((s) => s.id === activePoemId) ?? scenes[0]
-    return scene ? { item: scene, isScene: true } : null
-  }, [focusedElementId, scenes, activePoemId])
+  const activeCommentTarget = useEditorCommentTarget({ units: scenes, focusedElementId, activeUnitId: activePoemId })
 
   const sidebarItems = useMemo<EditorSidebarItem[]>(
     () =>
@@ -161,19 +132,6 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
       }),
     [scenes, peersByElement],
   )
-
-  const handleContentChange = useCallback((id: string, content: string, isScene: boolean) => {
-    if (isScene) {
-      setScenes(prev => prev.map(s => s.id === id ? { ...s, scene_heading: content } : s))
-    } else {
-      setScenes(prev => prev.map(s => ({
-        ...s,
-        elements: (s.elements ?? []).map(el => el.id === id ? { ...el, content } : el),
-      })))
-    }
-    scheduleSave(id, content, isScene)
-    broadcastEdit(id, content, isScene)
-  }, [scheduleSave, broadcastEdit])
 
   const handleAddPoem = async () => {
     if (!user?.id) return
@@ -638,10 +596,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
             category={projectData.category}
             projectId={projectData.id}
             currentUnitId={activePoemId ?? scenes[0]?.id}
-            onToolComplete={() => {
-              if (!user?.id) return
-              void getFullProject(projectData.id, user.id).then((fresh) => setScenes(fresh.scenes ?? [])).catch(() => {})
-            }}
+            onToolComplete={() => void refreshDocument().catch(() => {})}
           />
           <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
         </div>
