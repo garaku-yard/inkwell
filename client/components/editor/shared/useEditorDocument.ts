@@ -12,6 +12,9 @@ interface UseEditorDocumentOptions {
   setUnits: Dispatch<SetStateAction<Scene[]>>
   scheduleSave: (id: string, content: string, isUnit: boolean) => void
   broadcastEdit: (id: string, content: string, isUnit: boolean) => void
+  /** Screenplay owns keystroke-level DOM state and reconciles React on blur. */
+  updateStateOnChange?: boolean
+  skipTemporaryIds?: boolean
   /** When supplied, every empty unit is provisioned with one persisted element. */
   emptyUnitElementType?: string
   emptyUnitElementContent?: string
@@ -28,6 +31,8 @@ export function useEditorDocument({
   setUnits,
   scheduleSave,
   broadcastEdit,
+  updateStateOnChange = true,
+  skipTemporaryIds = false,
   emptyUnitElementType,
   emptyUnitElementContent = "",
 }: UseEditorDocumentOptions) {
@@ -53,18 +58,20 @@ export function useEditorDocument({
   }, [emptyUnitElementContent, emptyUnitElementType, projectId, setUnits, units, userId])
 
   const handleContentChange = useCallback((id: string, content: string, isUnit: boolean) => {
-    setUnits((current) => current.map((unit) => {
-      if (isUnit) return unit.id === id ? { ...unit, scene_heading: content } : unit
-      return {
-        ...unit,
-        elements: (unit.elements ?? []).map((element) => (
-          element.id === id ? { ...element, content } : element
-        )),
-      }
-    }))
-    scheduleSave(id, content, isUnit)
+    if (updateStateOnChange) {
+      setUnits((current) => current.map((unit) => {
+        if (isUnit) return unit.id === id ? { ...unit, scene_heading: content } : unit
+        return {
+          ...unit,
+          elements: (unit.elements ?? []).map((element) => (
+            element.id === id ? { ...element, content } : element
+          )),
+        }
+      }))
+    }
+    if (!skipTemporaryIds || !id.startsWith("new-")) scheduleSave(id, content, isUnit)
     broadcastEdit(id, content, isUnit)
-  }, [broadcastEdit, scheduleSave, setUnits])
+  }, [broadcastEdit, scheduleSave, setUnits, skipTemporaryIds, updateStateOnChange])
 
   const refreshDocument = useCallback(async () => {
     if (!userId) return

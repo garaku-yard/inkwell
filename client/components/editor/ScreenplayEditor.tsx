@@ -2,7 +2,6 @@
 
 import type React from "react"
 import { useState, useRef, useCallback, useMemo, useEffect } from "react"
-import { useDebouncedCallback } from "use-debounce"
 import { ProjectShell } from "./shared/ProjectShell"
 import { EditorToolbar } from "./shared/EditorToolbar"
 import { type RailEntry } from "./shared/EditorToolRail"
@@ -15,9 +14,6 @@ import { EditableElement } from "./EditableElement"
 import { parseFdx } from "@/lib/import/screenplay-fdx"
 import { importIntoProject } from "@/lib/import/import-into-project"
 import {
-  updateElementContent,
-  updateSceneHeading,
-  getFullProject,
   type FullProject,
   type Scene,
   type ProjectElement,
@@ -28,6 +24,8 @@ import { ELEMENT_ORDER, SCRIPT_ELEMENT_CONFIG, type ToolbarScriptElementType } f
 import { AIChatPanel } from "./AIChatPanel"
 import { useScreenplayElements } from "./screenplay/useScreenplayElements"
 import { useEditorComments } from "./shared/useEditorComments"
+import { useElementAutosave } from "./shared/useElementAutosave"
+import { useEditorDocument } from "./shared/useEditorDocument"
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
 import { exportScreenplayToFDX } from "@/lib/export/screenplay-fdx"
@@ -128,7 +126,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const [activeElementType, setActiveElementType] = useState<ToolbarScriptElementType | "SCENE_HEADING" | null>(null)
   const [focusAtEndId, setFocusAtEndId] = useState<string | null>(null)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
+  const { saveStatus, scheduleSave, flushSave } = useElementAutosave({ userId: user?.id, debounceMs: 2000 })
   const elementRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
   const sidePanelRef = useRef<HTMLDivElement>(null)
 
@@ -161,6 +159,16 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     focusId: activeScene?.id,
     focusLabel: activeScene?.scene_heading || "Untitled",
   })
+  const { handleContentChange, refreshDocument } = useEditorDocument({
+    projectId: project.id,
+    userId: user?.id,
+    units: project.scenes ?? [],
+    setUnits: setScenes,
+    scheduleSave,
+    broadcastEdit,
+    updateStateOnChange: false,
+    skipTemporaryIds: true,
+  })
 
   // Comments use the same shared model as the other five editors: a flat list
   // loaded once + reload-after-write. The inline EditableElement badge and the
@@ -179,22 +187,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
   const handleFocusHandled = useCallback(() => {
     setFocusAtEndId(null)
   }, [])
-
-  const debouncedSave = useDebouncedCallback((id: string, content: string, isScene: boolean) => {
-    if (id.startsWith("new-")) return
-    if (!user?.id) return
-
-    setIsSaving(true)
-    if (isScene) {
-      updateSceneHeading(id, user.id, content)
-        .catch((err) => console.error("Scene save failed:", err))
-        .finally(() => setIsSaving(false))
-    } else {
-      updateElementContent(id, user.id, content)
-        .catch((err) => console.error("Element save failed:", err))
-        .finally(() => setIsSaving(false))
-    }
-  }, 2000)
 
   const allScenes = useMemo(() => project?.scenes || [], [project.scenes])
   const totalScenes = allScenes.length
@@ -263,18 +255,8 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     return map
   }, [projectComments])
 
-  const handleContentChange = useCallback(
-    (id: string, content: string, isScene: boolean) => {
-      debouncedSave(id, content, isScene)
-      broadcastEdit(id, content, isScene)
-    },
-    [debouncedSave, broadcastEdit],
-  )
-
   const handleFinalizeUpdate = useCallback(
     (id: string, content: string, isScene: boolean) => {
-      debouncedSave.cancel()
-
       if (id.startsWith("new-")) return
       if (!user?.id) return
 
@@ -282,9 +264,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       // structure tab) reflects what the user actually typed. We only do this on
       // blur, not on every keystroke — contentEditable owns keystroke-level state
       // to avoid a re-render cascade across all elements while typing.
-      setProject((prevProject) => {
-        if (!prevProject.scenes) return prevProject
-        const newScenes = prevProject.scenes.map((scene: Scene) => {
+      setScenes((current) => current.map((scene: Scene) => {
           if (isScene && scene.id === id) {
             return { ...scene, scene_heading: content }
           }
@@ -297,17 +277,11 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             }
           }
           return scene
-        })
-        return { ...prevProject, scenes: newScenes }
-      })
-
-      if (isScene) {
-        updateSceneHeading(id, user.id, content).catch((err) => console.error("Scene save failed on blur:", err))
-      } else {
-        updateElementContent(id, user.id, content).catch((err) => console.error("Element save failed on blur:", err))
-      }
+        }))
+      scheduleSave(id, content, isScene)
+      flushSave()
     },
-    [debouncedSave, user?.id],
+    [flushSave, scheduleSave, setScenes, user?.id],
   )
 
   const handleFocus = useCallback((id: string, type: ToolbarScriptElementType | "SCENE_HEADING" | null) => {
@@ -517,7 +491,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         title={project.title}
         projectId={project.id}
         category={project.category}
-        saveStatus={isSaving ? "saving" : "saved"}
+        saveStatus={saveStatus}
         onToggleAI={toggleAIChat}
         isAIOpen={isAIChatOpen}
         importItems={[
@@ -575,10 +549,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           projectId={project.id}
           currentUnitId={activeScene?.id ?? allScenes[0]?.id}
           currentElement={activeElementId || undefined}
-          onToolComplete={() => {
-            if (!user?.id) return
-            void getFullProject(project.id, user.id).then(setProject).catch(() => {})
-          }}
+          onToolComplete={() => void refreshDocument().catch(() => {})}
         />
       </div>
     </ProjectShell>
