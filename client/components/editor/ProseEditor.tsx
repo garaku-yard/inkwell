@@ -31,13 +31,12 @@ import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import { useEditorDocument } from "./shared/useEditorDocument"
 import { useEditorCommentTarget } from "./shared/useEditorCommentTarget"
+import { useEditorMutations } from "./shared/useEditorMutations"
 import {
-  createScene,
-  createSceneElement,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
-import { deleteScriptElement, updateScriptElement } from "@/services/editor"
+import { updateScriptElement } from "@/services/editor"
 
 type ProseElementType =
   | "chapter_heading"
@@ -130,6 +129,12 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     broadcastEdit,
     emptyUnitElementType: "paragraph",
   })
+  const { createUnit, insertElement, deleteElement } = useEditorMutations({
+    projectId: projectData.id,
+    userId: user?.id,
+    units: scenes,
+    setUnits: setScenes,
+  })
 
   // Track the last-focused block so the right-edge tool rail knows where to act:
   // an empty focused line is transformed into the chosen type, otherwise a new
@@ -168,13 +173,8 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   )
 
   const handleAddChapter = async () => {
-    if (!user?.id) return
-    const newScene = await createScene(projectData.id, user.id, {
-      scene_heading: "",
-      content: "",
-      order_index: scenes.length,
-    })
-    setScenes(prev => [...prev, { ...newScene, elements: [] }])
+    const newScene = await createUnit()
+    if (!newScene) return
     setTimeout(() => {
       chapterRefs.current.get(newScene.id)?.scrollIntoView({ behavior: "smooth", block: "center" })
     }, 100)
@@ -207,21 +207,12 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   }
 
   const handleAddElement = async (sceneId: string, type: ProseElementType, afterIdx?: number) => {
-    if (!user?.id) return
-    const scene = scenes.find(s => s.id === sceneId)
-    if (!scene) return
-    const insertAt = afterIdx !== undefined ? afterIdx + 1 : (scene.elements?.length ?? 0)
-    const el = await createSceneElement(projectData.id, sceneId, user.id, {
-      element_type: type,
+    const el = await insertElement(sceneId, {
+      elementType: type,
       content: type === "scene_break" ? "* * *" : "",
-      order_index: insertAt,
+      afterIndex: afterIdx,
     })
-    setScenes(prev => prev.map(s => {
-      if (s.id !== sceneId) return s
-      const els = [...(s.elements ?? [])]
-      els.splice(insertAt, 0, el)
-      return { ...s, elements: els }
-    }))
+    if (!el) return
     setTimeout(() => {
       document.getElementById(`el-${el.id}`)?.focus()
     }, 50)
@@ -286,15 +277,8 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
       const idx = ids.indexOf(elementId)
       const prevId = idx > 0 ? ids[idx - 1] : null
 
-      setScenes((prev) =>
-        prev.map((s) =>
-          s.id !== sceneId
-            ? s
-            : { ...s, elements: (s.elements ?? []).filter((el) => el.id !== elementId) },
-        ),
-      )
       try {
-        await deleteScriptElement(elementId)
+        await deleteElement(sceneId, elementId)
       } catch (err) {
         console.error("Failed to delete element:", err)
         toast({
@@ -309,7 +293,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         }, 50)
       }
     },
-    [scenes, toast],
+    [deleteElement, scenes, toast],
   )
 
   const keyMap = useMemo(

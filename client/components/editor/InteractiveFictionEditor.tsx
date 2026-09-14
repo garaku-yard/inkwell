@@ -16,7 +16,6 @@ import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createIFKeymap } from "./if/keymap"
 import { PassageAutocomplete } from "./if/PassageAutocomplete"
-import { deleteScriptElement } from "@/services/editor"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToTwee } from "@/lib/export/if-twee"
 import { useExportToast } from "@/lib/export/use-export-toast"
@@ -33,6 +32,7 @@ import { RemoteCarets } from "./shared/RemoteCarets"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { useEditorDocument } from "./shared/useEditorDocument"
 import { useEditorCommentTarget } from "./shared/useEditorCommentTarget"
+import { useEditorMutations } from "./shared/useEditorMutations"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { paginate } from "@/lib/editor/paginate"
 import {
@@ -155,8 +155,6 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   useEffect(() => {
     if (!activePassageId && passages.length > 0) setActivePassageId(passages[0].id)
   }, [activePassageId, passages])
-  const activeElements = activePassage?.elements ?? []
-
   // Live collaboration via the shared hook (no-op on the desktop build): live
   // edit sync, remote carets, focus reporting, and soft-lock markers. Passing
   // focusId makes the hook report the active passage and key peersByElement (live
@@ -178,6 +176,9 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     setUnits: setPassages,
     scheduleSave,
     broadcastEdit,
+  })
+  const { createUnit, insertElement, deleteElement } = useEditorMutations({
+    projectId: projectData.id, userId: user?.id, units: passages, setUnits: setPassages,
   })
 
   const activeCommentTarget = useEditorCommentTarget({ units: passages, focusedElementId, activeUnitId: activePassageId })
@@ -263,13 +264,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   }, [activePassageId, passages, seedBody])
 
   const handleAddPassage = async (name = "") => {
-    if (!user?.id) return
-    const passage = await createScene(projectData.id, user.id, {
-      scene_heading: name,
-      content: "",
-      order_index: passages.length,
-    })
-    setPassages(prev => [...prev, { ...passage, elements: [] }])
+    const passage = await createUnit({ title: name })
+    if (!passage) return
     setActivePassageId(passage.id)
     setView("write")
   }
@@ -299,7 +295,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   }
 
   const handleAddElement = async (type: IFElementType) => {
-    if (!activePassageId || !user?.id) return
+    if (!activePassageId) return
     const defaults: Record<IFElementType, string> = {
       body: "",
       choice: "[[Option text -> Passage Name]]",
@@ -307,15 +303,11 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
       set: "{set $variable to value}",
       note: "",
     }
-    const el = await createSceneElement(projectData.id, activePassageId, user.id, {
-      element_type: type,
+    const el = await insertElement(activePassageId, {
+      elementType: type,
       content: defaults[type],
-      order_index: activeElements.length,
     })
-    setPassages(prev => prev.map(p => {
-      if (p.id !== activePassageId) return p
-      return { ...p, elements: [...(p.elements ?? []), el] }
-    }))
+    if (!el) return
     setTimeout(() => {
       const div = document.getElementById(`el-${el.id}`)
       if (!div) return
@@ -337,15 +329,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
       const idx = ids.indexOf(elementId)
       const prevId = idx > 0 ? ids[idx - 1] : null
 
-      setPassages((prev) =>
-        prev.map((p) =>
-          p.id !== passageId
-            ? p
-            : { ...p, elements: (p.elements ?? []).filter((el) => el.id !== elementId) },
-        ),
-      )
       try {
-        await deleteScriptElement(elementId)
+        await deleteElement(passageId, elementId)
       } catch (err) {
         console.error("Failed to delete element:", err)
         toast({
@@ -360,7 +345,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
         }, 50)
       }
     },
-    [passages, toast],
+    [deleteElement, passages, toast],
   )
 
   const keyMap = useMemo(

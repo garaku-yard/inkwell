@@ -28,6 +28,7 @@ import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import { useEditorDocument } from "./shared/useEditorDocument"
 import { useEditorCommentTarget } from "./shared/useEditorCommentTarget"
+import { useEditorMutations } from "./shared/useEditorMutations"
 import {
   EditorSidebar,
   type EditorSidebarItem,
@@ -37,12 +38,9 @@ import { PagedSheets } from "./shared/PagedSheets"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { paginate } from "@/lib/editor/paginate"
 import {
-  createScene,
-  createSceneElement,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
-import { deleteScriptElement } from "@/services/editor"
 
 interface PoetryEditorProps {
   projectData: FullProject
@@ -111,6 +109,12 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     broadcastEdit,
     emptyUnitElementType: "line",
   })
+  const { createUnit, insertElement: insertDocumentElement, deleteElement } = useEditorMutations({
+    projectId: projectData.id,
+    userId: user?.id,
+    units: scenes,
+    setUnits: setScenes,
+  })
 
   const totalLines = scenes.reduce((acc, s) => acc + countLines(s.elements ?? []), 0)
 
@@ -134,14 +138,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   )
 
   const handleAddPoem = async () => {
-    if (!user?.id) return
-    const s = await createScene(projectData.id, user.id, {
-      scene_heading: "",
-      content: "",
-      order_index: scenes.length,
-    })
-    const newScene = { ...s, elements: [] }
-    setScenes(prev => [...prev, newScene])
+    const s = await createUnit()
+    if (!s) return
     setTimeout(() => {
       poemRefs.current.get(s.id)?.scrollIntoView({ behavior: "smooth", block: "center" })
     }, 100)
@@ -183,22 +181,11 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     content: string,
     afterIdx?: number,
   ) => {
-    if (!user?.id) return null
-    const scene = scenes.find(s => s.id === sceneId)
-    if (!scene) return null
-    const insertAt = afterIdx !== undefined ? afterIdx + 1 : (scene.elements?.length ?? 0)
-    const el = await createSceneElement(projectData.id, sceneId, user.id, {
-      element_type: type,
+    return insertDocumentElement(sceneId, {
+      elementType: type,
       content,
-      order_index: insertAt,
+      afterIndex: afterIdx,
     })
-    setScenes(prev => prev.map(s => {
-      if (s.id !== sceneId) return s
-      const els = [...(s.elements ?? [])]
-      els.splice(insertAt, 0, el)
-      return { ...s, elements: els }
-    }))
-    return el
   }
 
   const handleAddLine = async (sceneId: string, afterIdx?: number) => {
@@ -236,15 +223,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
       const idx = ids.indexOf(elementId)
       const prevId = idx > 0 ? ids[idx - 1] : null
 
-      setScenes((prev) =>
-        prev.map((s) =>
-          s.id !== sceneId
-            ? s
-            : { ...s, elements: (s.elements ?? []).filter((el) => el.id !== elementId) },
-        ),
-      )
       try {
-        await deleteScriptElement(elementId)
+        await deleteElement(sceneId, elementId)
       } catch (err) {
         console.error("Failed to delete element:", err)
         toast({
@@ -259,7 +239,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
         }, 50)
       }
     },
-    [scenes, toast],
+    [deleteElement, scenes, toast],
   )
 
   const keyMap = useMemo(

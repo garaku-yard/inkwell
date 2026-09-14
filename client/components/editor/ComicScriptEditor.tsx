@@ -23,6 +23,7 @@ import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import { useEditorDocument } from "./shared/useEditorDocument"
 import { useEditorCommentTarget } from "./shared/useEditorCommentTarget"
+import { useEditorMutations } from "./shared/useEditorMutations"
 import {
   EditorSidebar,
   type EditorSidebarItem,
@@ -32,12 +33,9 @@ import { PagedSheets } from "./shared/PagedSheets"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { paginate } from "@/lib/editor/paginate"
 import {
-  createScene,
-  createSceneElement,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
-import { deleteScriptElement } from "@/services/editor"
 
 // Element types follow standard Marvel/DC comic script conventions:
 // panel       — visual action description for a panel
@@ -117,6 +115,9 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
     scheduleSave,
     broadcastEdit,
   })
+  const { createUnit, insertElement: insertDocumentElement, deleteElement } = useEditorMutations({
+    projectId: projectData.id, userId: user?.id, units: pages, setUnits: setPages,
+  })
 
   const totalPanels = pages.reduce((acc, p) => acc + panelCount(p.elements ?? []), 0)
 
@@ -140,13 +141,8 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
   )
 
   const handleAddPage = async () => {
-    if (!user?.id) return
-    const page = await createScene(projectData.id, user.id, {
-      scene_heading: "",
-      content: "",
-      order_index: pages.length,
-    })
-    setPages(prev => [...prev, { ...page, elements: [] }])
+    const page = await createUnit()
+    if (!page) return
     setTimeout(() => {
       pageRefs.current.get(page.id)?.scrollIntoView({ behavior: "smooth", block: "start" })
     }, 100)
@@ -158,22 +154,11 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
     content: string,
     afterIdx?: number,
   ) => {
-    if (!user?.id) return null
-    const page = pages.find(p => p.id === pageId)
-    if (!page) return null
-    const insertAt = afterIdx !== undefined ? afterIdx + 1 : (page.elements?.length ?? 0)
-    const el = await createSceneElement(projectData.id, pageId, user.id, {
-      element_type: type,
+    return insertDocumentElement(pageId, {
+      elementType: type,
       content,
-      order_index: insertAt,
+      afterIndex: afterIdx,
     })
-    setPages(prev => prev.map(p => {
-      if (p.id !== pageId) return p
-      const els = [...(p.elements ?? [])]
-      els.splice(insertAt, 0, el)
-      return { ...p, elements: els }
-    }))
-    return el
   }
 
   const handleAddElement = async (pageId: string, type: ComicElementType, afterIdx?: number) => {
@@ -197,15 +182,8 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
       const idx = ids.indexOf(elementId)
       const prevId = idx > 0 ? ids[idx - 1] : null
 
-      setPages((prev) =>
-        prev.map((p) =>
-          p.id !== pageId
-            ? p
-            : { ...p, elements: (p.elements ?? []).filter((el) => el.id !== elementId) },
-        ),
-      )
       try {
-        await deleteScriptElement(elementId)
+        await deleteElement(pageId, elementId)
       } catch (err) {
         console.error("Failed to delete element:", err)
         toast({
@@ -220,7 +198,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
         }, 50)
       }
     },
-    [pages, toast],
+    [deleteElement, pages, toast],
   )
 
   const keyMap = useMemo(

@@ -15,7 +15,6 @@ import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createRPGKeymap, type RPGElementType } from "./ttrpg/keymap"
 import { SlashMenu } from "./ttrpg/SlashMenu"
-import { deleteScriptElement } from "@/services/editor"
 import { exportProjectToText, exportProjectToMarkdown } from "@/lib/export/text-export"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import { parseMarkdownToTtrpg } from "@/lib/import/markdown-ttrpg"
@@ -27,6 +26,7 @@ import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
 import { useEditorDocument } from "./shared/useEditorDocument"
 import { useEditorCommentTarget } from "./shared/useEditorCommentTarget"
+import { useEditorMutations } from "./shared/useEditorMutations"
 import {
   EditorSidebar,
   type EditorSidebarItem,
@@ -36,8 +36,6 @@ import { PagedSheets } from "./shared/PagedSheets"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { paginate } from "@/lib/editor/paginate"
 import {
-  createScene,
-  createSceneElement,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
@@ -163,6 +161,9 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     broadcastEdit,
     emptyUnitElementType: "body",
   })
+  const { createUnit, insertElement: insertDocumentElement, deleteElement } = useEditorMutations({
+    projectId: projectData.id, userId: user?.id, units: sections, setUnits: setSections,
+  })
 
   const totalWords = sections.reduce((acc, s) =>
     acc + (s.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0), 0)
@@ -193,13 +194,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   )
 
   const handleAddSection = async () => {
-    if (!user?.id) return
-    const section = await createScene(projectData.id, user.id, {
-      scene_heading: "",
-      content: "",
-      order_index: sections.length,
-    })
-    setSections(prev => [...prev, { ...section, elements: [] }])
+    const section = await createUnit()
+    if (!section) return
     setTimeout(() => {
       sectionRefs.current.get(section.id)?.scrollIntoView({ behavior: "smooth", block: "start" })
     }, 100)
@@ -231,22 +227,11 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   }
 
   const insertElement = async (sectionId: string, type: RPGElementType, content: string, afterIdx?: number) => {
-    if (!user?.id) return null
-    const section = sections.find(s => s.id === sectionId)
-    if (!section) return null
-    const insertAt = afterIdx !== undefined ? afterIdx + 1 : (section.elements?.length ?? 0)
-    const el = await createSceneElement(projectData.id, sectionId, user.id, {
-      element_type: type,
+    return insertDocumentElement(sectionId, {
+      elementType: type,
       content,
-      order_index: insertAt,
+      afterIndex: afterIdx,
     })
-    setSections(prev => prev.map(s => {
-      if (s.id !== sectionId) return s
-      const els = [...(s.elements ?? [])]
-      els.splice(insertAt, 0, el)
-      return { ...s, elements: els }
-    }))
-    return el
   }
 
   const handleAddElement = async (sectionId: string, type: RPGElementType, afterIdx?: number) => {
@@ -273,15 +258,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       const idx = ids.indexOf(elementId)
       const prevId = idx > 0 ? ids[idx - 1] : null
 
-      setSections((prev) =>
-        prev.map((s) =>
-          s.id !== sectionId
-            ? s
-            : { ...s, elements: (s.elements ?? []).filter((el) => el.id !== elementId) },
-        ),
-      )
       try {
-        await deleteScriptElement(elementId)
+        await deleteElement(sectionId, elementId)
       } catch (err) {
         console.error("Failed to delete element:", err)
         toast({
@@ -296,7 +274,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         }, 50)
       }
     },
-    [sections, toast],
+    [deleteElement, sections, toast],
   )
 
   const keyMap = useMemo(
