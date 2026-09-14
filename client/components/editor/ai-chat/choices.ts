@@ -6,7 +6,7 @@ export interface ChatChoice {
 /** Extract explicit choices from a completed assistant reply. Lists remain
  * ordinary Markdown unless the reply also invites the reader to choose. */
 export function extractChatChoices(content: string): ChatChoice[] {
-  if (!/(?:choose|select|which (?:one|option|direction)|how do you want to proceed|do you\s*:)/i.test(content)) {
+  if (!/(?:choose|select|which (?:one|option|direction)|how do you want to proceed|do you\s*:|suggestions?|ideas?|directions?|options?|possibilities)/i.test(content)) {
     return []
   }
 

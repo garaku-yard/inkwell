@@ -19,6 +19,15 @@ describe("extractChatChoices", () => {
       ])
   })
 
+  it("extracts numbered follow-up ideas without requiring a closing question", () => {
+    expect(extractChatChoices("Here are some potential follow-up ideas:\n\n1. **Memories Return:** Fragments surface.\n2. **A Warning:** The intercom activates.\n3. **New Supplies:** A crate appears."))
+      .toEqual([
+        { key: "1", label: "Memories Return: Fragments surface." },
+        { key: "2", label: "A Warning: The intercom activates." },
+        { key: "3", label: "New Supplies: A crate appears." },
+      ])
+  })
+
   it("leaves explanatory lists as ordinary markdown", () => {
     expect(extractChatChoices("Useful facts:\n1. The station is abandoned\n2. Earth is distant"))
       .toEqual([])
