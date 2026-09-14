@@ -8,7 +8,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
+	"unicode"
 
 	"inkwell/server/internal/gateway/application/scriptwrites"
 	"inkwell/server/internal/gateway/handlers/ai/approval"
@@ -67,8 +69,6 @@ func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.F
 			}
 			if chunk.Delta != "" {
 				assistantText += chunk.Delta
-				_ = encoder.Encode(map[string]string{"response": chunk.Delta})
-				flusher.Flush()
 			}
 			if chunk.Usage != nil {
 				totalTokens += chunk.Usage.TotalTokens
@@ -82,6 +82,12 @@ func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.F
 		}
 		_ = stream.Close()
 		if len(calls) == 0 {
+			calls = textualToolCalls(assistantText, input.Tools, iteration)
+		}
+		if len(calls) == 0 {
+			if assistantText != "" {
+				_ = encoder.Encode(map[string]string{"response": assistantText})
+			}
 			_ = encoder.Encode(map[string]bool{"done": true})
 			flusher.Flush()
 			return
@@ -158,7 +164,7 @@ func withActiveScene(call aiadapter.ToolCall, activeSceneID string) aiadapter.To
 	if json.Unmarshal([]byte(call.Arguments), &args) != nil {
 		return call
 	}
-	if id, _ := args["scene_id"].(string); id == "" {
+	if id, _ := args["scene_id"].(string); id == "" || sceneIDPlaceholder(id) {
 		args["scene_id"] = activeSceneID
 	}
 	encoded, err := json.Marshal(args)
@@ -166,6 +172,58 @@ func withActiveScene(call aiadapter.ToolCall, activeSceneID string) aiadapter.To
 		call.Arguments = string(encoded)
 	}
 	return call
+}
+
+// Some small OpenAI-compatible models serialize a requested tool call into
+// assistant content instead of the protocol's tool_calls field. Accept only a
+// single JSON object naming a tool that was explicitly offered in this request;
+// ordinary prose and unknown/hallucinated tools remain ordinary assistant text.
+func textualToolCalls(content string, offered []aiadapter.Tool, iteration int) []aiadapter.ToolCall {
+	raw := strings.TrimSpace(content)
+	if strings.HasPrefix(raw, "```") && strings.HasSuffix(raw, "```") {
+		raw = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(raw, "```json"), "```"))
+		raw = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(raw, "```"), "```"))
+	}
+	var envelope struct {
+		Name       string          `json:"name"`
+		Parameters json.RawMessage `json:"parameters"`
+		Arguments  json.RawMessage `json:"arguments"`
+	}
+	if json.Unmarshal([]byte(raw), &envelope) != nil || envelope.Name == "" {
+		return nil
+	}
+	allowed := false
+	for _, tool := range offered {
+		if tool.Name == envelope.Name {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return nil
+	}
+	args := envelope.Parameters
+	if len(args) == 0 {
+		args = envelope.Arguments
+	}
+	if len(args) == 0 || !json.Valid(args) {
+		args = json.RawMessage(`{}`)
+	}
+	return []aiadapter.ToolCall{{ID: fmt.Sprintf("textual-%d", iteration), Name: envelope.Name, Arguments: string(args)}}
+}
+
+func sceneIDPlaceholder(id string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(id))
+	return strings.Contains(normalized, "current scene") || strings.Contains(normalized, "list_scenes") || strings.HasPrefix(normalized, "(")
+}
+
+func cleanHeading(value string) string {
+	return strings.TrimSpace(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, value))
 }
 
 func (h *AIHandler) executeReadTool(ctx context.Context, userID, projectID string, call aiadapter.ToolCall) string {
@@ -269,6 +327,7 @@ func (h *AIHandler) executeHostedTool(ctx context.Context, userID, projectID str
 		if args.Heading == "" {
 			args.Heading = args.Title
 		}
+		args.Heading = cleanHeading(args.Heading)
 		if projectID == "" || args.SceneID == "" {
 			err = errors.New("projectId and scene_id are required")
 		} else {

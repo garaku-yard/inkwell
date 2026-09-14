@@ -136,6 +136,37 @@ func TestToolLoopUsesActiveSceneWhenModelOmitsSceneID(t *testing.T) {
 	}
 }
 
+func TestToolLoopExecutesOfferedTextualToolCallFromCompatibleModel(t *testing.T) {
+	textCall := `{"name":"rename_scene","parameters":{"scene_heading":"Attractor:\u0002Zero","scene_id":"(get current scene id from list_scenes())"}}`
+	a := &loopAdapter{streams: []aiadapter.Stream{&loopStream{chunks: []aiadapter.Chunk{{Delta: "renamed", Done: true}}}}}
+	var executed aiadapter.ToolCall
+	h := &AIHandler{executeTool: func(_ context.Context, _, _ string, got aiadapter.ToolCall) string {
+		executed = got
+		return `{"renamed":true}`
+	}}
+	w := httptest.NewRecorder()
+	input := aiadapter.Input{Tools: hostedTools("p", false)}
+	h.runToolLoop(context.Background(), w, w, a, input, &loopStream{chunks: []aiadapter.Chunk{{Delta: textCall, Done: true}}}, "u", "p", "passage-1", "provider", false)
+	if executed.Name != "rename_scene" || !strings.Contains(executed.Arguments, `"scene_id":"passage-1"`) {
+		t.Fatalf("textual tool call was not normalized and executed: %#v", executed)
+	}
+	if strings.Contains(w.Body.String(), `"name":"rename_scene"`) || !strings.Contains(w.Body.String(), `"response":"renamed"`) {
+		t.Fatalf("raw textual call leaked or completion missing: %s", w.Body.String())
+	}
+}
+
+func TestTextualToolCallRejectsToolThatWasNotOffered(t *testing.T) {
+	if calls := textualToolCalls(`{"name":"delete_project","parameters":{}}`, hostedTools("p", true), 0); len(calls) != 0 {
+		t.Fatalf("accepted unknown textual tool: %#v", calls)
+	}
+}
+
+func TestCleanHeadingRemovesModelControlCharacters(t *testing.T) {
+	if got := cleanHeading("  Attractor:\x02Zero  "); got != "Attractor:Zero" {
+		t.Fatalf("cleanHeading=%q", got)
+	}
+}
+
 func TestDestructiveToolEmitsApprovalAndEndsTurn(t *testing.T) {
 	store := &memoryApprovals{values: map[string]approval.Checkpoint{}}
 	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "call1", Name: "delete_scene", Arguments: `{ "scene_id": "s1" }`}}}
