@@ -11,10 +11,11 @@ import (
 
 type writeScriptsStub struct {
 	scriptspb.ScriptsServiceClient
-	owner    string
-	creates  int
-	role     scriptspb.CallerRole
-	projects int
+	owner                                     string
+	creates                                   int
+	role                                      scriptspb.CallerRole
+	projects                                  int
+	elementType, elementContent, sceneContent string
 }
 
 func (s *writeScriptsStub) CreateProject(_ context.Context, r *scriptspb.CreateProjectRequest, _ ...grpc.CallOption) (*scriptspb.CreateProjectResponse, error) {
@@ -29,6 +30,23 @@ func (s *writeScriptsStub) CreateScene(_ context.Context, r *scriptspb.CreateSce
 	s.creates++
 	s.role = r.CallerRole
 	return &scriptspb.CreateSceneResponse{Scene: &scriptspb.Scene{Id: "s1"}}, nil
+}
+func (s *writeScriptsStub) GetResourceProject(context.Context, *scriptspb.GetResourceProjectRequest, ...grpc.CallOption) (*scriptspb.GetResourceProjectResponse, error) {
+	return &scriptspb.GetResourceProjectResponse{ProjectId: "p"}, nil
+}
+func (s *writeScriptsStub) GetProjectScenes(context.Context, *scriptspb.GetProjectScenesRequest, ...grpc.CallOption) (*scriptspb.GetProjectScenesResponse, error) {
+	return &scriptspb.GetProjectScenesResponse{Scenes: []*scriptspb.Scene{{Id: "s", ProjectId: "p", Content: "before"}}}, nil
+}
+func (s *writeScriptsStub) GetSceneElements(context.Context, *scriptspb.GetSceneElementsRequest, ...grpc.CallOption) (*scriptspb.GetSceneElementsResponse, error) {
+	return &scriptspb.GetSceneElementsResponse{Elements: []*scriptspb.ProjectElement{{Id: "e0", SceneId: "s", Type: "body", Content: "before"}}}, nil
+}
+func (s *writeScriptsStub) CreateElement(_ context.Context, r *scriptspb.CreateElementRequest, _ ...grpc.CallOption) (*scriptspb.CreateElementResponse, error) {
+	s.elementType, s.elementContent = r.ElementType, r.Content
+	return &scriptspb.CreateElementResponse{Element: &scriptspb.ProjectElement{Id: "e1", SceneId: r.SceneId, Type: r.ElementType, Content: r.Content}}, nil
+}
+func (s *writeScriptsStub) UpdateScene(_ context.Context, r *scriptspb.UpdateSceneRequest, _ ...grpc.CallOption) (*scriptspb.UpdateSceneResponse, error) {
+	s.sceneContent = r.GetContent()
+	return &scriptspb.UpdateSceneResponse{Scene: &scriptspb.Scene{Id: r.SceneId, ProjectId: "p", Content: s.sceneContent}}, nil
 }
 
 type writeCollabStub struct {
@@ -83,5 +101,16 @@ func TestCreateSceneRoleMatrix(t *testing.T) {
 				t.Fatalf("creates=%d role=%s", s.creates, s.role)
 			}
 		})
+	}
+}
+
+func TestAppendToInteractiveFictionCreatesVisibleBodyElement(t *testing.T) {
+	s := &writeScriptsStub{owner: "u"}
+	_, err := New(s, nil, nil).AppendToScene(context.Background(), "u", "p", "s", "Earth hangs far away.", "interactive_fiction")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.elementType != "body" || s.elementContent != "Earth hangs far away." || s.sceneContent != "before\n\nEarth hangs far away." {
+		t.Fatalf("element=(%q,%q) scene=%q", s.elementType, s.elementContent, s.sceneContent)
 	}
 }

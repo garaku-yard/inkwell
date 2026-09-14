@@ -125,7 +125,7 @@ func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.F
 				if h.executeTool != nil {
 					result = h.executeTool(ctx, userID, projectID, call)
 				} else {
-					result = h.executeHostedTool(ctx, userID, projectID, call)
+					result = h.executeHostedTool(ctx, userID, projectID, category, call)
 				}
 				if call.ID != "" {
 					toolResults[call.ID] = result
@@ -268,7 +268,7 @@ func (h *AIHandler) executeReadTool(ctx context.Context, userID, projectID strin
 	return string(encoded)
 }
 
-func (h *AIHandler) executeHostedTool(ctx context.Context, userID, projectID string, call aiadapter.ToolCall) string {
+func (h *AIHandler) executeHostedTool(ctx context.Context, userID, projectID, category string, call aiadapter.ToolCall) string {
 	if call.Name == "list_projects" || call.Name == "list_scenes" || call.Name == "read_scene" {
 		return h.executeReadTool(ctx, userID, projectID, call)
 	}
@@ -312,7 +312,7 @@ func (h *AIHandler) executeHostedTool(ctx context.Context, userID, projectID str
 		if projectID == "" || args.SceneID == "" {
 			err = errors.New("projectId and scene_id are required")
 		} else {
-			value, err = h.writes.AppendToScene(ctx, userID, projectID, args.SceneID, args.Content)
+			value, err = h.writes.AppendToScene(ctx, userID, projectID, args.SceneID, args.Content, category)
 		}
 	case "add_beat":
 		if projectID == "" {

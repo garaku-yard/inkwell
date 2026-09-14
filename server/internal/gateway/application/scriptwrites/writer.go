@@ -84,7 +84,7 @@ func (w *Writer) RenameScene(ctx context.Context, userID, projectID, sceneID, he
 	}
 	return r.Scene, nil
 }
-func (w *Writer) AppendToScene(ctx context.Context, userID, projectID, sceneID, content string) (*scriptspb.Scene, error) {
+func (w *Writer) AppendToScene(ctx context.Context, userID, projectID, sceneID, content, category string) (*scriptspb.Scene, error) {
 	if content == "" {
 		return nil, errors.New("content is required")
 	}
@@ -99,12 +99,38 @@ func (w *Writer) AppendToScene(ctx context.Context, userID, projectID, sceneID, 
 	if err != nil {
 		return nil, err
 	}
-	next := current.Scene.Content + content
+	callerRole := handlers.ScriptsCallerRole(role)
+	if _, err = w.scripts.CreateElement(ctx, &scriptspb.CreateElementRequest{
+		ProjectId: projectID, UserId: userID, CallerRole: callerRole, SceneId: sceneID,
+		ElementType: elementTypeForCategory(category), Content: content, LineNumber: int32(len(current.Elements) + 1),
+	}); err != nil {
+		return nil, err
+	}
+	next := strings.TrimSpace(current.Scene.Content)
+	if next != "" {
+		next += "\n\n"
+	}
+	next += content
 	r, err := w.scripts.UpdateScene(ctx, &scriptspb.UpdateSceneRequest{SceneId: sceneID, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role), Content: &next})
 	if err != nil {
 		return nil, err
 	}
 	return r.Scene, nil
+}
+
+func elementTypeForCategory(category string) string {
+	switch category {
+	case "screenplay":
+		return "ACTION"
+	case "comic_script":
+		return "panel"
+	case "poetry", "lyrics":
+		return "line"
+	case "interactive_fiction", "tabletop_rpg":
+		return "body"
+	default:
+		return "paragraph"
+	}
 }
 
 type AddBeatInput struct {
@@ -136,17 +162,7 @@ func (w *Writer) RewriteScene(ctx context.Context, userID, projectID, sceneID, c
 	if err != nil {
 		return nil, err
 	}
-	elementType := "paragraph"
-	switch category {
-	case "screenplay":
-		elementType = "ACTION"
-	case "comic_script":
-		elementType = "panel"
-	case "poetry", "lyrics":
-		elementType = "line"
-	case "interactive_fiction", "tabletop_rpg":
-		elementType = "body"
-	}
+	elementType := elementTypeForCategory(category)
 	callerRole := handlers.ScriptsCallerRole(role)
 	if len(current.Elements) == 0 {
 		if _, err = w.scripts.CreateElement(ctx, &scriptspb.CreateElementRequest{ProjectId: projectID, UserId: userID, CallerRole: callerRole, SceneId: sceneID, ElementType: elementType, Content: content, LineNumber: 1}); err != nil {
