@@ -5,6 +5,7 @@ import type { AIProviderSettings } from "@/lib/storage"
 import { decideHostedToolApproval, streamChatCompletion } from "@/services/ai"
 
 import { friendlyChatError } from "./errors"
+import { editorUnitNoun } from "./editorUnit"
 
 export interface ChatMessage {
   id: string
@@ -33,7 +34,7 @@ interface UseAIChatStreamOptions {
    *  storage layer can retrieve vault-as-knowledge context for the prompt
    *  and run the `read_note` tool. Undefined on surfaces without a project. */
   projectId?: string
-  activeSceneId?: string
+  activeUnitId?: string
   category?: string
   onToolComplete?: (tool: string, args: Record<string, unknown>) => void
 }
@@ -60,7 +61,7 @@ export function useAIChatStream({
   setIsTyping,
   isTyping,
   projectId,
-  activeSceneId,
+  activeUnitId,
   category,
   onToolComplete,
 }: UseAIChatStreamOptions): UseAIChatStreamResult {
@@ -131,7 +132,7 @@ export function useAIChatStream({
           model: selectedProvider.defaultModel,
           stream: true,
           projectId,
-          activeSceneId,
+          activeUnitId,
           category,
         }
 
@@ -274,14 +275,14 @@ export function useAIChatStream({
         abortRef.current = null
       }
     },
-    [selectedProvider, setMessages, setIsTyping, isTyping, projectId, activeSceneId, category, onToolComplete],
+    [selectedProvider, setMessages, setIsTyping, isTyping, projectId, activeUnitId, category, onToolComplete],
   )
 
   return { sendMessage, stop, decideApproval }
 }
 
 function friendlyToolLabel(tool: string, category?: string, serverLabel?: string): string {
-  const noun = category === "interactive_fiction" ? "passage" : "scene"
+  const noun = editorUnitNoun(category)
   const labels: Record<string, string> = {
     list_scenes: `Checking ${noun}s`,
     read_scene: `Reading ${noun}`,
@@ -290,6 +291,13 @@ function friendlyToolLabel(tool: string, category?: string, serverLabel?: string
     rename_scene: `Renaming ${noun}`,
     rewrite_scene: `Replacing ${noun}`,
     delete_scene: `Deleting ${noun}`,
+    list_units: `Checking ${noun}s`,
+    read_unit: `Reading ${noun}`,
+    create_unit: `Creating ${noun}`,
+    append_to_unit: `Writing to ${noun}`,
+    rename_unit: `Renaming ${noun}`,
+    rewrite_unit: `Replacing ${noun}`,
+    delete_unit: `Deleting ${noun}`,
     add_beat: "Adding story beat",
     list_projects: "Checking projects",
     create_project: "Creating project",

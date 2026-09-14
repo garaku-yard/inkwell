@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 
 import type { ChatMessage } from "./useAIChatStream"
 import { extractChatChoices } from "./choices"
+import { editorUnitNoun } from "./editorUnit"
 
 interface AIChatMessagesProps {
   messages: ChatMessage[]
@@ -179,15 +180,21 @@ function MessageBubble({ message, onApprovalDecision, onQuickReply, showChoices,
 }
 
 function approvalLabel(tool: string, category?: string): string {
-  const noun = category === "interactive_fiction" ? "passage" : "scene"
+  const noun = editorUnitNoun(category)
   if (tool === "rewrite_scene") return `Replace ${noun}`
   if (tool === "delete_scene") return `Delete ${noun}`
   if (tool === "append_to_scene") return `Add to ${noun}`
   if (tool === "rename_scene") return `Rename ${noun}`
   if (tool === "create_scene") return `Create ${noun}`
+  if (tool === "rewrite_unit") return `Replace ${noun}`
+  if (tool === "delete_unit") return `Delete ${noun}`
+  if (tool === "append_to_unit") return `Add to ${noun}`
+  if (tool === "rename_unit") return `Rename ${noun}`
+  if (tool === "create_unit") return `Create ${noun}`
   if (tool === "add_beat") return "Add story beat"
   return "Apply change"
 }
+
 
 function approvalSummary(args: Record<string, unknown>): string {
   if (typeof args.content === "string") {

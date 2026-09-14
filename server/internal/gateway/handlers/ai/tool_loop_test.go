@@ -89,20 +89,32 @@ func TestToolLoopReportsCancellationAndProviderFailure(t *testing.T) {
 }
 
 func TestHostedToolsAreProjectScoped(t *testing.T) {
-	if got := hostedTools("", true); len(got) != 2 || got[0].Name != "list_projects" {
+	if got := hostedTools("", "", true); len(got) != 2 || got[0].Name != "list_projects" {
 		t.Fatalf("global tools: %#v", got)
 	}
-	if got := hostedTools("p1", true); len(got) != 8 {
+	if got := hostedTools("p1", "novel", true); len(got) != 7 {
 		t.Fatalf("project tools: %#v", got)
 	} else {
 		for _, tool := range got {
-			if tool.Name == "create_project" || tool.Name == "list_projects" {
+			if tool.Name == "create_project" || tool.Name == "list_projects" || strings.HasSuffix(tool.Name, "_scene") {
 				t.Fatalf("account tool %q exposed in project chat", tool.Name)
 			}
 		}
 	}
-	if got := hostedTools("p1", false); len(got) != 2 {
+	if got := hostedTools("p1", "novel", false); len(got) != 2 {
 		t.Fatalf("degraded tools: %#v", got)
+	}
+}
+
+func TestUnitNounUsesEachEditorVocabulary(t *testing.T) {
+	for category, want := range map[string]string{
+		"screenplay": "scene", "novel": "chapter", "memoir": "chapter",
+		"poetry": "poem", "lyrics": "song", "comic_script": "page",
+		"tabletop_rpg": "section", "interactive_fiction": "passage",
+	} {
+		if got := unitNoun(category); got != want {
+			t.Fatalf("unitNoun(%q)=%q want %q", category, got, want)
+		}
 	}
 }
 
@@ -142,8 +154,8 @@ func TestToolLoopDeduplicatesRedeliveredToolCall(t *testing.T) {
 	}
 }
 
-func TestToolLoopUsesActiveSceneWhenModelOmitsSceneID(t *testing.T) {
-	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "rename", Name: "rename_scene", Arguments: `{"scene_heading":"Attractor:Zero"}`}}}
+func TestToolLoopUsesActiveUnitWhenModelOmitsUnitID(t *testing.T) {
+	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "rename", Name: "rename_unit", Arguments: `{"title":"Attractor:Zero"}`}}}
 	a := &loopAdapter{}
 	store := &memoryApprovals{values: map[string]approval.Checkpoint{}}
 	h := &AIHandler{approvals: store}
@@ -153,33 +165,33 @@ func TestToolLoopUsesActiveSceneWhenModelOmitsSceneID(t *testing.T) {
 		t.Fatalf("checkpoints=%d", len(store.values))
 	}
 	for _, checkpoint := range store.values {
-		if !strings.Contains(checkpoint.Tool.Arguments, `"scene_id":"passage-1"`) {
+		if !strings.Contains(checkpoint.Tool.Arguments, `"unit_id":"passage-1"`) {
 			t.Fatalf("active passage was not supplied: %s", checkpoint.Tool.Arguments)
 		}
 	}
 }
 
 func TestToolLoopExecutesOfferedTextualToolCallFromCompatibleModel(t *testing.T) {
-	textCall := `{"name":"rename_scene","parameters":{"scene_heading":"Attractor:\u0002Zero","scene_id":"(get current scene id from list_scenes())"}}`
+	textCall := `{"name":"rename_unit","parameters":{"title":"Attractor:\u0002Zero","unit_id":"(get current unit id from list_units())"}}`
 	a := &loopAdapter{}
 	store := &memoryApprovals{values: map[string]approval.Checkpoint{}}
 	h := &AIHandler{approvals: store}
 	w := httptest.NewRecorder()
-	input := aiadapter.Input{Tools: hostedTools("p", true)}
+	input := aiadapter.Input{Tools: hostedTools("p", "interactive_fiction", true)}
 	h.runToolLoop(context.Background(), w, w, a, input, &loopStream{chunks: []aiadapter.Chunk{{Delta: textCall, Done: true}}}, "u", "p", "passage-1", "interactive_fiction", "provider", false)
 	var checkpoint approval.Checkpoint
 	for _, checkpoint = range store.values {
 	}
-	if checkpoint.Tool.Name != "rename_scene" || !strings.Contains(checkpoint.Tool.Arguments, `"scene_id":"passage-1"`) {
+	if checkpoint.Tool.Name != "rename_unit" || !strings.Contains(checkpoint.Tool.Arguments, `"unit_id":"passage-1"`) {
 		t.Fatalf("textual tool call was not normalized for approval: %#v", checkpoint.Tool)
 	}
-	if strings.Contains(w.Body.String(), `"name":"rename_scene"`) || !strings.Contains(w.Body.String(), `"approval_required"`) {
+	if strings.Contains(w.Body.String(), `"name":"rename_unit"`) || !strings.Contains(w.Body.String(), `"approval_required"`) {
 		t.Fatalf("raw textual call leaked or approval missing: %s", w.Body.String())
 	}
 }
 
 func TestTextualToolCallRejectsToolThatWasNotOffered(t *testing.T) {
-	if calls := textualToolCalls(`{"name":"delete_project","parameters":{}}`, hostedTools("p", true), 0); len(calls) != 0 {
+	if calls := textualToolCalls(`{"name":"delete_project","parameters":{}}`, hostedTools("p", "screenplay", true), 0); len(calls) != 0 {
 		t.Fatalf("accepted unknown textual tool: %#v", calls)
 	}
 }
@@ -192,7 +204,7 @@ func TestCleanHeadingRemovesModelControlCharacters(t *testing.T) {
 
 func TestDestructiveToolEmitsApprovalAndEndsTurn(t *testing.T) {
 	store := &memoryApprovals{values: map[string]approval.Checkpoint{}}
-	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "call1", Name: "delete_scene", Arguments: `{ "scene_id": "s1" }`}}}
+	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "call1", Name: "delete_unit", Arguments: `{ "unit_id": "s1" }`}}}
 	w := httptest.NewRecorder()
 	(&AIHandler{approvals: store}).runToolLoop(context.Background(), w, w, &loopAdapter{}, aiadapter.Input{Model: "m"}, &loopStream{chunks: []aiadapter.Chunk{call}}, "u", "p", "", "", "provider", false)
 	if !strings.Contains(w.Body.String(), "approval_required") || !strings.Contains(w.Body.String(), `"done":true`) {

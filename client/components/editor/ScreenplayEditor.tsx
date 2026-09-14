@@ -17,6 +17,7 @@ import { importIntoProject } from "@/lib/import/import-into-project"
 import {
   updateElementContent,
   updateSceneHeading,
+  getFullProject,
   type FullProject,
   type Scene,
   type ProjectElement,
@@ -572,14 +573,12 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           onClose={() => setIsAIChatOpen(false)}
           category={project.category}
           projectId={project.id}
-          currentScene={
-            activeElementId
-              ? allScenes.find(
-                (scene) => scene.id === activeElementId || scene.elements?.some((el) => el.id === activeElementId),
-              )?.scene_heading
-              : undefined
-          }
+          currentUnitId={activeScene?.id ?? allScenes[0]?.id}
           currentElement={activeElementId || undefined}
+          onToolComplete={() => {
+            if (!user?.id) return
+            void getFullProject(project.id, user.id).then(setProject).catch(() => {})
+          }}
         />
       </div>
     </ProjectShell>

@@ -33,6 +33,7 @@ import { useScrollSpy } from "./shared/useScrollSpy"
 import {
   createScene,
   createSceneElement,
+  getFullProject,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
@@ -693,7 +694,17 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
               />
             }
           />
-          <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
+          <AIChatPanel
+            isOpen={isAIChatOpen}
+            onClose={() => setIsAIChatOpen(false)}
+            category={projectData.category}
+            projectId={projectData.id}
+            currentUnitId={activeElement?.sceneId ?? activeChapterId ?? scenes[0]?.id}
+            onToolComplete={() => {
+              if (!user?.id) return
+              void getFullProject(projectData.id, user.id).then((fresh) => setScenes(fresh.scenes ?? [])).catch(() => {})
+            }}
+          />
           <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
         </div>
     </ProjectShell>

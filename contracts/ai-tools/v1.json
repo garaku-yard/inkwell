@@ -65,6 +65,41 @@
       "name":"delete_scene", "description":"Delete a scene and its content. This requires explicit user approval before execution.",
       "parameters":{"type":"object","properties":{"scene_id":{"type":"string"}},"required":["scene_id"]},
       "scope":"project", "mutation":"destructive", "surfaces":["hosted"]
+    },
+    {
+      "name":"list_units", "description":"List the top-level writing units in this project, in reading order. The project format determines whether a unit is called a scene, chapter, poem, song, page, section, or passage.",
+      "parameters":{"type":"object","properties":{},"required":[]},
+      "scope":"project", "mutation":"read", "surfaces":["hosted"]
+    },
+    {
+      "name":"read_unit", "description":"Read one top-level writing unit in full. The currently selected unit is already supplied as context, so use this only for another unit.",
+      "parameters":{"type":"object","properties":{"unit_id":{"type":"string","description":"The unit id returned by list_units."}},"required":["unit_id"]},
+      "scope":"project", "mutation":"read", "surfaces":["hosted"]
+    },
+    {
+      "name":"create_unit", "description":"Create a top-level writing unit in this project using the project format's appropriate kind.",
+      "parameters":{"type":"object","properties":{"title":{"type":"string"},"content":{"type":"string"},"order_index":{"type":"integer"}},"required":["title"]},
+      "scope":"project", "mutation":"write", "surfaces":["hosted"]
+    },
+    {
+      "name":"append_to_unit", "description":"Append writing to a top-level unit without replacing its existing content.",
+      "parameters":{"type":"object","properties":{"unit_id":{"type":"string"},"content":{"type":"string"}},"required":["unit_id","content"]},
+      "scope":"project", "mutation":"write", "surfaces":["hosted"]
+    },
+    {
+      "name":"rename_unit", "description":"Rename a top-level writing unit in this project.",
+      "parameters":{"type":"object","properties":{"unit_id":{"type":"string"},"title":{"type":"string"}},"required":["unit_id","title"]},
+      "scope":"project", "mutation":"write", "surfaces":["hosted"]
+    },
+    {
+      "name":"rewrite_unit", "description":"Replace all writing in a top-level unit. This requires explicit user approval before execution.",
+      "parameters":{"type":"object","properties":{"unit_id":{"type":"string"},"content":{"type":"string"}},"required":["unit_id","content"]},
+      "scope":"project", "mutation":"destructive", "surfaces":["hosted"]
+    },
+    {
+      "name":"delete_unit", "description":"Delete a top-level writing unit and its content. This requires explicit user approval before execution.",
+      "parameters":{"type":"object","properties":{"unit_id":{"type":"string"}},"required":["unit_id"]},
+      "scope":"project", "mutation":"destructive", "surfaces":["hosted"]
     }
   ]
 }

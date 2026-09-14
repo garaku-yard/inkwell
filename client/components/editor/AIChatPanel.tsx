@@ -17,9 +17,9 @@ const WELCOME: Record<string, string> = {
   memoir:               "Ask me anything about your memoir — voice, structure, memory.",
   poetry:               "Ask me anything about your poem — form, imagery, rhythm.",
   lyrics:               "Ask me anything about your song — lyrics, rhyme, hook.",
-  comic:                "Ask me anything about your comic — panels, dialogue, pacing.",
+  comic_script:         "Ask me anything about your comic — panels, dialogue, pacing.",
   interactive_fiction:  "Ask me anything about your story — branches, choices, world.",
-  ttrpg:                "Ask me anything about your game — rules, lore, encounters.",
+  tabletop_rpg:         "Ask me anything about your game — rules, lore, encounters.",
 }
 
 interface AIChatPanelProps {
@@ -27,12 +27,12 @@ interface AIChatPanelProps {
   onClose: () => void
   category?: string
   projectId?: string
-  currentScene?: string
+  currentUnitId?: string
   currentElement?: string
   onToolComplete?: (tool: string, args: Record<string, unknown>) => void
 }
 
-export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId, currentScene, onToolComplete }: AIChatPanelProps) => {
+export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId, currentUnitId, onToolComplete }: AIChatPanelProps) => {
   const welcome = WELCOME[category ?? ""] ?? "Ask me anything about your writing."
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -75,7 +75,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId, c
     setIsTyping,
     isTyping,
     projectId,
-    activeSceneId: currentScene,
+    activeUnitId: currentUnitId,
     category,
     onToolComplete,
   })

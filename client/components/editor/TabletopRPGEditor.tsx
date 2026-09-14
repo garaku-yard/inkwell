@@ -37,6 +37,7 @@ import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
+  getFullProject,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
@@ -870,7 +871,17 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
               />
             }
           />
-          <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
+          <AIChatPanel
+            isOpen={isAIChatOpen}
+            onClose={() => setIsAIChatOpen(false)}
+            category={projectData.category}
+            projectId={projectData.id}
+            currentUnitId={activeSectionId ?? sections[0]?.id}
+            onToolComplete={() => {
+              if (!user?.id) return
+              void getFullProject(projectData.id, user.id).then((fresh) => setSections(fresh.scenes ?? [])).catch(() => {})
+            }}
+          />
           <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
         </div>
     </ProjectShell>

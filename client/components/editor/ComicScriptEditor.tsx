@@ -33,6 +33,7 @@ import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
+  getFullProject,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
@@ -531,7 +532,17 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
               />
             }
           />
-          <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
+          <AIChatPanel
+            isOpen={isAIChatOpen}
+            onClose={() => setIsAIChatOpen(false)}
+            category={projectData.category}
+            projectId={projectData.id}
+            currentUnitId={activePageId ?? pages[0]?.id}
+            onToolComplete={() => {
+              if (!user?.id) return
+              void getFullProject(projectData.id, user.id).then((fresh) => setPages(fresh.scenes ?? [])).catch(() => {})
+            }}
+          />
           <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
         </div>
     </ProjectShell>

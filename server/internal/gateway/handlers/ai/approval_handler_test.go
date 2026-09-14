@@ -110,7 +110,7 @@ func TestApprovalApproveReplayWrongUserAndAuthorizationChange(t *testing.T) {
 	store := &memoryApprovals{values: map[string]approval.Checkpoint{}}
 	scripts := &destructiveScripts{owner: "u1", content: "before"}
 	h := &AIHandler{approvals: store, reads: scriptreads.New(scripts, nil, nil), writes: scriptwrites.New(scripts, nil, nil)}
-	cp, _ := store.Create(context.Background(), approval.Checkpoint{ID: "cp", UserID: "u1", ProjectID: "p1", Category: "interactive_fiction", Tool: aiadapter.ToolCall{Name: "rewrite_scene", Arguments: `{"scene_id":"s1","content":"after"}`}}, time.Minute)
+	cp, _ := store.Create(context.Background(), approval.Checkpoint{ID: "cp", UserID: "u1", ProjectID: "p1", Category: "interactive_fiction", Tool: aiadapter.ToolCall{Name: "rewrite_unit", Arguments: `{"unit_id":"s1","content":"after"}`}}, time.Minute)
 	if w := approvalRequest(h, cp.ID, "attacker", `{"decision":"approve","projectId":"p1"}`); w.Code != http.StatusNotFound {
 		t.Fatalf("wrong user status=%d", w.Code)
 	}

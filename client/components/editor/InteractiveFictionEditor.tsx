@@ -1088,7 +1088,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           onClose={() => setIsAIChatOpen(false)}
           category={projectData.category}
           projectId={projectData.id}
-          currentScene={activePassageId ?? undefined}
+          currentUnitId={activePassageId ?? passages[0]?.id}
           onToolComplete={() => {
             if (!user?.id) return
             void getFullProject(projectData.id, user.id).then((fresh) => {

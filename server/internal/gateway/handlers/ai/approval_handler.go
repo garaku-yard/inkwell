@@ -58,6 +58,7 @@ func (h *AIHandler) DecideApproval(w http.ResponseWriter, r *http.Request) {
 	var result any
 	var args struct {
 		SceneID string `json:"scene_id"`
+		UnitID  string `json:"unit_id"`
 		Content string `json:"content"`
 	}
 	if json.Unmarshal([]byte(c.Tool.Arguments), &args) != nil {
@@ -65,7 +66,10 @@ func (h *AIHandler) DecideApproval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch c.Tool.Name {
-	case "rewrite_scene":
+	case "rewrite_scene", "rewrite_unit":
+		if args.SceneID == "" {
+			args.SceneID = args.UnitID
+		}
 		if args.SceneID == "" {
 			handlers.WriteError(w, "Invalid checkpoint", http.StatusBadRequest)
 			return
@@ -77,7 +81,10 @@ func (h *AIHandler) DecideApproval(w http.ResponseWriter, r *http.Request) {
 		}
 		before = current
 		result, err = h.writes.RewriteScene(r.Context(), userID, c.ProjectID, args.SceneID, args.Content, c.Category)
-	case "delete_scene":
+	case "delete_scene", "delete_unit":
+		if args.SceneID == "" {
+			args.SceneID = args.UnitID
+		}
 		if args.SceneID == "" {
 			handlers.WriteError(w, "Invalid checkpoint", http.StatusBadRequest)
 			return
@@ -85,7 +92,8 @@ func (h *AIHandler) DecideApproval(w http.ResponseWriter, r *http.Request) {
 		before, err = h.writes.DeleteScene(r.Context(), userID, c.ProjectID, args.SceneID)
 		result = map[string]bool{"deleted": err == nil}
 	default:
-		if c.Tool.Name != "create_scene" && c.Tool.Name != "append_to_scene" && c.Tool.Name != "add_beat" && c.Tool.Name != "rename_scene" {
+		if c.Tool.Name != "create_scene" && c.Tool.Name != "append_to_scene" && c.Tool.Name != "add_beat" && c.Tool.Name != "rename_scene" &&
+			c.Tool.Name != "create_unit" && c.Tool.Name != "append_to_unit" && c.Tool.Name != "rename_unit" {
 			handlers.WriteError(w, "Unsupported approval tool", http.StatusBadRequest)
 			return
 		}

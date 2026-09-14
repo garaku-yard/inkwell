@@ -90,7 +90,8 @@ type ChatRequest struct {
 	Model         string        `json:"model,omitempty"`
 	Stream        bool          `json:"stream,omitempty"`
 	ProjectID     string        `json:"projectId,omitempty"`
-	ActiveSceneID string        `json:"activeSceneId,omitempty"`
+	ActiveUnitID  string        `json:"activeUnitId,omitempty"`
+	ActiveSceneID string        `json:"activeSceneId,omitempty"` // Legacy clients.
 	Category      string        `json:"category,omitempty"`
 }
 
@@ -201,23 +202,24 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	for i, m := range req.Messages {
 		messages[i] = aiadapter.Message{Role: m.Role, Content: m.Content}
 	}
-	if req.ProjectID != "" && req.ActiveSceneID != "" {
+	activeUnitID := req.ActiveUnitID
+	if activeUnitID == "" {
+		activeUnitID = req.ActiveSceneID
+	}
+	if req.ProjectID != "" && activeUnitID != "" {
 		var selected *scriptreads.SceneContent
 		if h.reads != nil {
-			selected, err = h.reads.ReadScene(r.Context(), userID, req.ProjectID, req.ActiveSceneID)
+			selected, err = h.reads.ReadScene(r.Context(), userID, req.ProjectID, activeUnitID)
 			if err != nil {
 				handlers.HandleGRPCError(w, err)
 				return
 			}
 		}
-		resource := "scene"
-		if req.Category == "interactive_fiction" {
-			resource = "passage (represented as a scene by the tools)"
-		}
-		instruction := selectedResourceInstruction(resource, req.ActiveSceneID, selected)
+		resource := unitNoun(req.Category)
+		instruction := selectedResourceInstruction(resource, activeUnitID, selected)
 		messages = append([]aiadapter.Message{{Role: "system", Content: instruction}}, messages...)
 	}
-	input := aiadapter.Input{Messages: messages, Model: model, APIKey: apiKey, BaseURL: baseURL, Tools: hostedTools(req.ProjectID, h.approvals != nil && requestAllowsWrites(req.Messages))}
+	input := aiadapter.Input{Messages: messages, Model: model, APIKey: apiKey, BaseURL: baseURL, Tools: hostedTools(req.ProjectID, req.Category, h.approvals != nil && requestAllowsWrites(req.Messages))}
 	firstStream, err := adapter.StreamChat(r.Context(), input)
 	if err != nil {
 		log.Printf("ai dispatch error (kind=%s): %v", kind, err)
@@ -237,7 +239,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.WriteHeader(http.StatusOK)
 
-	h.runToolLoop(r.Context(), w, flusher, adapter, input, firstStream, userID, req.ProjectID, req.ActiveSceneID, req.Category, req.ProviderID, managed)
+	h.runToolLoop(r.Context(), w, flusher, adapter, input, firstStream, userID, req.ProjectID, activeUnitID, req.Category, req.ProviderID, managed)
 }
 
 func selectedResourceInstruction(resource, sceneID string, selected *scriptreads.SceneContent) string {

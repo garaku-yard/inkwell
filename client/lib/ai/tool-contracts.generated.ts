@@ -183,6 +183,124 @@ export const SHARED_TOOL_CONTRACTS: Record<string, ToolSpec> = {
         "scene_id"
       ]
     }
+  },
+  "list_units": {
+    "name": "list_units",
+    "description": "List the top-level writing units in this project, in reading order. The project format determines whether a unit is called a scene, chapter, poem, song, page, section, or passage.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  "read_unit": {
+    "name": "read_unit",
+    "description": "Read one top-level writing unit in full. The currently selected unit is already supplied as context, so use this only for another unit.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "unit_id": {
+          "type": "string",
+          "description": "The unit id returned by list_units."
+        }
+      },
+      "required": [
+        "unit_id"
+      ]
+    }
+  },
+  "create_unit": {
+    "name": "create_unit",
+    "description": "Create a top-level writing unit in this project using the project format's appropriate kind.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "order_index": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "title"
+      ]
+    }
+  },
+  "append_to_unit": {
+    "name": "append_to_unit",
+    "description": "Append writing to a top-level unit without replacing its existing content.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "unit_id": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit_id",
+        "content"
+      ]
+    }
+  },
+  "rename_unit": {
+    "name": "rename_unit",
+    "description": "Rename a top-level writing unit in this project.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "unit_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit_id",
+        "title"
+      ]
+    }
+  },
+  "rewrite_unit": {
+    "name": "rewrite_unit",
+    "description": "Replace all writing in a top-level unit. This requires explicit user approval before execution.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "unit_id": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit_id",
+        "content"
+      ]
+    }
+  },
+  "delete_unit": {
+    "name": "delete_unit",
+    "description": "Delete a top-level writing unit and its content. This requires explicit user approval before execution.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "unit_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit_id"
+      ]
+    }
   }
 }
 
