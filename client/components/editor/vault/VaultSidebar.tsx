@@ -39,6 +39,7 @@ interface VaultSidebarProps {
   onTagClick: (tag: string) => void
 }
 
+
 /** Left pane of the vault editor — search, folder tree, tags panel,
  *  and the footer counter. Pure render; the parent owns all the data
  *  + handlers and threads them in. */
@@ -94,27 +95,29 @@ export function VaultSidebar({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-        {tree.length === 0 ? (
-          <div className="px-3 py-4 text-center text-xs text-muted-foreground">
-            {notes.length === 0 ? "No notes yet." : `No notes match "${search}".`}
-          </div>
-        ) : (
-          <ul className="space-y-0.5 px-1.5">
-            {tree.map((node, i) => (
-              <TreeNodeView
-                key={nodeKey(node, i)}
-                node={node}
-                depth={0}
-                selected={selected}
-                expanded={expandedFolders}
-                onToggle={onToggleFolder}
-                onSelect={onSelectNote}
-                onNewNoteInFolder={onCreateNoteIn}
-                onNewSubfolder={onCreateSubfolder}
-              />
-            ))}
-          </ul>
-        )}
+        <div className="min-h-full bg-sidebar py-0.5">
+          {tree.length === 0 ? (
+            <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+              {notes.length === 0 ? "No notes yet." : `No notes match "${search}".`}
+            </div>
+          ) : (
+            <ul className="space-y-0.5 px-1.5">
+              {tree.map((node, i) => (
+                <TreeNodeView
+                  key={nodeKey(node, i)}
+                  node={node}
+                  depth={0}
+                  selected={selected}
+                  expanded={expandedFolders}
+                  onToggle={onToggleFolder}
+                  onSelect={onSelectNote}
+                  onNewNoteInFolder={onCreateNoteIn}
+                  onNewSubfolder={onCreateSubfolder}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       {tags.length > 0 && (
@@ -133,7 +136,7 @@ export function VaultSidebar({
             <span className="ml-auto text-[10px] font-normal normal-case">{tags.length}</span>
           </button>
           {tagsExpanded && (
-            <div className="flex max-h-40 flex-wrap gap-1 overflow-y-auto px-2 pb-2">
+            <div className="flex max-h-40 flex-wrap gap-1 overflow-y-auto bg-sidebar px-2 pb-2">
               {tags.map((t) => {
                 const active = tagFilter?.toLowerCase() === t.tag.toLowerCase()
                 return (
@@ -182,4 +185,3 @@ export function VaultSidebar({
     </aside>
   )
 }
-

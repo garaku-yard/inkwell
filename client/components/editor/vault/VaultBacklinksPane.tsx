@@ -30,35 +30,37 @@ export function VaultBacklinksPane({
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {backlinks.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-muted-foreground">
-            No other notes link to this one yet. Write{" "}
-            <code className="rounded bg-muted px-1 py-0.5">
-              [[{currentTitle}]]
-            </code>{" "}
-            elsewhere to create one.
-          </div>
-        ) : (
-          <ul className="space-y-1">
-            {backlinks.map((bl) => (
-              <li key={bl.filename}>
-                <button
-                  type="button"
-                  onClick={() => onSelectBacklink(bl.filename)}
-                  className="w-full rounded-md p-2 text-left text-xs transition-colors hover:bg-accent"
-                >
-                  <div className="mb-0.5 flex items-center gap-1.5 text-sm font-medium text-foreground">
-                    <FileText className="h-3 w-3 text-muted-foreground" />
-                    {bl.title}
-                  </div>
-                  <div className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-                    {bl.snippet}
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="min-h-full bg-sidebar">
+          {backlinks.length === 0 ? (
+            <div className="px-2 py-3 text-xs text-muted-foreground">
+              No other notes link to this one yet. Write{" "}
+              <code className="rounded bg-muted px-1 py-0.5">
+                [[{currentTitle}]]
+              </code>{" "}
+              elsewhere to create one.
+            </div>
+          ) : (
+            <ul className="space-y-1">
+              {backlinks.map((bl) => (
+                <li key={bl.filename}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectBacklink(bl.filename)}
+                    className="w-full rounded-md bg-sidebar p-2 text-left text-xs transition-colors hover:bg-accent"
+                  >
+                    <div className="mb-0.5 flex items-center gap-1.5 text-sm font-medium text-foreground">
+                      <FileText className="h-3 w-3 text-muted-foreground" />
+                      {bl.title}
+                    </div>
+                    <div className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                      {bl.snippet}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </aside>
   )
