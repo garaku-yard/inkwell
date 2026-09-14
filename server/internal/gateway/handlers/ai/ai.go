@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"inkwell/server/internal/gateway/apierror"
+	"inkwell/server/internal/gateway/application/scriptreads"
 	"inkwell/server/internal/gateway/config"
 	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
@@ -38,6 +38,8 @@ type AIHandler struct {
 	billing               billingpb.BillingServiceClient
 	openAICompatibleHosts []string
 	managedProviders      map[string]config.ManagedAIProvider
+	reads                 *scriptreads.Reader
+	adapterFor            func(aiadapter.ProviderKind) (aiadapter.Adapter, error)
 }
 
 // NewAIHandler wires the chat handler to the ai-settings + billing gRPC clients,
@@ -50,6 +52,8 @@ func NewAIHandler(cfg *config.Config, clients *grpcclient.Registry) (*AIHandler,
 		billing:               clients.Billing,
 		openAICompatibleHosts: cfg.OpenAICompatibleHosts,
 		managedProviders:      cfg.ManagedAIProviders,
+		reads:                 scriptreads.New(clients.Scripts, clients.Collab, clients.Workspace),
+		adapterFor:            aiadapter.Get,
 	}, nil
 }
 
@@ -77,6 +81,7 @@ type ChatRequest struct {
 	ProviderID string        `json:"providerId"`
 	Model      string        `json:"model,omitempty"`
 	Stream     bool          `json:"stream,omitempty"`
+	ProjectID  string        `json:"projectId,omitempty"`
 }
 
 // ChatMessage is one turn in a chat. Roles are "system" | "user" | "assistant".
@@ -172,7 +177,11 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adapter, err := aiadapter.Get(aiadapter.ProviderKind(kind))
+	adapterFor := h.adapterFor
+	if adapterFor == nil {
+		adapterFor = aiadapter.Get
+	}
+	adapter, err := adapterFor(aiadapter.ProviderKind(kind))
 	if err != nil {
 		handlers.WriteError(w, fmt.Sprintf("Provider kind %q not supported on this build", kind), http.StatusBadRequest)
 		return
@@ -182,19 +191,13 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	for i, m := range req.Messages {
 		messages[i] = aiadapter.Message{Role: m.Role, Content: m.Content}
 	}
-
-	stream, err := adapter.StreamChat(r.Context(), aiadapter.Input{
-		Messages: messages,
-		Model:    model,
-		APIKey:   apiKey,
-		BaseURL:  baseURL,
-	})
+	input := aiadapter.Input{Messages: messages, Model: model, APIKey: apiKey, BaseURL: baseURL, Tools: hostedReadTools(req.ProjectID)}
+	firstStream, err := adapter.StreamChat(r.Context(), input)
 	if err != nil {
 		log.Printf("ai dispatch error (kind=%s): %v", kind, err)
 		handlers.WriteError(w, "Provider rejected the request", providerHTTPStatus(err))
 		return
 	}
-	defer stream.Close()
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -208,38 +211,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.WriteHeader(http.StatusOK)
 
-	encoder := json.NewEncoder(w)
-	for {
-		chunk, err := stream.Next(r.Context())
-		if errors.Is(err, io.EOF) {
-			return
-		}
-		if err != nil {
-			// Headers are already flushed (200 OK), so we can't change
-			// the status. Surface the failure as a final NDJSON line
-			// the client parser is expecting on this stream — without
-			// it, an aborted upstream looks identical to a successful
-			// short reply.
-			log.Printf("ai stream error: %v", err)
-			_ = encoder.Encode(map[string]string{"error": redactStreamError(err)})
-			flusher.Flush()
-			return
-		}
-		if chunk.Delta != "" {
-			_ = encoder.Encode(map[string]string{"response": chunk.Delta})
-			flusher.Flush()
-		}
-		if chunk.Done {
-			// Meter managed usage by the provider-reported token total. Best-effort
-			// and only when the provider supplied usage (some endpoints omit it).
-			if managed && chunk.Usage != nil && chunk.Usage.TotalTokens > 0 {
-				h.trackManagedTokens(userID, chunk.Usage.TotalTokens)
-			}
-			_ = encoder.Encode(map[string]bool{"done": true})
-			flusher.Flush()
-			return
-		}
-	}
+	h.runToolLoop(r.Context(), w, flusher, adapter, input, firstStream, userID, req.ProjectID, managed)
 }
 
 // overManagedQuota reports whether the user has exhausted their tier's monthly

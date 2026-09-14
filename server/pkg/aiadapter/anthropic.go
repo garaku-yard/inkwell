@@ -34,11 +34,18 @@ func (a AnthropicAdapter) StreamChat(ctx context.Context, in Input) (Stream, err
 	body := map[string]any{
 		"model":      in.Model,
 		"max_tokens": anthropicDefaultMaxTok,
-		"messages":   conversation,
+		"messages":   anthropicMessages(conversation),
 		"stream":     true,
 	}
 	if system != "" {
 		body["system"] = system
+	}
+	if len(in.Tools) > 0 {
+		tools := make([]map[string]any, 0, len(in.Tools))
+		for _, tool := range in.Tools {
+			tools = append(tools, map[string]any{"name": tool.Name, "description": tool.Description, "input_schema": tool.Parameters})
+		}
+		body["tools"] = tools
 	}
 
 	payload, err := json.Marshal(body)
@@ -68,7 +75,32 @@ func (a AnthropicAdapter) StreamChat(ctx context.Context, in Input) (Stream, err
 		resp.Body.Close()
 		return nil, &ErrProvider{Kind: KindAnthropic, Status: resp.StatusCode, Message: redact(string(msg))}
 	}
-	return &anthropicStream{scanner: newSSEScanner(resp.Body)}, nil
+	return &anthropicStream{scanner: newSSEScanner(resp.Body), calls: map[int]*ToolCall{}}, nil
+}
+
+func anthropicMessages(messages []Message) []map[string]any {
+	out := make([]map[string]any, 0, len(messages))
+	for _, message := range messages {
+		if message.Role == "tool" {
+			out = append(out, map[string]any{"role": "user", "content": []map[string]any{{"type": "tool_result", "tool_use_id": message.ToolCallID, "content": message.Content}}})
+			continue
+		}
+		if message.Role == "assistant" && len(message.ToolCalls) > 0 {
+			blocks := []map[string]any{}
+			if message.Content != "" {
+				blocks = append(blocks, map[string]any{"type": "text", "text": message.Content})
+			}
+			for _, call := range message.ToolCalls {
+				var input any = map[string]any{}
+				_ = json.Unmarshal([]byte(call.Arguments), &input)
+				blocks = append(blocks, map[string]any{"type": "tool_use", "id": call.ID, "name": call.Name, "input": input})
+			}
+			out = append(out, map[string]any{"role": "assistant", "content": blocks})
+			continue
+		}
+		out = append(out, map[string]any{"role": message.Role, "content": message.Content})
+	}
+	return out
 }
 
 // splitSystemMessages separates any system-role entries out of the
@@ -89,10 +121,12 @@ func splitSystemMessages(msgs []Message) (system string, conversation []Message)
 }
 
 type anthropicStream struct {
-	scanner *sseScanner
-	done    bool
-	inTok   int // input_tokens from message_start
-	outTok  int // output_tokens, updated by each message_delta (cumulative)
+	scanner    *sseScanner
+	done       bool
+	inTok      int // input_tokens from message_start
+	outTok     int // output_tokens, updated by each message_delta (cumulative)
+	calls      map[int]*ToolCall
+	stopReason string
 }
 
 // anthropicUsage builds a Usage from the accumulated token counts, or nil when
@@ -106,9 +140,19 @@ func (s *anthropicStream) anthropicUsage() *Usage {
 
 type anthropicDelta struct {
 	Delta struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
+		Type        string `json:"type"`
+		Text        string `json:"text"`
+		PartialJSON string `json:"partial_json"`
 	} `json:"delta"`
+}
+
+type anthropicBlockStart struct {
+	Index        int `json:"index"`
+	ContentBlock struct {
+		Type string `json:"type"`
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"content_block"`
 }
 
 // anthropicMessageStart carries input token usage at the start of a message.
@@ -123,6 +167,9 @@ type anthropicMessageStart struct {
 
 // anthropicMessageDelta carries the running output_tokens count.
 type anthropicMessageDelta struct {
+	Delta struct {
+		StopReason string `json:"stop_reason"`
+	} `json:"delta"`
 	Usage struct {
 		OutputTokens int `json:"output_tokens"`
 	} `json:"usage"`
@@ -150,10 +197,26 @@ func (s *anthropicStream) Next(ctx context.Context) (Chunk, error) {
 			if err := json.Unmarshal([]byte(ev.data), &d); err != nil {
 				return Chunk{}, &ErrProvider{Kind: KindAnthropic, Message: fmt.Sprintf("malformed chunk: %v", err)}
 			}
+			if d.Delta.Type == "input_json_delta" {
+				var indexed struct {
+					Index int `json:"index"`
+				}
+				_ = json.Unmarshal([]byte(ev.data), &indexed)
+				if call := s.calls[indexed.Index]; call != nil {
+					call.Arguments += d.Delta.PartialJSON
+				}
+				continue
+			}
 			if d.Delta.Text == "" {
 				continue
 			}
 			return Chunk{Delta: d.Delta.Text}, nil
+		case "content_block_start":
+			var block anthropicBlockStart
+			if err := json.Unmarshal([]byte(ev.data), &block); err == nil && block.ContentBlock.Type == "tool_use" {
+				s.calls[block.Index] = &ToolCall{ID: block.ContentBlock.ID, Name: block.ContentBlock.Name}
+			}
+			continue
 		case "message_start":
 			var ms anthropicMessageStart
 			if err := json.Unmarshal([]byte(ev.data), &ms); err == nil {
@@ -166,10 +229,13 @@ func (s *anthropicStream) Next(ctx context.Context) (Chunk, error) {
 			if err := json.Unmarshal([]byte(ev.data), &md); err == nil && md.Usage.OutputTokens > 0 {
 				s.outTok = md.Usage.OutputTokens // cumulative — last one wins
 			}
+			if md.Delta.StopReason != "" {
+				s.stopReason = md.Delta.StopReason
+			}
 			continue
 		case "message_stop":
 			s.done = true
-			return Chunk{Done: true, Usage: s.anthropicUsage()}, nil
+			return Chunk{Done: true, Usage: s.anthropicUsage(), ToolCalls: s.toolCalls(), StopReason: s.stopReason}, nil
 		case "error":
 			var e anthropicError
 			_ = json.Unmarshal([]byte(ev.data), &e)
@@ -183,6 +249,19 @@ func (s *anthropicStream) Next(ctx context.Context) (Chunk, error) {
 			continue
 		}
 	}
+}
+
+func (s *anthropicStream) toolCalls() []ToolCall {
+	out := make([]ToolCall, 0, len(s.calls))
+	for i := 0; i < len(s.calls); i++ {
+		if call := s.calls[i]; call != nil {
+			if call.Arguments == "" {
+				call.Arguments = "{}"
+			}
+			out = append(out, *call)
+		}
+	}
+	return out
 }
 
 func (s *anthropicStream) Close() error { return s.scanner.Close() }

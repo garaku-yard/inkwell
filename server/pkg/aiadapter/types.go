@@ -37,9 +37,20 @@ const (
 // messages only out-of-band; their adapters hoist any system-role entries
 // into the provider's dedicated system field.
 type Message struct {
-	Role    string // "system" | "user" | "assistant"
-	Content string
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	ToolCalls  []ToolCall `json:"-"`
+	ToolCallID string     `json:"-"`
+	Name       string     `json:"-"`
 }
+
+type Tool struct {
+	Name        string
+	Description string
+	Parameters  map[string]any
+}
+
+type ToolCall struct{ ID, Name, Arguments string }
 
 // Input carries everything an adapter needs to open a streaming chat.
 type Input struct {
@@ -54,6 +65,7 @@ type Input struct {
 	// HTTPClient overrides the default client — useful for tests. nil
 	// means use http.DefaultClient.
 	HTTPClient *http.Client
+	Tools      []Tool
 }
 
 // Chunk is one normalized piece of a streaming response. Delta is the
@@ -62,9 +74,11 @@ type Input struct {
 // when non-nil, carries the provider-reported token counts — typically attached
 // to the final (Done) chunk.
 type Chunk struct {
-	Delta string
-	Done  bool
-	Usage *Usage
+	Delta      string
+	Done       bool
+	Usage      *Usage
+	ToolCalls  []ToolCall
+	StopReason string
 }
 
 // Usage reports the token counts a provider attributes to a completion.

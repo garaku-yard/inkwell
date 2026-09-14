@@ -42,14 +42,18 @@ func streamOpenAIShape(ctx context.Context, in Input, kind ProviderKind, default
 		return nil, &ErrProvider{Kind: kind, Message: "baseUrl required"}
 	}
 
-	body, err := json.Marshal(map[string]any{
+	payload := map[string]any{
 		"model":    in.Model,
-		"messages": in.Messages,
+		"messages": openAIMessages(in.Messages),
 		"stream":   true,
 		// Ask for a final usage chunk so the gateway can meter tokens. Ignored
 		// by endpoints that don't support it (openai_compatible / Ollama).
 		"stream_options": map[string]any{"include_usage": true},
-	})
+	}
+	if len(in.Tools) > 0 {
+		payload["tools"] = openAITools(in.Tools)
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, &ErrProvider{Kind: kind, Message: err.Error()}
 	}
@@ -76,7 +80,34 @@ func streamOpenAIShape(ctx context.Context, in Input, kind ProviderKind, default
 		return nil, &ErrProvider{Kind: kind, Status: resp.StatusCode, Message: redact(string(msg))}
 	}
 
-	return &openAIStream{kind: kind, scanner: newSSEScanner(resp.Body)}, nil
+	return &openAIStream{kind: kind, scanner: newSSEScanner(resp.Body), calls: map[int]*ToolCall{}}, nil
+}
+
+func openAITools(tools []Tool) []map[string]any {
+	out := make([]map[string]any, 0, len(tools))
+	for _, tool := range tools {
+		out = append(out, map[string]any{"type": "function", "function": map[string]any{"name": tool.Name, "description": tool.Description, "parameters": tool.Parameters}})
+	}
+	return out
+}
+
+func openAIMessages(messages []Message) []map[string]any {
+	out := make([]map[string]any, 0, len(messages))
+	for _, m := range messages {
+		x := map[string]any{"role": m.Role, "content": m.Content}
+		if m.Role == "assistant" && len(m.ToolCalls) > 0 {
+			calls := make([]map[string]any, 0, len(m.ToolCalls))
+			for _, c := range m.ToolCalls {
+				calls = append(calls, map[string]any{"id": c.ID, "type": "function", "function": map[string]any{"name": c.Name, "arguments": c.Arguments}})
+			}
+			x["tool_calls"] = calls
+		}
+		if m.Role == "tool" {
+			x["tool_call_id"], x["name"] = m.ToolCallID, m.Name
+		}
+		out = append(out, x)
+	}
+	return out
 }
 
 // OpenAICompatibleAdapter speaks the same wire contract as the OpenAI
@@ -94,16 +125,26 @@ func (OpenAICompatibleAdapter) StreamChat(ctx context.Context, in Input) (Stream
 }
 
 type openAIStream struct {
-	kind    ProviderKind
-	scanner *sseScanner
-	done    bool
-	usage   *Usage // captured from the trailing usage chunk, emitted on [DONE]
+	kind       ProviderKind
+	scanner    *sseScanner
+	done       bool
+	usage      *Usage // captured from the trailing usage chunk, emitted on [DONE]
+	calls      map[int]*ToolCall
+	stopReason string
 }
 
 type openAIChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content string `json:"content"`
+			Content   string `json:"content"`
+			ToolCalls []struct {
+				Index    int    `json:"index"`
+				ID       string `json:"id"`
+				Function struct {
+					Name      string `json:"name"`
+					Arguments string `json:"arguments"`
+				} `json:"function"`
+			} `json:"tool_calls"`
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
@@ -132,7 +173,7 @@ func (s *openAIStream) Next(ctx context.Context) (Chunk, error) {
 		}
 		if data == "[DONE]" {
 			s.done = true
-			return Chunk{Done: true, Usage: s.usage}, nil
+			return Chunk{Done: true, Usage: s.usage, ToolCalls: s.toolCalls(), StopReason: s.stopReason}, nil
 		}
 		var c openAIChunk
 		if err := json.Unmarshal([]byte(data), &c); err != nil {
@@ -153,11 +194,36 @@ func (s *openAIStream) Next(ctx context.Context) (Chunk, error) {
 			continue
 		}
 		delta := c.Choices[0].Delta.Content
+		for _, part := range c.Choices[0].Delta.ToolCalls {
+			call := s.calls[part.Index]
+			if call == nil {
+				call = &ToolCall{}
+				s.calls[part.Index] = call
+			}
+			if part.ID != "" {
+				call.ID = part.ID
+			}
+			call.Name += part.Function.Name
+			call.Arguments += part.Function.Arguments
+		}
+		if c.Choices[0].FinishReason != nil {
+			s.stopReason = *c.Choices[0].FinishReason
+		}
 		if delta == "" && c.Choices[0].FinishReason == nil {
 			continue
 		}
 		return Chunk{Delta: delta}, nil
 	}
+}
+
+func (s *openAIStream) toolCalls() []ToolCall {
+	out := make([]ToolCall, 0, len(s.calls))
+	for i := 0; i < len(s.calls); i++ {
+		if c := s.calls[i]; c != nil {
+			out = append(out, *c)
+		}
+	}
+	return out
 }
 
 func (s *openAIStream) Close() error { return s.scanner.Close() }

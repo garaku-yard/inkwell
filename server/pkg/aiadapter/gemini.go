@@ -41,6 +41,13 @@ func (a GeminiAdapter) StreamChat(ctx context.Context, in Input) (Stream, error)
 	if sysInstr != nil {
 		body["systemInstruction"] = sysInstr
 	}
+	if len(in.Tools) > 0 {
+		decls := make([]map[string]any, 0, len(in.Tools))
+		for _, tool := range in.Tools {
+			decls = append(decls, map[string]any{"name": tool.Name, "description": tool.Description, "parameters": tool.Parameters})
+		}
+		body["tools"] = []map[string]any{{"functionDeclarations": decls}}
+	}
 
 	payload, err := json.Marshal(body)
 	if err != nil {
@@ -78,7 +85,17 @@ func (a GeminiAdapter) StreamChat(ctx context.Context, in Input) (Stream, error)
 }
 
 type geminiContentPart struct {
-	Text string `json:"text"`
+	Text             string                  `json:"text,omitempty"`
+	FunctionCall     *geminiFunctionCall     `json:"functionCall,omitempty"`
+	FunctionResponse *geminiFunctionResponse `json:"functionResponse,omitempty"`
+}
+type geminiFunctionCall struct {
+	Name string         `json:"name"`
+	Args map[string]any `json:"args"`
+}
+type geminiFunctionResponse struct {
+	Name     string         `json:"name"`
+	Response map[string]any `json:"response"`
 }
 
 type geminiContent struct {
@@ -102,7 +119,22 @@ func buildGeminiContents(msgs []Message) (*geminiSystemInstruction, []geminiCont
 		case "system":
 			systems = append(systems, m.Content)
 		case "assistant":
-			contents = append(contents, geminiContent{Role: "model", Parts: []geminiContentPart{{Text: m.Content}}})
+			parts := []geminiContentPart{}
+			if m.Content != "" {
+				parts = append(parts, geminiContentPart{Text: m.Content})
+			}
+			for _, call := range m.ToolCalls {
+				var args map[string]any
+				_ = json.Unmarshal([]byte(call.Arguments), &args)
+				parts = append(parts, geminiContentPart{FunctionCall: &geminiFunctionCall{Name: call.Name, Args: args}})
+			}
+			contents = append(contents, geminiContent{Role: "model", Parts: parts})
+		case "tool":
+			response := map[string]any{}
+			if err := json.Unmarshal([]byte(m.Content), &response); err != nil {
+				response["result"] = m.Content
+			}
+			contents = append(contents, geminiContent{Role: "user", Parts: []geminiContentPart{{FunctionResponse: &geminiFunctionResponse{Name: m.Name, Response: response}}}})
 		default:
 			contents = append(contents, geminiContent{Role: "user", Parts: []geminiContentPart{{Text: m.Content}}})
 		}
@@ -117,6 +149,7 @@ type geminiStream struct {
 	scanner *sseScanner
 	done    bool
 	usage   *Usage // captured from usageMetadata, emitted on the final chunk
+	calls   []ToolCall
 }
 
 type geminiChunk struct {
@@ -170,10 +203,18 @@ func (s *geminiStream) Next(ctx context.Context) (Chunk, error) {
 		var delta strings.Builder
 		for _, part := range c.Candidates[0].Content.Parts {
 			delta.WriteString(part.Text)
+			if part.FunctionCall != nil {
+				args, _ := json.Marshal(part.FunctionCall.Args)
+				s.calls = append(s.calls, ToolCall{ID: fmt.Sprintf("gemini-%s-%d", part.FunctionCall.Name, len(s.calls)), Name: part.FunctionCall.Name, Arguments: string(args)})
+			}
 		}
 		if c.Candidates[0].FinishReason != "" {
 			s.done = true
-			return Chunk{Delta: delta.String(), Done: true, Usage: s.usage}, nil
+			reason := "stop"
+			if len(s.calls) > 0 {
+				reason = "tool_use"
+			}
+			return Chunk{Delta: delta.String(), Done: true, Usage: s.usage, ToolCalls: s.calls, StopReason: reason}, nil
 		}
 		if delta.Len() == 0 {
 			continue
