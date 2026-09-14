@@ -73,34 +73,42 @@ func (s *CollaborationService) ValidateStatus(status string) error {
 }
 
 // CheckPermission verifies if a user has required permission for a project
-func (s *CollaborationService) CheckPermission(ctx context.Context, userID, projectID uuid.UUID, requiredRole string) error {
-	// Note: Project ownership is verified at the gateway level via scripts service
-	// This only checks collaborator roles
-	userRole, err := s.repo.GetUserProjectRole(ctx, userID, projectID)
+func (s *CollaborationService) CheckPermission(ctx context.Context, userID, projectID uuid.UUID, callerRole, requiredRole string) error {
+	// A gateway assertion represents the role resolved across the authoritative
+	// owner, organization, and direct-collaborator sources. The actor remains a
+	// separate, always-real identity for authorship and audit semantics.
+	userRole := callerRole
+	if userRole != "" {
+		return requireRole(userRole, requiredRole)
+	}
+
+	// Calls without an assertion may authenticate only from collab's own active
+	// collaborator row. Missing rows deny; they never imply owner access.
+	var err error
+	userRole, err = s.repo.GetUserProjectRole(ctx, userID, projectID)
 	if errors.Is(err, domain.ErrUnauthorized) {
-		// User is not a collaborator — they might be the project owner, whose
-		// access the gateway has already verified via the scripts service. Defer
-		// to that check rather than denying. (Owners aren't always added as
-		// collaborator rows.)
-		slog.Debug("CheckPermission: user not found as collaborator, assuming verified by gateway", "user_id", userID, "project_id", projectID)
-		return nil
+		return domain.ErrUnauthorized
 	}
 	if err != nil {
 		// A real lookup failure must fail closed — never grant on error.
 		return fmt.Errorf("check permission: %w", err)
 	}
 
-	// Define role hierarchy
+	return requireRole(userRole, requiredRole)
+}
+
+func requireRole(userRole, requiredRole string) error {
 	roleHierarchy := map[string]int{
-		"viewer": 1,
-		"editor": 2,
-		"owner":  3,
+		"viewer":    1,
+		"editor":    2,
+		"org_admin": 3,
+		"owner":     3,
 	}
 
 	userLevel := roleHierarchy[userRole]
 	requiredLevel := roleHierarchy[requiredRole]
 
-	if userLevel < requiredLevel {
+	if requiredLevel == 0 || userLevel < requiredLevel {
 		return domain.ErrUnauthorized
 	}
 
@@ -241,12 +249,19 @@ func (s *CollaborationService) AddCollaboratorByEmail(ctx context.Context, proje
 	return collaborator, nil
 }
 
-func (s *CollaborationService) GetProjectCollaborators(ctx context.Context, userID, projectID uuid.UUID) ([]*domain.Collaborator, error) {
-	if err := s.CheckPermission(ctx, userID, projectID, "viewer"); err != nil {
+func (s *CollaborationService) GetProjectCollaborators(ctx context.Context, userID, projectID uuid.UUID, callerRole string) ([]*domain.Collaborator, error) {
+	if err := s.CheckPermission(ctx, userID, projectID, callerRole, "viewer"); err != nil {
 		return nil, err
 	}
 
 	return s.repo.GetProjectCollaborators(ctx, projectID)
+}
+
+// GetDirectProjectRole is the narrow lookup used by the gateway while it is
+// resolving a caller's effective role. Repository semantics include only
+// active direct collaborators; ownership and organization roles live elsewhere.
+func (s *CollaborationService) GetDirectProjectRole(ctx context.Context, userID, projectID uuid.UUID) (string, error) {
+	return s.repo.GetUserProjectRole(ctx, userID, projectID)
 }
 
 // GetProjectSeatUsage reports how many collaborator seats a project is consuming:
@@ -274,7 +289,7 @@ func (s *CollaborationService) GetProjectSeatUsage(ctx context.Context, projectI
 	return active, pending, nil
 }
 
-func (s *CollaborationService) UpdateCollaboratorRole(ctx context.Context, userID, collaboratorID uuid.UUID, newRole string) error {
+func (s *CollaborationService) UpdateCollaboratorRole(ctx context.Context, userID, collaboratorID uuid.UUID, callerRole, newRole string) error {
 	// Validate role
 	if err := s.ValidateRole(newRole); err != nil {
 		return err
@@ -287,14 +302,14 @@ func (s *CollaborationService) UpdateCollaboratorRole(ctx context.Context, userI
 	}
 
 	// Check if user has owner permission for this project
-	if err := s.CheckPermission(ctx, userID, collaborator.ProjectID, "owner"); err != nil {
+	if err := s.CheckPermission(ctx, userID, collaborator.ProjectID, callerRole, "owner"); err != nil {
 		return err
 	}
 
 	return s.repo.UpdateCollaboratorRole(ctx, collaboratorID, newRole)
 }
 
-func (s *CollaborationService) RemoveCollaborator(ctx context.Context, userID, collaboratorID uuid.UUID) error {
+func (s *CollaborationService) RemoveCollaborator(ctx context.Context, userID, collaboratorID uuid.UUID, callerRole string) error {
 	// Get collaborator to check permissions
 	collaborator, err := s.repo.GetCollaboratorByID(ctx, collaboratorID)
 	if err != nil {
@@ -302,7 +317,7 @@ func (s *CollaborationService) RemoveCollaborator(ctx context.Context, userID, c
 	}
 
 	// Check if user has owner permission for this project
-	if err := s.CheckPermission(ctx, userID, collaborator.ProjectID, "owner"); err != nil {
+	if err := s.CheckPermission(ctx, userID, collaborator.ProjectID, callerRole, "owner"); err != nil {
 		return err
 	}
 
@@ -310,9 +325,9 @@ func (s *CollaborationService) RemoveCollaborator(ctx context.Context, userID, c
 }
 
 // Comment operations
-func (s *CollaborationService) AddComment(ctx context.Context, userID, projectID uuid.UUID, content string, elementID, sceneID, parentID *uuid.UUID, lineNumber, charPosition *int32) (*domain.Comment, error) {
+func (s *CollaborationService) AddComment(ctx context.Context, userID, projectID uuid.UUID, callerRole, content string, elementID, sceneID, parentID *uuid.UUID, lineNumber, charPosition *int32) (*domain.Comment, error) {
 	// Check if user has access to the project
-	if err := s.CheckPermission(ctx, userID, projectID, "viewer"); err != nil {
+	if err := s.CheckPermission(ctx, userID, projectID, callerRole, "viewer"); err != nil {
 		return nil, err
 	}
 
@@ -403,7 +418,7 @@ func (s *CollaborationService) GetComments(ctx context.Context, userID, projectI
 	}
 }
 
-func (s *CollaborationService) ResolveComment(ctx context.Context, userID, commentID uuid.UUID) error {
+func (s *CollaborationService) ResolveComment(ctx context.Context, userID, commentID uuid.UUID, callerRole string) error {
 	// Get comment to check permissions
 	comment, err := s.repo.GetCommentByID(ctx, commentID)
 	if err != nil {
@@ -411,14 +426,14 @@ func (s *CollaborationService) ResolveComment(ctx context.Context, userID, comme
 	}
 
 	// Check if user has editor permission for this project
-	if err := s.CheckPermission(ctx, userID, comment.ProjectID, "editor"); err != nil {
+	if err := s.CheckPermission(ctx, userID, comment.ProjectID, callerRole, "editor"); err != nil {
 		return err
 	}
 
 	return s.repo.ResolveComment(ctx, commentID)
 }
 
-func (s *CollaborationService) DeleteComment(ctx context.Context, userID, commentID uuid.UUID) error {
+func (s *CollaborationService) DeleteComment(ctx context.Context, userID, commentID uuid.UUID, callerRole string) error {
 	// Get comment to check permissions
 	comment, err := s.repo.GetCommentByID(ctx, commentID)
 	if err != nil {
@@ -427,7 +442,7 @@ func (s *CollaborationService) DeleteComment(ctx context.Context, userID, commen
 
 	// Check if user has editor permission or is the comment author
 	if comment.UserID != userID {
-		if err := s.CheckPermission(ctx, userID, comment.ProjectID, "editor"); err != nil {
+		if err := s.CheckPermission(ctx, userID, comment.ProjectID, callerRole, "editor"); err != nil {
 			return err
 		}
 	}
@@ -499,9 +514,9 @@ func (s *CollaborationService) SweepStaleEditSessions(ctx context.Context) (int6
 }
 
 // User presence operations
-func (s *CollaborationService) UpdateUserPresence(ctx context.Context, userID, projectID uuid.UUID, screenplayID *uuid.UUID, cursorPosition int32, selectionStart, selectionEnd *int32) (*domain.UserPresence, error) {
+func (s *CollaborationService) UpdateUserPresence(ctx context.Context, userID, projectID uuid.UUID, callerRole string, screenplayID *uuid.UUID, cursorPosition int32, selectionStart, selectionEnd *int32) (*domain.UserPresence, error) {
 	// Check if user has access to the project
-	if err := s.CheckPermission(ctx, userID, projectID, "viewer"); err != nil {
+	if err := s.CheckPermission(ctx, userID, projectID, callerRole, "viewer"); err != nil {
 		return nil, err
 	}
 
@@ -524,9 +539,9 @@ func (s *CollaborationService) UpdateUserPresence(ctx context.Context, userID, p
 	return presence, nil
 }
 
-func (s *CollaborationService) GetProjectUserPresence(ctx context.Context, userID, projectID uuid.UUID) ([]*domain.UserPresence, error) {
+func (s *CollaborationService) GetProjectUserPresence(ctx context.Context, userID, projectID uuid.UUID, callerRole string) ([]*domain.UserPresence, error) {
 	// Check if user has access to the project
-	if err := s.CheckPermission(ctx, userID, projectID, "viewer"); err != nil {
+	if err := s.CheckPermission(ctx, userID, projectID, callerRole, "viewer"); err != nil {
 		return nil, err
 	}
 
@@ -541,7 +556,7 @@ func (s *CollaborationService) GetCommentByID(ctx context.Context, commentID uui
 	return s.repo.GetCommentByID(ctx, commentID)
 }
 
-func (s *CollaborationService) UpdateComment(ctx context.Context, userID, commentID uuid.UUID, content string) error {
+func (s *CollaborationService) UpdateComment(ctx context.Context, userID, commentID uuid.UUID, callerRole, content string) error {
 	// Get comment to check permissions
 	comment, err := s.repo.GetCommentByID(ctx, commentID)
 	if err != nil {
@@ -550,7 +565,7 @@ func (s *CollaborationService) UpdateComment(ctx context.Context, userID, commen
 
 	// Check if user has editor permission or is the comment author
 	if comment.UserID != userID {
-		if err := s.CheckPermission(ctx, userID, comment.ProjectID, "editor"); err != nil {
+		if err := s.CheckPermission(ctx, userID, comment.ProjectID, callerRole, "editor"); err != nil {
 			return err
 		}
 	}

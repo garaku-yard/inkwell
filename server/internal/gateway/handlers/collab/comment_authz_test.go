@@ -54,9 +54,8 @@ func (s orgOnlyWorkspaceStub) GetOrgMember(_ context.Context, in *workspacepb.Ge
 // (directUserID/directRole — leave directUserID empty for "org-only, no
 // collab.collaborators row at all"), and records whether UpdateComment/
 // DeleteComment actually reached collab and — critically — which UserId
-// they were dispatched with, so a test can prove the gateway forwards the
-// bypass sentinel for the moderate tier rather than letting collab
-// re-derive a narrower role from the direct row alone (see #366).
+// they were dispatched with, so tests can prove the gateway keeps the real
+// actor separate from its resolved-role assertion.
 type commentCollabStub struct {
 	collab.CollaborationServiceClient
 	projectID      string
@@ -68,6 +67,7 @@ type commentCollabStub struct {
 	updateCalled     bool
 	deleteCalled     bool
 	dispatchedUserID string
+	dispatchedRole   collab.CallerRole
 }
 
 func (s *commentCollabStub) GetProjectCollaborators(context.Context, *collab.GetProjectCollaboratorsRequest, ...grpc.CallOption) (*collab.GetProjectCollaboratorsResponse, error) {
@@ -77,6 +77,13 @@ func (s *commentCollabStub) GetProjectCollaborators(context.Context, *collab.Get
 	return &collab.GetProjectCollaboratorsResponse{
 		Collaborators: []*collab.Collaborator{{UserId: s.directUserID, Status: "active", Role: s.directRole}},
 	}, nil
+}
+
+func (s *commentCollabStub) GetProjectCollaboratorRole(_ context.Context, in *collab.GetProjectCollaboratorRoleRequest, _ ...grpc.CallOption) (*collab.GetProjectCollaboratorRoleResponse, error) {
+	if s.directUserID == "" || in.UserId != s.directUserID {
+		return nil, status.Error(codes.PermissionDenied, "not a collaborator")
+	}
+	return &collab.GetProjectCollaboratorRoleResponse{Role: s.directRole, Status: "active"}, nil
 }
 
 func (s *commentCollabStub) GetResourceProject(_ context.Context, in *collab.GetResourceProjectRequest, _ ...grpc.CallOption) (*collab.GetResourceProjectResponse, error) {
@@ -89,12 +96,14 @@ func (s *commentCollabStub) GetResourceProject(_ context.Context, in *collab.Get
 func (s *commentCollabStub) UpdateComment(_ context.Context, req *collab.UpdateCommentRequest, _ ...grpc.CallOption) (*collab.UpdateCommentResponse, error) {
 	s.updateCalled = true
 	s.dispatchedUserID = req.UserId
+	s.dispatchedRole = req.CallerRole
 	return &collab.UpdateCommentResponse{Comment: &collab.Comment{Id: s.commentID, ProjectId: s.projectID, UserId: s.commentOwnerID}}, nil
 }
 
 func (s *commentCollabStub) DeleteComment(_ context.Context, req *collab.DeleteCommentRequest, _ ...grpc.CallOption) (*collab.DeleteCommentResponse, error) {
 	s.deleteCalled = true
 	s.dispatchedUserID = req.UserId
+	s.dispatchedRole = req.CallerRole
 	return &collab.DeleteCommentResponse{Success: true}, nil
 }
 
@@ -226,19 +235,15 @@ func TestDeleteComment_OrgOnlyViewer(t *testing.T) {
 	})
 }
 
-// TestModerateComment_ForwardsBypassSentinelNotRealID is the second review
+// TestModerateComment_ForwardsRealActorAndResolvedRole is the second review
 // round's regression: the gateway resolves an editor's effective role by
 // combining org membership and a direct collaborator row (ADR 0030,
 // "highest wins"), but collab-service's own CheckPermission only ever sees
 // the direct row — it has no concept of org membership at all
-// (GetUserProjectRole queries nothing but the collaborators table). Forwarding
-// the real caller id to collab's moderate-tier calls therefore lets it
-// re-derive a role narrower than the one the gateway already verified,
-// rejecting an action the gateway just allowed. Fixed by forwarding the
-// bypass sentinel ("") for the moderate tier instead — proven here by
-// asserting on the dispatched UserId, not just the HTTP status, so the fix
-// can't silently regress back to forwarding the real id.
-func TestModerateComment_ForwardsBypassSentinelNotRealID(t *testing.T) {
+// (GetUserProjectRole queries nothing but the collaborators table). The RPC
+// now forwards the real actor for audit/authorship semantics and separately
+// carries the gateway's combined role assertion.
+func TestModerateComment_ForwardsRealActorAndResolvedRole(t *testing.T) {
 	cases := []struct {
 		name       string
 		orgRole    string
@@ -263,8 +268,11 @@ func TestModerateComment_ForwardsBypassSentinelNotRealID(t *testing.T) {
 				if !cc.updateCalled {
 					t.Fatal("UpdateComment was not dispatched")
 				}
-				if cc.dispatchedUserID != "" {
-					t.Errorf("dispatched with UserId %q, want the empty bypass sentinel — forwarding the real id here lets collab re-derive a narrower role from the direct row alone and reject what the gateway just allowed", cc.dispatchedUserID)
+				if cc.dispatchedUserID != callerID {
+					t.Errorf("dispatched with UserId %q, want real actor %q", cc.dispatchedUserID, callerID)
+				}
+				if cc.dispatchedRole < collab.CallerRole_CALLER_ROLE_EDITOR {
+					t.Errorf("dispatched with caller role %v, want editor or stronger", cc.dispatchedRole)
 				}
 			})
 
@@ -279,8 +287,11 @@ func TestModerateComment_ForwardsBypassSentinelNotRealID(t *testing.T) {
 				if !cc.deleteCalled {
 					t.Fatal("DeleteComment was not dispatched")
 				}
-				if cc.dispatchedUserID != "" {
-					t.Errorf("dispatched with UserId %q, want the empty bypass sentinel", cc.dispatchedUserID)
+				if cc.dispatchedUserID != callerID {
+					t.Errorf("dispatched with UserId %q, want real actor %q", cc.dispatchedUserID, callerID)
+				}
+				if cc.dispatchedRole < collab.CallerRole_CALLER_ROLE_EDITOR {
+					t.Errorf("dispatched with caller role %v, want editor or stronger", cc.dispatchedRole)
 				}
 			})
 		})

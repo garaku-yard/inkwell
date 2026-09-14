@@ -100,6 +100,17 @@ func (f *fakeCollabClient) GetProjectCollaborators(_ context.Context, _ *collab.
 	}, nil
 }
 
+func (f *fakeCollabClient) GetProjectCollaboratorRole(_ context.Context, in *collab.GetProjectCollaboratorRoleRequest, _ ...grpc.CallOption) (*collab.GetProjectCollaboratorRoleResponse, error) {
+	if f.activeUserID == "" || in.UserId != f.activeUserID {
+		return nil, status.Error(codes.PermissionDenied, "not a collaborator")
+	}
+	role := f.activeRole
+	if role == "" {
+		role = "editor"
+	}
+	return &collab.GetProjectCollaboratorRoleResponse{Role: role, Status: "active"}, nil
+}
+
 // deleteRouter mounts every sub-resource DELETE route under /api/v1 (the prefix
 // that broke the old TrimPrefix id parsing) with the supplied user injected as
 // the authenticated caller.

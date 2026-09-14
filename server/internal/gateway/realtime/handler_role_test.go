@@ -54,6 +54,14 @@ func (s roleCollabStub) GetProjectCollaborators(_ context.Context, _ *collab.Get
 	return &collab.GetProjectCollaboratorsResponse{Collaborators: out}, nil
 }
 
+func (s roleCollabStub) GetProjectCollaboratorRole(_ context.Context, in *collab.GetProjectCollaboratorRoleRequest, _ ...grpc.CallOption) (*collab.GetProjectCollaboratorRoleResponse, error) {
+	role, ok := s.roles[in.UserId]
+	if !ok {
+		return nil, status.Error(codes.PermissionDenied, "not a collaborator")
+	}
+	return &collab.GetProjectCollaboratorRoleResponse{Role: role, Status: "active"}, nil
+}
+
 // StartEditSession/EndEditSession are the durable-session calls HandleWS
 // makes on every join/focus/disconnect (sessions.go). A real *collab client
 // is embedded (not nil), so sessionRecorder treats it as present and would

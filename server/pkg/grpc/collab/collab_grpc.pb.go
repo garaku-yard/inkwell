@@ -19,28 +19,29 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CollaborationService_AddCollaborator_FullMethodName         = "/collab.CollaborationService/AddCollaborator"
-	CollaborationService_AddCollaboratorDirect_FullMethodName   = "/collab.CollaborationService/AddCollaboratorDirect"
-	CollaborationService_GetProjectCollaborators_FullMethodName = "/collab.CollaborationService/GetProjectCollaborators"
-	CollaborationService_GetProjectSeatUsage_FullMethodName     = "/collab.CollaborationService/GetProjectSeatUsage"
-	CollaborationService_UpdateCollaboratorRole_FullMethodName  = "/collab.CollaborationService/UpdateCollaboratorRole"
-	CollaborationService_RemoveCollaborator_FullMethodName      = "/collab.CollaborationService/RemoveCollaborator"
-	CollaborationService_GetResourceProject_FullMethodName      = "/collab.CollaborationService/GetResourceProject"
-	CollaborationService_AddComment_FullMethodName              = "/collab.CollaborationService/AddComment"
-	CollaborationService_GetComments_FullMethodName             = "/collab.CollaborationService/GetComments"
-	CollaborationService_UpdateComment_FullMethodName           = "/collab.CollaborationService/UpdateComment"
-	CollaborationService_DeleteComment_FullMethodName           = "/collab.CollaborationService/DeleteComment"
-	CollaborationService_StartEditSession_FullMethodName        = "/collab.CollaborationService/StartEditSession"
-	CollaborationService_EndEditSession_FullMethodName          = "/collab.CollaborationService/EndEditSession"
-	CollaborationService_SendEditOperation_FullMethodName       = "/collab.CollaborationService/SendEditOperation"
-	CollaborationService_GetActiveSessions_FullMethodName       = "/collab.CollaborationService/GetActiveSessions"
-	CollaborationService_UpdatePresence_FullMethodName          = "/collab.CollaborationService/UpdatePresence"
-	CollaborationService_GetPresence_FullMethodName             = "/collab.CollaborationService/GetPresence"
-	CollaborationService_GetUserInvitations_FullMethodName      = "/collab.CollaborationService/GetUserInvitations"
-	CollaborationService_AcceptInvitation_FullMethodName        = "/collab.CollaborationService/AcceptInvitation"
-	CollaborationService_DeclineInvitation_FullMethodName       = "/collab.CollaborationService/DeclineInvitation"
-	CollaborationService_RespondToInvitation_FullMethodName     = "/collab.CollaborationService/RespondToInvitation"
-	CollaborationService_GetUserCollaborations_FullMethodName   = "/collab.CollaborationService/GetUserCollaborations"
+	CollaborationService_AddCollaborator_FullMethodName            = "/collab.CollaborationService/AddCollaborator"
+	CollaborationService_AddCollaboratorDirect_FullMethodName      = "/collab.CollaborationService/AddCollaboratorDirect"
+	CollaborationService_GetProjectCollaborators_FullMethodName    = "/collab.CollaborationService/GetProjectCollaborators"
+	CollaborationService_GetProjectCollaboratorRole_FullMethodName = "/collab.CollaborationService/GetProjectCollaboratorRole"
+	CollaborationService_GetProjectSeatUsage_FullMethodName        = "/collab.CollaborationService/GetProjectSeatUsage"
+	CollaborationService_UpdateCollaboratorRole_FullMethodName     = "/collab.CollaborationService/UpdateCollaboratorRole"
+	CollaborationService_RemoveCollaborator_FullMethodName         = "/collab.CollaborationService/RemoveCollaborator"
+	CollaborationService_GetResourceProject_FullMethodName         = "/collab.CollaborationService/GetResourceProject"
+	CollaborationService_AddComment_FullMethodName                 = "/collab.CollaborationService/AddComment"
+	CollaborationService_GetComments_FullMethodName                = "/collab.CollaborationService/GetComments"
+	CollaborationService_UpdateComment_FullMethodName              = "/collab.CollaborationService/UpdateComment"
+	CollaborationService_DeleteComment_FullMethodName              = "/collab.CollaborationService/DeleteComment"
+	CollaborationService_StartEditSession_FullMethodName           = "/collab.CollaborationService/StartEditSession"
+	CollaborationService_EndEditSession_FullMethodName             = "/collab.CollaborationService/EndEditSession"
+	CollaborationService_SendEditOperation_FullMethodName          = "/collab.CollaborationService/SendEditOperation"
+	CollaborationService_GetActiveSessions_FullMethodName          = "/collab.CollaborationService/GetActiveSessions"
+	CollaborationService_UpdatePresence_FullMethodName             = "/collab.CollaborationService/UpdatePresence"
+	CollaborationService_GetPresence_FullMethodName                = "/collab.CollaborationService/GetPresence"
+	CollaborationService_GetUserInvitations_FullMethodName         = "/collab.CollaborationService/GetUserInvitations"
+	CollaborationService_AcceptInvitation_FullMethodName           = "/collab.CollaborationService/AcceptInvitation"
+	CollaborationService_DeclineInvitation_FullMethodName          = "/collab.CollaborationService/DeclineInvitation"
+	CollaborationService_RespondToInvitation_FullMethodName        = "/collab.CollaborationService/RespondToInvitation"
+	CollaborationService_GetUserCollaborations_FullMethodName      = "/collab.CollaborationService/GetUserCollaborations"
 )
 
 // CollaborationServiceClient is the client API for CollaborationService service.
@@ -53,6 +54,7 @@ type CollaborationServiceClient interface {
 	AddCollaborator(ctx context.Context, in *AddCollaboratorRequest, opts ...grpc.CallOption) (*AddCollaboratorResponse, error)
 	AddCollaboratorDirect(ctx context.Context, in *AddCollaboratorDirectRequest, opts ...grpc.CallOption) (*AddCollaboratorDirectResponse, error)
 	GetProjectCollaborators(ctx context.Context, in *GetProjectCollaboratorsRequest, opts ...grpc.CallOption) (*GetProjectCollaboratorsResponse, error)
+	GetProjectCollaboratorRole(ctx context.Context, in *GetProjectCollaboratorRoleRequest, opts ...grpc.CallOption) (*GetProjectCollaboratorRoleResponse, error)
 	GetProjectSeatUsage(ctx context.Context, in *GetProjectSeatUsageRequest, opts ...grpc.CallOption) (*GetProjectSeatUsageResponse, error)
 	UpdateCollaboratorRole(ctx context.Context, in *UpdateCollaboratorRoleRequest, opts ...grpc.CallOption) (*UpdateCollaboratorRoleResponse, error)
 	RemoveCollaborator(ctx context.Context, in *RemoveCollaboratorRequest, opts ...grpc.CallOption) (*RemoveCollaboratorResponse, error)
@@ -115,6 +117,16 @@ func (c *collaborationServiceClient) GetProjectCollaborators(ctx context.Context
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetProjectCollaboratorsResponse)
 	err := c.cc.Invoke(ctx, CollaborationService_GetProjectCollaborators_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *collaborationServiceClient) GetProjectCollaboratorRole(ctx context.Context, in *GetProjectCollaboratorRoleRequest, opts ...grpc.CallOption) (*GetProjectCollaboratorRoleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetProjectCollaboratorRoleResponse)
+	err := c.cc.Invoke(ctx, CollaborationService_GetProjectCollaboratorRole_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -321,6 +333,7 @@ type CollaborationServiceServer interface {
 	AddCollaborator(context.Context, *AddCollaboratorRequest) (*AddCollaboratorResponse, error)
 	AddCollaboratorDirect(context.Context, *AddCollaboratorDirectRequest) (*AddCollaboratorDirectResponse, error)
 	GetProjectCollaborators(context.Context, *GetProjectCollaboratorsRequest) (*GetProjectCollaboratorsResponse, error)
+	GetProjectCollaboratorRole(context.Context, *GetProjectCollaboratorRoleRequest) (*GetProjectCollaboratorRoleResponse, error)
 	GetProjectSeatUsage(context.Context, *GetProjectSeatUsageRequest) (*GetProjectSeatUsageResponse, error)
 	UpdateCollaboratorRole(context.Context, *UpdateCollaboratorRoleRequest) (*UpdateCollaboratorRoleResponse, error)
 	RemoveCollaborator(context.Context, *RemoveCollaboratorRequest) (*RemoveCollaboratorResponse, error)
@@ -367,6 +380,9 @@ func (UnimplementedCollaborationServiceServer) AddCollaboratorDirect(context.Con
 }
 func (UnimplementedCollaborationServiceServer) GetProjectCollaborators(context.Context, *GetProjectCollaboratorsRequest) (*GetProjectCollaboratorsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetProjectCollaborators not implemented")
+}
+func (UnimplementedCollaborationServiceServer) GetProjectCollaboratorRole(context.Context, *GetProjectCollaboratorRoleRequest) (*GetProjectCollaboratorRoleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetProjectCollaboratorRole not implemented")
 }
 func (UnimplementedCollaborationServiceServer) GetProjectSeatUsage(context.Context, *GetProjectSeatUsageRequest) (*GetProjectSeatUsageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetProjectSeatUsage not implemented")
@@ -496,6 +512,24 @@ func _CollaborationService_GetProjectCollaborators_Handler(srv interface{}, ctx 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CollaborationServiceServer).GetProjectCollaborators(ctx, req.(*GetProjectCollaboratorsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CollaborationService_GetProjectCollaboratorRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProjectCollaboratorRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CollaborationServiceServer).GetProjectCollaboratorRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CollaborationService_GetProjectCollaboratorRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CollaborationServiceServer).GetProjectCollaboratorRole(ctx, req.(*GetProjectCollaboratorRoleRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -860,6 +894,10 @@ var CollaborationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetProjectCollaborators",
 			Handler:    _CollaborationService_GetProjectCollaborators_Handler,
+		},
+		{
+			MethodName: "GetProjectCollaboratorRole",
+			Handler:    _CollaborationService_GetProjectCollaboratorRole_Handler,
 		},
 		{
 			MethodName: "GetProjectSeatUsage",

@@ -346,8 +346,9 @@ func (h *ScriptsHandler) GetUserProjects(w http.ResponseWriter, r *http.Request)
 				go func(idx int, projectID string) {
 					defer wg.Done()
 					collabResp, err := h.collabClient.GetProjectCollaborators(r.Context(), &collab.GetProjectCollaboratorsRequest{
-						ProjectId: projectID,
-						UserId:    userID,
+						ProjectId:  projectID,
+						UserId:     userID,
+						CallerRole: collab.CallerRole_CALLER_ROLE_VIEWER,
 					})
 					if err != nil {
 						resultCh <- countResult{index: idx, count: 0}

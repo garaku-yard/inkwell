@@ -82,6 +82,16 @@ func (f *fakeCollab) GetProjectCollaborators(_ context.Context, _ *collab.GetPro
 	}, nil
 }
 
+func (f *fakeCollab) GetProjectCollaboratorRole(_ context.Context, in *collab.GetProjectCollaboratorRoleRequest, _ ...grpc.CallOption) (*collab.GetProjectCollaboratorRoleResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.collabUserID == "" || in.UserId != f.collabUserID {
+		return nil, status.Error(codes.PermissionDenied, "not a collaborator")
+	}
+	return &collab.GetProjectCollaboratorRoleResponse{Role: f.collabRole, Status: "active"}, nil
+}
+
 func TestResolveProjectRole_Owner(t *testing.T) {
 	sc := &fakeScripts{ownerUserID: "owner-1"}
 	role, err := ResolveProjectRole(context.Background(), "owner-1", "proj-1", sc, &fakeCollab{}, nil)

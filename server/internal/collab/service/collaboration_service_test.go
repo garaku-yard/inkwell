@@ -30,6 +30,7 @@ func TestCheckPermission(t *testing.T) {
 		role         string
 		repoErr      error
 		requiredRole string
+		callerRole   string
 		wantErr      error // exact sentinel to match with errors.Is, or nil
 		wantAllowed  bool  // when wantErr is nil-or-unspecified, whether access is granted
 	}{
@@ -52,10 +53,23 @@ func TestCheckPermission(t *testing.T) {
 			wantErr:      domain.ErrUnauthorized,
 		},
 		{
-			name:         "not a collaborator defers to gateway owner check",
+			name:         "not a collaborator is denied without an assertion",
 			repoErr:      domain.ErrUnauthorized,
 			requiredRole: "viewer",
+			wantErr:      domain.ErrUnauthorized,
+		},
+		{
+			name:         "gateway owner assertion permits missing local row",
+			repoErr:      domain.ErrUnauthorized,
+			callerRole:   "owner",
+			requiredRole: "owner",
 			wantAllowed:  true,
+		},
+		{
+			name:         "gateway viewer assertion cannot moderate",
+			callerRole:   "viewer",
+			requiredRole: "editor",
+			wantErr:      domain.ErrUnauthorized,
 		},
 		{
 			name:         "real lookup error fails closed",
@@ -68,7 +82,7 @@ func TestCheckPermission(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := NewCollaborationService(nil, roleStubRepo{role: tt.role, err: tt.repoErr}, nil, nil)
-			err := svc.CheckPermission(context.Background(), uuid.New(), uuid.New(), tt.requiredRole)
+			err := svc.CheckPermission(context.Background(), uuid.New(), uuid.New(), tt.callerRole, tt.requiredRole)
 
 			switch {
 			case tt.name == "real lookup error fails closed":

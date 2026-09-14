@@ -41,6 +41,21 @@ type CollaborationHandler struct {
 	notifier        InviteNotifier
 }
 
+func callerRoleToProto(role handlers.ProjectRole) collab.CallerRole {
+	switch role {
+	case handlers.RoleOwner:
+		return collab.CallerRole_CALLER_ROLE_OWNER
+	case handlers.RoleOrgAdmin:
+		return collab.CallerRole_CALLER_ROLE_ORG_ADMIN
+	case handlers.RoleEditor:
+		return collab.CallerRole_CALLER_ROLE_EDITOR
+	case handlers.RoleViewer:
+		return collab.CallerRole_CALLER_ROLE_VIEWER
+	default:
+		return collab.CallerRole_CALLER_ROLE_UNSPECIFIED
+	}
+}
+
 // NewCollaborationHandler creates a CollaborationHandler using the gRPC clients
 // in the provided registry. notifier may be nil (no real-time push).
 func NewCollaborationHandler(clients *grpcclient.Registry, notifier InviteNotifier) *CollaborationHandler {
@@ -61,15 +76,15 @@ func NewCollaborationHandler(clients *grpcclient.Registry, notifier InviteNotifi
 // The project is read from the resource itself, never supplied by the
 // client. A non-nil error means the resource is missing or the caller may not
 // perform action; in both cases the mutation must not proceed.
-func (h *CollaborationHandler) authorizeCollabResource(ctx context.Context, userID string, resourceType collab.ResourceType, resourceID string, action handlers.ProjectAction) (string, error) {
+func (h *CollaborationHandler) authorizeCollabResource(ctx context.Context, userID string, resourceType collab.ResourceType, resourceID string, action handlers.ProjectAction) (handlers.ProjectRole, error) {
 	resp, err := h.client.GetResourceProject(ctx, &collab.GetResourceProjectRequest{
 		ResourceType: resourceType,
 		ResourceId:   resourceID,
 	})
 	if err != nil {
-		return "", err
+		return handlers.RoleNone, err
 	}
-	return handlers.RequireProjectAccess(ctx, userID, resp.ProjectId, action, h.scriptsClient, h.client, h.workspaceClient)
+	return handlers.RequireProjectRole(ctx, userID, resp.ProjectId, action, h.scriptsClient, h.client, h.workspaceClient)
 }
 
 // addCollaboratorBody is the JSON request shape for AddCollaborator.
@@ -254,13 +269,15 @@ func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r 
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
 
-			if _, authErr := handlers.RequireProjectAccess(ctx, userID, projectID, handlers.ActionRead, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
+			role, authErr := handlers.RequireProjectRole(ctx, userID, projectID, handlers.ActionRead, h.scriptsClient, h.client, h.workspaceClient)
+			if authErr != nil {
 				return nil, authErr
 			}
 
 			resp, err := h.client.GetProjectCollaborators(ctx, &collab.GetProjectCollaboratorsRequest{
-				ProjectId: projectID,
-				UserId:    userID,
+				ProjectId:  projectID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to get collaborators")
@@ -377,7 +394,8 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 			// Previously this endpoint ran no project-access check at all: any
 			// authenticated caller who knew a project_id could comment on it.
 			// ActionCommentAdd is granted to every real role, viewer included.
-			if _, authErr := handlers.RequireProjectAccess(ctx, userID, req.ProjectID, handlers.ActionCommentAdd, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
+			role, authErr := handlers.RequireProjectRole(ctx, userID, req.ProjectID, handlers.ActionCommentAdd, h.scriptsClient, h.client, h.workspaceClient)
+			if authErr != nil {
 				return nil, authErr
 			}
 
@@ -391,6 +409,7 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 				LineNumber:      req.LineNumber,
 				CharPosition:    req.CharPosition,
 				ParentId:        req.ParentID,
+				CallerRole:      callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to add comment")
@@ -521,7 +540,8 @@ func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Req
 
 			// Reporting a cursor position is harmless to grant every real role,
 			// same as ActionRead — this endpoint previously ran no check at all.
-			if _, authErr := handlers.RequireProjectAccess(ctx, userID, req.ProjectID, handlers.ActionRead, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
+			role, authErr := handlers.RequireProjectRole(ctx, userID, req.ProjectID, handlers.ActionRead, h.scriptsClient, h.client, h.workspaceClient)
+			if authErr != nil {
 				return nil, authErr
 			}
 
@@ -530,6 +550,7 @@ func (h *CollaborationHandler) UpdatePresence(w http.ResponseWriter, r *http.Req
 				ProjectId:      req.ProjectID,
 				ScreenplayId:   req.ScreenplayID,
 				CursorPosition: req.CursorPosition,
+				CallerRole:     callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to update presence")
@@ -878,15 +899,16 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(w http.ResponseWriter, r *
 			// Only the owner or an org admin may reassign a collaborator's role
 			// (ActionManageCollaborators) — this endpoint previously ran no
 			// project-access check at all.
-			resolvedID, authErr := h.authorizeCollabResource(ctx, userID, collab.ResourceType_RESOURCE_TYPE_COLLABORATOR, collaboratorID, handlers.ActionManageCollaborators)
+			role, authErr := h.authorizeCollabResource(ctx, userID, collab.ResourceType_RESOURCE_TYPE_COLLABORATOR, collaboratorID, handlers.ActionManageCollaborators)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			resp, err := h.client.UpdateCollaboratorRole(ctx, &collab.UpdateCollaboratorRoleRequest{
-				UserId:         resolvedID,
+				UserId:         userID,
 				CollaboratorId: collaboratorID,
 				NewRole:        req.Role,
+				CallerRole:     callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, err
@@ -931,14 +953,15 @@ func (h *CollaborationHandler) RemoveCollaborator(w http.ResponseWriter, r *http
 			// Only the owner or an org admin may remove a collaborator
 			// (ActionManageCollaborators) — this endpoint previously ran no
 			// project-access check at all.
-			resolvedID, authErr := h.authorizeCollabResource(ctx, userID, collab.ResourceType_RESOURCE_TYPE_COLLABORATOR, collaboratorID, handlers.ActionManageCollaborators)
+			role, authErr := h.authorizeCollabResource(ctx, userID, collab.ResourceType_RESOURCE_TYPE_COLLABORATOR, collaboratorID, handlers.ActionManageCollaborators)
 			if authErr != nil {
 				return nil, authErr
 			}
 
 			_, err := h.client.RemoveCollaborator(ctx, &collab.RemoveCollaboratorRequest{
-				UserId:         resolvedID,
+				UserId:         userID,
 				CollaboratorId: collaboratorID,
+				CallerRole:     callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, err
@@ -1005,30 +1028,14 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 			if isSelf && !resolvingThread {
 				action = handlers.ActionCommentAdd
 			}
-			if _, authErr := handlers.RequireProjectAccess(ctx, userID, resourceResp.ProjectId, action, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
+			role, authErr := handlers.RequireProjectRole(ctx, userID, resourceResp.ProjectId, action, h.scriptsClient, h.client, h.workspaceClient)
+			if authErr != nil {
 				return nil, authErr
 			}
-
-			// Downstream identity: the real caller only for the self-edit tier,
-			// where collab-service's own UpdateComment skips CheckPermission
-			// entirely on the authorship match (comment.UserID == userID) — the
-			// one case forwarding the real id is both needed and safe. For the
-			// moderate tier (someone else's comment, or resolving a thread at
-			// all — ResolveComment never has a self-exception), forward the
-			// bypass sentinel instead: the gateway has already verified
-			// ActionCommentModerate across every source (org role and direct
-			// collaborator row combined, ADR 0030), but collab's own
-			// CheckPermission only ever sees the direct collaborator row —
-			// forwarding the real id there would make it re-derive a narrower
-			// answer than the gateway just gave, rejecting (say) an org editor
-			// who also holds a lower direct viewer row. See ADR 0030 and #366.
-			downstreamID := ""
-			if action == handlers.ActionCommentAdd {
-				downstreamID = userID
-			}
 			req := &collab.UpdateCommentRequest{
-				CommentId: commentID,
-				UserId:    downstreamID,
+				CommentId:  commentID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			}
 
 			if updateData.Content != nil {
@@ -1099,23 +1106,14 @@ func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Requ
 			if isSelf {
 				action = handlers.ActionCommentAdd
 			}
-			if _, authErr := handlers.RequireProjectAccess(ctx, userID, resourceResp.ProjectId, action, h.scriptsClient, h.client, h.workspaceClient); authErr != nil {
+			role, authErr := handlers.RequireProjectRole(ctx, userID, resourceResp.ProjectId, action, h.scriptsClient, h.client, h.workspaceClient)
+			if authErr != nil {
 				return nil, authErr
 			}
-
-			// Downstream identity: real caller only for the self-delete tier,
-			// where collab-service's own DeleteComment skips CheckPermission
-			// entirely on the authorship match — the bypass sentinel otherwise,
-			// same reasoning as UpdateComment above (a narrower org-blind
-			// recompute in collab must not override the gateway's combined
-			// org+direct decision). See ADR 0030 and #366.
-			downstreamID := ""
-			if action == handlers.ActionCommentAdd {
-				downstreamID = userID
-			}
 			resp, err := h.client.DeleteComment(ctx, &collab.DeleteCommentRequest{
-				CommentId: commentID,
-				UserId:    downstreamID,
+				CommentId:  commentID,
+				UserId:     userID,
+				CallerRole: callerRoleToProto(role),
 			})
 			if err != nil {
 				return nil, err

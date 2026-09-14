@@ -32,6 +32,41 @@ func NewCollaborationHandler(service *service.CollaborationService) *Collaborati
 	}
 }
 
+func callerRoleFromProto(role collab_pb.CallerRole) string {
+	switch role {
+	case collab_pb.CallerRole_CALLER_ROLE_OWNER:
+		return "owner"
+	case collab_pb.CallerRole_CALLER_ROLE_ORG_ADMIN:
+		return "org_admin"
+	case collab_pb.CallerRole_CALLER_ROLE_EDITOR:
+		return "editor"
+	case collab_pb.CallerRole_CALLER_ROLE_VIEWER:
+		return "viewer"
+	case collab_pb.CallerRole_CALLER_ROLE_NONE:
+		return "none"
+	default:
+		return ""
+	}
+}
+
+func handleServiceError(err error, operation string) error {
+	if errors.Is(err, domain.ErrUnauthorized) {
+		return status.Error(codes.PermissionDenied, "permission denied")
+	}
+	return status.Errorf(codes.Internal, "%s: %v", operation, err)
+}
+
+func requireActorID(raw string) (uuid.UUID, error) {
+	if raw == "" {
+		return uuid.Nil, status.Error(codes.InvalidArgument, "user ID is required")
+	}
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return uuid.Nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	}
+	return id, nil
+}
+
 // parseUUID parses s as a UUID. An empty string returns uuid.Nil without error,
 // which callers use as a sentinel for optional UUID fields.
 func parseUUID(s string) (uuid.UUID, error) {
@@ -124,7 +159,7 @@ func (h *CollaborationHandler) AddCollaboratorDirect(ctx context.Context, req *c
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project ID: %v", err)
 	}
 
-	userID, err := parseUUID(req.UserId)
+	userID, err := requireActorID(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
@@ -164,14 +199,14 @@ func (h *CollaborationHandler) GetProjectCollaborators(ctx context.Context, req 
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project ID: %v", err)
 	}
 
-	userID, err := parseUUID(req.UserId)
+	userID, err := requireActorID(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	collaborators, err := h.service.GetProjectCollaborators(ctx, userID, projectID)
+	collaborators, err := h.service.GetProjectCollaborators(ctx, userID, projectID, callerRoleFromProto(req.CallerRole))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get collaborators: %v", err)
+		return nil, handleServiceError(err, "failed to get collaborators")
 	}
 
 	pbCollaborators := make([]*collab_pb.Collaborator, len(collaborators))
@@ -193,6 +228,25 @@ func (h *CollaborationHandler) GetProjectCollaborators(ctx context.Context, req 
 	return &collab_pb.GetProjectCollaboratorsResponse{
 		Collaborators: pbCollaborators,
 	}, nil
+}
+
+func (h *CollaborationHandler) GetProjectCollaboratorRole(ctx context.Context, req *collab_pb.GetProjectCollaboratorRoleRequest) (*collab_pb.GetProjectCollaboratorRoleResponse, error) {
+	projectID, err := uuid.Parse(req.ProjectId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project ID: %v", err)
+	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
+	}
+	role, err := h.service.GetDirectProjectRole(ctx, userID, projectID)
+	if errors.Is(err, domain.ErrUnauthorized) {
+		return nil, status.Error(codes.PermissionDenied, "not an active collaborator")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get collaborator role: %v", err)
+	}
+	return &collab_pb.GetProjectCollaboratorRoleResponse{Role: role, Status: "active"}, nil
 }
 
 // GetProjectSeatUsage returns the project's collaborator seat usage — non-owner
@@ -223,14 +277,14 @@ func (h *CollaborationHandler) UpdateCollaboratorRole(ctx context.Context, req *
 		return nil, status.Errorf(codes.InvalidArgument, "invalid collaborator ID: %v", err)
 	}
 
-	userID, err := parseUUID(req.UserId)
+	userID, err := requireActorID(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	err = h.service.UpdateCollaboratorRole(ctx, userID, collaboratorID, req.NewRole)
+	err = h.service.UpdateCollaboratorRole(ctx, userID, collaboratorID, callerRoleFromProto(req.CallerRole), req.NewRole)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to update collaborator role: %v", err)
+		return nil, handleServiceError(err, "failed to update collaborator role")
 	}
 
 	// Get the updated collaborator to return
@@ -262,14 +316,14 @@ func (h *CollaborationHandler) RemoveCollaborator(ctx context.Context, req *coll
 		return nil, status.Errorf(codes.InvalidArgument, "invalid collaborator ID: %v", err)
 	}
 
-	userID, err := parseUUID(req.UserId)
+	userID, err := requireActorID(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	err = h.service.RemoveCollaborator(ctx, userID, collaboratorID)
+	err = h.service.RemoveCollaborator(ctx, userID, collaboratorID, callerRoleFromProto(req.CallerRole))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to remove collaborator: %v", err)
+		return nil, handleServiceError(err, "failed to remove collaborator")
 	}
 
 	return &collab_pb.RemoveCollaboratorResponse{
@@ -332,7 +386,7 @@ func (h *CollaborationHandler) AddComment(ctx context.Context, req *collab_pb.Ad
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project ID: %v", err)
 	}
 
-	userID, err := parseUUID(req.UserId)
+	userID, err := requireActorID(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
@@ -363,9 +417,9 @@ func (h *CollaborationHandler) AddComment(ctx context.Context, req *collab_pb.Ad
 	lineNumber := parseOptionalInt32(req.LineNumber)
 	charPosition := parseOptionalInt32(req.CharPosition)
 
-	comment, err := h.service.AddComment(ctx, userID, projectID, req.Content, elementID, sceneID, parentID, lineNumber, charPosition)
+	comment, err := h.service.AddComment(ctx, userID, projectID, callerRoleFromProto(req.CallerRole), req.Content, elementID, sceneID, parentID, lineNumber, charPosition)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to add comment: %v", err)
+		return nil, handleServiceError(err, "failed to add comment")
 	}
 
 	return &collab_pb.AddCommentResponse{
@@ -402,7 +456,7 @@ func (h *CollaborationHandler) GetComments(ctx context.Context, req *collab_pb.G
 		return nil, status.Errorf(codes.InvalidArgument, "invalid screenplay ID: %v", err)
 	}
 
-	userID, err := parseUUID(req.UserId)
+	userID, err := requireActorID(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
@@ -454,22 +508,22 @@ func (h *CollaborationHandler) UpdateComment(ctx context.Context, req *collab_pb
 		return nil, status.Errorf(codes.InvalidArgument, "invalid comment ID: %v", err)
 	}
 
-	userID, err := parseUUID(req.UserId)
+	userID, err := requireActorID(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
 	if req.Content != nil {
-		err = h.service.UpdateComment(ctx, userID, commentID, *req.Content)
+		err = h.service.UpdateComment(ctx, userID, commentID, callerRoleFromProto(req.CallerRole), *req.Content)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to update comment: %v", err)
+			return nil, handleServiceError(err, "failed to update comment")
 		}
 	}
 
 	if req.IsResolved != nil && *req.IsResolved {
-		err = h.service.ResolveComment(ctx, userID, commentID)
+		err = h.service.ResolveComment(ctx, userID, commentID, callerRoleFromProto(req.CallerRole))
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to resolve comment: %v", err)
+			return nil, handleServiceError(err, "failed to resolve comment")
 		}
 	}
 
@@ -510,14 +564,14 @@ func (h *CollaborationHandler) DeleteComment(ctx context.Context, req *collab_pb
 		return nil, status.Errorf(codes.InvalidArgument, "invalid comment ID: %v", err)
 	}
 
-	userID, err := parseUUID(req.UserId)
+	userID, err := requireActorID(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	err = h.service.DeleteComment(ctx, userID, commentID)
+	err = h.service.DeleteComment(ctx, userID, commentID, callerRoleFromProto(req.CallerRole))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to delete comment: %v", err)
+		return nil, handleServiceError(err, "failed to delete comment")
 	}
 
 	return &collab_pb.DeleteCommentResponse{
@@ -561,7 +615,7 @@ func (h *CollaborationHandler) StartEditSession(ctx context.Context, req *collab
 		return nil, status.Errorf(codes.InvalidArgument, "invalid project ID: %v", err)
 	}
 
-	userID, err := parseUUID(req.UserId)
+	userID, err := requireActorID(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
@@ -638,7 +692,7 @@ func (h *CollaborationHandler) GetActiveSessions(ctx context.Context, req *colla
 // UpdatePresence records a user's current cursor position within a project,
 // keeping their online status and last-seen timestamp up to date.
 func (h *CollaborationHandler) UpdatePresence(ctx context.Context, req *collab_pb.UpdatePresenceRequest) (*collab_pb.UpdatePresenceResponse, error) {
-	userID, err := parseUUID(req.UserId)
+	userID, err := requireActorID(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
@@ -653,9 +707,9 @@ func (h *CollaborationHandler) UpdatePresence(ctx context.Context, req *collab_p
 		return nil, status.Errorf(codes.InvalidArgument, "invalid screenplay ID: %v", err)
 	}
 
-	presence, err := h.service.UpdateUserPresence(ctx, userID, projectID, screenplayID, req.CursorPosition, nil, nil)
+	presence, err := h.service.UpdateUserPresence(ctx, userID, projectID, callerRoleFromProto(req.CallerRole), screenplayID, req.CursorPosition, nil, nil)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to update user presence: %v", err)
+		return nil, handleServiceError(err, "failed to update user presence")
 	}
 
 	return &collab_pb.UpdatePresenceResponse{
@@ -683,14 +737,14 @@ func (h *CollaborationHandler) GetPresence(ctx context.Context, req *collab_pb.G
 		return nil, status.Errorf(codes.InvalidArgument, "invalid screenplay ID: %v", err)
 	}
 
-	userID, err := parseUUID(req.UserId)
+	userID, err := requireActorID(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	presences, err := h.service.GetProjectUserPresence(ctx, userID, projectID)
+	presences, err := h.service.GetProjectUserPresence(ctx, userID, projectID, callerRoleFromProto(req.CallerRole))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get project user presence: %v", err)
+		return nil, handleServiceError(err, "failed to get project user presence")
 	}
 
 	pbPresences := make([]*collab_pb.UserPresence, len(presences))

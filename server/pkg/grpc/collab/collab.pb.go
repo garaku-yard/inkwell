@@ -22,6 +22,66 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// CallerRole is the gateway's explicit authorization assertion for the real
+// actor carried by a request. The zero value is not an authorization grant.
+type CallerRole int32
+
+const (
+	CallerRole_CALLER_ROLE_UNSPECIFIED CallerRole = 0
+	CallerRole_CALLER_ROLE_NONE        CallerRole = 1
+	CallerRole_CALLER_ROLE_VIEWER      CallerRole = 2
+	CallerRole_CALLER_ROLE_EDITOR      CallerRole = 3
+	CallerRole_CALLER_ROLE_ORG_ADMIN   CallerRole = 4
+	CallerRole_CALLER_ROLE_OWNER       CallerRole = 5
+)
+
+// Enum value maps for CallerRole.
+var (
+	CallerRole_name = map[int32]string{
+		0: "CALLER_ROLE_UNSPECIFIED",
+		1: "CALLER_ROLE_NONE",
+		2: "CALLER_ROLE_VIEWER",
+		3: "CALLER_ROLE_EDITOR",
+		4: "CALLER_ROLE_ORG_ADMIN",
+		5: "CALLER_ROLE_OWNER",
+	}
+	CallerRole_value = map[string]int32{
+		"CALLER_ROLE_UNSPECIFIED": 0,
+		"CALLER_ROLE_NONE":        1,
+		"CALLER_ROLE_VIEWER":      2,
+		"CALLER_ROLE_EDITOR":      3,
+		"CALLER_ROLE_ORG_ADMIN":   4,
+		"CALLER_ROLE_OWNER":       5,
+	}
+)
+
+func (x CallerRole) Enum() *CallerRole {
+	p := new(CallerRole)
+	*p = x
+	return p
+}
+
+func (x CallerRole) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CallerRole) Descriptor() protoreflect.EnumDescriptor {
+	return file_collab_collab_proto_enumTypes[0].Descriptor()
+}
+
+func (CallerRole) Type() protoreflect.EnumType {
+	return &file_collab_collab_proto_enumTypes[0]
+}
+
+func (x CallerRole) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CallerRole.Descriptor instead.
+func (CallerRole) EnumDescriptor() ([]byte, []int) {
+	return file_collab_collab_proto_rawDescGZIP(), []int{0}
+}
+
 // ResourceType identifies a collab-owned sub-resource for GetResourceProject,
 // mirroring scripts.ResourceType — the gateway uses it to resolve which
 // project owns a collaborator row or a comment (neither request carries a
@@ -60,11 +120,11 @@ func (x ResourceType) String() string {
 }
 
 func (ResourceType) Descriptor() protoreflect.EnumDescriptor {
-	return file_collab_collab_proto_enumTypes[0].Descriptor()
+	return file_collab_collab_proto_enumTypes[1].Descriptor()
 }
 
 func (ResourceType) Type() protoreflect.EnumType {
-	return &file_collab_collab_proto_enumTypes[0]
+	return &file_collab_collab_proto_enumTypes[1]
 }
 
 func (x ResourceType) Number() protoreflect.EnumNumber {
@@ -73,7 +133,7 @@ func (x ResourceType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ResourceType.Descriptor instead.
 func (ResourceType) EnumDescriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{0}
+	return file_collab_collab_proto_rawDescGZIP(), []int{1}
 }
 
 // Collaborator entity
@@ -830,7 +890,8 @@ func (x *AddCollaboratorDirectResponse) GetCollaborator() *Collaborator {
 type GetProjectCollaboratorsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                                     // Real authenticated actor
+	CallerRole    CallerRole             `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=collab.CallerRole" json:"caller_role,omitempty"` // Gateway-resolved authorization assertion
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -879,6 +940,120 @@ func (x *GetProjectCollaboratorsRequest) GetUserId() string {
 	return ""
 }
 
+func (x *GetProjectCollaboratorsRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
+// Narrow role metadata used by the gateway while resolving project access.
+// It returns only the requested user's active direct-project role and does not
+// authorize an operation or expose the project's collaborator list.
+type GetProjectCollaboratorRoleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetProjectCollaboratorRoleRequest) Reset() {
+	*x = GetProjectCollaboratorRoleRequest{}
+	mi := &file_collab_collab_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetProjectCollaboratorRoleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetProjectCollaboratorRoleRequest) ProtoMessage() {}
+
+func (x *GetProjectCollaboratorRoleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_collab_collab_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetProjectCollaboratorRoleRequest.ProtoReflect.Descriptor instead.
+func (*GetProjectCollaboratorRoleRequest) Descriptor() ([]byte, []int) {
+	return file_collab_collab_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetProjectCollaboratorRoleRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *GetProjectCollaboratorRoleRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type GetProjectCollaboratorRoleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Role          string                 `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetProjectCollaboratorRoleResponse) Reset() {
+	*x = GetProjectCollaboratorRoleResponse{}
+	mi := &file_collab_collab_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetProjectCollaboratorRoleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetProjectCollaboratorRoleResponse) ProtoMessage() {}
+
+func (x *GetProjectCollaboratorRoleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_collab_collab_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetProjectCollaboratorRoleResponse.ProtoReflect.Descriptor instead.
+func (*GetProjectCollaboratorRoleResponse) Descriptor() ([]byte, []int) {
+	return file_collab_collab_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GetProjectCollaboratorRoleResponse) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *GetProjectCollaboratorRoleResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
 type GetProjectCollaboratorsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Collaborators []*Collaborator        `protobuf:"bytes,1,rep,name=collaborators,proto3" json:"collaborators,omitempty"`
@@ -888,7 +1063,7 @@ type GetProjectCollaboratorsResponse struct {
 
 func (x *GetProjectCollaboratorsResponse) Reset() {
 	*x = GetProjectCollaboratorsResponse{}
-	mi := &file_collab_collab_proto_msgTypes[10]
+	mi := &file_collab_collab_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -900,7 +1075,7 @@ func (x *GetProjectCollaboratorsResponse) String() string {
 func (*GetProjectCollaboratorsResponse) ProtoMessage() {}
 
 func (x *GetProjectCollaboratorsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[10]
+	mi := &file_collab_collab_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -913,7 +1088,7 @@ func (x *GetProjectCollaboratorsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectCollaboratorsResponse.ProtoReflect.Descriptor instead.
 func (*GetProjectCollaboratorsResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{10}
+	return file_collab_collab_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetProjectCollaboratorsResponse) GetCollaborators() []*Collaborator {
@@ -932,7 +1107,7 @@ type GetProjectSeatUsageRequest struct {
 
 func (x *GetProjectSeatUsageRequest) Reset() {
 	*x = GetProjectSeatUsageRequest{}
-	mi := &file_collab_collab_proto_msgTypes[11]
+	mi := &file_collab_collab_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -944,7 +1119,7 @@ func (x *GetProjectSeatUsageRequest) String() string {
 func (*GetProjectSeatUsageRequest) ProtoMessage() {}
 
 func (x *GetProjectSeatUsageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[11]
+	mi := &file_collab_collab_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -957,7 +1132,7 @@ func (x *GetProjectSeatUsageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectSeatUsageRequest.ProtoReflect.Descriptor instead.
 func (*GetProjectSeatUsageRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{11}
+	return file_collab_collab_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetProjectSeatUsageRequest) GetProjectId() string {
@@ -982,7 +1157,7 @@ type GetProjectSeatUsageResponse struct {
 
 func (x *GetProjectSeatUsageResponse) Reset() {
 	*x = GetProjectSeatUsageResponse{}
-	mi := &file_collab_collab_proto_msgTypes[12]
+	mi := &file_collab_collab_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -994,7 +1169,7 @@ func (x *GetProjectSeatUsageResponse) String() string {
 func (*GetProjectSeatUsageResponse) ProtoMessage() {}
 
 func (x *GetProjectSeatUsageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[12]
+	mi := &file_collab_collab_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1007,7 +1182,7 @@ func (x *GetProjectSeatUsageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectSeatUsageResponse.ProtoReflect.Descriptor instead.
 func (*GetProjectSeatUsageResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{12}
+	return file_collab_collab_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetProjectSeatUsageResponse) GetActiveCollaborators() int32 {
@@ -1029,13 +1204,14 @@ type UpdateCollaboratorRoleRequest struct {
 	CollaboratorId string                 `protobuf:"bytes,1,opt,name=collaborator_id,json=collaboratorId,proto3" json:"collaborator_id,omitempty"`
 	UserId         string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // User making the change (must be owner)
 	NewRole        string                 `protobuf:"bytes,3,opt,name=new_role,json=newRole,proto3" json:"new_role,omitempty"`
+	CallerRole     CallerRole             `protobuf:"varint,4,opt,name=caller_role,json=callerRole,proto3,enum=collab.CallerRole" json:"caller_role,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *UpdateCollaboratorRoleRequest) Reset() {
 	*x = UpdateCollaboratorRoleRequest{}
-	mi := &file_collab_collab_proto_msgTypes[13]
+	mi := &file_collab_collab_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1047,7 +1223,7 @@ func (x *UpdateCollaboratorRoleRequest) String() string {
 func (*UpdateCollaboratorRoleRequest) ProtoMessage() {}
 
 func (x *UpdateCollaboratorRoleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[13]
+	mi := &file_collab_collab_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1060,7 +1236,7 @@ func (x *UpdateCollaboratorRoleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCollaboratorRoleRequest.ProtoReflect.Descriptor instead.
 func (*UpdateCollaboratorRoleRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{13}
+	return file_collab_collab_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UpdateCollaboratorRoleRequest) GetCollaboratorId() string {
@@ -1084,6 +1260,13 @@ func (x *UpdateCollaboratorRoleRequest) GetNewRole() string {
 	return ""
 }
 
+func (x *UpdateCollaboratorRoleRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type UpdateCollaboratorRoleResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Collaborator  *Collaborator          `protobuf:"bytes,1,opt,name=collaborator,proto3" json:"collaborator,omitempty"`
@@ -1093,7 +1276,7 @@ type UpdateCollaboratorRoleResponse struct {
 
 func (x *UpdateCollaboratorRoleResponse) Reset() {
 	*x = UpdateCollaboratorRoleResponse{}
-	mi := &file_collab_collab_proto_msgTypes[14]
+	mi := &file_collab_collab_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1105,7 +1288,7 @@ func (x *UpdateCollaboratorRoleResponse) String() string {
 func (*UpdateCollaboratorRoleResponse) ProtoMessage() {}
 
 func (x *UpdateCollaboratorRoleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[14]
+	mi := &file_collab_collab_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1118,7 +1301,7 @@ func (x *UpdateCollaboratorRoleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCollaboratorRoleResponse.ProtoReflect.Descriptor instead.
 func (*UpdateCollaboratorRoleResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{14}
+	return file_collab_collab_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UpdateCollaboratorRoleResponse) GetCollaborator() *Collaborator {
@@ -1132,13 +1315,14 @@ type RemoveCollaboratorRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	CollaboratorId string                 `protobuf:"bytes,1,opt,name=collaborator_id,json=collaboratorId,proto3" json:"collaborator_id,omitempty"`
 	UserId         string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // User making the change (must be owner or self)
+	CallerRole     CallerRole             `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=collab.CallerRole" json:"caller_role,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RemoveCollaboratorRequest) Reset() {
 	*x = RemoveCollaboratorRequest{}
-	mi := &file_collab_collab_proto_msgTypes[15]
+	mi := &file_collab_collab_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1150,7 +1334,7 @@ func (x *RemoveCollaboratorRequest) String() string {
 func (*RemoveCollaboratorRequest) ProtoMessage() {}
 
 func (x *RemoveCollaboratorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[15]
+	mi := &file_collab_collab_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1163,7 +1347,7 @@ func (x *RemoveCollaboratorRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCollaboratorRequest.ProtoReflect.Descriptor instead.
 func (*RemoveCollaboratorRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{15}
+	return file_collab_collab_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *RemoveCollaboratorRequest) GetCollaboratorId() string {
@@ -1180,6 +1364,13 @@ func (x *RemoveCollaboratorRequest) GetUserId() string {
 	return ""
 }
 
+func (x *RemoveCollaboratorRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type RemoveCollaboratorResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -1189,7 +1380,7 @@ type RemoveCollaboratorResponse struct {
 
 func (x *RemoveCollaboratorResponse) Reset() {
 	*x = RemoveCollaboratorResponse{}
-	mi := &file_collab_collab_proto_msgTypes[16]
+	mi := &file_collab_collab_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1201,7 +1392,7 @@ func (x *RemoveCollaboratorResponse) String() string {
 func (*RemoveCollaboratorResponse) ProtoMessage() {}
 
 func (x *RemoveCollaboratorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[16]
+	mi := &file_collab_collab_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1214,7 +1405,7 @@ func (x *RemoveCollaboratorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCollaboratorResponse.ProtoReflect.Descriptor instead.
 func (*RemoveCollaboratorResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{16}
+	return file_collab_collab_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *RemoveCollaboratorResponse) GetSuccess() bool {
@@ -1236,13 +1427,14 @@ type AddCommentRequest struct {
 	LineNumber      int32                  `protobuf:"varint,7,opt,name=line_number,json=lineNumber,proto3" json:"line_number,omitempty"`
 	CharPosition    int32                  `protobuf:"varint,8,opt,name=char_position,json=charPosition,proto3" json:"char_position,omitempty"`
 	ParentId        *string                `protobuf:"bytes,9,opt,name=parent_id,json=parentId,proto3,oneof" json:"parent_id,omitempty"` // For replies
+	CallerRole      CallerRole             `protobuf:"varint,10,opt,name=caller_role,json=callerRole,proto3,enum=collab.CallerRole" json:"caller_role,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *AddCommentRequest) Reset() {
 	*x = AddCommentRequest{}
-	mi := &file_collab_collab_proto_msgTypes[17]
+	mi := &file_collab_collab_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1254,7 +1446,7 @@ func (x *AddCommentRequest) String() string {
 func (*AddCommentRequest) ProtoMessage() {}
 
 func (x *AddCommentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[17]
+	mi := &file_collab_collab_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1267,7 +1459,7 @@ func (x *AddCommentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddCommentRequest.ProtoReflect.Descriptor instead.
 func (*AddCommentRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{17}
+	return file_collab_collab_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *AddCommentRequest) GetProjectId() string {
@@ -1333,6 +1525,13 @@ func (x *AddCommentRequest) GetParentId() string {
 	return ""
 }
 
+func (x *AddCommentRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type AddCommentResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Comment       *Comment               `protobuf:"bytes,1,opt,name=comment,proto3" json:"comment,omitempty"`
@@ -1342,7 +1541,7 @@ type AddCommentResponse struct {
 
 func (x *AddCommentResponse) Reset() {
 	*x = AddCommentResponse{}
-	mi := &file_collab_collab_proto_msgTypes[18]
+	mi := &file_collab_collab_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1354,7 +1553,7 @@ func (x *AddCommentResponse) String() string {
 func (*AddCommentResponse) ProtoMessage() {}
 
 func (x *AddCommentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[18]
+	mi := &file_collab_collab_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1367,7 +1566,7 @@ func (x *AddCommentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddCommentResponse.ProtoReflect.Descriptor instead.
 func (*AddCommentResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{18}
+	return file_collab_collab_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *AddCommentResponse) GetComment() *Comment {
@@ -1388,7 +1587,7 @@ type GetCommentsRequest struct {
 
 func (x *GetCommentsRequest) Reset() {
 	*x = GetCommentsRequest{}
-	mi := &file_collab_collab_proto_msgTypes[19]
+	mi := &file_collab_collab_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1400,7 +1599,7 @@ func (x *GetCommentsRequest) String() string {
 func (*GetCommentsRequest) ProtoMessage() {}
 
 func (x *GetCommentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[19]
+	mi := &file_collab_collab_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1413,7 +1612,7 @@ func (x *GetCommentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCommentsRequest.ProtoReflect.Descriptor instead.
 func (*GetCommentsRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{19}
+	return file_collab_collab_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetCommentsRequest) GetScreenplayId() string {
@@ -1446,7 +1645,7 @@ type GetCommentsResponse struct {
 
 func (x *GetCommentsResponse) Reset() {
 	*x = GetCommentsResponse{}
-	mi := &file_collab_collab_proto_msgTypes[20]
+	mi := &file_collab_collab_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1458,7 +1657,7 @@ func (x *GetCommentsResponse) String() string {
 func (*GetCommentsResponse) ProtoMessage() {}
 
 func (x *GetCommentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[20]
+	mi := &file_collab_collab_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1471,7 +1670,7 @@ func (x *GetCommentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCommentsResponse.ProtoReflect.Descriptor instead.
 func (*GetCommentsResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{20}
+	return file_collab_collab_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetCommentsResponse) GetComments() []*Comment {
@@ -1487,13 +1686,14 @@ type UpdateCommentRequest struct {
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // Must be comment author
 	Content       *string                `protobuf:"bytes,3,opt,name=content,proto3,oneof" json:"content,omitempty"`
 	IsResolved    *bool                  `protobuf:"varint,4,opt,name=is_resolved,json=isResolved,proto3,oneof" json:"is_resolved,omitempty"`
+	CallerRole    CallerRole             `protobuf:"varint,5,opt,name=caller_role,json=callerRole,proto3,enum=collab.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateCommentRequest) Reset() {
 	*x = UpdateCommentRequest{}
-	mi := &file_collab_collab_proto_msgTypes[21]
+	mi := &file_collab_collab_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1505,7 +1705,7 @@ func (x *UpdateCommentRequest) String() string {
 func (*UpdateCommentRequest) ProtoMessage() {}
 
 func (x *UpdateCommentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[21]
+	mi := &file_collab_collab_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1518,7 +1718,7 @@ func (x *UpdateCommentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCommentRequest.ProtoReflect.Descriptor instead.
 func (*UpdateCommentRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{21}
+	return file_collab_collab_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *UpdateCommentRequest) GetCommentId() string {
@@ -1549,6 +1749,13 @@ func (x *UpdateCommentRequest) GetIsResolved() bool {
 	return false
 }
 
+func (x *UpdateCommentRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type UpdateCommentResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Comment       *Comment               `protobuf:"bytes,1,opt,name=comment,proto3" json:"comment,omitempty"`
@@ -1558,7 +1765,7 @@ type UpdateCommentResponse struct {
 
 func (x *UpdateCommentResponse) Reset() {
 	*x = UpdateCommentResponse{}
-	mi := &file_collab_collab_proto_msgTypes[22]
+	mi := &file_collab_collab_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1570,7 +1777,7 @@ func (x *UpdateCommentResponse) String() string {
 func (*UpdateCommentResponse) ProtoMessage() {}
 
 func (x *UpdateCommentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[22]
+	mi := &file_collab_collab_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1583,7 +1790,7 @@ func (x *UpdateCommentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCommentResponse.ProtoReflect.Descriptor instead.
 func (*UpdateCommentResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{22}
+	return file_collab_collab_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *UpdateCommentResponse) GetComment() *Comment {
@@ -1597,13 +1804,14 @@ type DeleteCommentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CommentId     string                 `protobuf:"bytes,1,opt,name=comment_id,json=commentId,proto3" json:"comment_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // Must be comment author or project owner
+	CallerRole    CallerRole             `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=collab.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeleteCommentRequest) Reset() {
 	*x = DeleteCommentRequest{}
-	mi := &file_collab_collab_proto_msgTypes[23]
+	mi := &file_collab_collab_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1615,7 +1823,7 @@ func (x *DeleteCommentRequest) String() string {
 func (*DeleteCommentRequest) ProtoMessage() {}
 
 func (x *DeleteCommentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[23]
+	mi := &file_collab_collab_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1628,7 +1836,7 @@ func (x *DeleteCommentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCommentRequest.ProtoReflect.Descriptor instead.
 func (*DeleteCommentRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{23}
+	return file_collab_collab_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *DeleteCommentRequest) GetCommentId() string {
@@ -1645,6 +1853,13 @@ func (x *DeleteCommentRequest) GetUserId() string {
 	return ""
 }
 
+func (x *DeleteCommentRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type DeleteCommentResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -1654,7 +1869,7 @@ type DeleteCommentResponse struct {
 
 func (x *DeleteCommentResponse) Reset() {
 	*x = DeleteCommentResponse{}
-	mi := &file_collab_collab_proto_msgTypes[24]
+	mi := &file_collab_collab_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1666,7 +1881,7 @@ func (x *DeleteCommentResponse) String() string {
 func (*DeleteCommentResponse) ProtoMessage() {}
 
 func (x *DeleteCommentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[24]
+	mi := &file_collab_collab_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1679,7 +1894,7 @@ func (x *DeleteCommentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCommentResponse.ProtoReflect.Descriptor instead.
 func (*DeleteCommentResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{24}
+	return file_collab_collab_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *DeleteCommentResponse) GetSuccess() bool {
@@ -1706,7 +1921,7 @@ type StartEditSessionRequest struct {
 
 func (x *StartEditSessionRequest) Reset() {
 	*x = StartEditSessionRequest{}
-	mi := &file_collab_collab_proto_msgTypes[25]
+	mi := &file_collab_collab_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1718,7 +1933,7 @@ func (x *StartEditSessionRequest) String() string {
 func (*StartEditSessionRequest) ProtoMessage() {}
 
 func (x *StartEditSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[25]
+	mi := &file_collab_collab_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1731,7 +1946,7 @@ func (x *StartEditSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartEditSessionRequest.ProtoReflect.Descriptor instead.
 func (*StartEditSessionRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{25}
+	return file_collab_collab_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *StartEditSessionRequest) GetProjectId() string {
@@ -1771,7 +1986,7 @@ type StartEditSessionResponse struct {
 
 func (x *StartEditSessionResponse) Reset() {
 	*x = StartEditSessionResponse{}
-	mi := &file_collab_collab_proto_msgTypes[26]
+	mi := &file_collab_collab_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1783,7 +1998,7 @@ func (x *StartEditSessionResponse) String() string {
 func (*StartEditSessionResponse) ProtoMessage() {}
 
 func (x *StartEditSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[26]
+	mi := &file_collab_collab_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1796,7 +2011,7 @@ func (x *StartEditSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartEditSessionResponse.ProtoReflect.Descriptor instead.
 func (*StartEditSessionResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{26}
+	return file_collab_collab_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *StartEditSessionResponse) GetSession() *EditSession {
@@ -1816,7 +2031,7 @@ type EndEditSessionRequest struct {
 
 func (x *EndEditSessionRequest) Reset() {
 	*x = EndEditSessionRequest{}
-	mi := &file_collab_collab_proto_msgTypes[27]
+	mi := &file_collab_collab_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1828,7 +2043,7 @@ func (x *EndEditSessionRequest) String() string {
 func (*EndEditSessionRequest) ProtoMessage() {}
 
 func (x *EndEditSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[27]
+	mi := &file_collab_collab_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1841,7 +2056,7 @@ func (x *EndEditSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndEditSessionRequest.ProtoReflect.Descriptor instead.
 func (*EndEditSessionRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{27}
+	return file_collab_collab_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *EndEditSessionRequest) GetSessionId() string {
@@ -1867,7 +2082,7 @@ type EndEditSessionResponse struct {
 
 func (x *EndEditSessionResponse) Reset() {
 	*x = EndEditSessionResponse{}
-	mi := &file_collab_collab_proto_msgTypes[28]
+	mi := &file_collab_collab_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1879,7 +2094,7 @@ func (x *EndEditSessionResponse) String() string {
 func (*EndEditSessionResponse) ProtoMessage() {}
 
 func (x *EndEditSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[28]
+	mi := &file_collab_collab_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1892,7 +2107,7 @@ func (x *EndEditSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndEditSessionResponse.ProtoReflect.Descriptor instead.
 func (*EndEditSessionResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{28}
+	return file_collab_collab_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *EndEditSessionResponse) GetSuccess() bool {
@@ -1911,7 +2126,7 @@ type SendEditOperationRequest struct {
 
 func (x *SendEditOperationRequest) Reset() {
 	*x = SendEditOperationRequest{}
-	mi := &file_collab_collab_proto_msgTypes[29]
+	mi := &file_collab_collab_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1923,7 +2138,7 @@ func (x *SendEditOperationRequest) String() string {
 func (*SendEditOperationRequest) ProtoMessage() {}
 
 func (x *SendEditOperationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[29]
+	mi := &file_collab_collab_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1936,7 +2151,7 @@ func (x *SendEditOperationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendEditOperationRequest.ProtoReflect.Descriptor instead.
 func (*SendEditOperationRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{29}
+	return file_collab_collab_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *SendEditOperationRequest) GetOperation() *EditOperation {
@@ -1955,7 +2170,7 @@ type SendEditOperationResponse struct {
 
 func (x *SendEditOperationResponse) Reset() {
 	*x = SendEditOperationResponse{}
-	mi := &file_collab_collab_proto_msgTypes[30]
+	mi := &file_collab_collab_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1967,7 +2182,7 @@ func (x *SendEditOperationResponse) String() string {
 func (*SendEditOperationResponse) ProtoMessage() {}
 
 func (x *SendEditOperationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[30]
+	mi := &file_collab_collab_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1980,7 +2195,7 @@ func (x *SendEditOperationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendEditOperationResponse.ProtoReflect.Descriptor instead.
 func (*SendEditOperationResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{30}
+	return file_collab_collab_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *SendEditOperationResponse) GetSuccess() bool {
@@ -2001,7 +2216,7 @@ type GetActiveSessionsRequest struct {
 
 func (x *GetActiveSessionsRequest) Reset() {
 	*x = GetActiveSessionsRequest{}
-	mi := &file_collab_collab_proto_msgTypes[31]
+	mi := &file_collab_collab_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2013,7 +2228,7 @@ func (x *GetActiveSessionsRequest) String() string {
 func (*GetActiveSessionsRequest) ProtoMessage() {}
 
 func (x *GetActiveSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[31]
+	mi := &file_collab_collab_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2026,7 +2241,7 @@ func (x *GetActiveSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetActiveSessionsRequest.ProtoReflect.Descriptor instead.
 func (*GetActiveSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{31}
+	return file_collab_collab_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *GetActiveSessionsRequest) GetScreenplayId() string {
@@ -2059,7 +2274,7 @@ type GetActiveSessionsResponse struct {
 
 func (x *GetActiveSessionsResponse) Reset() {
 	*x = GetActiveSessionsResponse{}
-	mi := &file_collab_collab_proto_msgTypes[32]
+	mi := &file_collab_collab_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2071,7 +2286,7 @@ func (x *GetActiveSessionsResponse) String() string {
 func (*GetActiveSessionsResponse) ProtoMessage() {}
 
 func (x *GetActiveSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[32]
+	mi := &file_collab_collab_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2084,7 +2299,7 @@ func (x *GetActiveSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetActiveSessionsResponse.ProtoReflect.Descriptor instead.
 func (*GetActiveSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{32}
+	return file_collab_collab_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *GetActiveSessionsResponse) GetSessions() []*EditSession {
@@ -2101,13 +2316,14 @@ type UpdatePresenceRequest struct {
 	ProjectId      string                 `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	ScreenplayId   string                 `protobuf:"bytes,3,opt,name=screenplay_id,json=screenplayId,proto3" json:"screenplay_id,omitempty"`
 	CursorPosition int32                  `protobuf:"varint,4,opt,name=cursor_position,json=cursorPosition,proto3" json:"cursor_position,omitempty"`
+	CallerRole     CallerRole             `protobuf:"varint,5,opt,name=caller_role,json=callerRole,proto3,enum=collab.CallerRole" json:"caller_role,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *UpdatePresenceRequest) Reset() {
 	*x = UpdatePresenceRequest{}
-	mi := &file_collab_collab_proto_msgTypes[33]
+	mi := &file_collab_collab_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2119,7 +2335,7 @@ func (x *UpdatePresenceRequest) String() string {
 func (*UpdatePresenceRequest) ProtoMessage() {}
 
 func (x *UpdatePresenceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[33]
+	mi := &file_collab_collab_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2132,7 +2348,7 @@ func (x *UpdatePresenceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdatePresenceRequest.ProtoReflect.Descriptor instead.
 func (*UpdatePresenceRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{33}
+	return file_collab_collab_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *UpdatePresenceRequest) GetUserId() string {
@@ -2163,6 +2379,13 @@ func (x *UpdatePresenceRequest) GetCursorPosition() int32 {
 	return 0
 }
 
+func (x *UpdatePresenceRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type UpdatePresenceResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Presence      *UserPresence          `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
@@ -2172,7 +2395,7 @@ type UpdatePresenceResponse struct {
 
 func (x *UpdatePresenceResponse) Reset() {
 	*x = UpdatePresenceResponse{}
-	mi := &file_collab_collab_proto_msgTypes[34]
+	mi := &file_collab_collab_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2184,7 +2407,7 @@ func (x *UpdatePresenceResponse) String() string {
 func (*UpdatePresenceResponse) ProtoMessage() {}
 
 func (x *UpdatePresenceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[34]
+	mi := &file_collab_collab_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2197,7 +2420,7 @@ func (x *UpdatePresenceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdatePresenceResponse.ProtoReflect.Descriptor instead.
 func (*UpdatePresenceResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{34}
+	return file_collab_collab_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *UpdatePresenceResponse) GetPresence() *UserPresence {
@@ -2211,13 +2434,14 @@ type GetPresenceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ScreenplayId  string                 `protobuf:"bytes,1,opt,name=screenplay_id,json=screenplayId,proto3" json:"screenplay_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	CallerRole    CallerRole             `protobuf:"varint,3,opt,name=caller_role,json=callerRole,proto3,enum=collab.CallerRole" json:"caller_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetPresenceRequest) Reset() {
 	*x = GetPresenceRequest{}
-	mi := &file_collab_collab_proto_msgTypes[35]
+	mi := &file_collab_collab_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2229,7 +2453,7 @@ func (x *GetPresenceRequest) String() string {
 func (*GetPresenceRequest) ProtoMessage() {}
 
 func (x *GetPresenceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[35]
+	mi := &file_collab_collab_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2242,7 +2466,7 @@ func (x *GetPresenceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPresenceRequest.ProtoReflect.Descriptor instead.
 func (*GetPresenceRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{35}
+	return file_collab_collab_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *GetPresenceRequest) GetScreenplayId() string {
@@ -2259,6 +2483,13 @@ func (x *GetPresenceRequest) GetUserId() string {
 	return ""
 }
 
+func (x *GetPresenceRequest) GetCallerRole() CallerRole {
+	if x != nil {
+		return x.CallerRole
+	}
+	return CallerRole_CALLER_ROLE_UNSPECIFIED
+}
+
 type GetPresenceResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Presences     []*UserPresence        `protobuf:"bytes,1,rep,name=presences,proto3" json:"presences,omitempty"`
@@ -2268,7 +2499,7 @@ type GetPresenceResponse struct {
 
 func (x *GetPresenceResponse) Reset() {
 	*x = GetPresenceResponse{}
-	mi := &file_collab_collab_proto_msgTypes[36]
+	mi := &file_collab_collab_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2280,7 +2511,7 @@ func (x *GetPresenceResponse) String() string {
 func (*GetPresenceResponse) ProtoMessage() {}
 
 func (x *GetPresenceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[36]
+	mi := &file_collab_collab_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2293,7 +2524,7 @@ func (x *GetPresenceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPresenceResponse.ProtoReflect.Descriptor instead.
 func (*GetPresenceResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{36}
+	return file_collab_collab_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *GetPresenceResponse) GetPresences() []*UserPresence {
@@ -2313,7 +2544,7 @@ type GetUserInvitationsRequest struct {
 
 func (x *GetUserInvitationsRequest) Reset() {
 	*x = GetUserInvitationsRequest{}
-	mi := &file_collab_collab_proto_msgTypes[37]
+	mi := &file_collab_collab_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2325,7 +2556,7 @@ func (x *GetUserInvitationsRequest) String() string {
 func (*GetUserInvitationsRequest) ProtoMessage() {}
 
 func (x *GetUserInvitationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[37]
+	mi := &file_collab_collab_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2338,7 +2569,7 @@ func (x *GetUserInvitationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserInvitationsRequest.ProtoReflect.Descriptor instead.
 func (*GetUserInvitationsRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{37}
+	return file_collab_collab_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *GetUserInvitationsRequest) GetEmail() string {
@@ -2357,7 +2588,7 @@ type GetUserInvitationsResponse struct {
 
 func (x *GetUserInvitationsResponse) Reset() {
 	*x = GetUserInvitationsResponse{}
-	mi := &file_collab_collab_proto_msgTypes[38]
+	mi := &file_collab_collab_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2369,7 +2600,7 @@ func (x *GetUserInvitationsResponse) String() string {
 func (*GetUserInvitationsResponse) ProtoMessage() {}
 
 func (x *GetUserInvitationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[38]
+	mi := &file_collab_collab_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2382,7 +2613,7 @@ func (x *GetUserInvitationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserInvitationsResponse.ProtoReflect.Descriptor instead.
 func (*GetUserInvitationsResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{38}
+	return file_collab_collab_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetUserInvitationsResponse) GetInvitations() []*Collaborator {
@@ -2402,7 +2633,7 @@ type AcceptInvitationRequest struct {
 
 func (x *AcceptInvitationRequest) Reset() {
 	*x = AcceptInvitationRequest{}
-	mi := &file_collab_collab_proto_msgTypes[39]
+	mi := &file_collab_collab_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2414,7 +2645,7 @@ func (x *AcceptInvitationRequest) String() string {
 func (*AcceptInvitationRequest) ProtoMessage() {}
 
 func (x *AcceptInvitationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[39]
+	mi := &file_collab_collab_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2427,7 +2658,7 @@ func (x *AcceptInvitationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptInvitationRequest.ProtoReflect.Descriptor instead.
 func (*AcceptInvitationRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{39}
+	return file_collab_collab_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *AcceptInvitationRequest) GetCollaboratorId() string {
@@ -2453,7 +2684,7 @@ type AcceptInvitationResponse struct {
 
 func (x *AcceptInvitationResponse) Reset() {
 	*x = AcceptInvitationResponse{}
-	mi := &file_collab_collab_proto_msgTypes[40]
+	mi := &file_collab_collab_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2465,7 +2696,7 @@ func (x *AcceptInvitationResponse) String() string {
 func (*AcceptInvitationResponse) ProtoMessage() {}
 
 func (x *AcceptInvitationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[40]
+	mi := &file_collab_collab_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2478,7 +2709,7 @@ func (x *AcceptInvitationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptInvitationResponse.ProtoReflect.Descriptor instead.
 func (*AcceptInvitationResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{40}
+	return file_collab_collab_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *AcceptInvitationResponse) GetCollaborator() *Collaborator {
@@ -2498,7 +2729,7 @@ type DeclineInvitationRequest struct {
 
 func (x *DeclineInvitationRequest) Reset() {
 	*x = DeclineInvitationRequest{}
-	mi := &file_collab_collab_proto_msgTypes[41]
+	mi := &file_collab_collab_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2510,7 +2741,7 @@ func (x *DeclineInvitationRequest) String() string {
 func (*DeclineInvitationRequest) ProtoMessage() {}
 
 func (x *DeclineInvitationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[41]
+	mi := &file_collab_collab_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2523,7 +2754,7 @@ func (x *DeclineInvitationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeclineInvitationRequest.ProtoReflect.Descriptor instead.
 func (*DeclineInvitationRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{41}
+	return file_collab_collab_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *DeclineInvitationRequest) GetCollaboratorId() string {
@@ -2549,7 +2780,7 @@ type DeclineInvitationResponse struct {
 
 func (x *DeclineInvitationResponse) Reset() {
 	*x = DeclineInvitationResponse{}
-	mi := &file_collab_collab_proto_msgTypes[42]
+	mi := &file_collab_collab_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2561,7 +2792,7 @@ func (x *DeclineInvitationResponse) String() string {
 func (*DeclineInvitationResponse) ProtoMessage() {}
 
 func (x *DeclineInvitationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[42]
+	mi := &file_collab_collab_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2574,7 +2805,7 @@ func (x *DeclineInvitationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeclineInvitationResponse.ProtoReflect.Descriptor instead.
 func (*DeclineInvitationResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{42}
+	return file_collab_collab_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *DeclineInvitationResponse) GetSuccess() bool {
@@ -2595,7 +2826,7 @@ type RespondToInvitationRequest struct {
 
 func (x *RespondToInvitationRequest) Reset() {
 	*x = RespondToInvitationRequest{}
-	mi := &file_collab_collab_proto_msgTypes[43]
+	mi := &file_collab_collab_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2607,7 +2838,7 @@ func (x *RespondToInvitationRequest) String() string {
 func (*RespondToInvitationRequest) ProtoMessage() {}
 
 func (x *RespondToInvitationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[43]
+	mi := &file_collab_collab_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2620,7 +2851,7 @@ func (x *RespondToInvitationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RespondToInvitationRequest.ProtoReflect.Descriptor instead.
 func (*RespondToInvitationRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{43}
+	return file_collab_collab_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *RespondToInvitationRequest) GetProjectId() string {
@@ -2654,7 +2885,7 @@ type RespondToInvitationResponse struct {
 
 func (x *RespondToInvitationResponse) Reset() {
 	*x = RespondToInvitationResponse{}
-	mi := &file_collab_collab_proto_msgTypes[44]
+	mi := &file_collab_collab_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2666,7 +2897,7 @@ func (x *RespondToInvitationResponse) String() string {
 func (*RespondToInvitationResponse) ProtoMessage() {}
 
 func (x *RespondToInvitationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[44]
+	mi := &file_collab_collab_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2679,7 +2910,7 @@ func (x *RespondToInvitationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RespondToInvitationResponse.ProtoReflect.Descriptor instead.
 func (*RespondToInvitationResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{44}
+	return file_collab_collab_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *RespondToInvitationResponse) GetSuccess() bool {
@@ -2705,7 +2936,7 @@ type GetUserCollaborationsRequest struct {
 
 func (x *GetUserCollaborationsRequest) Reset() {
 	*x = GetUserCollaborationsRequest{}
-	mi := &file_collab_collab_proto_msgTypes[45]
+	mi := &file_collab_collab_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2717,7 +2948,7 @@ func (x *GetUserCollaborationsRequest) String() string {
 func (*GetUserCollaborationsRequest) ProtoMessage() {}
 
 func (x *GetUserCollaborationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[45]
+	mi := &file_collab_collab_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2730,7 +2961,7 @@ func (x *GetUserCollaborationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserCollaborationsRequest.ProtoReflect.Descriptor instead.
 func (*GetUserCollaborationsRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{45}
+	return file_collab_collab_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *GetUserCollaborationsRequest) GetUserId() string {
@@ -2749,7 +2980,7 @@ type GetUserCollaborationsResponse struct {
 
 func (x *GetUserCollaborationsResponse) Reset() {
 	*x = GetUserCollaborationsResponse{}
-	mi := &file_collab_collab_proto_msgTypes[46]
+	mi := &file_collab_collab_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2761,7 +2992,7 @@ func (x *GetUserCollaborationsResponse) String() string {
 func (*GetUserCollaborationsResponse) ProtoMessage() {}
 
 func (x *GetUserCollaborationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[46]
+	mi := &file_collab_collab_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2774,7 +3005,7 @@ func (x *GetUserCollaborationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserCollaborationsResponse.ProtoReflect.Descriptor instead.
 func (*GetUserCollaborationsResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{46}
+	return file_collab_collab_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *GetUserCollaborationsResponse) GetCollaborations() []*Collaborator {
@@ -2794,7 +3025,7 @@ type GetResourceProjectRequest struct {
 
 func (x *GetResourceProjectRequest) Reset() {
 	*x = GetResourceProjectRequest{}
-	mi := &file_collab_collab_proto_msgTypes[47]
+	mi := &file_collab_collab_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2806,7 +3037,7 @@ func (x *GetResourceProjectRequest) String() string {
 func (*GetResourceProjectRequest) ProtoMessage() {}
 
 func (x *GetResourceProjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[47]
+	mi := &file_collab_collab_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2819,7 +3050,7 @@ func (x *GetResourceProjectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetResourceProjectRequest.ProtoReflect.Descriptor instead.
 func (*GetResourceProjectRequest) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{47}
+	return file_collab_collab_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *GetResourceProjectRequest) GetResourceType() ResourceType {
@@ -2851,7 +3082,7 @@ type GetResourceProjectResponse struct {
 
 func (x *GetResourceProjectResponse) Reset() {
 	*x = GetResourceProjectResponse{}
-	mi := &file_collab_collab_proto_msgTypes[48]
+	mi := &file_collab_collab_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2863,7 +3094,7 @@ func (x *GetResourceProjectResponse) String() string {
 func (*GetResourceProjectResponse) ProtoMessage() {}
 
 func (x *GetResourceProjectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_collab_collab_proto_msgTypes[48]
+	mi := &file_collab_collab_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2876,7 +3107,7 @@ func (x *GetResourceProjectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetResourceProjectResponse.ProtoReflect.Descriptor instead.
 func (*GetResourceProjectResponse) Descriptor() ([]byte, []int) {
-	return file_collab_collab_proto_rawDescGZIP(), []int{48}
+	return file_collab_collab_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *GetResourceProjectResponse) GetProjectId() string {
@@ -2976,11 +3207,20 @@ const file_collab_collab_proto_rawDesc = "" +
 	"inviter_id\x18\x03 \x01(\tR\tinviterId\x12\x12\n" +
 	"\x04role\x18\x04 \x01(\tR\x04role\"Y\n" +
 	"\x1dAddCollaboratorDirectResponse\x128\n" +
-	"\fcollaborator\x18\x01 \x01(\v2\x14.collab.CollaboratorR\fcollaborator\"X\n" +
+	"\fcollaborator\x18\x01 \x01(\v2\x14.collab.CollaboratorR\fcollaborator\"\x8d\x01\n" +
 	"\x1eGetProjectCollaboratorsRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"]\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x123\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x12.collab.CallerRoleR\n" +
+	"callerRole\"[\n" +
+	"!GetProjectCollaboratorRoleRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"P\n" +
+	"\"GetProjectCollaboratorRoleResponse\x12\x12\n" +
+	"\x04role\x18\x01 \x01(\tR\x04role\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\"]\n" +
 	"\x1fGetProjectCollaboratorsResponse\x12:\n" +
 	"\rcollaborators\x18\x01 \x03(\v2\x14.collab.CollaboratorR\rcollaborators\";\n" +
 	"\x1aGetProjectSeatUsageRequest\x12\x1d\n" +
@@ -2988,18 +3228,22 @@ const file_collab_collab_proto_rawDesc = "" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\"\x81\x01\n" +
 	"\x1bGetProjectSeatUsageResponse\x121\n" +
 	"\x14active_collaborators\x18\x01 \x01(\x05R\x13activeCollaborators\x12/\n" +
-	"\x13pending_invitations\x18\x02 \x01(\x05R\x12pendingInvitations\"|\n" +
+	"\x13pending_invitations\x18\x02 \x01(\x05R\x12pendingInvitations\"\xb1\x01\n" +
 	"\x1dUpdateCollaboratorRoleRequest\x12'\n" +
 	"\x0fcollaborator_id\x18\x01 \x01(\tR\x0ecollaboratorId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x19\n" +
-	"\bnew_role\x18\x03 \x01(\tR\anewRole\"Z\n" +
+	"\bnew_role\x18\x03 \x01(\tR\anewRole\x123\n" +
+	"\vcaller_role\x18\x04 \x01(\x0e2\x12.collab.CallerRoleR\n" +
+	"callerRole\"Z\n" +
 	"\x1eUpdateCollaboratorRoleResponse\x128\n" +
-	"\fcollaborator\x18\x01 \x01(\v2\x14.collab.CollaboratorR\fcollaborator\"]\n" +
+	"\fcollaborator\x18\x01 \x01(\v2\x14.collab.CollaboratorR\fcollaborator\"\x92\x01\n" +
 	"\x19RemoveCollaboratorRequest\x12'\n" +
 	"\x0fcollaborator_id\x18\x01 \x01(\tR\x0ecollaboratorId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"6\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x123\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x12.collab.CallerRoleR\n" +
+	"callerRole\"6\n" +
 	"\x1aRemoveCollaboratorResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xf4\x02\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xa9\x03\n" +
 	"\x11AddCommentRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12#\n" +
@@ -3011,7 +3255,10 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\vline_number\x18\a \x01(\x05R\n" +
 	"lineNumber\x12#\n" +
 	"\rchar_position\x18\b \x01(\x05R\fcharPosition\x12 \n" +
-	"\tparent_id\x18\t \x01(\tH\x02R\bparentId\x88\x01\x01B\x14\n" +
+	"\tparent_id\x18\t \x01(\tH\x02R\bparentId\x88\x01\x01\x123\n" +
+	"\vcaller_role\x18\n" +
+	" \x01(\x0e2\x12.collab.CallerRoleR\n" +
+	"callerRoleB\x14\n" +
 	"\x12_script_element_idB\v\n" +
 	"\t_scene_idB\f\n" +
 	"\n" +
@@ -3025,23 +3272,27 @@ const file_collab_collab_proto_rawDesc = "" +
 	"lineNumber\x88\x01\x01B\x0e\n" +
 	"\f_line_number\"B\n" +
 	"\x13GetCommentsResponse\x12+\n" +
-	"\bcomments\x18\x01 \x03(\v2\x0f.collab.CommentR\bcomments\"\xaf\x01\n" +
+	"\bcomments\x18\x01 \x03(\v2\x0f.collab.CommentR\bcomments\"\xe4\x01\n" +
 	"\x14UpdateCommentRequest\x12\x1d\n" +
 	"\n" +
 	"comment_id\x18\x01 \x01(\tR\tcommentId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1d\n" +
 	"\acontent\x18\x03 \x01(\tH\x00R\acontent\x88\x01\x01\x12$\n" +
 	"\vis_resolved\x18\x04 \x01(\bH\x01R\n" +
-	"isResolved\x88\x01\x01B\n" +
+	"isResolved\x88\x01\x01\x123\n" +
+	"\vcaller_role\x18\x05 \x01(\x0e2\x12.collab.CallerRoleR\n" +
+	"callerRoleB\n" +
 	"\n" +
 	"\b_contentB\x0e\n" +
 	"\f_is_resolved\"B\n" +
 	"\x15UpdateCommentResponse\x12)\n" +
-	"\acomment\x18\x01 \x01(\v2\x0f.collab.CommentR\acomment\"N\n" +
+	"\acomment\x18\x01 \x01(\v2\x0f.collab.CommentR\acomment\"\x83\x01\n" +
 	"\x14DeleteCommentRequest\x12\x1d\n" +
 	"\n" +
 	"comment_id\x18\x01 \x01(\tR\tcommentId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"1\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x123\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x12.collab.CallerRoleR\n" +
+	"callerRole\"1\n" +
 	"\x15DeleteCommentResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\"\x95\x01\n" +
 	"\x17StartEditSessionRequest\x12\x1d\n" +
@@ -3069,18 +3320,22 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\n" +
 	"project_id\x18\x03 \x01(\tR\tprojectId\"L\n" +
 	"\x19GetActiveSessionsResponse\x12/\n" +
-	"\bsessions\x18\x01 \x03(\v2\x13.collab.EditSessionR\bsessions\"\x9d\x01\n" +
+	"\bsessions\x18\x01 \x03(\v2\x13.collab.EditSessionR\bsessions\"\xd2\x01\n" +
 	"\x15UpdatePresenceRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x02 \x01(\tR\tprojectId\x12#\n" +
 	"\rscreenplay_id\x18\x03 \x01(\tR\fscreenplayId\x12'\n" +
-	"\x0fcursor_position\x18\x04 \x01(\x05R\x0ecursorPosition\"J\n" +
+	"\x0fcursor_position\x18\x04 \x01(\x05R\x0ecursorPosition\x123\n" +
+	"\vcaller_role\x18\x05 \x01(\x0e2\x12.collab.CallerRoleR\n" +
+	"callerRole\"J\n" +
 	"\x16UpdatePresenceResponse\x120\n" +
-	"\bpresence\x18\x01 \x01(\v2\x14.collab.UserPresenceR\bpresence\"R\n" +
+	"\bpresence\x18\x01 \x01(\v2\x14.collab.UserPresenceR\bpresence\"\x87\x01\n" +
 	"\x12GetPresenceRequest\x12#\n" +
 	"\rscreenplay_id\x18\x01 \x01(\tR\fscreenplayId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"I\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x123\n" +
+	"\vcaller_role\x18\x03 \x01(\x0e2\x12.collab.CallerRoleR\n" +
+	"callerRole\"I\n" +
 	"\x13GetPresenceResponse\x122\n" +
 	"\tpresences\x18\x01 \x03(\v2\x14.collab.UserPresenceR\tpresences\"1\n" +
 	"\x19GetUserInvitationsRequest\x12\x14\n" +
@@ -3116,15 +3371,24 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\x1aGetResourceProjectResponse\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\"\n" +
-	"\rowner_user_id\x18\x02 \x01(\tR\vownerUserId*h\n" +
+	"\rowner_user_id\x18\x02 \x01(\tR\vownerUserId*\xa1\x01\n" +
+	"\n" +
+	"CallerRole\x12\x1b\n" +
+	"\x17CALLER_ROLE_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10CALLER_ROLE_NONE\x10\x01\x12\x16\n" +
+	"\x12CALLER_ROLE_VIEWER\x10\x02\x12\x16\n" +
+	"\x12CALLER_ROLE_EDITOR\x10\x03\x12\x19\n" +
+	"\x15CALLER_ROLE_ORG_ADMIN\x10\x04\x12\x15\n" +
+	"\x11CALLER_ROLE_OWNER\x10\x05*h\n" +
 	"\fResourceType\x12\x1d\n" +
 	"\x19RESOURCE_TYPE_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aRESOURCE_TYPE_COLLABORATOR\x10\x01\x12\x19\n" +
-	"\x15RESOURCE_TYPE_COMMENT\x10\x022\xb1\x0f\n" +
+	"\x15RESOURCE_TYPE_COMMENT\x10\x022\xa6\x10\n" +
 	"\x14CollaborationService\x12R\n" +
 	"\x0fAddCollaborator\x12\x1e.collab.AddCollaboratorRequest\x1a\x1f.collab.AddCollaboratorResponse\x12d\n" +
 	"\x15AddCollaboratorDirect\x12$.collab.AddCollaboratorDirectRequest\x1a%.collab.AddCollaboratorDirectResponse\x12j\n" +
-	"\x17GetProjectCollaborators\x12&.collab.GetProjectCollaboratorsRequest\x1a'.collab.GetProjectCollaboratorsResponse\x12^\n" +
+	"\x17GetProjectCollaborators\x12&.collab.GetProjectCollaboratorsRequest\x1a'.collab.GetProjectCollaboratorsResponse\x12s\n" +
+	"\x1aGetProjectCollaboratorRole\x12).collab.GetProjectCollaboratorRoleRequest\x1a*.collab.GetProjectCollaboratorRoleResponse\x12^\n" +
 	"\x13GetProjectSeatUsage\x12\".collab.GetProjectSeatUsageRequest\x1a#.collab.GetProjectSeatUsageResponse\x12g\n" +
 	"\x16UpdateCollaboratorRole\x12%.collab.UpdateCollaboratorRoleRequest\x1a&.collab.UpdateCollaboratorRoleResponse\x12[\n" +
 	"\x12RemoveCollaborator\x12!.collab.RemoveCollaboratorRequest\x1a\".collab.RemoveCollaboratorResponse\x12[\n" +
@@ -3158,136 +3422,149 @@ func file_collab_collab_proto_rawDescGZIP() []byte {
 	return file_collab_collab_proto_rawDescData
 }
 
-var file_collab_collab_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_collab_collab_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
+var file_collab_collab_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_collab_collab_proto_msgTypes = make([]protoimpl.MessageInfo, 51)
 var file_collab_collab_proto_goTypes = []any{
-	(ResourceType)(0),                       // 0: collab.ResourceType
-	(*Collaborator)(nil),                    // 1: collab.Collaborator
-	(*Comment)(nil),                         // 2: collab.Comment
-	(*EditSession)(nil),                     // 3: collab.EditSession
-	(*EditOperation)(nil),                   // 4: collab.EditOperation
-	(*UserPresence)(nil),                    // 5: collab.UserPresence
-	(*AddCollaboratorRequest)(nil),          // 6: collab.AddCollaboratorRequest
-	(*AddCollaboratorResponse)(nil),         // 7: collab.AddCollaboratorResponse
-	(*AddCollaboratorDirectRequest)(nil),    // 8: collab.AddCollaboratorDirectRequest
-	(*AddCollaboratorDirectResponse)(nil),   // 9: collab.AddCollaboratorDirectResponse
-	(*GetProjectCollaboratorsRequest)(nil),  // 10: collab.GetProjectCollaboratorsRequest
-	(*GetProjectCollaboratorsResponse)(nil), // 11: collab.GetProjectCollaboratorsResponse
-	(*GetProjectSeatUsageRequest)(nil),      // 12: collab.GetProjectSeatUsageRequest
-	(*GetProjectSeatUsageResponse)(nil),     // 13: collab.GetProjectSeatUsageResponse
-	(*UpdateCollaboratorRoleRequest)(nil),   // 14: collab.UpdateCollaboratorRoleRequest
-	(*UpdateCollaboratorRoleResponse)(nil),  // 15: collab.UpdateCollaboratorRoleResponse
-	(*RemoveCollaboratorRequest)(nil),       // 16: collab.RemoveCollaboratorRequest
-	(*RemoveCollaboratorResponse)(nil),      // 17: collab.RemoveCollaboratorResponse
-	(*AddCommentRequest)(nil),               // 18: collab.AddCommentRequest
-	(*AddCommentResponse)(nil),              // 19: collab.AddCommentResponse
-	(*GetCommentsRequest)(nil),              // 20: collab.GetCommentsRequest
-	(*GetCommentsResponse)(nil),             // 21: collab.GetCommentsResponse
-	(*UpdateCommentRequest)(nil),            // 22: collab.UpdateCommentRequest
-	(*UpdateCommentResponse)(nil),           // 23: collab.UpdateCommentResponse
-	(*DeleteCommentRequest)(nil),            // 24: collab.DeleteCommentRequest
-	(*DeleteCommentResponse)(nil),           // 25: collab.DeleteCommentResponse
-	(*StartEditSessionRequest)(nil),         // 26: collab.StartEditSessionRequest
-	(*StartEditSessionResponse)(nil),        // 27: collab.StartEditSessionResponse
-	(*EndEditSessionRequest)(nil),           // 28: collab.EndEditSessionRequest
-	(*EndEditSessionResponse)(nil),          // 29: collab.EndEditSessionResponse
-	(*SendEditOperationRequest)(nil),        // 30: collab.SendEditOperationRequest
-	(*SendEditOperationResponse)(nil),       // 31: collab.SendEditOperationResponse
-	(*GetActiveSessionsRequest)(nil),        // 32: collab.GetActiveSessionsRequest
-	(*GetActiveSessionsResponse)(nil),       // 33: collab.GetActiveSessionsResponse
-	(*UpdatePresenceRequest)(nil),           // 34: collab.UpdatePresenceRequest
-	(*UpdatePresenceResponse)(nil),          // 35: collab.UpdatePresenceResponse
-	(*GetPresenceRequest)(nil),              // 36: collab.GetPresenceRequest
-	(*GetPresenceResponse)(nil),             // 37: collab.GetPresenceResponse
-	(*GetUserInvitationsRequest)(nil),       // 38: collab.GetUserInvitationsRequest
-	(*GetUserInvitationsResponse)(nil),      // 39: collab.GetUserInvitationsResponse
-	(*AcceptInvitationRequest)(nil),         // 40: collab.AcceptInvitationRequest
-	(*AcceptInvitationResponse)(nil),        // 41: collab.AcceptInvitationResponse
-	(*DeclineInvitationRequest)(nil),        // 42: collab.DeclineInvitationRequest
-	(*DeclineInvitationResponse)(nil),       // 43: collab.DeclineInvitationResponse
-	(*RespondToInvitationRequest)(nil),      // 44: collab.RespondToInvitationRequest
-	(*RespondToInvitationResponse)(nil),     // 45: collab.RespondToInvitationResponse
-	(*GetUserCollaborationsRequest)(nil),    // 46: collab.GetUserCollaborationsRequest
-	(*GetUserCollaborationsResponse)(nil),   // 47: collab.GetUserCollaborationsResponse
-	(*GetResourceProjectRequest)(nil),       // 48: collab.GetResourceProjectRequest
-	(*GetResourceProjectResponse)(nil),      // 49: collab.GetResourceProjectResponse
-	(*common.Timestamp)(nil),                // 50: common.Timestamp
+	(CallerRole)(0),                            // 0: collab.CallerRole
+	(ResourceType)(0),                          // 1: collab.ResourceType
+	(*Collaborator)(nil),                       // 2: collab.Collaborator
+	(*Comment)(nil),                            // 3: collab.Comment
+	(*EditSession)(nil),                        // 4: collab.EditSession
+	(*EditOperation)(nil),                      // 5: collab.EditOperation
+	(*UserPresence)(nil),                       // 6: collab.UserPresence
+	(*AddCollaboratorRequest)(nil),             // 7: collab.AddCollaboratorRequest
+	(*AddCollaboratorResponse)(nil),            // 8: collab.AddCollaboratorResponse
+	(*AddCollaboratorDirectRequest)(nil),       // 9: collab.AddCollaboratorDirectRequest
+	(*AddCollaboratorDirectResponse)(nil),      // 10: collab.AddCollaboratorDirectResponse
+	(*GetProjectCollaboratorsRequest)(nil),     // 11: collab.GetProjectCollaboratorsRequest
+	(*GetProjectCollaboratorRoleRequest)(nil),  // 12: collab.GetProjectCollaboratorRoleRequest
+	(*GetProjectCollaboratorRoleResponse)(nil), // 13: collab.GetProjectCollaboratorRoleResponse
+	(*GetProjectCollaboratorsResponse)(nil),    // 14: collab.GetProjectCollaboratorsResponse
+	(*GetProjectSeatUsageRequest)(nil),         // 15: collab.GetProjectSeatUsageRequest
+	(*GetProjectSeatUsageResponse)(nil),        // 16: collab.GetProjectSeatUsageResponse
+	(*UpdateCollaboratorRoleRequest)(nil),      // 17: collab.UpdateCollaboratorRoleRequest
+	(*UpdateCollaboratorRoleResponse)(nil),     // 18: collab.UpdateCollaboratorRoleResponse
+	(*RemoveCollaboratorRequest)(nil),          // 19: collab.RemoveCollaboratorRequest
+	(*RemoveCollaboratorResponse)(nil),         // 20: collab.RemoveCollaboratorResponse
+	(*AddCommentRequest)(nil),                  // 21: collab.AddCommentRequest
+	(*AddCommentResponse)(nil),                 // 22: collab.AddCommentResponse
+	(*GetCommentsRequest)(nil),                 // 23: collab.GetCommentsRequest
+	(*GetCommentsResponse)(nil),                // 24: collab.GetCommentsResponse
+	(*UpdateCommentRequest)(nil),               // 25: collab.UpdateCommentRequest
+	(*UpdateCommentResponse)(nil),              // 26: collab.UpdateCommentResponse
+	(*DeleteCommentRequest)(nil),               // 27: collab.DeleteCommentRequest
+	(*DeleteCommentResponse)(nil),              // 28: collab.DeleteCommentResponse
+	(*StartEditSessionRequest)(nil),            // 29: collab.StartEditSessionRequest
+	(*StartEditSessionResponse)(nil),           // 30: collab.StartEditSessionResponse
+	(*EndEditSessionRequest)(nil),              // 31: collab.EndEditSessionRequest
+	(*EndEditSessionResponse)(nil),             // 32: collab.EndEditSessionResponse
+	(*SendEditOperationRequest)(nil),           // 33: collab.SendEditOperationRequest
+	(*SendEditOperationResponse)(nil),          // 34: collab.SendEditOperationResponse
+	(*GetActiveSessionsRequest)(nil),           // 35: collab.GetActiveSessionsRequest
+	(*GetActiveSessionsResponse)(nil),          // 36: collab.GetActiveSessionsResponse
+	(*UpdatePresenceRequest)(nil),              // 37: collab.UpdatePresenceRequest
+	(*UpdatePresenceResponse)(nil),             // 38: collab.UpdatePresenceResponse
+	(*GetPresenceRequest)(nil),                 // 39: collab.GetPresenceRequest
+	(*GetPresenceResponse)(nil),                // 40: collab.GetPresenceResponse
+	(*GetUserInvitationsRequest)(nil),          // 41: collab.GetUserInvitationsRequest
+	(*GetUserInvitationsResponse)(nil),         // 42: collab.GetUserInvitationsResponse
+	(*AcceptInvitationRequest)(nil),            // 43: collab.AcceptInvitationRequest
+	(*AcceptInvitationResponse)(nil),           // 44: collab.AcceptInvitationResponse
+	(*DeclineInvitationRequest)(nil),           // 45: collab.DeclineInvitationRequest
+	(*DeclineInvitationResponse)(nil),          // 46: collab.DeclineInvitationResponse
+	(*RespondToInvitationRequest)(nil),         // 47: collab.RespondToInvitationRequest
+	(*RespondToInvitationResponse)(nil),        // 48: collab.RespondToInvitationResponse
+	(*GetUserCollaborationsRequest)(nil),       // 49: collab.GetUserCollaborationsRequest
+	(*GetUserCollaborationsResponse)(nil),      // 50: collab.GetUserCollaborationsResponse
+	(*GetResourceProjectRequest)(nil),          // 51: collab.GetResourceProjectRequest
+	(*GetResourceProjectResponse)(nil),         // 52: collab.GetResourceProjectResponse
+	(*common.Timestamp)(nil),                   // 53: common.Timestamp
 }
 var file_collab_collab_proto_depIdxs = []int32{
-	50, // 0: collab.Collaborator.invited_at:type_name -> common.Timestamp
-	50, // 1: collab.Collaborator.joined_at:type_name -> common.Timestamp
-	50, // 2: collab.Comment.created_at:type_name -> common.Timestamp
-	50, // 3: collab.Comment.updated_at:type_name -> common.Timestamp
-	50, // 4: collab.EditSession.started_at:type_name -> common.Timestamp
-	50, // 5: collab.EditSession.last_activity:type_name -> common.Timestamp
-	50, // 6: collab.EditOperation.timestamp:type_name -> common.Timestamp
-	50, // 7: collab.UserPresence.last_seen:type_name -> common.Timestamp
-	1,  // 8: collab.AddCollaboratorResponse.collaborator:type_name -> collab.Collaborator
-	1,  // 9: collab.AddCollaboratorDirectResponse.collaborator:type_name -> collab.Collaborator
-	1,  // 10: collab.GetProjectCollaboratorsResponse.collaborators:type_name -> collab.Collaborator
-	1,  // 11: collab.UpdateCollaboratorRoleResponse.collaborator:type_name -> collab.Collaborator
-	2,  // 12: collab.AddCommentResponse.comment:type_name -> collab.Comment
-	2,  // 13: collab.GetCommentsResponse.comments:type_name -> collab.Comment
-	2,  // 14: collab.UpdateCommentResponse.comment:type_name -> collab.Comment
-	3,  // 15: collab.StartEditSessionResponse.session:type_name -> collab.EditSession
-	4,  // 16: collab.SendEditOperationRequest.operation:type_name -> collab.EditOperation
-	3,  // 17: collab.GetActiveSessionsResponse.sessions:type_name -> collab.EditSession
-	5,  // 18: collab.UpdatePresenceResponse.presence:type_name -> collab.UserPresence
-	5,  // 19: collab.GetPresenceResponse.presences:type_name -> collab.UserPresence
-	1,  // 20: collab.GetUserInvitationsResponse.invitations:type_name -> collab.Collaborator
-	1,  // 21: collab.AcceptInvitationResponse.collaborator:type_name -> collab.Collaborator
-	1,  // 22: collab.RespondToInvitationResponse.collaborator:type_name -> collab.Collaborator
-	1,  // 23: collab.GetUserCollaborationsResponse.collaborations:type_name -> collab.Collaborator
-	0,  // 24: collab.GetResourceProjectRequest.resource_type:type_name -> collab.ResourceType
-	6,  // 25: collab.CollaborationService.AddCollaborator:input_type -> collab.AddCollaboratorRequest
-	8,  // 26: collab.CollaborationService.AddCollaboratorDirect:input_type -> collab.AddCollaboratorDirectRequest
-	10, // 27: collab.CollaborationService.GetProjectCollaborators:input_type -> collab.GetProjectCollaboratorsRequest
-	12, // 28: collab.CollaborationService.GetProjectSeatUsage:input_type -> collab.GetProjectSeatUsageRequest
-	14, // 29: collab.CollaborationService.UpdateCollaboratorRole:input_type -> collab.UpdateCollaboratorRoleRequest
-	16, // 30: collab.CollaborationService.RemoveCollaborator:input_type -> collab.RemoveCollaboratorRequest
-	48, // 31: collab.CollaborationService.GetResourceProject:input_type -> collab.GetResourceProjectRequest
-	18, // 32: collab.CollaborationService.AddComment:input_type -> collab.AddCommentRequest
-	20, // 33: collab.CollaborationService.GetComments:input_type -> collab.GetCommentsRequest
-	22, // 34: collab.CollaborationService.UpdateComment:input_type -> collab.UpdateCommentRequest
-	24, // 35: collab.CollaborationService.DeleteComment:input_type -> collab.DeleteCommentRequest
-	26, // 36: collab.CollaborationService.StartEditSession:input_type -> collab.StartEditSessionRequest
-	28, // 37: collab.CollaborationService.EndEditSession:input_type -> collab.EndEditSessionRequest
-	30, // 38: collab.CollaborationService.SendEditOperation:input_type -> collab.SendEditOperationRequest
-	32, // 39: collab.CollaborationService.GetActiveSessions:input_type -> collab.GetActiveSessionsRequest
-	34, // 40: collab.CollaborationService.UpdatePresence:input_type -> collab.UpdatePresenceRequest
-	36, // 41: collab.CollaborationService.GetPresence:input_type -> collab.GetPresenceRequest
-	38, // 42: collab.CollaborationService.GetUserInvitations:input_type -> collab.GetUserInvitationsRequest
-	40, // 43: collab.CollaborationService.AcceptInvitation:input_type -> collab.AcceptInvitationRequest
-	42, // 44: collab.CollaborationService.DeclineInvitation:input_type -> collab.DeclineInvitationRequest
-	44, // 45: collab.CollaborationService.RespondToInvitation:input_type -> collab.RespondToInvitationRequest
-	46, // 46: collab.CollaborationService.GetUserCollaborations:input_type -> collab.GetUserCollaborationsRequest
-	7,  // 47: collab.CollaborationService.AddCollaborator:output_type -> collab.AddCollaboratorResponse
-	9,  // 48: collab.CollaborationService.AddCollaboratorDirect:output_type -> collab.AddCollaboratorDirectResponse
-	11, // 49: collab.CollaborationService.GetProjectCollaborators:output_type -> collab.GetProjectCollaboratorsResponse
-	13, // 50: collab.CollaborationService.GetProjectSeatUsage:output_type -> collab.GetProjectSeatUsageResponse
-	15, // 51: collab.CollaborationService.UpdateCollaboratorRole:output_type -> collab.UpdateCollaboratorRoleResponse
-	17, // 52: collab.CollaborationService.RemoveCollaborator:output_type -> collab.RemoveCollaboratorResponse
-	49, // 53: collab.CollaborationService.GetResourceProject:output_type -> collab.GetResourceProjectResponse
-	19, // 54: collab.CollaborationService.AddComment:output_type -> collab.AddCommentResponse
-	21, // 55: collab.CollaborationService.GetComments:output_type -> collab.GetCommentsResponse
-	23, // 56: collab.CollaborationService.UpdateComment:output_type -> collab.UpdateCommentResponse
-	25, // 57: collab.CollaborationService.DeleteComment:output_type -> collab.DeleteCommentResponse
-	27, // 58: collab.CollaborationService.StartEditSession:output_type -> collab.StartEditSessionResponse
-	29, // 59: collab.CollaborationService.EndEditSession:output_type -> collab.EndEditSessionResponse
-	31, // 60: collab.CollaborationService.SendEditOperation:output_type -> collab.SendEditOperationResponse
-	33, // 61: collab.CollaborationService.GetActiveSessions:output_type -> collab.GetActiveSessionsResponse
-	35, // 62: collab.CollaborationService.UpdatePresence:output_type -> collab.UpdatePresenceResponse
-	37, // 63: collab.CollaborationService.GetPresence:output_type -> collab.GetPresenceResponse
-	39, // 64: collab.CollaborationService.GetUserInvitations:output_type -> collab.GetUserInvitationsResponse
-	41, // 65: collab.CollaborationService.AcceptInvitation:output_type -> collab.AcceptInvitationResponse
-	43, // 66: collab.CollaborationService.DeclineInvitation:output_type -> collab.DeclineInvitationResponse
-	45, // 67: collab.CollaborationService.RespondToInvitation:output_type -> collab.RespondToInvitationResponse
-	47, // 68: collab.CollaborationService.GetUserCollaborations:output_type -> collab.GetUserCollaborationsResponse
-	47, // [47:69] is the sub-list for method output_type
-	25, // [25:47] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	53, // 0: collab.Collaborator.invited_at:type_name -> common.Timestamp
+	53, // 1: collab.Collaborator.joined_at:type_name -> common.Timestamp
+	53, // 2: collab.Comment.created_at:type_name -> common.Timestamp
+	53, // 3: collab.Comment.updated_at:type_name -> common.Timestamp
+	53, // 4: collab.EditSession.started_at:type_name -> common.Timestamp
+	53, // 5: collab.EditSession.last_activity:type_name -> common.Timestamp
+	53, // 6: collab.EditOperation.timestamp:type_name -> common.Timestamp
+	53, // 7: collab.UserPresence.last_seen:type_name -> common.Timestamp
+	2,  // 8: collab.AddCollaboratorResponse.collaborator:type_name -> collab.Collaborator
+	2,  // 9: collab.AddCollaboratorDirectResponse.collaborator:type_name -> collab.Collaborator
+	0,  // 10: collab.GetProjectCollaboratorsRequest.caller_role:type_name -> collab.CallerRole
+	2,  // 11: collab.GetProjectCollaboratorsResponse.collaborators:type_name -> collab.Collaborator
+	0,  // 12: collab.UpdateCollaboratorRoleRequest.caller_role:type_name -> collab.CallerRole
+	2,  // 13: collab.UpdateCollaboratorRoleResponse.collaborator:type_name -> collab.Collaborator
+	0,  // 14: collab.RemoveCollaboratorRequest.caller_role:type_name -> collab.CallerRole
+	0,  // 15: collab.AddCommentRequest.caller_role:type_name -> collab.CallerRole
+	3,  // 16: collab.AddCommentResponse.comment:type_name -> collab.Comment
+	3,  // 17: collab.GetCommentsResponse.comments:type_name -> collab.Comment
+	0,  // 18: collab.UpdateCommentRequest.caller_role:type_name -> collab.CallerRole
+	3,  // 19: collab.UpdateCommentResponse.comment:type_name -> collab.Comment
+	0,  // 20: collab.DeleteCommentRequest.caller_role:type_name -> collab.CallerRole
+	4,  // 21: collab.StartEditSessionResponse.session:type_name -> collab.EditSession
+	5,  // 22: collab.SendEditOperationRequest.operation:type_name -> collab.EditOperation
+	4,  // 23: collab.GetActiveSessionsResponse.sessions:type_name -> collab.EditSession
+	0,  // 24: collab.UpdatePresenceRequest.caller_role:type_name -> collab.CallerRole
+	6,  // 25: collab.UpdatePresenceResponse.presence:type_name -> collab.UserPresence
+	0,  // 26: collab.GetPresenceRequest.caller_role:type_name -> collab.CallerRole
+	6,  // 27: collab.GetPresenceResponse.presences:type_name -> collab.UserPresence
+	2,  // 28: collab.GetUserInvitationsResponse.invitations:type_name -> collab.Collaborator
+	2,  // 29: collab.AcceptInvitationResponse.collaborator:type_name -> collab.Collaborator
+	2,  // 30: collab.RespondToInvitationResponse.collaborator:type_name -> collab.Collaborator
+	2,  // 31: collab.GetUserCollaborationsResponse.collaborations:type_name -> collab.Collaborator
+	1,  // 32: collab.GetResourceProjectRequest.resource_type:type_name -> collab.ResourceType
+	7,  // 33: collab.CollaborationService.AddCollaborator:input_type -> collab.AddCollaboratorRequest
+	9,  // 34: collab.CollaborationService.AddCollaboratorDirect:input_type -> collab.AddCollaboratorDirectRequest
+	11, // 35: collab.CollaborationService.GetProjectCollaborators:input_type -> collab.GetProjectCollaboratorsRequest
+	12, // 36: collab.CollaborationService.GetProjectCollaboratorRole:input_type -> collab.GetProjectCollaboratorRoleRequest
+	15, // 37: collab.CollaborationService.GetProjectSeatUsage:input_type -> collab.GetProjectSeatUsageRequest
+	17, // 38: collab.CollaborationService.UpdateCollaboratorRole:input_type -> collab.UpdateCollaboratorRoleRequest
+	19, // 39: collab.CollaborationService.RemoveCollaborator:input_type -> collab.RemoveCollaboratorRequest
+	51, // 40: collab.CollaborationService.GetResourceProject:input_type -> collab.GetResourceProjectRequest
+	21, // 41: collab.CollaborationService.AddComment:input_type -> collab.AddCommentRequest
+	23, // 42: collab.CollaborationService.GetComments:input_type -> collab.GetCommentsRequest
+	25, // 43: collab.CollaborationService.UpdateComment:input_type -> collab.UpdateCommentRequest
+	27, // 44: collab.CollaborationService.DeleteComment:input_type -> collab.DeleteCommentRequest
+	29, // 45: collab.CollaborationService.StartEditSession:input_type -> collab.StartEditSessionRequest
+	31, // 46: collab.CollaborationService.EndEditSession:input_type -> collab.EndEditSessionRequest
+	33, // 47: collab.CollaborationService.SendEditOperation:input_type -> collab.SendEditOperationRequest
+	35, // 48: collab.CollaborationService.GetActiveSessions:input_type -> collab.GetActiveSessionsRequest
+	37, // 49: collab.CollaborationService.UpdatePresence:input_type -> collab.UpdatePresenceRequest
+	39, // 50: collab.CollaborationService.GetPresence:input_type -> collab.GetPresenceRequest
+	41, // 51: collab.CollaborationService.GetUserInvitations:input_type -> collab.GetUserInvitationsRequest
+	43, // 52: collab.CollaborationService.AcceptInvitation:input_type -> collab.AcceptInvitationRequest
+	45, // 53: collab.CollaborationService.DeclineInvitation:input_type -> collab.DeclineInvitationRequest
+	47, // 54: collab.CollaborationService.RespondToInvitation:input_type -> collab.RespondToInvitationRequest
+	49, // 55: collab.CollaborationService.GetUserCollaborations:input_type -> collab.GetUserCollaborationsRequest
+	8,  // 56: collab.CollaborationService.AddCollaborator:output_type -> collab.AddCollaboratorResponse
+	10, // 57: collab.CollaborationService.AddCollaboratorDirect:output_type -> collab.AddCollaboratorDirectResponse
+	14, // 58: collab.CollaborationService.GetProjectCollaborators:output_type -> collab.GetProjectCollaboratorsResponse
+	13, // 59: collab.CollaborationService.GetProjectCollaboratorRole:output_type -> collab.GetProjectCollaboratorRoleResponse
+	16, // 60: collab.CollaborationService.GetProjectSeatUsage:output_type -> collab.GetProjectSeatUsageResponse
+	18, // 61: collab.CollaborationService.UpdateCollaboratorRole:output_type -> collab.UpdateCollaboratorRoleResponse
+	20, // 62: collab.CollaborationService.RemoveCollaborator:output_type -> collab.RemoveCollaboratorResponse
+	52, // 63: collab.CollaborationService.GetResourceProject:output_type -> collab.GetResourceProjectResponse
+	22, // 64: collab.CollaborationService.AddComment:output_type -> collab.AddCommentResponse
+	24, // 65: collab.CollaborationService.GetComments:output_type -> collab.GetCommentsResponse
+	26, // 66: collab.CollaborationService.UpdateComment:output_type -> collab.UpdateCommentResponse
+	28, // 67: collab.CollaborationService.DeleteComment:output_type -> collab.DeleteCommentResponse
+	30, // 68: collab.CollaborationService.StartEditSession:output_type -> collab.StartEditSessionResponse
+	32, // 69: collab.CollaborationService.EndEditSession:output_type -> collab.EndEditSessionResponse
+	34, // 70: collab.CollaborationService.SendEditOperation:output_type -> collab.SendEditOperationResponse
+	36, // 71: collab.CollaborationService.GetActiveSessions:output_type -> collab.GetActiveSessionsResponse
+	38, // 72: collab.CollaborationService.UpdatePresence:output_type -> collab.UpdatePresenceResponse
+	40, // 73: collab.CollaborationService.GetPresence:output_type -> collab.GetPresenceResponse
+	42, // 74: collab.CollaborationService.GetUserInvitations:output_type -> collab.GetUserInvitationsResponse
+	44, // 75: collab.CollaborationService.AcceptInvitation:output_type -> collab.AcceptInvitationResponse
+	46, // 76: collab.CollaborationService.DeclineInvitation:output_type -> collab.DeclineInvitationResponse
+	48, // 77: collab.CollaborationService.RespondToInvitation:output_type -> collab.RespondToInvitationResponse
+	50, // 78: collab.CollaborationService.GetUserCollaborations:output_type -> collab.GetUserCollaborationsResponse
+	56, // [56:79] is the sub-list for method output_type
+	33, // [33:56] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_collab_collab_proto_init() }
@@ -3295,16 +3572,16 @@ func file_collab_collab_proto_init() {
 	if File_collab_collab_proto != nil {
 		return
 	}
-	file_collab_collab_proto_msgTypes[17].OneofWrappers = []any{}
 	file_collab_collab_proto_msgTypes[19].OneofWrappers = []any{}
 	file_collab_collab_proto_msgTypes[21].OneofWrappers = []any{}
+	file_collab_collab_proto_msgTypes[23].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_collab_collab_proto_rawDesc), len(file_collab_collab_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   49,
+			NumEnums:      2,
+			NumMessages:   51,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

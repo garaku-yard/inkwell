@@ -142,10 +142,11 @@ func ResolveProjectRole(
 		}
 	}
 
-	// Collaborator path: an active row in collab-service. Combined with the
-	// org result above via "highest wins", not returned early.
+	// Collaborator path: use the narrow single-user lookup. Listing every
+	// collaborator is a protected operation and cannot itself be used to decide
+	// whether the caller may list collaborators.
 	if cc != nil {
-		collabResp, err := cc.GetProjectCollaborators(ctx, &collab.GetProjectCollaboratorsRequest{
+		collabResp, err := cc.GetProjectCollaboratorRole(ctx, &collab.GetProjectCollaboratorRoleRequest{
 			ProjectId: projectID,
 			UserId:    userID,
 		})
@@ -153,14 +154,9 @@ func ResolveProjectRole(
 			if !isDefiniteDenial(err) {
 				return RoleNone, err
 			}
-		} else {
-			for _, c := range collabResp.Collaborators {
-				if c.UserId == userID && c.Status == "active" {
-					if r := mapCollabRole(c.Role); r > best {
-						best = r
-					}
-					break
-				}
+		} else if collabResp.GetStatus() == "active" {
+			if r := mapCollabRole(collabResp.GetRole()); r > best {
+				best = r
 			}
 		}
 	}
@@ -168,15 +164,9 @@ func ResolveProjectRole(
 	return best, nil
 }
 
-// RequireProjectAccess resolves userID's role on projectID, checks it against
-// action via Can, and — when permitted — returns the effective downstream
-// user id: the owner's own id, or "" for every other permitted role. This is
-// the collab-service wire shape: collab's own CheckPermission still reads an
-// empty id as "the gateway already authorized this" (Orbit #366 tracks that
-// sentinel's remaining problems; its proto contract wasn't touched here).
-// scripts-service dispatch uses RequireProjectRole instead — Orbit #360
-// replaced its identical sentinel with an explicit, always-real actor id
-// plus a typed resolved-role field, so use that for any new scripts call.
+// RequireProjectAccess is the legacy convenience wrapper for call sites that
+// need only a yes/no gateway decision. Protected downstream RPCs should use
+// RequireProjectRole and forward the real actor plus the typed role assertion.
 //
 // A non-nil error is always an *apierror.Error ready to return straight from
 // a handler: CodePermissionDenied/403 for a real denial, or whatever
@@ -210,9 +200,8 @@ func RequireProjectAccess(
 // the resolved ProjectRole itself rather than collapsing it into the
 // owner-id-or-empty-sentinel scripts-service used to require. Orbit #360:
 // scripts-service now always receives the real, unmodified userID plus this
-// role (mapped to its own scripts.CallerRole), never an empty id standing in
-// for "already authorized". Use this for any new or updated scripts-service
-// call site; RequireProjectAccess remains for collab-service dispatch.
+// role (mapped to the downstream service's CallerRole), never an empty id
+// standing in for "already authorized".
 //
 // Error handling matches RequireProjectAccess: a non-nil error is always a
 // ready-to-return *apierror.Error, never a bare 403 for a dependency

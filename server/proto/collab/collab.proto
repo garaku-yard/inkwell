@@ -6,6 +6,17 @@ option go_package = "inkwell/server/pkg/grpc/collab";
 
 import "common/types.proto";
 
+// CallerRole is the gateway's explicit authorization assertion for the real
+// actor carried by a request. The zero value is not an authorization grant.
+enum CallerRole {
+  CALLER_ROLE_UNSPECIFIED = 0;
+  CALLER_ROLE_NONE = 1;
+  CALLER_ROLE_VIEWER = 2;
+  CALLER_ROLE_EDITOR = 3;
+  CALLER_ROLE_ORG_ADMIN = 4;
+  CALLER_ROLE_OWNER = 5;
+}
+
 // Collaborator entity
 message Collaborator {
   string id = 1;
@@ -98,7 +109,21 @@ message AddCollaboratorDirectResponse {
 
 message GetProjectCollaboratorsRequest {
   string project_id = 1;
-  string user_id = 2; // For authorization check
+  string user_id = 2; // Real authenticated actor
+  CallerRole caller_role = 3; // Gateway-resolved authorization assertion
+}
+
+// Narrow role metadata used by the gateway while resolving project access.
+// It returns only the requested user's active direct-project role and does not
+// authorize an operation or expose the project's collaborator list.
+message GetProjectCollaboratorRoleRequest {
+  string project_id = 1;
+  string user_id = 2;
+}
+
+message GetProjectCollaboratorRoleResponse {
+  string role = 1;
+  string status = 2;
 }
 
 message GetProjectCollaboratorsResponse {
@@ -123,6 +148,7 @@ message UpdateCollaboratorRoleRequest {
   string collaborator_id = 1;
   string user_id = 2; // User making the change (must be owner)
   string new_role = 3;
+  CallerRole caller_role = 4;
 }
 
 message UpdateCollaboratorRoleResponse {
@@ -132,6 +158,7 @@ message UpdateCollaboratorRoleResponse {
 message RemoveCollaboratorRequest {
   string collaborator_id = 1;
   string user_id = 2; // User making the change (must be owner or self)
+  CallerRole caller_role = 3;
 }
 
 message RemoveCollaboratorResponse {
@@ -149,6 +176,7 @@ message AddCommentRequest {
   int32 line_number = 7;
   int32 char_position = 8;
   optional string parent_id = 9; // For replies
+  CallerRole caller_role = 10;
 }
 
 message AddCommentResponse {
@@ -170,6 +198,7 @@ message UpdateCommentRequest {
   string user_id = 2; // Must be comment author
   optional string content = 3;
   optional bool is_resolved = 4;
+  CallerRole caller_role = 5;
 }
 
 message UpdateCommentResponse {
@@ -179,6 +208,7 @@ message UpdateCommentResponse {
 message DeleteCommentRequest {
   string comment_id = 1;
   string user_id = 2; // Must be comment author or project owner
+  CallerRole caller_role = 3;
 }
 
 message DeleteCommentResponse {
@@ -234,6 +264,7 @@ message UpdatePresenceRequest {
   string project_id = 2;
   string screenplay_id = 3;
   int32 cursor_position = 4;
+  CallerRole caller_role = 5;
 }
 
 message UpdatePresenceResponse {
@@ -243,6 +274,7 @@ message UpdatePresenceResponse {
 message GetPresenceRequest {
   string screenplay_id = 1;
   string user_id = 2;
+  CallerRole caller_role = 3;
 }
 
 message GetPresenceResponse {
@@ -327,6 +359,7 @@ service CollaborationService {
   rpc AddCollaborator(AddCollaboratorRequest) returns (AddCollaboratorResponse);
   rpc AddCollaboratorDirect(AddCollaboratorDirectRequest) returns (AddCollaboratorDirectResponse);
   rpc GetProjectCollaborators(GetProjectCollaboratorsRequest) returns (GetProjectCollaboratorsResponse);
+  rpc GetProjectCollaboratorRole(GetProjectCollaboratorRoleRequest) returns (GetProjectCollaboratorRoleResponse);
   rpc GetProjectSeatUsage(GetProjectSeatUsageRequest) returns (GetProjectSeatUsageResponse);
   rpc UpdateCollaboratorRole(UpdateCollaboratorRoleRequest) returns (UpdateCollaboratorRoleResponse);
   rpc RemoveCollaborator(RemoveCollaboratorRequest) returns (RemoveCollaboratorResponse);
