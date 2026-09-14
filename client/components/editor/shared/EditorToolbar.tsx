@@ -190,7 +190,7 @@ export function EditorToolbar({
       </div>
 
       {/* Floating bottom-right save pill (rendered here, positioned fixed). */}
-      <SaveStatusPill status={saveStatus} />
+      <SaveStatusPill status={saveStatus} avoidRightPanel={isAIOpen} />
     </div>
   )
 }
