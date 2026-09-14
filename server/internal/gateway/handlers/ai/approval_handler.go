@@ -60,12 +60,16 @@ func (h *AIHandler) DecideApproval(w http.ResponseWriter, r *http.Request) {
 		SceneID string `json:"scene_id"`
 		Content string `json:"content"`
 	}
-	if json.Unmarshal([]byte(c.Tool.Arguments), &args) != nil || args.SceneID == "" {
+	if json.Unmarshal([]byte(c.Tool.Arguments), &args) != nil {
 		handlers.WriteError(w, "Invalid checkpoint", http.StatusBadRequest)
 		return
 	}
 	switch c.Tool.Name {
 	case "rewrite_scene":
+		if args.SceneID == "" {
+			handlers.WriteError(w, "Invalid checkpoint", http.StatusBadRequest)
+			return
+		}
 		current, e := h.reads.ReadScene(r.Context(), userID, c.ProjectID, args.SceneID)
 		if e != nil || current.Scene == nil {
 			handlers.WriteError(w, "Approval authorization failed", http.StatusForbidden)
@@ -74,11 +78,28 @@ func (h *AIHandler) DecideApproval(w http.ResponseWriter, r *http.Request) {
 		before = current
 		result, err = h.writes.RewriteScene(r.Context(), userID, c.ProjectID, args.SceneID, args.Content, c.Category)
 	case "delete_scene":
+		if args.SceneID == "" {
+			handlers.WriteError(w, "Invalid checkpoint", http.StatusBadRequest)
+			return
+		}
 		before, err = h.writes.DeleteScene(r.Context(), userID, c.ProjectID, args.SceneID)
 		result = map[string]bool{"deleted": err == nil}
 	default:
-		handlers.WriteError(w, "Unsupported approval tool", http.StatusBadRequest)
-		return
+		if c.Tool.Name != "create_scene" && c.Tool.Name != "append_to_scene" && c.Tool.Name != "add_beat" && c.Tool.Name != "rename_scene" {
+			handlers.WriteError(w, "Unsupported approval tool", http.StatusBadRequest)
+			return
+		}
+		raw := h.executeHostedTool(r.Context(), userID, c.ProjectID, c.Category, c.Tool)
+		var decoded map[string]any
+		if json.Unmarshal([]byte(raw), &decoded) != nil {
+			handlers.WriteError(w, "Approval execution failed", http.StatusInternalServerError)
+			return
+		}
+		if message, failed := decoded["error"].(string); failed {
+			handlers.WriteError(w, message, http.StatusForbidden)
+			return
+		}
+		result = decoded
 	}
 	if err != nil {
 		handlers.WriteError(w, "Approval execution failed", http.StatusForbidden)

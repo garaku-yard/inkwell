@@ -101,57 +101,59 @@ func TestHostedToolsAreProjectScoped(t *testing.T) {
 			}
 		}
 	}
-	if got := hostedTools("p1", false); len(got) != 6 {
+	if got := hostedTools("p1", false); len(got) != 2 {
 		t.Fatalf("degraded tools: %#v", got)
 	}
 }
 
-func TestToolLoopDeduplicatesRedeliveredMutation(t *testing.T) {
-	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "stable-call", Name: "create_scene", Arguments: `{"scene_heading":"One"}`}}}
+func TestToolLoopDeduplicatesRedeliveredToolCall(t *testing.T) {
+	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "stable-call", Name: "list_scenes", Arguments: `{}`}}}
 	a := &loopAdapter{streams: []aiadapter.Stream{&loopStream{chunks: []aiadapter.Chunk{call}}, &loopStream{chunks: []aiadapter.Chunk{{Delta: "done", Done: true}}}}}
-	mutations := 0
+	executions := 0
 	h := &AIHandler{executeTool: func(context.Context, string, string, aiadapter.ToolCall) string {
-		mutations++
+		executions++
 		return `{"scene":{"id":"s1"}}`
 	}}
 	w := httptest.NewRecorder()
 	h.runToolLoop(context.Background(), w, w, a, aiadapter.Input{}, &loopStream{chunks: []aiadapter.Chunk{call}}, "u", "p", "", "", "provider", false)
-	if mutations != 1 {
-		t.Fatalf("redelivery made %d mutations", mutations)
+	if executions != 1 {
+		t.Fatalf("redelivery made %d executions", executions)
 	}
 }
 
 func TestToolLoopUsesActiveSceneWhenModelOmitsSceneID(t *testing.T) {
 	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "rename", Name: "rename_scene", Arguments: `{"scene_heading":"Attractor:Zero"}`}}}
-	a := &loopAdapter{streams: []aiadapter.Stream{&loopStream{chunks: []aiadapter.Chunk{{Delta: "done", Done: true}}}}}
-	var executed aiadapter.ToolCall
-	h := &AIHandler{executeTool: func(_ context.Context, _, _ string, got aiadapter.ToolCall) string {
-		executed = got
-		return `{"renamed":true}`
-	}}
+	a := &loopAdapter{}
+	store := &memoryApprovals{values: map[string]approval.Checkpoint{}}
+	h := &AIHandler{approvals: store}
 	w := httptest.NewRecorder()
 	h.runToolLoop(context.Background(), w, w, a, aiadapter.Input{}, &loopStream{chunks: []aiadapter.Chunk{call}}, "u", "p", "passage-1", "interactive_fiction", "provider", false)
-	if !strings.Contains(executed.Arguments, `"scene_id":"passage-1"`) {
-		t.Fatalf("active passage was not supplied: %s", executed.Arguments)
+	if len(store.values) != 1 {
+		t.Fatalf("checkpoints=%d", len(store.values))
+	}
+	for _, checkpoint := range store.values {
+		if !strings.Contains(checkpoint.Tool.Arguments, `"scene_id":"passage-1"`) {
+			t.Fatalf("active passage was not supplied: %s", checkpoint.Tool.Arguments)
+		}
 	}
 }
 
 func TestToolLoopExecutesOfferedTextualToolCallFromCompatibleModel(t *testing.T) {
 	textCall := `{"name":"rename_scene","parameters":{"scene_heading":"Attractor:\u0002Zero","scene_id":"(get current scene id from list_scenes())"}}`
-	a := &loopAdapter{streams: []aiadapter.Stream{&loopStream{chunks: []aiadapter.Chunk{{Delta: "renamed", Done: true}}}}}
-	var executed aiadapter.ToolCall
-	h := &AIHandler{executeTool: func(_ context.Context, _, _ string, got aiadapter.ToolCall) string {
-		executed = got
-		return `{"renamed":true}`
-	}}
+	a := &loopAdapter{}
+	store := &memoryApprovals{values: map[string]approval.Checkpoint{}}
+	h := &AIHandler{approvals: store}
 	w := httptest.NewRecorder()
-	input := aiadapter.Input{Tools: hostedTools("p", false)}
+	input := aiadapter.Input{Tools: hostedTools("p", true)}
 	h.runToolLoop(context.Background(), w, w, a, input, &loopStream{chunks: []aiadapter.Chunk{{Delta: textCall, Done: true}}}, "u", "p", "passage-1", "interactive_fiction", "provider", false)
-	if executed.Name != "rename_scene" || !strings.Contains(executed.Arguments, `"scene_id":"passage-1"`) {
-		t.Fatalf("textual tool call was not normalized and executed: %#v", executed)
+	var checkpoint approval.Checkpoint
+	for _, checkpoint = range store.values {
 	}
-	if strings.Contains(w.Body.String(), `"name":"rename_scene"`) || !strings.Contains(w.Body.String(), `"response":"renamed"`) {
-		t.Fatalf("raw textual call leaked or completion missing: %s", w.Body.String())
+	if checkpoint.Tool.Name != "rename_scene" || !strings.Contains(checkpoint.Tool.Arguments, `"scene_id":"passage-1"`) {
+		t.Fatalf("textual tool call was not normalized for approval: %#v", checkpoint.Tool)
+	}
+	if strings.Contains(w.Body.String(), `"name":"rename_scene"`) || !strings.Contains(w.Body.String(), `"approval_required"`) {
+		t.Fatalf("raw textual call leaked or approval missing: %s", w.Body.String())
 	}
 }
 

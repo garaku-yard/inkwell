@@ -27,9 +27,9 @@ func hostedTools(projectID string, destructive bool) []aiadapter.Tool {
 		// A project chat must only receive tools that act on the open project.
 		// Offering create_project here lets a model misinterpret requests such as
 		// "change the title" and silently create a duplicate project.
-		names = []string{"list_scenes", "read_scene", "create_scene", "append_to_scene", "add_beat", "rename_scene"}
+		names = []string{"list_scenes", "read_scene"}
 		if destructive {
-			names = append(names, "rewrite_scene", "delete_scene")
+			names = append(names, "create_scene", "append_to_scene", "add_beat", "rename_scene", "rewrite_scene", "delete_scene")
 		}
 	}
 	out := make([]aiadapter.Tool, 0, len(names))
@@ -95,15 +95,15 @@ func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.F
 		input.Messages = append(input.Messages, aiadapter.Message{Role: "assistant", Content: assistantText, ToolCalls: calls})
 		for _, call := range calls {
 			call = withActiveScene(call, activeSceneID)
-			if call.Name == "rewrite_scene" || call.Name == "delete_scene" {
+			if requiresApproval(call.Name) {
 				if h.approvals == nil {
-					_ = encoder.Encode(map[string]string{"error": "destructive tools are unavailable"})
+					_ = encoder.Encode(map[string]string{"error": "write approvals are unavailable"})
 					flusher.Flush()
 					return
 				}
 				var normalized any
 				if json.Unmarshal([]byte(call.Arguments), &normalized) != nil {
-					_ = encoder.Encode(map[string]string{"error": "invalid destructive tool arguments"})
+					_ = encoder.Encode(map[string]string{"error": "invalid tool arguments"})
 					flusher.Flush()
 					return
 				}
@@ -149,6 +149,15 @@ func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.F
 	}
 	_ = encoder.Encode(map[string]any{"done": true, "reason": "tool_iteration_limit"})
 	flusher.Flush()
+}
+
+func requiresApproval(tool string) bool {
+	switch tool {
+	case "create_scene", "append_to_scene", "add_beat", "rename_scene", "rewrite_scene", "delete_scene":
+		return true
+	default:
+		return false
+	}
 }
 
 func withActiveScene(call aiadapter.ToolCall, activeSceneID string) aiadapter.ToolCall {
