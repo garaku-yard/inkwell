@@ -15,6 +15,7 @@ export interface ChatMessage {
    *  carrying a real assistant reply. Renders with destructive styling
    *  and an error icon so users don't mistake it for a model output. */
   error?: boolean
+  activities?: string[]
   approval?: {
     checkpointId: string
     tool: string
@@ -173,7 +174,7 @@ export function useAIChatStream({
               setMessages((currentMessages) =>
                 currentMessages.map((msg) =>
                   msg.id === aiMessageId
-                    ? { ...msg, content: `${msg.content}\n\n_📄 ${doing}…_\n\n` }
+                    ? { ...msg, activities: [...(msg.activities ?? []), doing] }
                     : msg,
                 ),
               )

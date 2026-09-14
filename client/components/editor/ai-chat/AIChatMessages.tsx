@@ -1,6 +1,6 @@
 import { forwardRef } from "react"
 import Link from "next/link"
-import { AlertCircle, Bot } from "lucide-react"
+import { AlertCircle, Bot, Check } from "lucide-react"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -28,7 +28,7 @@ export const AIChatMessages = forwardRef<HTMLDivElement, AIChatMessagesProps>(
     // bubble is the indicator — so we never show a text bubble + a dots bubble
     // at once (and we hide the empty placeholder bubble below).
     const last = messages[messages.length - 1]
-    const assistantStreaming = last?.type === "ai" && last.content !== "" && !last.error
+    const assistantStreaming = last?.type === "ai" && (last.content !== "" || Boolean(last.activities?.length)) && !last.error
     const showTyping = isTyping && !assistantStreaming
     return (
       <ScrollArea className="min-h-0 flex-1 p-4">
@@ -55,7 +55,7 @@ export const AIChatMessages = forwardRef<HTMLDivElement, AIChatMessagesProps>(
           ) : (
             messages.map((message) =>
               // Hide the empty assistant placeholder — the dots stand in for it.
-              message.type === "ai" && message.content === "" && !message.error ? null : (
+              message.type === "ai" && message.content === "" && !message.error && !message.activities?.length ? null : (
                 <MessageBubble key={message.id} message={message} category={category} onApprovalDecision={onApprovalDecision} />
               ),
             )
@@ -105,6 +105,13 @@ function MessageBubble({ message, onApprovalDecision, category }: { message: Cha
     <div className="flex gap-2.5">
       <BuddyMark error={message.error} />
       <div className="flex min-w-0 flex-col items-start gap-1">
+        {message.activities?.map((activity, index) => (
+          <div key={`${activity}-${index}`} className="flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 text-xs text-muted-foreground">
+            <Check className="h-3 w-3 text-primary" />
+            <span>{activity}</span>
+          </div>
+        ))}
+        {(message.content !== "" || message.error || message.approval) && (
         <div
           className={cn(
             "max-w-full whitespace-pre-line rounded-lg px-3.5 py-2.5 text-sm leading-relaxed",
@@ -130,6 +137,7 @@ function MessageBubble({ message, onApprovalDecision, category }: { message: Cha
             </div>
           )}
         </div>
+        )}
         <Timestamp at={message.timestamp} />
       </div>
     </div>
