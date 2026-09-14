@@ -88,10 +88,25 @@ func TestToolLoopReportsCancellationAndProviderFailure(t *testing.T) {
 }
 
 func TestHostedToolsAreProjectScoped(t *testing.T) {
-	if got := hostedReadTools(""); len(got) != 1 || got[0].Name != "list_projects" {
+	if got := hostedTools(""); len(got) != 2 || got[0].Name != "list_projects" {
 		t.Fatalf("global tools: %#v", got)
 	}
-	if got := hostedReadTools("p1"); len(got) != 3 {
+	if got := hostedTools("p1"); len(got) != 8 {
 		t.Fatalf("project tools: %#v", got)
+	}
+}
+
+func TestToolLoopDeduplicatesRedeliveredMutation(t *testing.T) {
+	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "stable-call", Name: "create_scene", Arguments: `{"scene_heading":"One"}`}}}
+	a := &loopAdapter{streams: []aiadapter.Stream{&loopStream{chunks: []aiadapter.Chunk{call}}, &loopStream{chunks: []aiadapter.Chunk{{Delta: "done", Done: true}}}}}
+	mutations := 0
+	h := &AIHandler{executeTool: func(context.Context, string, string, aiadapter.ToolCall) string {
+		mutations++
+		return `{"scene":{"id":"s1"}}`
+	}}
+	w := httptest.NewRecorder()
+	h.runToolLoop(context.Background(), w, w, a, aiadapter.Input{}, &loopStream{chunks: []aiadapter.Chunk{call}}, "u", "p", false)
+	if mutations != 1 {
+		t.Fatalf("redelivery made %d mutations", mutations)
 	}
 }

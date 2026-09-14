@@ -12,6 +12,7 @@ import (
 
 	"inkwell/server/internal/gateway/apierror"
 	"inkwell/server/internal/gateway/application/scriptreads"
+	"inkwell/server/internal/gateway/application/scriptwrites"
 	"inkwell/server/internal/gateway/config"
 	"inkwell/server/internal/gateway/contextx"
 	"inkwell/server/internal/gateway/grpcclient"
@@ -39,7 +40,9 @@ type AIHandler struct {
 	openAICompatibleHosts []string
 	managedProviders      map[string]config.ManagedAIProvider
 	reads                 *scriptreads.Reader
+	writes                *scriptwrites.Writer
 	adapterFor            func(aiadapter.ProviderKind) (aiadapter.Adapter, error)
+	executeTool           func(context.Context, string, string, aiadapter.ToolCall) string
 }
 
 // NewAIHandler wires the chat handler to the ai-settings + billing gRPC clients,
@@ -53,6 +56,7 @@ func NewAIHandler(cfg *config.Config, clients *grpcclient.Registry) (*AIHandler,
 		openAICompatibleHosts: cfg.OpenAICompatibleHosts,
 		managedProviders:      cfg.ManagedAIProviders,
 		reads:                 scriptreads.New(clients.Scripts, clients.Collab, clients.Workspace),
+		writes:                scriptwrites.New(clients.Scripts, clients.Collab, clients.Workspace),
 		adapterFor:            aiadapter.Get,
 	}, nil
 }
@@ -191,7 +195,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	for i, m := range req.Messages {
 		messages[i] = aiadapter.Message{Role: m.Role, Content: m.Content}
 	}
-	input := aiadapter.Input{Messages: messages, Model: model, APIKey: apiKey, BaseURL: baseURL, Tools: hostedReadTools(req.ProjectID)}
+	input := aiadapter.Input{Messages: messages, Model: model, APIKey: apiKey, BaseURL: baseURL, Tools: hostedTools(req.ProjectID)}
 	firstStream, err := adapter.StreamChat(r.Context(), input)
 	if err != nil {
 		log.Printf("ai dispatch error (kind=%s): %v", kind, err)

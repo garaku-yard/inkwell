@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"inkwell/server/internal/gateway/application/scriptwrites"
 	"inkwell/server/internal/gateway/toolcontracts"
 	"inkwell/server/pkg/aiadapter"
 	"inkwell/server/pkg/grpcmeta"
@@ -17,10 +18,10 @@ import (
 
 const maxHostedToolIterations = 4
 
-func hostedReadTools(projectID string) []aiadapter.Tool {
-	names := []string{"list_projects"}
+func hostedTools(projectID string) []aiadapter.Tool {
+	names := []string{"list_projects", "create_project"}
 	if projectID != "" {
-		names = append(names, "list_scenes", "read_scene")
+		names = append(names, "list_scenes", "read_scene", "create_scene", "append_to_scene", "add_beat", "rename_scene")
 	}
 	out := make([]aiadapter.Tool, 0, len(names))
 	for _, name := range names {
@@ -36,6 +37,7 @@ func hostedReadTools(projectID string) []aiadapter.Tool {
 func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.Flusher, adapter aiadapter.Adapter, input aiadapter.Input, stream aiadapter.Stream, userID, projectID string, managed bool) {
 	encoder := json.NewEncoder(w)
 	totalTokens := 0
+	toolResults := map[string]string{}
 	defer func() {
 		if managed && totalTokens > 0 {
 			h.trackManagedTokens(userID, totalTokens)
@@ -80,7 +82,17 @@ func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.F
 		input.Messages = append(input.Messages, aiadapter.Message{Role: "assistant", Content: assistantText, ToolCalls: calls})
 		for _, call := range calls {
 			started := time.Now()
-			result := h.executeReadTool(ctx, userID, projectID, call)
+			result, ok := toolResults[call.ID]
+			if !ok || call.ID == "" {
+				if h.executeTool != nil {
+					result = h.executeTool(ctx, userID, projectID, call)
+				} else {
+					result = h.executeHostedTool(ctx, userID, projectID, call)
+				}
+				if call.ID != "" {
+					toolResults[call.ID] = result
+				}
+			}
 			_ = encoder.Encode(map[string]string{"tool": call.Name, "label": call.Name})
 			flusher.Flush()
 			slog.Info("hosted ai tool", "correlation_id", grpcmeta.CorrelationID(ctx), "tool", call.Name, "tool_call_id", call.ID, "duration_ms", time.Since(started).Milliseconds(), "outcome", "complete")
@@ -131,6 +143,77 @@ func (h *AIHandler) executeReadTool(ctx context.Context, userID, projectID strin
 		} else {
 			value, err = h.reads.ReadScene(ctx, userID, projectID, args.SceneID)
 		}
+	}
+	if err != nil {
+		encoded, _ := json.Marshal(map[string]string{"error": err.Error()})
+		return string(encoded)
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return `{"error":"could not encode tool result"}`
+	}
+	return string(encoded)
+}
+
+func (h *AIHandler) executeHostedTool(ctx context.Context, userID, projectID string, call aiadapter.ToolCall) string {
+	if call.Name == "list_projects" || call.Name == "list_scenes" || call.Name == "read_scene" {
+		return h.executeReadTool(ctx, userID, projectID, call)
+	}
+	if call.Name != "create_project" && call.Name != "create_scene" && call.Name != "append_to_scene" && call.Name != "add_beat" && call.Name != "rename_scene" {
+		encoded, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("unknown tool: %s", call.Name)})
+		return string(encoded)
+	}
+	if h.writes == nil {
+		return `{"error":"hosted write tools are unavailable"}`
+	}
+	var args struct {
+		Title         string `json:"title"`
+		Description   string `json:"description"`
+		Category      string `json:"category"`
+		OrgID         string `json:"org_id"`
+		SceneID       string `json:"scene_id"`
+		Heading       string `json:"scene_heading"`
+		Content       string `json:"content"`
+		OutlineUnitID string `json:"outline_unit_id"`
+		OrderIndex    int32  `json:"order_index"`
+		Color         string `json:"color"`
+		ActNumber     int32  `json:"act_number"`
+		Order         int32  `json:"order"`
+	}
+	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
+		return `{"error":"invalid tool arguments"}`
+	}
+	var value any
+	var err error
+	switch call.Name {
+	case "create_project":
+		value, err = h.writes.CreateProject(ctx, userID, scriptwrites.CreateProjectInput{Title: args.Title, Description: args.Description, Category: args.Category, OrgID: args.OrgID})
+	case "create_scene":
+		if projectID == "" {
+			err = errors.New("projectId is required")
+		} else {
+			value, err = h.writes.CreateScene(ctx, userID, projectID, scriptwrites.CreateSceneInput{Heading: args.Heading, Content: args.Content, OutlineUnitID: args.OutlineUnitID, OrderIndex: args.OrderIndex})
+		}
+	case "append_to_scene":
+		if projectID == "" || args.SceneID == "" {
+			err = errors.New("projectId and scene_id are required")
+		} else {
+			value, err = h.writes.AppendToScene(ctx, userID, projectID, args.SceneID, args.Content)
+		}
+	case "add_beat":
+		if projectID == "" {
+			err = errors.New("projectId is required")
+		} else {
+			value, err = h.writes.AddBeat(ctx, userID, projectID, scriptwrites.AddBeatInput{Title: args.Title, Description: args.Description, Color: args.Color, ActNumber: args.ActNumber, Order: args.Order})
+		}
+	case "rename_scene":
+		if projectID == "" || args.SceneID == "" {
+			err = errors.New("projectId and scene_id are required")
+		} else {
+			value, err = h.writes.RenameScene(ctx, userID, projectID, args.SceneID, args.Heading)
+		}
+	default:
+		err = fmt.Errorf("unknown tool: %s", call.Name)
 	}
 	if err != nil {
 		encoded, _ := json.Marshal(map[string]string{"error": err.Error()})

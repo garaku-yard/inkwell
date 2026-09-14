@@ -36,6 +36,119 @@ export const SHARED_TOOL_CONTRACTS: Record<string, ToolSpec> = {
         "scene_id"
       ]
     }
+  },
+  "create_project": {
+    "name": "create_project",
+    "description": "Create a writing project owned by the caller, optionally in an organization where they have a writing role.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "org_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title"
+      ]
+    }
+  },
+  "create_scene": {
+    "name": "create_scene",
+    "description": "Create a scene in the project this conversation is open on.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "scene_heading": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "order_index": {
+          "type": "integer"
+        },
+        "outline_unit_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scene_heading"
+      ]
+    }
+  },
+  "append_to_scene": {
+    "name": "append_to_scene",
+    "description": "Append text to an existing scene without replacing its current content.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "scene_id": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scene_id",
+        "content"
+      ]
+    }
+  },
+  "add_beat": {
+    "name": "add_beat",
+    "description": "Add a story beat to the project this conversation is open on.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "act_number": {
+          "type": "integer"
+        },
+        "order": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "title"
+      ]
+    }
+  },
+  "rename_scene": {
+    "name": "rename_scene",
+    "description": "Rename a scene in the project this conversation is open on.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "scene_id": {
+          "type": "string"
+        },
+        "scene_heading": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scene_id",
+        "scene_heading"
+      ]
+    }
   }
 }
 

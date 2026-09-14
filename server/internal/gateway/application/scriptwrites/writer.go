@@ -1,0 +1,128 @@
+// Package scriptwrites owns authorization-aware script mutations shared by transports.
+package scriptwrites
+
+import (
+	"context"
+	"errors"
+	"strings"
+
+	"inkwell/server/internal/gateway/application/scriptreads"
+	"inkwell/server/internal/gateway/handlers"
+	"inkwell/server/pkg/grpc/collab"
+	scriptspb "inkwell/server/pkg/grpc/scripts"
+	workspacepb "inkwell/server/pkg/grpc/workspace"
+)
+
+type Writer struct {
+	scripts   scriptspb.ScriptsServiceClient
+	collab    collab.CollaborationServiceClient
+	workspace workspacepb.WorkspaceServiceClient
+	reads     *scriptreads.Reader
+}
+
+func New(s scriptspb.ScriptsServiceClient, c collab.CollaborationServiceClient, w workspacepb.WorkspaceServiceClient) *Writer {
+	return &Writer{scripts: s, collab: c, workspace: w, reads: scriptreads.New(s, c, w)}
+}
+
+type CreateProjectInput struct{ Title, Description, Category, OrgID string }
+
+func (w *Writer) CreateProject(ctx context.Context, userID string, in CreateProjectInput) (*scriptspb.Project, error) {
+	if strings.TrimSpace(in.Title) == "" {
+		return nil, errors.New("title is required")
+	}
+	if in.OrgID != "" {
+		role, err := handlers.ResolveOrgRole(ctx, w.workspace, in.OrgID, userID)
+		if err != nil || (role != "owner" && role != "admin" && role != "editor") {
+			return nil, errors.New("permission denied")
+		}
+	}
+	r, err := w.scripts.CreateProject(ctx, &scriptspb.CreateProjectRequest{Title: in.Title, Description: in.Description, Category: in.Category, OrgId: in.OrgID, OwnerId: userID})
+	if err != nil {
+		return nil, err
+	}
+	return r.Project, nil
+}
+
+type CreateSceneInput struct {
+	Heading, Content, OutlineUnitID string
+	OrderIndex                      int32
+}
+
+func (w *Writer) CreateScene(ctx context.Context, userID, projectID string, in CreateSceneInput) (*scriptspb.Scene, error) {
+	role, err := handlers.RequireProjectRole(ctx, userID, projectID, handlers.ActionEditContent, w.scripts, w.collab, w.workspace)
+	if err != nil {
+		return nil, err
+	}
+	r, err := w.scripts.CreateScene(ctx, &scriptspb.CreateSceneRequest{ProjectId: projectID, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role), OutlineUnitId: &in.OutlineUnitID, SceneHeading: in.Heading, Content: in.Content, OrderIndex: in.OrderIndex})
+	if err != nil {
+		return nil, err
+	}
+	return r.Scene, nil
+}
+
+func (w *Writer) sceneRole(ctx context.Context, userID, projectID, sceneID string) (handlers.ProjectRole, error) {
+	p, err := w.scripts.GetResourceProject(ctx, &scriptspb.GetResourceProjectRequest{ResourceType: scriptspb.ResourceType_RESOURCE_TYPE_SCENE, ResourceId: sceneID})
+	if err != nil {
+		return handlers.RoleNone, err
+	}
+	if p.ProjectId != projectID {
+		return handlers.RoleNone, errors.New("scene does not belong to this project")
+	}
+	return handlers.RequireProjectRole(ctx, userID, p.ProjectId, handlers.ActionEditContent, w.scripts, w.collab, w.workspace)
+}
+func (w *Writer) RenameScene(ctx context.Context, userID, projectID, sceneID, heading string) (*scriptspb.Scene, error) {
+	if strings.TrimSpace(heading) == "" {
+		return nil, errors.New("scene_heading is required")
+	}
+	role, err := w.sceneRole(ctx, userID, projectID, sceneID)
+	if err != nil {
+		return nil, err
+	}
+	r, err := w.scripts.UpdateScene(ctx, &scriptspb.UpdateSceneRequest{SceneId: sceneID, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role), SceneHeading: &heading})
+	if err != nil {
+		return nil, err
+	}
+	return r.Scene, nil
+}
+func (w *Writer) AppendToScene(ctx context.Context, userID, projectID, sceneID, content string) (*scriptspb.Scene, error) {
+	if content == "" {
+		return nil, errors.New("content is required")
+	}
+	current, err := w.reads.ReadScene(ctx, userID, projectID, sceneID)
+	if err != nil {
+		return nil, err
+	}
+	if current.Scene == nil {
+		return nil, errors.New("scene not found")
+	}
+	role, err := w.sceneRole(ctx, userID, projectID, sceneID)
+	if err != nil {
+		return nil, err
+	}
+	next := current.Scene.Content + content
+	r, err := w.scripts.UpdateScene(ctx, &scriptspb.UpdateSceneRequest{SceneId: sceneID, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role), Content: &next})
+	if err != nil {
+		return nil, err
+	}
+	return r.Scene, nil
+}
+
+type AddBeatInput struct {
+	Title, Description, Color string
+	ActNumber, Order          int32
+}
+
+func (w *Writer) AddBeat(ctx context.Context, userID, projectID string, in AddBeatInput) (*scriptspb.Beat, error) {
+	if strings.TrimSpace(in.Title) == "" {
+		return nil, errors.New("title is required")
+	}
+	role, err := handlers.RequireProjectRole(ctx, userID, projectID, handlers.ActionEditContent, w.scripts, w.collab, w.workspace)
+	if err != nil {
+		return nil, err
+	}
+	r, err := w.scripts.CreateBeat(ctx, &scriptspb.CreateBeatRequest{ProjectId: projectID, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role), Title: in.Title, Description: in.Description, Color: in.Color, ActNumber: in.ActNumber, Order: in.Order})
+	if err != nil {
+		return nil, err
+	}
+	return r.Beat, nil
+}
