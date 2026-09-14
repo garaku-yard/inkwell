@@ -29,16 +29,25 @@ describe("sync timestamp mapping", () => {
 })
 
 describe("sync push mappers (local row → proto field names)", () => {
-  it("project: omits owner_id, maps is_starred to bool, emits tombstone when set", () => {
+  it("project: omits owner_id and preserves org_id", () => {
     const row = {
       id: "p1", title: "T", description: "D", owner_id: "u1",
       category: "screenplay", status: "draft", is_starred: 1,
+      org_id: "org-1",
       created_at: "2026-06-20T20:18:30.527Z", deleted_at: "2026-06-20T21:00:00.000Z",
     }
     const out = pushProject(row)
     expect(out.owner_id).toBeUndefined() // gateway forces the owner
+    expect(out.org_id).toBe("org-1")
     expect(out.is_starred).toBe(true)
     expect(fromTs(out.deleted_at as { seconds: number })).toBe("2026-06-20T21:00:00.000Z")
+  })
+
+  it("project: omits org_id for a personal project", () => {
+    expect(pushProject({
+      id: "p1", title: "T", description: "", category: "screenplay",
+      status: "draft", is_starred: 0, org_id: null,
+    }).org_id).toBeUndefined()
   })
 
   it("element: element_type→type, formatting_json→map, scene_id passthrough", () => {

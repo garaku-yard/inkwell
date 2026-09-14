@@ -6,6 +6,13 @@
 > handoff notes + git history). The live status matrix is
 > [PLANNING.md](../../PLANNING.md); forward intent is [roadmap.md](./roadmap.md).
 
+## Organization ownership now survives desktop sync
+
+The desktop project mapper and scripts-service sync pipeline now carry
+`projects.org_id` through push, persistence, and pull. A boundary integration
+test drives the public HTTP sync endpoint through gRPC into PostgreSQL and back,
+closing the unverified server-side half recorded in ADR 0024 (Orbit #201).
+
 ## The agent asks first, and what it did can be undone
 
 ADR 0025 said a mutating tool is declared as such *and confirmed*. Only the

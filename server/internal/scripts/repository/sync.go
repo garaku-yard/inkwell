@@ -149,16 +149,16 @@ func (r *SyncRepository) ApplyChanges(ctx context.Context, q queryer, projectID,
 
 func (r *SyncRepository) upsertProject(ctx context.Context, q queryer, ownerID uuid.UUID, p *domain.Project) error {
 	_, err := q.ExecContext(ctx, `
-		INSERT INTO projects (project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, NOW()), NOW(), $9)
+		INSERT INTO projects (project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at, org_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, NOW()), NOW(), $9, $10)
 		ON CONFLICT (project_id) DO UPDATE SET
 			title = EXCLUDED.title, description = EXCLUDED.description,
 			category = EXCLUDED.category, status = EXCLUDED.status,
 			is_starred = EXCLUDED.is_starred, updated_at = NOW(),
-			deleted_at = EXCLUDED.deleted_at
+			deleted_at = EXCLUDED.deleted_at, org_id = EXCLUDED.org_id
 		WHERE projects.owner_id = $4`,
 		p.ID, p.Title, p.Description, ownerID, p.Category, p.Status, p.IsStarred,
-		nullableCreated(p.CreatedAt), p.DeletedAt)
+		nullableCreated(p.CreatedAt), p.DeletedAt, p.OrgID)
 	return err
 }
 
@@ -399,11 +399,11 @@ func newExcluder(c *domain.SyncChanges) excluder {
 func (r *SyncRepository) pullProject(ctx context.Context, q queryer, projectID uuid.UUID, cursor time.Time, exclude []uuid.UUID) (*domain.Project, error) {
 	p := &domain.Project{}
 	err := q.QueryRowContext(ctx, `
-		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at
+		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at, org_id
 		FROM projects
 		WHERE project_id = $1 AND updated_at > $2 AND project_id <> ALL($3::uuid[])`,
 		projectID, cursor, idArray(exclude),
-	).Scan(&p.ID, &p.Title, &p.Description, &p.OwnerID, &p.Category, &p.Status, &p.IsStarred, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt)
+	).Scan(&p.ID, &p.Title, &p.Description, &p.OwnerID, &p.Category, &p.Status, &p.IsStarred, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt, &p.OrgID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

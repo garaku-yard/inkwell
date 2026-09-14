@@ -81,10 +81,9 @@ described a limitation, not a capability.
   appear only once pulled. The org view on the desktop is therefore "this org's
   work *on this device*", which is the honest local-first reading but is not what
   a web user sees.
-- Whether the gateway actually persists `org_id` on push is **unverified** —
-  scripts-service has the column, but the write path has not been exercised
-  end-to-end from the desktop. Until it is, treat cross-device org projects as
-  unproven rather than working.
+- The sync boundary preserves `org_id` in both directions. Orbit #201 added an
+  HTTP → gRPC → scripts-service → PostgreSQL integration test that pushes an org
+  project, checks the stored owner tag, and pulls it back through the gateway.
 - `listOwned` filtering on `org_id IS NULL` is now load-bearing: any future query
   of personal projects must carry the same filter or org work will surface in
   personal workspaces.
