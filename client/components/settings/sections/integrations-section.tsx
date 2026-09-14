@@ -105,11 +105,13 @@ export function IntegrationsSection() {
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Disconnect
               </Button>
-            ) : (
-              <Button disabled={!desktop || busy || status?.configured === false} onClick={() => void connect()}>
+            ) : desktop ? (
+              <Button disabled={busy || status?.configured === false} onClick={() => void connect()}>
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Connect Google Drive
               </Button>
+            ) : (
+              <Badge variant="secondary">Desktop app required</Badge>
             )}
           </div>
           <p className="text-xs text-muted-foreground">
