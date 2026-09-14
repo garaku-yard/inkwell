@@ -10,3 +10,7 @@ type NoopPublisher struct{}
 func (n *NoopPublisher) Publish(_ context.Context, _ string, _ any) error {
 	return nil
 }
+
+// PublishEvent satisfies EnvelopePublisher and preserves compatibility with
+// callers that publish stable outbox envelopes.
+func (n *NoopPublisher) PublishEvent(_ context.Context, _ Event) error { return nil }

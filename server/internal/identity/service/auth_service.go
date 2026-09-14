@@ -268,6 +268,7 @@ func (s *authService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 	// background outbox poller handles reliability. On a username#tag collision
 	// the whole transaction rolls back and we retry with a fresh tag.
 	const maxTagAttempts = 10
+	event := events.Event{ID: uuid.NewString(), Type: events.EventTypeUserCreated, OccurredAt: time.Now().UTC(), Payload: payload}
 	for attempt := 1; ; attempt++ {
 		user.UserTag = domain.GenerateUserTag()
 		err = outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
@@ -275,7 +276,8 @@ func (s *authService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 				return err
 			}
 			return s.outbox.EnqueueTx(ctx, tx, outbox.Event{
-				Type:    events.EventTypeUserCreated,
+				ID:      uuid.MustParse(event.ID),
+				Type:    event.Type,
 				Payload: payload,
 			})
 		})
@@ -288,7 +290,7 @@ func (s *authService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	_ = s.publisher.Publish(ctx, events.EventTypeUserCreated, payload)
+	_ = events.PublishEvent(ctx, s.publisher, event)
 
 	// Create session and tokens
 	tokenPair, session, err := s.createUserSession(ctx, user)

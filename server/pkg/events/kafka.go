@@ -41,11 +41,21 @@ func (p *KafkaPublisher) Publish(ctx context.Context, eventType string, payload 
 		return fmt.Errorf("events: marshal payload: %w", err)
 	}
 
-	env := Event{
+	return p.PublishEvent(ctx, Event{
 		ID:         uuid.New().String(),
 		Type:       eventType,
 		OccurredAt: time.Now().UTC(),
 		Payload:    json.RawMessage(raw),
+	})
+}
+
+// PublishEvent writes an existing envelope without replacing its stable ID.
+func (p *KafkaPublisher) PublishEvent(ctx context.Context, env Event) error {
+	if env.ID == "" {
+		env.ID = uuid.New().String()
+	}
+	if env.OccurredAt.IsZero() {
+		env.OccurredAt = time.Now().UTC()
 	}
 
 	body, err := json.Marshal(env)
@@ -53,7 +63,7 @@ func (p *KafkaPublisher) Publish(ctx context.Context, eventType string, payload 
 		return fmt.Errorf("events: marshal envelope: %w", err)
 	}
 
-	topic := Topic(eventType)
+	topic := Topic(env.Type)
 	writer := p.writerFor(topic)
 
 	msg := kafkago.Message{
@@ -66,7 +76,7 @@ func (p *KafkaPublisher) Publish(ctx context.Context, eventType string, payload 
 		return fmt.Errorf("events: write to topic %s: %w", topic, err)
 	}
 
-	slog.Info("event published", "type", eventType, "id", env.ID, "topic", topic)
+	slog.Info("event published", "event_type", env.Type, "event_id", env.ID, "topic", topic)
 	return nil
 }
 

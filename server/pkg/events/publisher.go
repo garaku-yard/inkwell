@@ -17,6 +17,22 @@ type Publisher interface {
 	Publish(ctx context.Context, eventType string, payload any) error
 }
 
+// EnvelopePublisher publishes a prebuilt event envelope. Outbox publishers use
+// this extension so retries retain the logical event ID assigned at enqueue.
+// Publisher remains unchanged for service callers and third-party test doubles.
+type EnvelopePublisher interface {
+	PublishEvent(ctx context.Context, event Event) error
+}
+
+// PublishEvent preserves event when publisher supports envelopes, and falls
+// back to the original Publisher contract for legacy implementations.
+func PublishEvent(ctx context.Context, publisher Publisher, event Event) error {
+	if p, ok := publisher.(EnvelopePublisher); ok {
+		return p.PublishEvent(ctx, event)
+	}
+	return publisher.Publish(ctx, event.Type, event.Payload)
+}
+
 // Event is the envelope written to Kafka. Every message has the same shape so
 // consumers can route on Type without deserialising Payload.
 type Event struct {

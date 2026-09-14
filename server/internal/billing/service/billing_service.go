@@ -397,26 +397,28 @@ func (s *billingService) CreateSubscription(ctx context.Context, sub *domain.Use
 	sub.CreatedAt = time.Now()
 	sub.UpdatedAt = time.Now()
 
-	if err := s.commitWithOutbox(ctx, sub, "created", func(tx *sql.Tx) error {
+	event, err := s.commitWithOutbox(ctx, sub, "created", func(tx *sql.Tx) error {
 		return s.repo.CreateSubscriptionTx(ctx, tx, sub)
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
-	s.publishBillingEvent(ctx, sub, "created")
+	s.publishBillingEvent(ctx, event)
 	return nil
 }
 
 func (s *billingService) UpdateSubscription(ctx context.Context, sub *domain.UserSubscription) error {
 	sub.UpdatedAt = time.Now()
 
-	if err := s.commitWithOutbox(ctx, sub, "updated", func(tx *sql.Tx) error {
+	event, err := s.commitWithOutbox(ctx, sub, "updated", func(tx *sql.Tx) error {
 		return s.repo.UpdateSubscriptionTx(ctx, tx, sub)
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
-	s.publishBillingEvent(ctx, sub, "updated")
+	s.publishBillingEvent(ctx, event)
 	return nil
 }
 
@@ -429,13 +431,14 @@ func (s *billingService) CancelSubscription(ctx context.Context, subscriptionID 
 	sub.CancelAtPeriodEnd = true
 	sub.CanceledAt = &now
 
-	if err := s.commitWithOutbox(ctx, sub, "canceled", func(tx *sql.Tx) error {
+	event, err := s.commitWithOutbox(ctx, sub, "canceled", func(tx *sql.Tx) error {
 		return s.repo.UpdateSubscriptionTx(ctx, tx, sub)
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
-	s.publishBillingEvent(ctx, sub, "canceled")
+	s.publishBillingEvent(ctx, event)
 	return nil
 }
 
@@ -607,7 +610,7 @@ func (s *billingService) ListAllSubscriptions(ctx context.Context, offset, limit
 // commitWithOutbox runs the given mutation and an outbox enqueue inside one
 // transaction. Either both commit or neither does, guaranteeing that every
 // subscription change has a matching durable event for the poller to deliver.
-func (s *billingService) commitWithOutbox(ctx context.Context, sub *domain.UserSubscription, action string, mutate func(tx *sql.Tx) error) error {
+func (s *billingService) commitWithOutbox(ctx context.Context, sub *domain.UserSubscription, action string, mutate func(tx *sql.Tx) error) (events.Event, error) {
 	payload, err := json.Marshal(map[string]string{
 		"subscription_id": sub.ID.String(),
 		"user_id":         sub.UserID.String(),
@@ -615,18 +618,21 @@ func (s *billingService) commitWithOutbox(ctx context.Context, sub *domain.UserS
 		"action":          action,
 	})
 	if err != nil {
-		return err
+		return events.Event{}, err
 	}
+	event := events.Event{ID: uuid.NewString(), Type: events.EventTypeBillingUpdated, OccurredAt: time.Now().UTC(), Payload: payload}
 
-	return outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
+	err = outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
 		if err := mutate(tx); err != nil {
 			return err
 		}
 		return s.outbox.EnqueueTx(ctx, tx, outbox.Event{
-			Type:    events.EventTypeBillingUpdated,
+			ID:      uuid.MustParse(event.ID),
+			Type:    event.Type,
 			Payload: payload,
 		})
 	})
+	return event, err
 }
 
 func (s *billingService) ListSubscriptions(ctx context.Context, offset, limit int, status string) ([]*domain.UserSubscription, int, error) {
@@ -635,14 +641,8 @@ func (s *billingService) ListSubscriptions(ctx context.Context, offset, limit in
 
 // publishBillingEvent emits a billing.updated Kafka event. Errors are logged but
 // not returned — the outbox poller handles reliability for critical events.
-func (s *billingService) publishBillingEvent(ctx context.Context, sub *domain.UserSubscription, action string) {
-	payload := map[string]string{
-		"subscription_id": sub.ID.String(),
-		"user_id":         sub.UserID.String(),
-		"status":          sub.Status,
-		"action":          action,
-	}
-	if err := s.publisher.Publish(ctx, events.EventTypeBillingUpdated, payload); err != nil {
-		slog.Warn("failed to publish billing event", "error", err, "action", action)
+func (s *billingService) publishBillingEvent(ctx context.Context, event events.Event) {
+	if err := events.PublishEvent(ctx, s.publisher, event); err != nil {
+		slog.Warn("failed to publish billing event", "error", err, "event_id", event.ID)
 	}
 }

@@ -19,6 +19,20 @@ type captureMailer struct {
 	fail bool
 }
 
+func TestEventDeliveryKeyUsesStableEventIdentityPerRecipient(t *testing.T) {
+	event := events.Event{ID: "stable-event", Type: events.EventTypeCollabAdded}
+	first := eventDeliveryKey("inapp", event, "user-a", "legacy")
+	duplicate := eventDeliveryKey("inapp", event, "user-a", "different-legacy")
+	otherRecipient := eventDeliveryKey("inapp", event, "user-b", "legacy")
+	otherEvent := eventDeliveryKey("inapp", events.Event{ID: "later-event", Type: event.Type}, "user-a", "legacy")
+	if first != duplicate {
+		t.Fatal("the same event and recipient produced different dedup keys")
+	}
+	if first == otherRecipient || first == otherEvent {
+		t.Fatal("distinct recipients or logical events shared a dedup key")
+	}
+}
+
 func (m *captureMailer) Send(_ context.Context, msg mailer.Message) error {
 	if m.fail {
 		return errors.New("smtp boom")

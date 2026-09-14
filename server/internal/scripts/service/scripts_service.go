@@ -154,13 +154,15 @@ func (s *scriptsService) CreateProject(ctx context.Context, title, description, 
 	if err != nil {
 		return nil, err
 	}
+	event := events.Event{ID: uuid.NewString(), Type: events.EventTypeProjectCreated, OccurredAt: time.Now().UTC(), Payload: payload}
 
 	err = outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
 		if err := s.repo.Project.CreateProjectTx(ctx, tx, project); err != nil {
 			return err
 		}
 		return s.outbox.EnqueueTx(ctx, tx, outbox.Event{
-			Type:    events.EventTypeProjectCreated,
+			ID:      uuid.MustParse(event.ID),
+			Type:    event.Type,
 			Payload: payload,
 		})
 	})
@@ -168,7 +170,7 @@ func (s *scriptsService) CreateProject(ctx context.Context, title, description, 
 		return nil, err
 	}
 
-	_ = s.publisher.Publish(ctx, events.EventTypeProjectCreated, payload)
+	_ = events.PublishEvent(ctx, s.publisher, event)
 
 	// Record usage so the user's projects quota reflects the new project. Track
 	// failures are logged but do not fail the request — the project already exists
@@ -306,13 +308,15 @@ func (s *scriptsService) DeleteProject(ctx context.Context, projectID, userID uu
 	if err != nil {
 		return err
 	}
+	event := events.Event{ID: uuid.NewString(), Type: events.EventTypeProjectDeleted, OccurredAt: time.Now().UTC(), Payload: payload}
 
 	err = outbox.RunInTx(ctx, s.db, func(tx *sql.Tx) error {
 		if err := s.repo.Project.SoftDeleteProjectTx(ctx, tx, projectID); err != nil {
 			return err
 		}
 		return s.outbox.EnqueueTx(ctx, tx, outbox.Event{
-			Type:    events.EventTypeProjectDeleted,
+			ID:      uuid.MustParse(event.ID),
+			Type:    event.Type,
 			Payload: payload,
 		})
 	})
@@ -320,7 +324,7 @@ func (s *scriptsService) DeleteProject(ctx context.Context, projectID, userID uu
 		return err
 	}
 
-	_ = s.publisher.Publish(ctx, events.EventTypeProjectDeleted, payload)
+	_ = events.PublishEvent(ctx, s.publisher, event)
 
 	// Release the projects quota slot. This is the mirror of the +1 in
 	// CreateProject; without it the running total only ever climbs and a user

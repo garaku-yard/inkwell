@@ -159,6 +159,7 @@ func (s *CollaborationService) AddCollaborator(ctx context.Context, projectID, u
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal collab.added payload: %w", err)
 	}
+	event := events.Event{ID: uuid.NewString(), Type: events.EventTypeCollabAdded, OccurredAt: time.Now().UTC(), Payload: payload}
 
 	// Atomic commit: collaborator row + outbox event in one transaction.
 	// The inline Publish below is a best-effort fast path; the
@@ -168,7 +169,8 @@ func (s *CollaborationService) AddCollaborator(ctx context.Context, projectID, u
 			return err
 		}
 		return s.outbox.EnqueueTx(ctx, tx, outbox.Event{
-			Type:    events.EventTypeCollabAdded,
+			ID:      uuid.MustParse(event.ID),
+			Type:    event.Type,
 			Payload: payload,
 		})
 	})
@@ -176,7 +178,7 @@ func (s *CollaborationService) AddCollaborator(ctx context.Context, projectID, u
 		return nil, err
 	}
 
-	_ = s.publisher.Publish(ctx, events.EventTypeCollabAdded, payload)
+	_ = events.PublishEvent(ctx, s.publisher, event)
 
 	return collaborator, nil
 }

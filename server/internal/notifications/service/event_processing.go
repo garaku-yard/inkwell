@@ -86,7 +86,7 @@ func (s *notificationService) handleCollabAdded(ctx context.Context, evt events.
 	// key collapses them. Known limitation: a remove-then-re-add to the same
 	// project won't re-notify, since the key is identical.
 	if prefs.InAppNotifications {
-		inAppKey := fmt.Sprintf("inapp:%s:%s:%s", evt.Type, p.ProjectID, p.UserID)
+		inAppKey := eventDeliveryKey("inapp", evt, p.UserID, fmt.Sprintf("%s:%s:%s", evt.Type, p.ProjectID, p.UserID))
 		created, err := s.repo.CreateNotificationIfNew(ctx, n, inAppKey)
 		if err != nil {
 			return err
@@ -108,7 +108,7 @@ func (s *notificationService) handleCollabAdded(ctx context.Context, evt events.
 		if email == "" {
 			return nil
 		}
-		emailKey := fmt.Sprintf("email:%s:%s:%s", evt.Type, p.ProjectID, p.UserID)
+		emailKey := eventDeliveryKey("email", evt, p.UserID, fmt.Sprintf("%s:%s:%s", evt.Type, p.ProjectID, p.UserID))
 		body := fmt.Sprintf(
 			`<p>You were added to a project on Inkwell with the <strong>%s</strong> role.</p>`+
 				`<p><a href="%s/projects/%s">Open the project</a></p>`,
@@ -149,7 +149,7 @@ func (s *notificationService) handleUserCreated(ctx context.Context, evt events.
 			`<p><a href="%s">Open Inkwell</a></p>`,
 		name, s.appBaseURL,
 	)
-	emailKey := fmt.Sprintf("email:%s:%s", evt.Type, p.UserID)
+	emailKey := eventDeliveryKey("email", evt, p.UserID, fmt.Sprintf("%s:%s", evt.Type, p.UserID))
 	return s.sendEmailIfNew(ctx, p.Email, "Welcome to Inkwell", body, emailKey)
 }
 
@@ -196,7 +196,7 @@ func (s *notificationService) handleCommentAdded(ctx context.Context, evt events
 				Body:   body,
 				Link:   link,
 			}
-			inAppKey := fmt.Sprintf("inapp:%s:%s:%s", evt.Type, p.CommentID, rid)
+			inAppKey := eventDeliveryKey("inapp", evt, rid, fmt.Sprintf("%s:%s:%s", evt.Type, p.CommentID, rid))
 			if _, err := s.repo.CreateNotificationIfNew(ctx, n, inAppKey); err != nil {
 				return err
 			}
@@ -210,7 +210,7 @@ func (s *notificationService) handleCommentAdded(ctx context.Context, evt events
 			if email == "" {
 				continue
 			}
-			emailKey := fmt.Sprintf("email:%s:%s:%s", evt.Type, p.CommentID, rid)
+			emailKey := eventDeliveryKey("email", evt, rid, fmt.Sprintf("%s:%s:%s", evt.Type, p.CommentID, rid))
 			emailBody := fmt.Sprintf(
 				`<p>There's a new comment on a project you collaborate on:</p>`+
 					`<blockquote>%s</blockquote>`+
@@ -253,8 +253,15 @@ func (s *notificationService) handleInvitationSent(ctx context.Context, evt even
 			`<p><a href="%s/invites">View your invitations</a></p>`,
 		roleOrDefault(p.Role), s.appBaseURL,
 	)
-	dedupKey := fmt.Sprintf("email:%s:%s", evt.Type, p.Token)
+	dedupKey := eventDeliveryKey("email", evt, p.Email, fmt.Sprintf("%s:%s", evt.Type, p.Token))
 	return s.sendEmailIfNew(ctx, p.Email, "You've been invited to a project", body, dedupKey)
+}
+
+func eventDeliveryKey(channel string, evt events.Event, recipient, legacy string) string {
+	if evt.ID != "" {
+		return fmt.Sprintf("%s:event:%s:%s", channel, evt.ID, recipient)
+	}
+	return channel + ":" + legacy
 }
 
 func roleOrDefault(role string) string {

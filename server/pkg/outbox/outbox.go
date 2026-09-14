@@ -50,6 +50,8 @@ import (
 	"inkwell/server/pkg/events"
 )
 
+var ErrClaimLost = fmt.Errorf("outbox: claim no longer owned")
+
 // Event is a single domain event waiting to be published. Payload is a raw JSON
 // document; the event type determines how consumers deserialise it.
 type Event struct {
@@ -63,6 +65,8 @@ type Event struct {
 	Payload json.RawMessage
 	// CreatedAt is set by Store.EnqueueTx; callers should leave it zero.
 	CreatedAt time.Time
+	Attempt   int
+	ClaimedBy string
 }
 
 // Store is the minimum interface an outbox implementation must provide.
@@ -73,12 +77,13 @@ type Store interface {
 	// is not persisted, giving atomicity with the business mutation.
 	EnqueueTx(ctx context.Context, tx *sql.Tx, event Event) error
 
-	// ListPending returns up to `limit` of the oldest unpublished events.
-	// Returned events are ordered by creation time ascending.
-	ListPending(ctx context.Context, limit int) ([]Event, error)
+	// ClaimPending atomically leases pending events. Publication occurs after
+	// the claim transaction commits, and an expired lease may be reclaimed.
+	ClaimPending(ctx context.Context, claimant string, limit int, lease time.Duration) ([]Event, error)
 
 	// MarkPublished stamps the event as delivered so it will not be re-emitted.
-	MarkPublished(ctx context.Context, id uuid.UUID) error
+	MarkPublished(ctx context.Context, id uuid.UUID, claimant string) error
+	MarkFailed(ctx context.Context, id uuid.UUID, claimant, failure string, maxAttempts int) error
 }
 
 // PostgresStore implements Store on top of a PostgreSQL outbox table. A single
@@ -115,14 +120,21 @@ func (s *PostgresStore) EnqueueTx(ctx context.Context, tx *sql.Tx, event Event) 
 	return nil
 }
 
-// ListPending returns the oldest `limit` unpublished events.
-func (s *PostgresStore) ListPending(ctx context.Context, limit int) ([]Event, error) {
+// ClaimPending leases the oldest available events in a short transaction.
+func (s *PostgresStore) ClaimPending(ctx context.Context, claimant string, limit int, lease time.Duration) ([]Event, error) {
 	// #nosec G201 — tableName is service-owned configuration.
-	query := fmt.Sprintf(
-		`SELECT id, event_type, payload, created_at FROM %s WHERE published_at IS NULL ORDER BY created_at ASC LIMIT $1`,
-		s.tableName,
+	query := fmt.Sprintf(`WITH candidates AS (
+		SELECT id FROM %s
+		WHERE published_at IS NULL AND dead_lettered_at IS NULL
+		  AND (claimed_at IS NULL OR claimed_at < NOW() - ($1 * interval '1 second'))
+		ORDER BY created_at ASC
+		FOR UPDATE SKIP LOCKED
+		LIMIT $2
 	)
-	rows, err := s.db.QueryContext(ctx, query, limit)
+	UPDATE %s o SET claimed_at = NOW(), claimed_by = $3, attempts = o.attempts + 1
+	FROM candidates c WHERE o.id = c.id
+	RETURNING o.id, o.event_type, o.payload, o.created_at, o.attempts, o.claimed_by`, s.tableName, s.tableName)
+	rows, err := s.db.QueryContext(ctx, query, lease.Seconds(), limit, claimant)
 	if err != nil {
 		return nil, fmt.Errorf("outbox: list pending from %s: %w", s.tableName, err)
 	}
@@ -132,7 +144,7 @@ func (s *PostgresStore) ListPending(ctx context.Context, limit int) ([]Event, er
 	for rows.Next() {
 		var e Event
 		var payload []byte
-		if err := rows.Scan(&e.ID, &e.Type, &payload, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.Type, &payload, &e.CreatedAt, &e.Attempt, &e.ClaimedBy); err != nil {
 			return nil, fmt.Errorf("outbox: scan row from %s: %w", s.tableName, err)
 		}
 		e.Payload = payload
@@ -142,11 +154,31 @@ func (s *PostgresStore) ListPending(ctx context.Context, limit int) ([]Event, er
 }
 
 // MarkPublished stamps `id` with the current timestamp in `published_at`.
-func (s *PostgresStore) MarkPublished(ctx context.Context, id uuid.UUID) error {
+func (s *PostgresStore) MarkPublished(ctx context.Context, id uuid.UUID, claimant string) error {
 	// #nosec G201 — tableName is service-owned configuration.
-	query := fmt.Sprintf(`UPDATE %s SET published_at = $1 WHERE id = $2`, s.tableName)
-	if _, err := s.db.ExecContext(ctx, query, time.Now(), id); err != nil {
+	query := fmt.Sprintf(`UPDATE %s SET published_at = $1, claimed_at = NULL, claimed_by = NULL, last_error = NULL WHERE id = $2 AND claimed_by = $3`, s.tableName)
+	result, err := s.db.ExecContext(ctx, query, time.Now(), id, claimant)
+	if err != nil {
 		return fmt.Errorf("outbox: mark published in %s: %w", s.tableName, err)
+	}
+	if rows, err := result.RowsAffected(); err != nil || rows != 1 {
+		return ErrClaimLost
+	}
+	return nil
+}
+
+// MarkFailed releases a failed claim and retains diagnostic state. Once the
+// bounded attempt count is reached the row remains visible as dead-lettered.
+func (s *PostgresStore) MarkFailed(ctx context.Context, id uuid.UUID, claimant, failure string, maxAttempts int) error {
+	query := fmt.Sprintf(`UPDATE %s SET last_error = $1,
+		dead_lettered_at = CASE WHEN attempts >= $2 THEN NOW() ELSE dead_lettered_at END,
+		claimed_at = NULL, claimed_by = NULL WHERE id = $3 AND claimed_by = $4`, s.tableName)
+	result, err := s.db.ExecContext(ctx, query, failure, maxAttempts, id, claimant)
+	if err != nil {
+		return fmt.Errorf("outbox: mark failed in %s: %w", s.tableName, err)
+	}
+	if rows, err := result.RowsAffected(); err != nil || rows != 1 {
+		return ErrClaimLost
 	}
 	return nil
 }
@@ -155,12 +187,15 @@ func (s *PostgresStore) MarkPublished(ctx context.Context, id uuid.UUID) error {
 // them via the provided events.Publisher. Failed publishes are retried on the
 // next tick because the event remains unpublished.
 type Poller struct {
-	store     Store
-	publisher events.Publisher
-	interval  time.Duration
-	batchSize int
-	logger    *slog.Logger
-	done      chan struct{}
+	store       Store
+	publisher   events.Publisher
+	interval    time.Duration
+	batchSize   int
+	logger      *slog.Logger
+	claimant    string
+	lease       time.Duration
+	maxAttempts int
+	done        chan struct{}
 }
 
 // NewPoller constructs a Poller. interval is how often pending events are read;
@@ -168,12 +203,15 @@ type Poller struct {
 // default slog logger.
 func NewPoller(store Store, publisher events.Publisher, interval time.Duration, batchSize int) *Poller {
 	return &Poller{
-		store:     store,
-		publisher: publisher,
-		interval:  interval,
-		batchSize: batchSize,
-		logger:    slog.Default(),
-		done:      make(chan struct{}),
+		store:       store,
+		publisher:   publisher,
+		interval:    interval,
+		batchSize:   batchSize,
+		logger:      slog.Default(),
+		claimant:    uuid.NewString(),
+		lease:       time.Minute,
+		maxAttempts: 10,
+		done:        make(chan struct{}),
 	}
 }
 
@@ -215,19 +253,25 @@ func (p *Poller) Wait() {
 
 // drain performs a single poll cycle.
 func (p *Poller) drain(ctx context.Context) {
-	pending, err := p.store.ListPending(ctx, p.batchSize)
+	pending, err := p.store.ClaimPending(ctx, p.claimant, p.batchSize, p.lease)
 	if err != nil {
 		p.logger.Warn("outbox poller: list pending failed", "error", err)
 		return
 	}
 	for _, e := range pending {
-		if err := p.publisher.Publish(ctx, e.Type, e.Payload); err != nil {
-			p.logger.Warn("outbox poller: publish failed", "id", e.ID, "type", e.Type, "error", err)
+		envelope := events.Event{ID: e.ID.String(), Type: e.Type, OccurredAt: e.CreatedAt.UTC(), Payload: e.Payload}
+		if err := events.PublishEvent(ctx, p.publisher, envelope); err != nil {
+			p.logger.Warn("outbox publish failed", "event_id", e.ID, "event_type", e.Type, "attempt", e.Attempt, "age", time.Since(e.CreatedAt), "claimed_by", p.claimant, "result", "retry", "error", err)
+			if markErr := p.store.MarkFailed(ctx, e.ID, p.claimant, err.Error(), p.maxAttempts); markErr != nil {
+				p.logger.Error("outbox failure recording failed", "event_id", e.ID, "event_type", e.Type, "attempt", e.Attempt, "claimed_by", p.claimant, "result", "claim_expires", "error", markErr)
+			}
 			continue
 		}
-		if err := p.store.MarkPublished(ctx, e.ID); err != nil {
-			p.logger.Warn("outbox poller: mark published failed", "id", e.ID, "error", err)
+		if err := p.store.MarkPublished(ctx, e.ID, p.claimant); err != nil {
+			p.logger.Warn("outbox mark published failed", "event_id", e.ID, "event_type", e.Type, "attempt", e.Attempt, "age", time.Since(e.CreatedAt), "claimed_by", p.claimant, "result", "lease_retry", "error", err)
+			continue
 		}
+		p.logger.Info("outbox event published", "event_id", e.ID, "event_type", e.Type, "attempt", e.Attempt, "age", time.Since(e.CreatedAt), "claimed_by", p.claimant, "result", "published")
 	}
 }
 
