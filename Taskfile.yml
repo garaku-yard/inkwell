@@ -364,6 +364,12 @@ tasks:
     cmds:
       - go test ./...
 
+  test:boundary:
+    desc: Run cross-service boundary integration tests
+    dir: server
+    cmds:
+      - go test -race -count=1 -tags=boundaryintegration ./integration/...
+
   test:client:
     desc: Run client tests
     dir: client

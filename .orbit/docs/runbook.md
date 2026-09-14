@@ -96,12 +96,15 @@ internally, remapped 5432–5438 on the host.
 | `REDIS_*`, `KAFKA_BROKERS`, `ZOOKEEPER_*` | dev defaults | match compose. |
 | `PADDLE_*` | optional | billing checkout/webhooks stay inert until set. |
 
-## Tests (all three gate client CI)
+## Tests
 
 ```sh
 # server
 cd server && go build ./... && go vet ./... && go test -race -count=1 ./...
 gofmt -l .                 # must be empty
+
+# cross-service boundary suite (in-memory gRPC; no Docker required)
+task test:boundary
 
 # client
 cd client
@@ -111,7 +114,10 @@ npm test
 ```
 
 CI (`.github/workflows/ci.yml`) runs the server job (gofmt check, build, vet,
-race tests) and the client job (tsc, lint, next build) on push/PR to `main`.
+race tests), the separately named boundary-integration job, and the client job
+(tsc, lint, next build) on push/PR to `main`. Boundary failures exercise real
+generated gRPC clients plus the gateway authorization and collab handler/service
+path; test names identify the failing role or dependency scenario.
 
 ## Proto regeneration
 
