@@ -1082,7 +1082,20 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
           </div>
         )}
-        <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} currentScene={activePassageId ?? undefined} />
+        <AIChatPanel
+          isOpen={isAIChatOpen}
+          onClose={() => setIsAIChatOpen(false)}
+          category={projectData.category}
+          projectId={projectData.id}
+          currentScene={activePassageId ?? undefined}
+          onToolComplete={(tool, args) => {
+            if (tool !== "rename_scene") return
+            const passageId = typeof args.scene_id === "string" ? args.scene_id : activePassageId
+            const heading = typeof args.scene_heading === "string" ? args.scene_heading : typeof args.heading === "string" ? args.heading : ""
+            if (!passageId || !heading) return
+            setPassages((current) => current.map((passage) => passage.id === passageId ? { ...passage, scene_heading: heading } : passage))
+          }}
+        />
         </div>
     </ProjectShell>
       {autocomplete && (

@@ -34,6 +34,7 @@ interface UseAIChatStreamOptions {
   projectId?: string
   activeSceneId?: string
   category?: string
+  onToolComplete?: (tool: string, args: Record<string, unknown>) => void
 }
 
 interface UseAIChatStreamResult {
@@ -60,6 +61,7 @@ export function useAIChatStream({
   projectId,
   activeSceneId,
   category,
+  onToolComplete,
 }: UseAIChatStreamOptions): UseAIChatStreamResult {
   const abortRef = useRef<AbortController | null>(null)
 
@@ -152,6 +154,7 @@ export function useAIChatStream({
                 tool: string
                 arguments: Record<string, unknown>
               }
+              arguments?: Record<string, unknown>
             }
             if (parsed.error) {
               // Gateway emits {error} as the final NDJSON line when
@@ -165,7 +168,7 @@ export function useAIChatStream({
               // see the model consult their work rather than watch a pause.
               // The phrase is the tool's own — the panel renders whatever
               // arrives, so a new tool needs no change here.
-              const doing = parsed.label || "Working"
+              const doing = friendlyToolLabel(parsed.tool, category, parsed.label)
               setMessages((currentMessages) =>
                 currentMessages.map((msg) =>
                   msg.id === aiMessageId
@@ -173,6 +176,7 @@ export function useAIChatStream({
                     : msg,
                 ),
               )
+              onToolComplete?.(parsed.tool, parsed.arguments ?? {})
             }
             if (parsed.response) {
               setMessages((currentMessages) =>
@@ -267,8 +271,25 @@ export function useAIChatStream({
         abortRef.current = null
       }
     },
-    [selectedProvider, setMessages, setIsTyping, isTyping, projectId, activeSceneId, category],
+    [selectedProvider, setMessages, setIsTyping, isTyping, projectId, activeSceneId, category, onToolComplete],
   )
 
   return { sendMessage, stop, decideApproval }
+}
+
+function friendlyToolLabel(tool: string, category?: string, serverLabel?: string): string {
+  const noun = category === "interactive_fiction" ? "passage" : "scene"
+  const labels: Record<string, string> = {
+    list_scenes: `Checking ${noun}s`,
+    read_scene: `Reading ${noun}`,
+    create_scene: `Creating ${noun}`,
+    append_to_scene: `Writing to ${noun}`,
+    rename_scene: `Renaming ${noun}`,
+    rewrite_scene: `Replacing ${noun}`,
+    delete_scene: `Deleting ${noun}`,
+    add_beat: "Adding story beat",
+    list_projects: "Checking projects",
+    create_project: "Creating project",
+  }
+  return labels[tool] ?? (serverLabel && serverLabel !== tool ? serverLabel : "Working")
 }

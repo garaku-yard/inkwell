@@ -131,7 +131,7 @@ func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.F
 					toolResults[call.ID] = result
 				}
 			}
-			_ = encoder.Encode(map[string]string{"tool": call.Name, "label": call.Name})
+			_ = encoder.Encode(map[string]any{"tool": call.Name, "label": call.Name, "arguments": json.RawMessage(call.Arguments)})
 			flusher.Flush()
 			slog.Info("hosted ai tool", "correlation_id", grpcmeta.CorrelationID(ctx), "tool", call.Name, "tool_call_id", call.ID, "duration_ms", time.Since(started).Milliseconds(), "outcome", "complete")
 			input.Messages = append(input.Messages, aiadapter.Message{Role: "tool", Content: result, ToolCallID: call.ID, Name: call.Name})

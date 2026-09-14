@@ -12,6 +12,7 @@ interface AIChatMessagesProps {
   isTyping: boolean
   showEmptyState: boolean
   onApprovalDecision: (messageId: string, checkpointId: string, decision: "approve" | "deny") => void
+  category?: string
 }
 
 /** The scrollable middle of the chat panel — a warm empty-state prompt,
@@ -20,7 +21,7 @@ interface AIChatMessagesProps {
  *  or glow), so the panel has character without breaking the calm register of
  *  the editor canvas. The ref is the bottom anchor for scroll-into-view. */
 export const AIChatMessages = forwardRef<HTMLDivElement, AIChatMessagesProps>(
-  function AIChatMessages({ messages, isTyping, showEmptyState, onApprovalDecision }, anchorRef) {
+  function AIChatMessages({ messages, isTyping, showEmptyState, onApprovalDecision, category }, anchorRef) {
     // The stream adds an empty assistant message up front and keeps isTyping
     // true for the whole reply. Show the standalone dots ONLY while we're still
     // waiting for the first token; once text starts streaming, the growing
@@ -55,7 +56,7 @@ export const AIChatMessages = forwardRef<HTMLDivElement, AIChatMessagesProps>(
             messages.map((message) =>
               // Hide the empty assistant placeholder — the dots stand in for it.
               message.type === "ai" && message.content === "" && !message.error ? null : (
-                <MessageBubble key={message.id} message={message} onApprovalDecision={onApprovalDecision} />
+                <MessageBubble key={message.id} message={message} category={category} onApprovalDecision={onApprovalDecision} />
               ),
             )
           )}
@@ -89,7 +90,7 @@ function Timestamp({ at }: { at: Date }) {
   )
 }
 
-function MessageBubble({ message, onApprovalDecision }: { message: ChatMessage; onApprovalDecision: AIChatMessagesProps["onApprovalDecision"] }) {
+function MessageBubble({ message, onApprovalDecision, category }: { message: ChatMessage; onApprovalDecision: AIChatMessagesProps["onApprovalDecision"]; category?: string }) {
   if (message.type === "user") {
     return (
       <div className="flex flex-col items-end gap-1">
@@ -116,7 +117,7 @@ function MessageBubble({ message, onApprovalDecision }: { message: ChatMessage; 
           {message.approval && (
             <div className="mt-3 border-t border-border/60 pt-3">
               <p className="mb-2 text-xs text-muted-foreground">
-                {message.approval.tool.replaceAll("_", " ")}: {JSON.stringify(message.approval.arguments)}
+                {approvalLabel(message.approval.tool, category)}: {approvalSummary(message.approval.arguments)}
               </p>
               {message.approval.status === "pending" ? (
                 <div className="flex gap-2">
@@ -133,6 +134,21 @@ function MessageBubble({ message, onApprovalDecision }: { message: ChatMessage; 
       </div>
     </div>
   )
+}
+
+function approvalLabel(tool: string, category?: string): string {
+  const noun = category === "interactive_fiction" ? "passage" : "scene"
+  if (tool === "rewrite_scene") return `Replace ${noun}`
+  if (tool === "delete_scene") return `Delete ${noun}`
+  return "Apply change"
+}
+
+function approvalSummary(args: Record<string, unknown>): string {
+  if (typeof args.content === "string") {
+    const compact = args.content.replace(/\s+/g, " ").trim()
+    return compact.length > 100 ? `${compact.slice(0, 100)}…` : compact
+  }
+  return "This action can remove existing writing."
 }
 
 function TypingIndicator() {

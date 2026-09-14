@@ -29,9 +29,10 @@ interface AIChatPanelProps {
   projectId?: string
   currentScene?: string
   currentElement?: string
+  onToolComplete?: (tool: string, args: Record<string, unknown>) => void
 }
 
-export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId, currentScene }: AIChatPanelProps) => {
+export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId, currentScene, onToolComplete }: AIChatPanelProps) => {
   const welcome = WELCOME[category ?? ""] ?? "Ask me anything about your writing."
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -76,6 +77,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId, c
     projectId,
     activeSceneId: currentScene,
     category,
+    onToolComplete,
   })
 
   useEffect(() => {
@@ -122,6 +124,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId, c
           isTyping={isTyping}
           showEmptyState={showEmptyState}
           onApprovalDecision={(messageId, checkpointId, decision) => void decideApproval(messageId, checkpointId, decision)}
+          category={category}
         />
         <AIChatComposer
           ref={inputRef}
