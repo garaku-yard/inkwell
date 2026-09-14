@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
-import { AIChatPanel } from "./AIChatPanel"
 import { ProjectShell } from "./shared/ProjectShell"
 import { EditorToolbar } from "./shared/EditorToolbar"
 import { EmptyEditorState } from "./shared/EmptyEditorState"
@@ -17,7 +16,7 @@ import { createComicKeymap, type ComicElementType as KeymapComicElementType } fr
 import { exportProjectToText } from "@/lib/export/text-export"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import { StableContentEditable } from "./shared/StableContentEditable"
-import { RemoteCarets } from "./shared/RemoteCarets"
+import { EditorWorkspace } from "./shared/EditorWorkspace"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { PresencePips } from "./shared/PresencePips"
 import { useScrollSpy } from "./shared/useScrollSpy"
@@ -470,10 +469,16 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
         />
       }
     >
-        <div
-          ref={writeSurfaceRef}
-          className="relative flex h-full overflow-hidden"
-          onFocus={(e) => {
+        <EditorWorkspace
+          surfaceRef={writeSurfaceRef}
+          subscribeCarets={subscribeCarets}
+          isAIChatOpen={isAIChatOpen}
+          onCloseAIChat={() => setIsAIChatOpen(false)}
+          category={projectData.category}
+          projectId={projectData.id}
+          currentUnitId={activePageId ?? pages[0]?.id}
+          onToolComplete={() => void refreshDocument().catch(() => {})}
+          onSurfaceFocus={(e) => {
             const id = (e.target as HTMLElement)?.id
             if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
           }}
@@ -495,16 +500,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
               />
             }
           />
-          <AIChatPanel
-            isOpen={isAIChatOpen}
-            onClose={() => setIsAIChatOpen(false)}
-            category={projectData.category}
-            projectId={projectData.id}
-            currentUnitId={activePageId ?? pages[0]?.id}
-            onToolComplete={() => void refreshDocument().catch(() => {})}
-          />
-          <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
-        </div>
+        </EditorWorkspace>
     </ProjectShell>
   )
 }

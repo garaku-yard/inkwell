@@ -8,10 +8,10 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
 import { useToast } from "@/hooks/use-toast"
-import { AIChatPanel } from "./AIChatPanel"
 import { ProjectShell } from "./shared/ProjectShell"
 import { PresencePips } from "./shared/PresencePips"
 import { EditorToolbar } from "./shared/EditorToolbar"
+import { EditorAssistant } from "./shared/EditorWorkspace"
 import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createIFKeymap } from "./if/keymap"
@@ -1053,7 +1053,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
           </div>
         )}
-        <AIChatPanel
+        <EditorAssistant
           isOpen={isAIChatOpen}
           onClose={() => setIsAIChatOpen(false)}
           category={projectData.category}

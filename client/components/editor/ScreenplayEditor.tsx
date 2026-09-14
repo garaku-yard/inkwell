@@ -6,7 +6,6 @@ import { ProjectShell } from "./shared/ProjectShell"
 import { EditorToolbar } from "./shared/EditorToolbar"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { PagedSheets, type SheetMetrics } from "./shared/PagedSheets"
-import { RemoteCarets } from "./shared/RemoteCarets"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { paginate } from "@/lib/editor/paginate"
 import { SidePanel } from "./SidePanel"
@@ -21,7 +20,7 @@ import {
 import { dispatchKey } from "@/lib/editor/keymap";
 import { createScreenplayKeymap } from "./screenplay/keymap";
 import { ELEMENT_ORDER, SCRIPT_ELEMENT_CONFIG, type ToolbarScriptElementType } from "@/lib/helpers/screenplay-config"
-import { AIChatPanel } from "./AIChatPanel"
+import { EditorWorkspace } from "./shared/EditorWorkspace"
 import { useScreenplayElements } from "./screenplay/useScreenplayElements"
 import { useEditorComments } from "./shared/useEditorComments"
 import { useElementAutosave } from "./shared/useElementAutosave"
@@ -526,8 +525,19 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       />
       }
     >
-      <div className="flex h-full overflow-hidden">
-        <div ref={writeSurfaceRef} className={cn("relative flex-1 flex flex-col overflow-hidden", isAIChatOpen && "border-r")}>
+      <EditorWorkspace
+        surfaceRef={writeSurfaceRef}
+        subscribeCarets={subscribeCarets}
+        isAIChatOpen={isAIChatOpen}
+        onCloseAIChat={() => setIsAIChatOpen(false)}
+        category={project.category}
+        projectId={project.id}
+        currentUnitId={activeScene?.id ?? allScenes[0]?.id}
+        currentElement={activeElementId || undefined}
+        onToolComplete={() => void refreshDocument().catch(() => {})}
+        separateSurface
+        surfaceClassName={cn(isAIChatOpen && "border-r")}
+      >
           <PagedSheets
             pages={pages}
             renderBlock={renderBlock}
@@ -540,18 +550,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
             isEmpty={flattenedScriptItems.length === 0}
             emptyState={<ScreenplayEmptyState onAddNewScene={handleAddNewScene} />}
           />
-          <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
-        </div>
-        <AIChatPanel
-          isOpen={isAIChatOpen}
-          onClose={() => setIsAIChatOpen(false)}
-          category={project.category}
-          projectId={project.id}
-          currentUnitId={activeScene?.id ?? allScenes[0]?.id}
-          currentElement={activeElementId || undefined}
-          onToolComplete={() => void refreshDocument().catch(() => {})}
-        />
-      </div>
+      </EditorWorkspace>
     </ProjectShell>
   )
 }
