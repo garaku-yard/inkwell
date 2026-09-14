@@ -5,6 +5,7 @@ mod mcp;
 mod open_file;
 mod scope;
 mod secrets;
+mod drive_oauth;
 
 /// Schema migrations applied to the local SQLite database on startup. Keep
 /// each migration immutable once shipped — edits to a previously released
@@ -132,6 +133,9 @@ pub fn run() {
       secrets::secret_set,
       secrets::secret_get,
       secrets::secret_delete,
+      drive_oauth::google_drive_status,
+      drive_oauth::google_drive_connect,
+      drive_oauth::google_drive_disconnect,
       open_file::consume_pending_open_file,
       scope::allow_fs_dir,
       mcp::mcp_reply,
