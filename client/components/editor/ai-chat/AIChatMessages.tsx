@@ -11,7 +11,7 @@ interface AIChatMessagesProps {
   messages: ChatMessage[]
   isTyping: boolean
   showEmptyState: boolean
-  onApprovalDecision: (messageId: string, checkpointId: string, decision: "approve" | "deny") => void
+  onApprovalDecision: (messageId: string, checkpointId: string, tool: string, args: Record<string, unknown>, decision: "approve" | "deny") => void
   category?: string
 }
 
@@ -121,8 +121,8 @@ function MessageBubble({ message, onApprovalDecision, category }: { message: Cha
               </p>
               {message.approval.status === "pending" ? (
                 <div className="flex gap-2">
-                  <button className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground" onClick={() => onApprovalDecision(message.id, message.approval!.checkpointId, "approve")}>Approve</button>
-                  <button className="rounded-md border px-3 py-1.5 text-xs" onClick={() => onApprovalDecision(message.id, message.approval!.checkpointId, "deny")}>Deny</button>
+                  <button className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground" onClick={() => onApprovalDecision(message.id, message.approval!.checkpointId, message.approval!.tool, message.approval!.arguments, "approve")}>Approve</button>
+                  <button className="rounded-md border px-3 py-1.5 text-xs" onClick={() => onApprovalDecision(message.id, message.approval!.checkpointId, message.approval!.tool, message.approval!.arguments, "deny")}>Deny</button>
                 </div>
               ) : (
                 <p className="text-xs font-medium capitalize">{message.approval.status === "approving" ? "Working…" : message.approval.status}</p>

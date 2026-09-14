@@ -123,7 +123,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId, c
           messages={messages}
           isTyping={isTyping}
           showEmptyState={showEmptyState}
-          onApprovalDecision={(messageId, checkpointId, decision) => void decideApproval(messageId, checkpointId, decision)}
+          onApprovalDecision={(messageId, checkpointId, tool, args, decision) => void decideApproval(messageId, checkpointId, tool, args, decision)}
           category={category}
         />
         <AIChatComposer

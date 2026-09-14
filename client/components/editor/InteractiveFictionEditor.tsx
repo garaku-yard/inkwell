@@ -37,6 +37,7 @@ import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
+  getFullProject,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
@@ -1088,12 +1089,11 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           category={projectData.category}
           projectId={projectData.id}
           currentScene={activePassageId ?? undefined}
-          onToolComplete={(tool, args) => {
-            if (tool !== "rename_scene") return
-            const passageId = typeof args.scene_id === "string" ? args.scene_id : activePassageId
-            const heading = typeof args.scene_heading === "string" ? args.scene_heading : typeof args.heading === "string" ? args.heading : ""
-            if (!passageId || !heading) return
-            setPassages((current) => current.map((passage) => passage.id === passageId ? { ...passage, scene_heading: heading } : passage))
+          onToolComplete={() => {
+            if (!user?.id) return
+            void getFullProject(projectData.id, user.id).then((fresh) => {
+              setPassages(fresh.scenes ?? [])
+            }).catch(() => {})
           }}
         />
         </div>

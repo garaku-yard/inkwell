@@ -46,7 +46,7 @@ interface UseAIChatStreamResult {
   /** Aborts the in-flight stream, leaving any partial response in
    *  place. No-op when nothing is streaming. */
   stop: () => void
-  decideApproval: (messageId: string, checkpointId: string, decision: "approve" | "deny") => Promise<void>
+  decideApproval: (messageId: string, checkpointId: string, tool: string, args: Record<string, unknown>, decision: "approve" | "deny") => Promise<void>
 }
 
 /** Owns the streaming chat dispatch — NDJSON parsing, AbortController
@@ -77,7 +77,7 @@ export function useAIChatStream({
     abortRef.current?.abort()
   }, [])
 
-  const decideApproval = useCallback(async (messageId: string, checkpointId: string, decision: "approve" | "deny") => {
+  const decideApproval = useCallback(async (messageId: string, checkpointId: string, tool: string, args: Record<string, unknown>, decision: "approve" | "deny") => {
     if (!projectId) return
     setMessages((current) => current.map((item) => item.id === messageId && item.approval
       ? { ...item, approval: { ...item.approval, status: "approving" } }
@@ -87,12 +87,13 @@ export function useAIChatStream({
       setMessages((current) => current.map((item) => item.id === messageId && item.approval
         ? { ...item, approval: { ...item.approval, status: decision === "approve" ? "approved" : "denied" } }
         : item))
+      if (decision === "approve") onToolComplete?.(tool, args)
     } catch (error) {
       setMessages((current) => current.map((item) => item.id === messageId && item.approval
         ? { ...item, content: friendlyChatError(error), error: true, approval: { ...item.approval, status: "pending" } }
         : item))
     }
-  }, [projectId, setMessages])
+  }, [projectId, setMessages, onToolComplete])
 
   const sendMessage = useCallback(
     async (content: string, history: ChatMessage[]) => {
