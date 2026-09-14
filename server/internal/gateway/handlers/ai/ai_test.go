@@ -2,14 +2,38 @@ package ai
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"inkwell/server/internal/gateway/application/scriptreads"
 	billingpb "inkwell/server/pkg/grpc/billing"
+	scriptspb "inkwell/server/pkg/grpc/scripts"
 )
+
+func TestSelectedResourceInstructionIncludesVisibleManuscript(t *testing.T) {
+	instruction := selectedResourceInstruction("passage", "passage-1", &scriptreads.SceneContent{
+		Scene: &scriptspb.Scene{SceneHeading: "Attractor:Zero"},
+		Elements: []*scriptspb.ProjectElement{
+			{Type: "body", Content: "You awaken aboard an abandoned station."},
+			{Type: "body", Content: "The station drifts above a distant blue Earth."},
+		},
+	})
+
+	for _, want := range []string{
+		`"heading":"Attractor:Zero"`,
+		`"type":"body"`,
+		`You awaken aboard an abandoned station.`,
+		`do not call a read tool`,
+	} {
+		if !strings.Contains(instruction, want) {
+			t.Fatalf("instruction missing %q: %s", want, instruction)
+		}
+	}
+}
 
 // fakeBilling stubs the billing client for the managed-AI quota check.
 type fakeBilling struct {
