@@ -77,6 +77,15 @@ type collabFixtureRepo struct {
 	grants    map[uuid.UUID]directGrant
 	writes    int
 	lastActor uuid.UUID
+	comments  map[uuid.UUID]*domain.Comment
+}
+
+func (r *collabFixtureRepo) GetCommentByID(_ context.Context, commentID uuid.UUID) (*domain.Comment, error) {
+	comment, ok := r.comments[commentID]
+	if !ok {
+		return nil, domain.ErrCommentNotFound
+	}
+	return comment, nil
 }
 
 func (r *collabFixtureRepo) GetUserProjectRole(_ context.Context, userID, gotProjectID uuid.UUID) (string, error) {
@@ -145,12 +154,15 @@ func newHarnessWithScriptsError(t *testing.T, scriptsErr error) *harness {
 			adminID: "admin", orgEditorID: "editor", orgViewerID: "viewer", mixedID: "viewer", mixedAdminID: "admin",
 		}})
 	})
+	commentID := uuid.MustParse("00000000-0000-0000-0000-000000000020")
 	repo := &collabFixtureRepo{grants: map[uuid.UUID]directGrant{
 		uuid.MustParse(directEditorID): {role: "editor", status: "active"},
 		uuid.MustParse(pendingID):      {role: "editor", status: "pending"},
 		uuid.MustParse(removedID):      {role: "editor", status: "removed"},
 		uuid.MustParse(mixedID):        {role: "editor", status: "active"},
 		uuid.MustParse(mixedAdminID):   {role: "viewer", status: "active"},
+	}, comments: map[uuid.UUID]*domain.Comment{
+		commentID: {ID: commentID, ProjectID: uuid.MustParse(projectID), UserID: uuid.MustParse(ownerID)},
 	}}
 	collabConn := dialService(t, func(s *grpc.Server) {
 		collabpb.RegisterCollaborationServiceServer(s, handlers.NewCollaborationHandler(service.NewCollaborationService(nil, repo, nil, nil)))
@@ -161,6 +173,43 @@ func newHarnessWithScriptsError(t *testing.T, scriptsErr error) *harness {
 		workspace:   workspacepb.NewWorkspaceServiceClient(workspaceConn),
 		collab:      collabpb.NewCollaborationServiceClient(collabConn),
 		repo:        repo,
+	}
+}
+
+func TestSubResourceAuthorizationUsesItsStoredProject(t *testing.T) {
+	h := newHarness(t)
+	resource, err := h.collab.GetResourceProject(context.Background(), &collabpb.GetResourceProjectRequest{
+		ResourceType: collabpb.ResourceType_RESOURCE_TYPE_COMMENT,
+		ResourceId:   "00000000-0000-0000-0000-000000000020",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resource.ProjectId != projectID {
+		t.Fatalf("resource project = %s, want %s", resource.ProjectId, projectID)
+	}
+	if _, err := gateway.RequireProjectRole(context.Background(), orgViewerID, resource.ProjectId, gateway.ActionCommentModerate, h.scripts, h.collab, h.workspace); err == nil {
+		t.Fatal("viewer was allowed to moderate a comment resolved from its stored project")
+	}
+	if _, err := gateway.RequireProjectRole(context.Background(), orgEditorID, resource.ProjectId, gateway.ActionCommentModerate, h.scripts, h.collab, h.workspace); err != nil {
+		t.Fatalf("editor denied moderation: %v", err)
+	}
+}
+
+func TestRealtimeViewerCanObservePresenceButCannotEmitEdits(t *testing.T) {
+	h := newHarness(t)
+	role, err := gateway.ResolveProjectRole(context.Background(), orgViewerID, projectID, h.scripts, h.collab, h.workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !gateway.Can(role, gateway.ActionRead) {
+		t.Fatal("viewer cannot join the realtime read/presence path")
+	}
+	if gateway.Can(role, gateway.ActionRealtimeEdit) {
+		t.Fatal("viewer can emit realtime edit frames")
+	}
+	if err := h.updatePresence(context.Background(), orgViewerID); err != nil {
+		t.Fatalf("viewer presence update: %v", err)
 	}
 }
 
