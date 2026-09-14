@@ -6,6 +6,16 @@ import (
 	"testing"
 )
 
+func TestRequestLoggerPreservesStreaming(t *testing.T) {
+	h := RequestLogger()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if _, ok := w.(http.Flusher); !ok {
+			t.Fatal("logging middleware hid http.Flusher")
+		}
+		w.(http.Flusher).Flush()
+	}))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/stream", nil))
+}
+
 // okHandler is a trivial next-handler that records whether it was reached.
 func okHandler(reached *bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -167,6 +167,13 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// Flush preserves streaming support through the logging wrapper.
+func (rw *responseWriter) Flush() {
+	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
 // Unwrap exposes the underlying ResponseWriter so http.ResponseController can
 // reach capabilities this wrapper doesn't implement directly — notably the
 // Hijacker a WebSocket upgrade needs. Without it, the logging wrapper would
