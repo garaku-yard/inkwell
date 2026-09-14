@@ -41,7 +41,7 @@ func hostedTools(projectID string, destructive bool) []aiadapter.Tool {
 	return out
 }
 
-func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.Flusher, adapter aiadapter.Adapter, input aiadapter.Input, stream aiadapter.Stream, userID, projectID, providerID string, managed bool) {
+func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.Flusher, adapter aiadapter.Adapter, input aiadapter.Input, stream aiadapter.Stream, userID, projectID, activeSceneID, providerID string, managed bool) {
 	encoder := json.NewEncoder(w)
 	totalTokens := 0
 	toolResults := map[string]string{}
@@ -88,6 +88,7 @@ func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.F
 		}
 		input.Messages = append(input.Messages, aiadapter.Message{Role: "assistant", Content: assistantText, ToolCalls: calls})
 		for _, call := range calls {
+			call = withActiveScene(call, activeSceneID)
 			if call.Name == "rewrite_scene" || call.Name == "delete_scene" {
 				if h.approvals == nil {
 					_ = encoder.Encode(map[string]string{"error": "destructive tools are unavailable"})
@@ -142,6 +143,29 @@ func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.F
 	}
 	_ = encoder.Encode(map[string]any{"done": true, "reason": "tool_iteration_limit"})
 	flusher.Flush()
+}
+
+func withActiveScene(call aiadapter.ToolCall, activeSceneID string) aiadapter.ToolCall {
+	if activeSceneID == "" {
+		return call
+	}
+	switch call.Name {
+	case "read_scene", "append_to_scene", "rename_scene", "rewrite_scene", "delete_scene":
+	default:
+		return call
+	}
+	var args map[string]any
+	if json.Unmarshal([]byte(call.Arguments), &args) != nil {
+		return call
+	}
+	if id, _ := args["scene_id"].(string); id == "" {
+		args["scene_id"] = activeSceneID
+	}
+	encoded, err := json.Marshal(args)
+	if err == nil {
+		call.Arguments = string(encoded)
+	}
+	return call
 }
 
 func (h *AIHandler) executeReadTool(ctx context.Context, userID, projectID string, call aiadapter.ToolCall) string {
@@ -204,6 +228,7 @@ func (h *AIHandler) executeHostedTool(ctx context.Context, userID, projectID str
 		OrgID         string `json:"org_id"`
 		SceneID       string `json:"scene_id"`
 		Heading       string `json:"scene_heading"`
+		HeadingAlias  string `json:"heading"`
 		Content       string `json:"content"`
 		OutlineUnitID string `json:"outline_unit_id"`
 		OrderIndex    int32  `json:"order_index"`
@@ -238,6 +263,12 @@ func (h *AIHandler) executeHostedTool(ctx context.Context, userID, projectID str
 			value, err = h.writes.AddBeat(ctx, userID, projectID, scriptwrites.AddBeatInput{Title: args.Title, Description: args.Description, Color: args.Color, ActNumber: args.ActNumber, Order: args.Order})
 		}
 	case "rename_scene":
+		if args.Heading == "" {
+			args.Heading = args.HeadingAlias
+		}
+		if args.Heading == "" {
+			args.Heading = args.Title
+		}
 		if projectID == "" || args.SceneID == "" {
 			err = errors.New("projectId and scene_id are required")
 		} else {

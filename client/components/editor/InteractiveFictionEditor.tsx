@@ -1082,7 +1082,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             <RemoteCarets containerRef={writeSurfaceRef} subscribeCarets={subscribeCarets} />
           </div>
         )}
-        <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} />
+        <AIChatPanel isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} category={projectData.category} projectId={projectData.id} currentScene={activePassageId ?? undefined} />
         </div>
     </ProjectShell>
       {autocomplete && (

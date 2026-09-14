@@ -23,6 +23,10 @@ export interface AIChatRequest {
    *  into the prompt and offers the `read_note` tool. Ignored on the web
    *  build (no local vault). */
   projectId?: string
+  /** Currently selected scene/container. Interactive-fiction editors store a
+   * passage as a scene, so this also identifies the visible passage. */
+  activeSceneId?: string
+  category?: string
 }
 
 export const streamChatCompletion = (

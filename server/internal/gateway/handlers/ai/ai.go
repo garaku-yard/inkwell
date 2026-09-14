@@ -85,11 +85,13 @@ func (h *AIHandler) ManagedProviders(w http.ResponseWriter, r *http.Request) {
 // ChatRequest carries the conversation history and the BYO provider
 // row id the chat should dispatch through.
 type ChatRequest struct {
-	Messages   []ChatMessage `json:"messages"`
-	ProviderID string        `json:"providerId"`
-	Model      string        `json:"model,omitempty"`
-	Stream     bool          `json:"stream,omitempty"`
-	ProjectID  string        `json:"projectId,omitempty"`
+	Messages      []ChatMessage `json:"messages"`
+	ProviderID    string        `json:"providerId"`
+	Model         string        `json:"model,omitempty"`
+	Stream        bool          `json:"stream,omitempty"`
+	ProjectID     string        `json:"projectId,omitempty"`
+	ActiveSceneID string        `json:"activeSceneId,omitempty"`
+	Category      string        `json:"category,omitempty"`
 }
 
 // ChatMessage is one turn in a chat. Roles are "system" | "user" | "assistant".
@@ -199,6 +201,13 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	for i, m := range req.Messages {
 		messages[i] = aiadapter.Message{Role: m.Role, Content: m.Content}
 	}
+	if req.ProjectID != "" && req.ActiveSceneID != "" {
+		resource := "scene"
+		if req.Category == "interactive_fiction" {
+			resource = "passage (represented as a scene by the tools)"
+		}
+		messages = append([]aiadapter.Message{{Role: "system", Content: fmt.Sprintf("The user is editing %s id %s. When their request refers to this, the current, selected, or visible %s, use that id; do not ask them for an id or URL.", resource, req.ActiveSceneID, resource)}}, messages...)
+	}
 	input := aiadapter.Input{Messages: messages, Model: model, APIKey: apiKey, BaseURL: baseURL, Tools: hostedTools(req.ProjectID, h.approvals != nil)}
 	firstStream, err := adapter.StreamChat(r.Context(), input)
 	if err != nil {
@@ -219,7 +228,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.WriteHeader(http.StatusOK)
 
-	h.runToolLoop(r.Context(), w, flusher, adapter, input, firstStream, userID, req.ProjectID, req.ProviderID, managed)
+	h.runToolLoop(r.Context(), w, flusher, adapter, input, firstStream, userID, req.ProjectID, req.ActiveSceneID, req.ProviderID, managed)
 }
 
 // overManagedQuota reports whether the user has exhausted their tier's monthly

@@ -32,6 +32,8 @@ interface UseAIChatStreamOptions {
    *  storage layer can retrieve vault-as-knowledge context for the prompt
    *  and run the `read_note` tool. Undefined on surfaces without a project. */
   projectId?: string
+  activeSceneId?: string
+  category?: string
 }
 
 interface UseAIChatStreamResult {
@@ -56,6 +58,8 @@ export function useAIChatStream({
   setIsTyping,
   isTyping,
   projectId,
+  activeSceneId,
+  category,
 }: UseAIChatStreamOptions): UseAIChatStreamResult {
   const abortRef = useRef<AbortController | null>(null)
 
@@ -122,6 +126,8 @@ export function useAIChatStream({
           model: selectedProvider.defaultModel,
           stream: true,
           projectId,
+          activeSceneId,
+          category,
         }
 
         const stream = await streamChatCompletion(request, { signal: controller.signal })
@@ -261,7 +267,7 @@ export function useAIChatStream({
         abortRef.current = null
       }
     },
-    [selectedProvider, setMessages, setIsTyping, isTyping, projectId],
+    [selectedProvider, setMessages, setIsTyping, isTyping, projectId, activeSceneId, category],
   )
 
   return { sendMessage, stop, decideApproval }

@@ -31,7 +31,7 @@ interface AIChatPanelProps {
   currentElement?: string
 }
 
-export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }: AIChatPanelProps) => {
+export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId, currentScene }: AIChatPanelProps) => {
   const welcome = WELCOME[category ?? ""] ?? "Ask me anything about your writing."
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -74,6 +74,8 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
     setIsTyping,
     isTyping,
     projectId,
+    activeSceneId: currentScene,
+    category,
   })
 
   useEffect(() => {

@@ -51,7 +51,7 @@ func TestToolLoopReturnsUnknownToolResultToProvider(t *testing.T) {
 	first := &loopStream{chunks: []aiadapter.Chunk{{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "c1", Name: "delete_project", Arguments: "{}"}}}}}
 	a := &loopAdapter{streams: []aiadapter.Stream{&loopStream{chunks: []aiadapter.Chunk{{Delta: "safe", Done: true}}}}}
 	w := httptest.NewRecorder()
-	(&AIHandler{}).runToolLoop(context.Background(), w, w, a, aiadapter.Input{}, first, "u1", "p1", "provider", false)
+	(&AIHandler{}).runToolLoop(context.Background(), w, w, a, aiadapter.Input{}, first, "u1", "p1", "", "provider", false)
 	if len(a.inputs) != 1 || len(a.inputs[0].Messages) != 2 || !strings.Contains(a.inputs[0].Messages[1].Content, "unknown tool") {
 		t.Fatalf("tool result not returned: %#v", a.inputs)
 	}
@@ -64,7 +64,7 @@ func TestToolLoopStopsAfterFourToolIterations(t *testing.T) {
 	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "c", Name: "unknown", Arguments: "{}"}}}
 	a := &loopAdapter{streams: []aiadapter.Stream{&loopStream{chunks: []aiadapter.Chunk{call}}, &loopStream{chunks: []aiadapter.Chunk{call}}, &loopStream{chunks: []aiadapter.Chunk{call}}}}
 	w := httptest.NewRecorder()
-	(&AIHandler{}).runToolLoop(context.Background(), w, w, a, aiadapter.Input{}, &loopStream{chunks: []aiadapter.Chunk{call}}, "u", "", "provider", false)
+	(&AIHandler{}).runToolLoop(context.Background(), w, w, a, aiadapter.Input{}, &loopStream{chunks: []aiadapter.Chunk{call}}, "u", "", "", "provider", false)
 	if len(a.inputs) != 3 || !strings.Contains(w.Body.String(), "tool_iteration_limit") {
 		t.Fatalf("calls=%d output=%s", len(a.inputs), w.Body.String())
 	}
@@ -80,7 +80,7 @@ func TestToolLoopReportsCancellationAndProviderFailure(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			(&AIHandler{}).runToolLoop(context.Background(), w, w, &loopAdapter{}, aiadapter.Input{}, tc.stream, "u", "", "provider", false)
+			(&AIHandler{}).runToolLoop(context.Background(), w, w, &loopAdapter{}, aiadapter.Input{}, tc.stream, "u", "", "", "provider", false)
 			if !strings.Contains(w.Body.String(), `"error"`) {
 				t.Fatalf("unexpected output: %s", w.Body.String())
 			}
@@ -115,9 +115,24 @@ func TestToolLoopDeduplicatesRedeliveredMutation(t *testing.T) {
 		return `{"scene":{"id":"s1"}}`
 	}}
 	w := httptest.NewRecorder()
-	h.runToolLoop(context.Background(), w, w, a, aiadapter.Input{}, &loopStream{chunks: []aiadapter.Chunk{call}}, "u", "p", "provider", false)
+	h.runToolLoop(context.Background(), w, w, a, aiadapter.Input{}, &loopStream{chunks: []aiadapter.Chunk{call}}, "u", "p", "", "provider", false)
 	if mutations != 1 {
 		t.Fatalf("redelivery made %d mutations", mutations)
+	}
+}
+
+func TestToolLoopUsesActiveSceneWhenModelOmitsSceneID(t *testing.T) {
+	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "rename", Name: "rename_scene", Arguments: `{"scene_heading":"Attractor:Zero"}`}}}
+	a := &loopAdapter{streams: []aiadapter.Stream{&loopStream{chunks: []aiadapter.Chunk{{Delta: "done", Done: true}}}}}
+	var executed aiadapter.ToolCall
+	h := &AIHandler{executeTool: func(_ context.Context, _, _ string, got aiadapter.ToolCall) string {
+		executed = got
+		return `{"renamed":true}`
+	}}
+	w := httptest.NewRecorder()
+	h.runToolLoop(context.Background(), w, w, a, aiadapter.Input{}, &loopStream{chunks: []aiadapter.Chunk{call}}, "u", "p", "passage-1", "provider", false)
+	if !strings.Contains(executed.Arguments, `"scene_id":"passage-1"`) {
+		t.Fatalf("active passage was not supplied: %s", executed.Arguments)
 	}
 }
 
@@ -125,7 +140,7 @@ func TestDestructiveToolEmitsApprovalAndEndsTurn(t *testing.T) {
 	store := &memoryApprovals{values: map[string]approval.Checkpoint{}}
 	call := aiadapter.Chunk{Done: true, ToolCalls: []aiadapter.ToolCall{{ID: "call1", Name: "delete_scene", Arguments: `{ "scene_id": "s1" }`}}}
 	w := httptest.NewRecorder()
-	(&AIHandler{approvals: store}).runToolLoop(context.Background(), w, w, &loopAdapter{}, aiadapter.Input{Model: "m"}, &loopStream{chunks: []aiadapter.Chunk{call}}, "u", "p", "provider", false)
+	(&AIHandler{approvals: store}).runToolLoop(context.Background(), w, w, &loopAdapter{}, aiadapter.Input{Model: "m"}, &loopStream{chunks: []aiadapter.Chunk{call}}, "u", "p", "", "provider", false)
 	if !strings.Contains(w.Body.String(), "approval_required") || !strings.Contains(w.Body.String(), `"done":true`) {
 		t.Fatalf("output=%s", w.Body.String())
 	}
