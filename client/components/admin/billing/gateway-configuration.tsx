@@ -19,6 +19,9 @@ export function GatewayConfiguration() {
   const [, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const { toast } = useToast()
+  const webhookUrl = selectedGateway?.provider === "paddle"
+    ? `${(process.env.NEXT_PUBLIC_API_URL || "https://inkwell.garakuyard.com").replace(/\/$/, "")}/api/v1/billing/webhooks/paddle`
+    : `https://yourdomain.com/api/webhooks/${selectedGateway?.provider ?? "provider"}`
 
   // Form fields
   const [publicKey, setPublicKey] = useState("")
@@ -235,7 +238,7 @@ export function GatewayConfiguration() {
                   type="password"
                   value={webhookSecret}
                   onChange={(e) => setWebhookSecret(e.target.value)}
-                  placeholder="whsec_..."
+                  placeholder={selectedGateway.provider === "paddle" ? "pdl_ntfset_..." : "whsec_..."}
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Used to verify webhook signatures from {selectedGateway.name}
@@ -295,11 +298,16 @@ export function GatewayConfiguration() {
                 <div className="rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900 p-4">
                   <h4 className="font-medium text-sm mb-2">Webhook URL</h4>
                   <code className="text-xs bg-white dark:bg-gray-900 px-3 py-2 rounded block">
-                    https://yourdomain.com/api/webhooks/{selectedGateway.provider}
+                    {webhookUrl}
                   </code>
                   <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
                     Add this URL to your {selectedGateway.name} dashboard webhook settings
                   </p>
+                  {selectedGateway.provider === "paddle" && (
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                      The live billing service reads Paddle credentials from its environment. See the Paddle go-live runbook.
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>

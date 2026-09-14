@@ -3,7 +3,9 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"inkwell/server/pkg/env"
@@ -48,7 +50,27 @@ type PaddleConfig struct {
 
 // Configured reports whether Paddle credentials are present. When false the
 // billing service refuses checkout and ignores webhooks.
-func (p PaddleConfig) Configured() bool { return p.APIKey != "" }
+func (p PaddleConfig) Configured() bool {
+	return p.APIKey != "" && p.WebhookSecret != "" && len(p.PriceMap) > 0
+}
+
+func (p PaddleConfig) validate() error {
+	if p.APIKey == "" && p.WebhookSecret == "" && len(p.PriceMap) == 0 {
+		return nil
+	}
+	if p.APIKey == "" || p.WebhookSecret == "" || len(p.PriceMap) == 0 {
+		return fmt.Errorf("Paddle configuration is incomplete: PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET, and PADDLE_PRICE_MAP must be set together")
+	}
+	if p.Environment != "sandbox" && p.Environment != "production" {
+		return fmt.Errorf("PADDLE_ENVIRONMENT must be sandbox or production")
+	}
+	for key, priceID := range p.PriceMap {
+		if strings.TrimSpace(key) == "" || !strings.HasPrefix(priceID, "pri_") {
+			return fmt.Errorf("PADDLE_PRICE_MAP entry %q must contain a Paddle price id beginning with pri_", key)
+		}
+	}
+	return nil
+}
 
 // DatabaseConfig holds database connection settings for the billing DB.
 type DatabaseConfig struct {
@@ -81,10 +103,12 @@ func Load() (*Config, error) {
 
 	priceMap := map[string]string{}
 	if raw := env.String("PADDLE_PRICE_MAP", ""); raw != "" {
-		_ = json.Unmarshal([]byte(raw), &priceMap)
+		if err := json.Unmarshal([]byte(raw), &priceMap); err != nil {
+			return nil, fmt.Errorf("parse PADDLE_PRICE_MAP: %w", err)
+		}
 	}
 
-	return &Config{
+	cfg := &Config{
 		GRPCPort:    env.String("BILLING_GRPC_PORT", "50054"),
 		KafkaConfig: KafkaConfig{Brokers: brokers},
 		PaddleConfig: PaddleConfig{
@@ -109,5 +133,9 @@ func Load() (*Config, error) {
 			MaxIdleConns:    maxIdle,
 			ConnMaxLifetime: lifetime,
 		},
-	}, nil
+	}
+	if err := cfg.PaddleConfig.validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }

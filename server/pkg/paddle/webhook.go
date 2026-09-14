@@ -83,6 +83,7 @@ type Subscription struct {
 	Quantity           int        // first item's quantity (seats); 1 when absent
 	UserID             string     // from custom_data.user_id
 	TierID             string     // from custom_data.tier_id
+	BillingCycle       string     // from custom_data.billing_cycle
 	CurrentPeriodStart time.Time  // current_billing_period.starts_at
 	CurrentPeriodEnd   time.Time  // current_billing_period.ends_at
 	CanceledAt         *time.Time // canceled_at, when set
@@ -120,8 +121,9 @@ func ParseEvent(rawBody []byte) (*Event, error) {
 			EndsAt   time.Time `json:"ends_at"`
 		} `json:"current_billing_period"`
 		CustomData struct {
-			UserID string `json:"user_id"`
-			TierID string `json:"tier_id"`
+			UserID       string `json:"user_id"`
+			TierID       string `json:"tier_id"`
+			BillingCycle string `json:"billing_cycle"`
 		} `json:"custom_data"`
 		CanceledAt *time.Time `json:"canceled_at"`
 	}
@@ -135,6 +137,7 @@ func ParseEvent(rawBody []byte) (*Event, error) {
 		CustomerID:         d.CustomerID,
 		UserID:             d.CustomData.UserID,
 		TierID:             d.CustomData.TierID,
+		BillingCycle:       d.CustomData.BillingCycle,
 		CurrentPeriodStart: d.CurrentBillingPeriod.StartsAt,
 		CurrentPeriodEnd:   d.CurrentBillingPeriod.EndsAt,
 		CanceledAt:         d.CanceledAt,

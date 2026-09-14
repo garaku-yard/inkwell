@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Refund Policy — Inkwell" }
 
 export default function RefundPage() {
   return (
-    <LegalPage title="Refund Policy" updated="19 June 2026">
+    <LegalPage title="Refund Policy" updated="14 September 2026">
       <p>
         This policy applies to paid subscriptions to the Inkwell hosted service.
         Payments are handled by our Merchant of Record,{" "}

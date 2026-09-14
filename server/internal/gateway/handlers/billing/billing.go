@@ -240,10 +240,11 @@ func (h *BillingHandler) GetPublicTiers(w http.ResponseWriter, r *http.Request) 
 }
 
 // checkoutBody is the request shape for CreateCheckout. seats applies to per-seat
-// tiers (Business); flat tiers ignore it.
+// tiers (Business); flat tiers ignore it. billingCycle defaults to monthly.
 type checkoutBody struct {
-	TierID string `json:"tierId"`
-	Seats  int32  `json:"seats"`
+	TierID       string `json:"tierId"`
+	Seats        int32  `json:"seats"`
+	BillingCycle string `json:"billingCycle"`
 }
 
 // checkoutResponse carries the hosted checkout link the client redirects to.
@@ -264,12 +265,16 @@ func (h *BillingHandler) CreateCheckout(w http.ResponseWriter, r *http.Request) 
 			if req.TierID == "" {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "tierId is required")
 			}
+			if req.BillingCycle != "" && req.BillingCycle != "monthly" && req.BillingCycle != "yearly" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "billingCycle must be monthly or yearly")
+			}
 			ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 			defer cancel()
 			resp, err := h.client.CreateCheckout(ctx, &billingpb.CreateCheckoutRequest{
-				UserId:   userID,
-				TierId:   req.TierID,
-				Quantity: req.Seats,
+				UserId:       userID,
+				TierId:       req.TierID,
+				Quantity:     req.Seats,
+				BillingCycle: req.BillingCycle,
 			})
 			if err != nil {
 				return nil, err

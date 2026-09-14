@@ -284,6 +284,7 @@ message CreateCheckoutRequest {
   string user_id = 1;
   string tier_id = 2;
   int32 quantity = 3; // seats for per-seat tiers; 0/1 ⇒ single seat
+  string billing_cycle = 4; // "monthly" or "yearly"
 }
 message CreateCheckoutResponse {
   string checkout_url = 1;

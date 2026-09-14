@@ -67,7 +67,7 @@ func TestParseEventSubscription(t *testing.T) {
 			"customer_id": "ctm_xyz",
 			"items": [{"price": {"id": "pri_pro"}}],
 			"current_billing_period": {"starts_at": "2026-01-01T00:00:00Z", "ends_at": "2026-02-01T00:00:00Z"},
-			"custom_data": {"user_id": "user-1", "tier_id": "tier-pro"}
+			"custom_data": {"user_id": "user-1", "tier_id": "tier-pro", "billing_cycle": "yearly"}
 		}
 	}`)
 	evt, err := ParseEvent(body)
@@ -86,6 +86,9 @@ func TestParseEventSubscription(t *testing.T) {
 	}
 	if s.UserID != "user-1" || s.TierID != "tier-pro" {
 		t.Errorf("custom_data not mapped: user=%q tier=%q", s.UserID, s.TierID)
+	}
+	if s.BillingCycle != "yearly" {
+		t.Errorf("billing cycle = %q, want yearly", s.BillingCycle)
 	}
 	if s.CurrentPeriodEnd.IsZero() {
 		t.Error("period end not parsed")

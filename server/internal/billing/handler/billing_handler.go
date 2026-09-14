@@ -177,7 +177,7 @@ func (h *BillingHandler) CreateCheckout(ctx context.Context, req *billingpb.Crea
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid tier_id")
 	}
-	url, err := h.svc.CreateCheckout(ctx, userID, tierID, int(req.Quantity))
+	url, err := h.svc.CreateCheckout(ctx, userID, tierID, int(req.Quantity), req.BillingCycle)
 	if err != nil {
 		return nil, handleError(err)
 	}

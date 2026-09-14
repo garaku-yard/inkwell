@@ -6,10 +6,10 @@ export const metadata: Metadata = { title: "Terms of Service — Inkwell" }
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms of Service" updated="19 June 2026">
+    <LegalPage title="Terms of Service" updated="14 September 2026">
       <p>
         Inkwell (&quot;Inkwell&quot;, &quot;we&quot;, &quot;us&quot;) is a
-        writing platform offered both as free, open-source software you run
+        writing platform offered both as free, source-available software you run
         yourself and as an optional paid hosted service. By using Inkwell or
         subscribing to a paid plan you agree to these terms.
       </p>
@@ -45,7 +45,7 @@ export default function TermsPage() {
       <h2>Subscriptions and billing</h2>
       <p>
         The hosted service offers a free tier and paid plans (currently Pro,
-        billed per user, and Business, billed per seat). Paid plans unlock cloud
+        billed per account, and Business, billed per seat). Paid plans unlock cloud
         sync, real-time collaboration, and business workspaces.
       </p>
       <p>
@@ -83,7 +83,7 @@ export default function TermsPage() {
 
       <h2>Third-party AI providers</h2>
       <p>
-        Inkwell uses a bring-your-own-key model for AI features. When you send a
+        Inkwell offers managed AI and a bring-your-own-key option. When you send a
         message to a provider (OpenAI, Anthropic, Gemini, or a self-hosted
         endpoint), that request and its content are handled under{" "}
         <strong>that provider&apos;s</strong> terms, not Inkwell&apos;s. You are

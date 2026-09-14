@@ -82,7 +82,7 @@ func TestCreateCheckout(t *testing.T) {
 
 	t.Run("not configured", func(t *testing.T) {
 		s := newSvc(&fakeRepo{tier: proTier}, PaymentConfig{}) // Checkout nil
-		if _, err := s.CreateCheckout(context.Background(), userID, tierID, 1); !errors.Is(err, domain.ErrGatewayNotConfigured) {
+		if _, err := s.CreateCheckout(context.Background(), userID, tierID, 1, "monthly"); !errors.Is(err, domain.ErrGatewayNotConfigured) {
 			t.Fatalf("err = %v, want ErrGatewayNotConfigured", err)
 		}
 	})
@@ -92,7 +92,7 @@ func TestCreateCheckout(t *testing.T) {
 			Checkout: &fakeCheckout{},
 			PriceMap: map[string]string{"business": "pri_biz"}, // no "pro"
 		})
-		if _, err := s.CreateCheckout(context.Background(), userID, tierID, 1); !errors.Is(err, domain.ErrPriceNotConfigured) {
+		if _, err := s.CreateCheckout(context.Background(), userID, tierID, 1, "monthly"); !errors.Is(err, domain.ErrPriceNotConfigured) {
 			t.Fatalf("err = %v, want ErrPriceNotConfigured", err)
 		}
 	})
@@ -103,7 +103,7 @@ func TestCreateCheckout(t *testing.T) {
 			Checkout: fc,
 			PriceMap: map[string]string{"pro": "pri_pro"},
 		})
-		if _, err := s.CreateCheckout(context.Background(), userID, tierID, 5); err != nil {
+		if _, err := s.CreateCheckout(context.Background(), userID, tierID, 5, "monthly"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if fc.gotPrice != "pri_pro" {
@@ -115,6 +115,9 @@ func TestCreateCheckout(t *testing.T) {
 		if fc.gotData["user_id"] != userID.String() || fc.gotData["tier_id"] != tierID.String() {
 			t.Errorf("custom data not stamped: %+v", fc.gotData)
 		}
+		if fc.gotData["billing_cycle"] != "monthly" {
+			t.Errorf("billing cycle not stamped: %+v", fc.gotData)
+		}
 	})
 
 	t.Run("per-seat tier honours seat quantity", func(t *testing.T) {
@@ -123,11 +126,32 @@ func TestCreateCheckout(t *testing.T) {
 			Checkout: fc,
 			PriceMap: map[string]string{"business": "pri_biz"},
 		})
-		if _, err := s.CreateCheckout(context.Background(), userID, tierID, 5); err != nil {
+		if _, err := s.CreateCheckout(context.Background(), userID, tierID, 5, "monthly"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if fc.gotQty != 5 {
 			t.Errorf("per-seat quantity = %d, want 5", fc.gotQty)
+		}
+	})
+
+	t.Run("yearly cycle selects yearly price", func(t *testing.T) {
+		fc := &fakeCheckout{url: "https://pay.paddle.com/annual"}
+		s := newSvc(&fakeRepo{tier: proTier}, PaymentConfig{
+			Checkout: fc,
+			PriceMap: map[string]string{"pro:monthly": "pri_month", "pro:yearly": "pri_year"},
+		})
+		if _, err := s.CreateCheckout(context.Background(), userID, tierID, 1, "yearly"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if fc.gotPrice != "pri_year" || fc.gotData["billing_cycle"] != "yearly" {
+			t.Errorf("yearly checkout = price %q data %+v", fc.gotPrice, fc.gotData)
+		}
+	})
+
+	t.Run("invalid cycle rejected", func(t *testing.T) {
+		s := newSvc(&fakeRepo{tier: proTier}, PaymentConfig{Checkout: &fakeCheckout{}})
+		if _, err := s.CreateCheckout(context.Background(), userID, tierID, 1, "weekly"); !errors.Is(err, domain.ErrInvalidBillingCycle) {
+			t.Fatalf("err = %v, want ErrInvalidBillingCycle", err)
 		}
 	})
 }

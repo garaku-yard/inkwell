@@ -2887,7 +2887,8 @@ type CreateCheckoutRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	TierId        string                 `protobuf:"bytes,2,opt,name=tier_id,json=tierId,proto3" json:"tier_id,omitempty"`
-	Quantity      int32                  `protobuf:"varint,3,opt,name=quantity,proto3" json:"quantity,omitempty"` // seats for per-seat tiers; 0/1 ⇒ single seat
+	Quantity      int32                  `protobuf:"varint,3,opt,name=quantity,proto3" json:"quantity,omitempty"`                            // seats for per-seat tiers; 0/1 ⇒ single seat
+	BillingCycle  string                 `protobuf:"bytes,4,opt,name=billing_cycle,json=billingCycle,proto3" json:"billing_cycle,omitempty"` // "monthly" or "yearly"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2941,6 +2942,13 @@ func (x *CreateCheckoutRequest) GetQuantity() int32 {
 		return x.Quantity
 	}
 	return 0
+}
+
+func (x *CreateCheckoutRequest) GetBillingCycle() string {
+	if x != nil {
+		return x.BillingCycle
+	}
+	return ""
 }
 
 type CreateCheckoutResponse struct {
@@ -3929,11 +3937,12 @@ const file_billing_billing_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"K\n" +
 	"\x15GetBatchUsageResponse\x122\n" +
-	"\aentries\x18\x01 \x03(\v2\x18.billing.BatchUsageEntryR\aentries\"e\n" +
+	"\aentries\x18\x01 \x03(\v2\x18.billing.BatchUsageEntryR\aentries\"\x8a\x01\n" +
 	"\x15CreateCheckoutRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x17\n" +
 	"\atier_id\x18\x02 \x01(\tR\x06tierId\x12\x1a\n" +
-	"\bquantity\x18\x03 \x01(\x05R\bquantity\";\n" +
+	"\bquantity\x18\x03 \x01(\x05R\bquantity\x12#\n" +
+	"\rbilling_cycle\x18\x04 \x01(\tR\fbillingCycle\";\n" +
 	"\x16CreateCheckoutResponse\x12!\n" +
 	"\fcheckout_url\x18\x01 \x01(\tR\vcheckoutUrl\"A\n" +
 	"\x10SyncSeatsRequest\x12\x17\n" +

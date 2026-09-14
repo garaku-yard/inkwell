@@ -59,11 +59,11 @@ type BillingService interface {
 
 	// ListGateways returns all configured payment gateways.
 	ListGateways(ctx context.Context) ([]*domain.PaymentGateway, error)
-	// CreateCheckout creates a hosted checkout for a tier and seat quantity and
+	// CreateCheckout creates a hosted checkout for a tier, billing cycle, and seat quantity and
 	// returns its URL. quantity is the number of seats for per-seat tiers (1 for
 	// flat tiers). Returns ErrGatewayNotConfigured when no payment gateway is set
 	// up, or ErrPriceNotConfigured when the tier has no mapped gateway price.
-	CreateCheckout(ctx context.Context, userID, tierID uuid.UUID, quantity int) (string, error)
+	CreateCheckout(ctx context.Context, userID, tierID uuid.UUID, quantity int, billingCycle string) (string, error)
 	// ProcessWebhook verifies a payment-gateway (Paddle) webhook and applies its
 	// subscription event to user_subscriptions. Returns ErrGatewayNotConfigured
 	// when the gateway is disabled, or a signature error on a bad payload.
@@ -241,10 +241,10 @@ func (s *billingService) ListGateways(ctx context.Context) ([]*domain.PaymentGat
 	return s.repo.ListGateways(ctx)
 }
 
-// CreateCheckout resolves the tier's gateway price and asks the payment gateway
+// CreateCheckout resolves the tier and cycle's gateway price and asks the payment gateway
 // for a hosted checkout link, stamping the user and tier into custom data so the
 // resulting subscription webhook can be attributed back to them.
-func (s *billingService) CreateCheckout(ctx context.Context, userID, tierID uuid.UUID, quantity int) (string, error) {
+func (s *billingService) CreateCheckout(ctx context.Context, userID, tierID uuid.UUID, quantity int, billingCycle string) (string, error) {
 	if s.payment.Checkout == nil {
 		return "", domain.ErrGatewayNotConfigured
 	}
@@ -252,7 +252,16 @@ func (s *billingService) CreateCheckout(ctx context.Context, userID, tierID uuid
 	if err != nil {
 		return "", err
 	}
-	priceID := s.payment.PriceMap[tier.Slug]
+	if billingCycle == "" {
+		billingCycle = "monthly"
+	}
+	if billingCycle != "monthly" && billingCycle != "yearly" {
+		return "", domain.ErrInvalidBillingCycle
+	}
+	priceID := s.payment.PriceMap[tier.Slug+":"+billingCycle]
+	if priceID == "" && billingCycle == "monthly" {
+		priceID = s.payment.PriceMap[tier.Slug] // legacy monthly-only map
+	}
 	if priceID == "" {
 		return "", domain.ErrPriceNotConfigured
 	}
@@ -261,8 +270,9 @@ func (s *billingService) CreateCheckout(ctx context.Context, userID, tierID uuid
 		quantity = 1
 	}
 	return s.payment.Checkout.CreateCheckout(ctx, priceID, quantity, map[string]string{
-		"user_id": userID.String(),
-		"tier_id": tierID.String(),
+		"user_id":       userID.String(),
+		"tier_id":       tierID.String(),
+		"billing_cycle": billingCycle,
 	})
 }
 
@@ -315,6 +325,7 @@ func (s *billingService) applySubscriptionEvent(ctx context.Context, sub *paddle
 		existing.CurrentPeriodStart = sub.CurrentPeriodStart
 		existing.CurrentPeriodEnd = sub.CurrentPeriodEnd
 		existing.CanceledAt = sub.CanceledAt
+		existing.BillingCycle = normalizeBillingCycle(sub.BillingCycle)
 		existing.CancelAtPeriodEnd = sub.CanceledAt != nil
 		return s.UpdateSubscription(ctx, existing)
 	}
@@ -326,7 +337,7 @@ func (s *billingService) applySubscriptionEvent(ctx context.Context, sub *paddle
 		ExternalSubscriptionID: sub.ID,
 		ExternalCustomerID:     sub.CustomerID,
 		Status:                 status,
-		BillingCycle:           "monthly",
+		BillingCycle:           normalizeBillingCycle(sub.BillingCycle),
 		Quantity:               sub.Quantity,
 		CurrentPeriodStart:     sub.CurrentPeriodStart,
 		CurrentPeriodEnd:       sub.CurrentPeriodEnd,
@@ -365,7 +376,11 @@ func (s *billingService) SyncSeats(ctx context.Context, userID uuid.UUID, seats 
 		if err != nil {
 			return err
 		}
-		if priceID := s.payment.PriceMap[tier.Slug]; priceID != "" {
+		priceID := s.payment.PriceMap[tier.Slug+":"+normalizeBillingCycle(sub.BillingCycle)]
+		if priceID == "" && normalizeBillingCycle(sub.BillingCycle) == "monthly" {
+			priceID = s.payment.PriceMap[tier.Slug]
+		}
+		if priceID != "" {
 			if err := s.payment.Updater.UpdateSubscriptionQuantity(ctx, sub.ExternalSubscriptionID, priceID, seats); err != nil {
 				return err // gateway rejected — keep local unchanged
 			}
@@ -374,6 +389,13 @@ func (s *billingService) SyncSeats(ctx context.Context, userID uuid.UUID, seats 
 
 	sub.Quantity = seats
 	return s.UpdateSubscription(ctx, sub)
+}
+
+func normalizeBillingCycle(cycle string) string {
+	if cycle == "yearly" {
+		return "yearly"
+	}
+	return "monthly"
 }
 
 // mapPaddleStatus maps a Paddle subscription status to the user_subscriptions

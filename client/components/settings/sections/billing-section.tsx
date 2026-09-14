@@ -69,6 +69,7 @@ export function BillingSection() {
   const [loading, setLoading] = useState(true)
   const [upgradingId, setUpgradingId] = useState<string | null>(null)
   const [seats, setSeats] = useState<Record<string, number>>({})
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly")
   const { toast } = useToast()
 
   // Start a hosted checkout and redirect to it. While the payment gateway is
@@ -78,7 +79,7 @@ export function BillingSection() {
     setUpgradingId(tier.id)
     try {
       const seatCount = tier.perSeat ? Math.max(1, seats[tier.id] ?? 1) : undefined
-      const { checkoutUrl } = await createCheckout(tier.id, seatCount)
+      const { checkoutUrl } = await createCheckout(tier.id, seatCount, billingCycle)
       window.location.assign(checkoutUrl) // navigate away on success
     } catch (err) {
       const notReady = err instanceof ApiError && err.code === "FAILED_PRECONDITION"
@@ -157,8 +158,24 @@ export function BillingSection() {
 
       {/* Plan comparison — real tiers, current one marked */}
       {tiers.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {tiers.map(tier => {
+        <>
+          <div className="flex justify-end">
+            <div className="inline-flex rounded-md border bg-muted p-1" aria-label="Billing cycle">
+              {(["monthly", "yearly"] as const).map(cycle => (
+                <Button
+                  key={cycle}
+                  type="button"
+                  size="sm"
+                  variant={billingCycle === cycle ? "default" : "ghost"}
+                  onClick={() => setBillingCycle(cycle)}
+                >
+                  {cycle === "monthly" ? "Monthly" : "Yearly"}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {tiers.map(tier => {
             const isCurrent = tier.id === billing?.tierId
             const paid = tier.monthlyPriceCents > 0
             return (
@@ -175,9 +192,17 @@ export function BillingSection() {
                         {tier.name}
                       </CardTitle>
                       <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-2xl font-bold">{formatPrice(tier.monthlyPriceCents)}</span>
+                        <span className="text-2xl font-bold">
+                          {formatPrice(billingCycle === "yearly" ? tier.yearlyPriceCents : tier.monthlyPriceCents)}
+                        </span>
                         <span className="text-xs text-muted-foreground">
-                          {paid ? (tier.perSeat ? "/seat/mo" : "/month") : "forever"}
+                          {paid
+                            ? tier.perSeat
+                              ? `/seat/${billingCycle === "yearly" ? "yr" : "mo"}`
+                              : billingCycle === "yearly"
+                                ? "/year"
+                                : "/month"
+                            : "forever"}
                         </span>
                       </div>
                     </div>
@@ -231,8 +256,9 @@ export function BillingSection() {
                 </CardContent>
               </Card>
             )
-          })}
-        </div>
+            })}
+          </div>
+        </>
       )}
 
       {/* Payment / invoices — coming soon */}

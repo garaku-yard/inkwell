@@ -28,6 +28,8 @@ var (
 	// ErrPriceNotConfigured is returned when a tier has no external price id mapped
 	// for the active gateway, so checkout cannot name a price to charge.
 	ErrPriceNotConfigured = errors.New("tier has no price configured for the payment gateway")
+	// ErrInvalidBillingCycle is returned when checkout receives an unsupported cycle.
+	ErrInvalidBillingCycle = errors.New("billing cycle must be monthly or yearly")
 )
 
 // ─── Types ────────────────────────────────────────────────────────────────────

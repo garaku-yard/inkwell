@@ -18,10 +18,10 @@ export interface BillingStorage {
   /**
    * Starts a hosted checkout for a tier and resolves the URL to redirect the
    * user to. seats applies to per-seat tiers (Business) and is ignored by flat
-   * tiers. Throws `ApiError` with code `FAILED_PRECONDITION` when no payment
+   * tiers; billingCycle defaults to monthly. Throws `ApiError` with code `FAILED_PRECONDITION` when no payment
    * gateway is configured yet (checkout not available). Not supported on desktop.
    */
-  createCheckout(tierId: string, seats?: number): Promise<CheckoutSession>
+  createCheckout(tierId: string, seats?: number, billingCycle?: "monthly" | "yearly"): Promise<CheckoutSession>
 }
 
 /** The result of starting a checkout — the hosted payment URL to navigate to. */
