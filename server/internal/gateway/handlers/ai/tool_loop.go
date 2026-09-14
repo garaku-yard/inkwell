@@ -22,7 +22,10 @@ const maxHostedToolIterations = 4
 func hostedTools(projectID string, destructive bool) []aiadapter.Tool {
 	names := []string{"list_projects", "create_project"}
 	if projectID != "" {
-		names = append(names, "list_scenes", "read_scene", "create_scene", "append_to_scene", "add_beat", "rename_scene")
+		// A project chat must only receive tools that act on the open project.
+		// Offering create_project here lets a model misinterpret requests such as
+		// "change the title" and silently create a duplicate project.
+		names = []string{"list_scenes", "read_scene", "create_scene", "append_to_scene", "add_beat", "rename_scene"}
 		if destructive {
 			names = append(names, "rewrite_scene", "delete_scene")
 		}

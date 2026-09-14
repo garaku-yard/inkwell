@@ -2,7 +2,7 @@ import type React from "react"
 import { useCallback, useEffect, useRef } from "react"
 
 import type { AIProviderSettings } from "@/lib/storage"
-import { streamChatCompletion } from "@/services/ai"
+import { decideHostedToolApproval, streamChatCompletion } from "@/services/ai"
 
 import { friendlyChatError } from "./errors"
 
@@ -15,6 +15,12 @@ export interface ChatMessage {
    *  carrying a real assistant reply. Renders with destructive styling
    *  and an error icon so users don't mistake it for a model output. */
   error?: boolean
+  approval?: {
+    checkpointId: string
+    tool: string
+    arguments: Record<string, unknown>
+    status: "pending" | "approving" | "approved" | "denied"
+  }
 }
 
 interface UseAIChatStreamOptions {
@@ -37,6 +43,7 @@ interface UseAIChatStreamResult {
   /** Aborts the in-flight stream, leaving any partial response in
    *  place. No-op when nothing is streaming. */
   stop: () => void
+  decideApproval: (messageId: string, checkpointId: string, decision: "approve" | "deny") => Promise<void>
 }
 
 /** Owns the streaming chat dispatch — NDJSON parsing, AbortController
@@ -63,6 +70,23 @@ export function useAIChatStream({
   const stop = useCallback(() => {
     abortRef.current?.abort()
   }, [])
+
+  const decideApproval = useCallback(async (messageId: string, checkpointId: string, decision: "approve" | "deny") => {
+    if (!projectId) return
+    setMessages((current) => current.map((item) => item.id === messageId && item.approval
+      ? { ...item, approval: { ...item.approval, status: "approving" } }
+      : item))
+    try {
+      await decideHostedToolApproval(checkpointId, projectId, decision)
+      setMessages((current) => current.map((item) => item.id === messageId && item.approval
+        ? { ...item, approval: { ...item.approval, status: decision === "approve" ? "approved" : "denied" } }
+        : item))
+    } catch (error) {
+      setMessages((current) => current.map((item) => item.id === messageId && item.approval
+        ? { ...item, content: friendlyChatError(error), error: true, approval: { ...item.approval, status: "pending" } }
+        : item))
+    }
+  }, [projectId, setMessages])
 
   const sendMessage = useCallback(
     async (content: string, history: ChatMessage[]) => {
@@ -117,6 +141,11 @@ export function useAIChatStream({
               error?: string
               tool?: string
               label?: string
+              approval_required?: {
+                checkpoint_id: string
+                tool: string
+                arguments: Record<string, unknown>
+              }
             }
             if (parsed.error) {
               // Gateway emits {error} as the final NDJSON line when
@@ -146,6 +175,23 @@ export function useAIChatStream({
                     ? { ...msg, content: msg.content + parsed.response }
                     : msg,
                 ),
+              )
+            }
+            if (parsed.approval_required) {
+              const approval = parsed.approval_required
+              setMessages((currentMessages) =>
+                currentMessages.map((msg) => msg.id === aiMessageId
+                  ? {
+                      ...msg,
+                      content: msg.content || "This change needs your approval.",
+                      approval: {
+                        checkpointId: approval.checkpoint_id,
+                        tool: approval.tool,
+                        arguments: approval.arguments,
+                        status: "pending",
+                      },
+                    }
+                  : msg),
               )
             }
           } catch {
@@ -218,5 +264,5 @@ export function useAIChatStream({
     [selectedProvider, setMessages, setIsTyping, isTyping, projectId],
   )
 
-  return { sendMessage, stop }
+  return { sendMessage, stop, decideApproval }
 }

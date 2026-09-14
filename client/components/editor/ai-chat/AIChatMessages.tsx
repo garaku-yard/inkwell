@@ -11,6 +11,7 @@ interface AIChatMessagesProps {
   messages: ChatMessage[]
   isTyping: boolean
   showEmptyState: boolean
+  onApprovalDecision: (messageId: string, checkpointId: string, decision: "approve" | "deny") => void
 }
 
 /** The scrollable middle of the chat panel — a warm empty-state prompt,
@@ -19,7 +20,7 @@ interface AIChatMessagesProps {
  *  or glow), so the panel has character without breaking the calm register of
  *  the editor canvas. The ref is the bottom anchor for scroll-into-view. */
 export const AIChatMessages = forwardRef<HTMLDivElement, AIChatMessagesProps>(
-  function AIChatMessages({ messages, isTyping, showEmptyState }, anchorRef) {
+  function AIChatMessages({ messages, isTyping, showEmptyState, onApprovalDecision }, anchorRef) {
     // The stream adds an empty assistant message up front and keeps isTyping
     // true for the whole reply. Show the standalone dots ONLY while we're still
     // waiting for the first token; once text starts streaming, the growing
@@ -54,7 +55,7 @@ export const AIChatMessages = forwardRef<HTMLDivElement, AIChatMessagesProps>(
             messages.map((message) =>
               // Hide the empty assistant placeholder — the dots stand in for it.
               message.type === "ai" && message.content === "" && !message.error ? null : (
-                <MessageBubble key={message.id} message={message} />
+                <MessageBubble key={message.id} message={message} onApprovalDecision={onApprovalDecision} />
               ),
             )
           )}
@@ -88,7 +89,7 @@ function Timestamp({ at }: { at: Date }) {
   )
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, onApprovalDecision }: { message: ChatMessage; onApprovalDecision: AIChatMessagesProps["onApprovalDecision"] }) {
   if (message.type === "user") {
     return (
       <div className="flex flex-col items-end gap-1">
@@ -112,6 +113,21 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           )}
         >
           {message.content}
+          {message.approval && (
+            <div className="mt-3 border-t border-border/60 pt-3">
+              <p className="mb-2 text-xs text-muted-foreground">
+                {message.approval.tool.replaceAll("_", " ")}: {JSON.stringify(message.approval.arguments)}
+              </p>
+              {message.approval.status === "pending" ? (
+                <div className="flex gap-2">
+                  <button className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground" onClick={() => onApprovalDecision(message.id, message.approval!.checkpointId, "approve")}>Approve</button>
+                  <button className="rounded-md border px-3 py-1.5 text-xs" onClick={() => onApprovalDecision(message.id, message.approval!.checkpointId, "deny")}>Deny</button>
+                </div>
+              ) : (
+                <p className="text-xs font-medium capitalize">{message.approval.status === "approving" ? "Working…" : message.approval.status}</p>
+              )}
+            </div>
+          )}
         </div>
         <Timestamp at={message.timestamp} />
       </div>

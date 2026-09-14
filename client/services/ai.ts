@@ -4,6 +4,7 @@
  *  endpoint). Provider discovery is no longer a separate API — the user
  *  picks from rows they configured under Settings → AI Providers. */
 import { getStorage } from "@/lib/storage"
+import { apiClient } from "@/lib/api"
 
 export interface ChatMessage {
   role: "user" | "assistant"
@@ -29,3 +30,13 @@ export const streamChatCompletion = (
   options?: { signal?: AbortSignal },
 ): Promise<ReadableStream<Uint8Array>> =>
   getStorage().ai.streamChat({ stream: true, ...data }, options)
+
+export const decideHostedToolApproval = (
+  checkpointId: string,
+  projectId: string,
+  decision: "approve" | "deny",
+): Promise<{ approved?: boolean; denied?: boolean; result?: unknown }> =>
+  apiClient(`ai/approvals/${encodeURIComponent(checkpointId)}`, {
+    method: "POST",
+    body: { decision, projectId },
+  })

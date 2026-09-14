@@ -68,7 +68,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
     selectProvider,
   } = useAIProviders(projectId, isOpen)
 
-  const { sendMessage, stop } = useAIChatStream({
+  const { sendMessage, stop, decideApproval } = useAIChatStream({
     selectedProvider,
     setMessages,
     setIsTyping,
@@ -119,6 +119,7 @@ export const AIChatPanel = React.memo(({ isOpen, onClose, category, projectId }:
           messages={messages}
           isTyping={isTyping}
           showEmptyState={showEmptyState}
+          onApprovalDecision={(messageId, checkpointId, decision) => void decideApproval(messageId, checkpointId, decision)}
         />
         <AIChatComposer
           ref={inputRef}
