@@ -147,10 +147,10 @@ function MessageBubble({ message, onApprovalDecision, onQuickReply, showChoices,
                   key={`${choice.key}-${choice.label}`}
                   type="button"
                   className="rounded-md border bg-background px-3 py-2 text-left text-xs transition-colors hover:border-primary hover:bg-primary/5"
-                  onClick={() => onQuickReply(`I choose ${choice.key}: ${choice.label}`)}
+                  onClick={() => onQuickReply(`I choose option ${choice.key}: ${choice.title}`)}
                 >
-                  <span className="mr-1.5 font-semibold text-primary">{choice.key}.</span>
-                  {choice.label}
+                  <span className="font-semibold text-primary">Option {choice.key}</span>
+                  {choice.title && <span className="ml-1.5 text-muted-foreground">— {choice.title}</span>}
                 </button>
               ))}
             </div>

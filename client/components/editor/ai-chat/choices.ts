@@ -1,6 +1,7 @@
 export interface ChatChoice {
   key: string
   label: string
+  title: string
 }
 
 /** Extract explicit choices from a completed assistant reply. Lists remain
@@ -13,7 +14,11 @@ export function extractChatChoices(content: string): ChatChoice[] {
   const choices = content.split(/\r?\n/).flatMap((line) => {
     const match = line.match(/^\s*(?:[-*]\s*)?([A-Z]|\d+)[).:]\s+(.+?)\s*$/)
     if (!match) return []
-    return [{ key: match[1], label: match[2].replace(/\*\*/g, "").trim() }]
+    const rawLabel = match[2]
+    const label = rawLabel.replace(/\*\*/g, "").trim()
+    const boldTitle = rawLabel.match(/^\*\*(.+?)\*\*/)?.[1]
+    const title = (boldTitle ?? label.split(":", 1)[0]).replace(/:$/, "").trim()
+    return [{ key: match[1], label, title }]
   })
 
   return choices.length >= 2 ? choices : []
