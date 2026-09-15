@@ -70,7 +70,7 @@ jobs:
         run: npm ci
 
       - name: Build Tauri bundles
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Optional updater signing. Set these repo secrets to enable
