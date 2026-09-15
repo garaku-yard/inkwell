@@ -77,13 +77,23 @@ jobs:
         working-directory: ./client
         run: npm ci
 
+      - name: Require updater signing secrets
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" || -z "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]]; then
+            echo "Updater signing secrets are required for release builds."
+            exit 1
+          fi
+
       - name: Build Tauri bundles
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Optional updater signing. Set these repo secrets to enable
-          # `tauri-plugin-updater` signatures on each release; leave unset to
-          # ship unsigned builds (no auto-update support).
+          # Tauri updater signatures are independent of paid OS trust
+          # certificates and are mandatory for update installation.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
@@ -108,6 +118,9 @@ jobs:
               Control-click → Open and confirm the Gatekeeper prompt.
 
             ### Notes
+            - Windows and Linux desktop builds can check for signed updates
+              manually in Settings → About & Legal. macOS updates remain
+              manual until Developer ID signing and notarization are enabled.
             - First launch creates a local SQLite database at
               `~/.config/com.inkwell.app/inkwell.db` (Linux) or
               `%APPDATA%\com.inkwell.app\inkwell.db` (Windows). All your

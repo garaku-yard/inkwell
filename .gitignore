@@ -35,6 +35,9 @@ yarn-error.log*
 .env
 client/.env.drive.local
 
+# local release-signing material (never commit)
+.local-secrets/
+
 # vercel
 .vercel
 
