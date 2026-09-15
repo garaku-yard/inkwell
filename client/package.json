@@ -9,6 +9,7 @@
     "build:tauri": "cross-env BUILD_TARGET=tauri next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "audit:production": "node scripts/audit-production.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "tauri": "tauri",

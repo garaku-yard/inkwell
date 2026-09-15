@@ -119,6 +119,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Production dependency audit
+        run: npm run audit:production
+
       # The suite gates more than component smoke: it holds the contracts
       # TypeScript can't check — the Tauri fs capability manifest and the
       # client/server category list. Both are plain JSON, so without this step a
