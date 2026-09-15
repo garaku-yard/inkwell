@@ -1,11 +1,11 @@
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+mod drive_oauth;
 mod mcp;
 mod open_file;
 mod scope;
 mod secrets;
-mod drive_oauth;
 // Consumed by the next backup-engine slice; kept compiled now so its HTTP
 // contract is tested before project traversal starts depending on it.
 #[allow(dead_code)]
@@ -16,7 +16,7 @@ mod drive_client;
 /// version would desync existing users. Append new migrations with higher
 /// version numbers instead.
 fn sql_migrations() -> Vec<Migration> {
-  vec![
+    vec![
     Migration {
       version: 1,
       description: "initial schema: projects, scenes, elements, characters, locations, beat board, workspaces",
@@ -130,95 +130,96 @@ fn sql_migrations() -> Vec<Migration> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  // The native menu bar is intentionally omitted: the OS chrome doesn't
-  // honour the in-app theme, and Inkwell's custom titlebar already
-  // exposes the important actions. Keyboard shortcuts (Ctrl+N, etc.)
-  // are re-registered on the JS side by `DesktopMenuBridge`.
-  tauri::Builder::default()
-    .plugin(
-      tauri_plugin_sql::Builder::default()
-        .add_migrations("sqlite:inkwell.db", sql_migrations())
-        .build(),
-    )
-    .plugin(tauri_plugin_dialog::init())
-    .plugin(tauri_plugin_fs::init())
-    .plugin(tauri_plugin_opener::init())
-    .manage(open_file::PendingOpenFile::default())
-    .manage(mcp::Bridge::default())
-    .manage(drive_client::DriveSession::default())
-    .invoke_handler(tauri::generate_handler![
-      secrets::secret_set,
-      secrets::secret_get,
-      secrets::secret_delete,
-      drive_oauth::google_drive_status,
-      drive_oauth::google_drive_connect,
-      drive_oauth::google_drive_disconnect,
-      drive_client::google_drive_create_folder,
-      drive_client::google_drive_file_exists,
-      drive_client::google_drive_upsert_file,
-      open_file::consume_pending_open_file,
-      scope::allow_fs_dir,
-      mcp::mcp_reply,
-    ])
-    .setup(|app| {
-      // Paid platform certificates are not required for Tauri's cryptographic
-      // update signatures. Keep update checks off on macOS, however, until the
-      // app itself can be Developer ID signed and notarized.
-      #[cfg(any(windows, target_os = "linux"))]
-      app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+    // The native menu bar is intentionally omitted: the OS chrome doesn't
+    // honour the in-app theme, and Inkwell's custom titlebar already
+    // exposes the important actions. Keyboard shortcuts (Ctrl+N, etc.)
+    // are re-registered on the JS side by `DesktopMenuBridge`.
+    tauri::Builder::default()
+        .plugin(
+            tauri_plugin_sql::Builder::default()
+                .add_migrations("sqlite:inkwell.db", sql_migrations())
+                .build(),
+        )
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init())
+        .manage(open_file::PendingOpenFile::default())
+        .manage(mcp::Bridge::default())
+        .manage(drive_client::DriveSession::default())
+        .invoke_handler(tauri::generate_handler![
+            secrets::secret_set,
+            secrets::secret_get,
+            secrets::secret_delete,
+            drive_oauth::google_drive_status,
+            drive_oauth::google_drive_connect,
+            drive_oauth::google_drive_disconnect,
+            drive_client::google_drive_create_folder,
+            drive_client::google_drive_file_exists,
+            drive_client::google_drive_upsert_file,
+            open_file::consume_pending_open_file,
+            scope::allow_fs_dir,
+            mcp::mcp_reply,
+        ])
+        .setup(|app| {
+            // Paid platform certificates are not required for Tauri's cryptographic
+            // update signatures. Keep update checks off on macOS, however, until the
+            // app itself can be Developer ID signed and notarized.
+            #[cfg(any(windows, target_os = "linux"))]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
 
-      // Make sure the window advertises the bundle icon on platforms that
-      // look at the window's own icon (most Linux WMs, Windows taskbar).
-      // Without this the taskbar often falls back to a generic icon in
-      // dev mode where no .desktop file is installed.
-      if let Some(icon) = app.default_window_icon().cloned() {
-        if let Some(window) = app.get_webview_window("main") {
-          let _ = window.set_icon(icon);
-        }
-      }
-
-      // Windows + Linux deliver a double-clicked file as a CLI arg on
-      // launch. macOS uses RunEvent::Opened (handled below) once the
-      // event loop is running, so this scan is a no-op there.
-      if let Some(path) = open_file::detect_open_file_arg(std::env::args()) {
-        open_file::record_pending(&app.handle(), path);
-      }
-
-      if cfg!(debug_assertions) {
-        app.handle().plugin(
-          tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Info)
-            .build(),
-        )?;
-      }
-
-      // The MCP bridge is an extra: if it can't bind or can't record its
-      // handshake, the writer's app still opens. Say so on stderr rather
-      // than failing the launch.
-      match mcp::start(&app.handle()) {
-        Ok(port) => log::info!("MCP bridge listening on 127.0.0.1:{port}"),
-        Err(err) => eprintln!("MCP bridge unavailable: {err}"),
-      }
-
-      Ok(())
-    })
-    .build(tauri::generate_context!())
-    .expect("error while building tauri application")
-    .run(|_app_handle, _event| {
-      // RunEvent::Opened fires on macOS / iOS when the user double-clicks
-      // an associated file for an already-running app. The variant is
-      // gated by Tauri behind those targets, so we only build the match
-      // arm there. Windows + Linux receive the path via CLI args and
-      // the setup() scan above is enough.
-      #[cfg(any(target_os = "macos", target_os = "ios"))]
-      if let tauri::RunEvent::Opened { urls } = _event {
-        for url in urls {
-          if let Ok(path) = url.to_file_path() {
-            if let Some(s) = path.to_str() {
-              open_file::record_pending(_app_handle, s.to_string());
+            // Make sure the window advertises the bundle icon on platforms that
+            // look at the window's own icon (most Linux WMs, Windows taskbar).
+            // Without this the taskbar often falls back to a generic icon in
+            // dev mode where no .desktop file is installed.
+            if let Some(icon) = app.default_window_icon().cloned() {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_icon(icon);
+                }
             }
-          }
-        }
-      }
-    });
+
+            // Windows + Linux deliver a double-clicked file as a CLI arg on
+            // launch. macOS uses RunEvent::Opened (handled below) once the
+            // event loop is running, so this scan is a no-op there.
+            if let Some(path) = open_file::detect_open_file_arg(std::env::args()) {
+                open_file::record_pending(&app.handle(), path);
+            }
+
+            if cfg!(debug_assertions) {
+                app.handle().plugin(
+                    tauri_plugin_log::Builder::default()
+                        .level(log::LevelFilter::Info)
+                        .build(),
+                )?;
+            }
+
+            // The MCP bridge is an extra: if it can't bind or can't record its
+            // handshake, the writer's app still opens. Say so on stderr rather
+            // than failing the launch.
+            match mcp::start(&app.handle()) {
+                Ok(port) => log::info!("MCP bridge listening on 127.0.0.1:{port}"),
+                Err(err) => eprintln!("MCP bridge unavailable: {err}"),
+            }
+
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, _event| {
+            // RunEvent::Opened fires on macOS / iOS when the user double-clicks
+            // an associated file for an already-running app. The variant is
+            // gated by Tauri behind those targets, so we only build the match
+            // arm there. Windows + Linux receive the path via CLI args and
+            // the setup() scan above is enough.
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            if let tauri::RunEvent::Opened { urls } = _event {
+                for url in urls {
+                    if let Ok(path) = url.to_file_path() {
+                        if let Some(s) = path.to_str() {
+                            open_file::record_pending(_app_handle, s.to_string());
+                        }
+                    }
+                }
+            }
+        });
 }
