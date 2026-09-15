@@ -113,17 +113,6 @@ via `<BrandLogo show="wordmark">`; trimmed PNGs at
 monogram in headers, documentation, and social profiles. For contexts where
 space is tight (favicon, app icon), use the monogram alone.
 
-### Hero logo (secondary)
-
-`client/public/logo.png` — an ornate illustrative inkwell. It's dense and
-not suitable for UI chrome. Reserve it for:
-- Marketing hero sections
-- Splash screens / loaders (if added)
-- Printed material
-
-Do **not** use the hero logo in the product header, favicons, or any
-context smaller than ~128 px.
-
 ### Assets
 
 **Shipped:**
@@ -150,7 +139,6 @@ Don't place text, icons, or imagery closer than that.
 - ❌ Don't re-colour the monogram outside the charcoal/cream theme pair.
 - ❌ Don't outline, add shadows, or place on busy photography without a scrim.
 - ❌ Don't stretch, rotate, or distort.
-- ❌ Don't use the illustrative `logo.png` as an app icon.
 
 ---
 
