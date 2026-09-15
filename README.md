@@ -8,10 +8,11 @@ Free for individuals and internal team use, source-available under
 [PolyForm Shield](#license) — the only thing it rules out is reselling
 Inkwell (or hosting it for others) as a competing product.
 
-Inkwell ships as a cross-platform desktop app (Windows and Linux today;
-macOS deferred). Everything lives on disk. No account required, no network
-required. Hosted collaboration is an optional layer you can self-host or
-skip entirely.
+Inkwell ships as a cross-platform desktop app for Windows, Linux, and macOS.
+The macOS builds are currently ad-hoc signed rather than notarized, so the
+first launch requires Gatekeeper's Control-click → Open flow. Everything lives
+on disk. No account required, no network required. Hosted collaboration is an
+optional layer you can self-host or skip entirely.
 
 **Contents:** [Features](#features) · [Install](#install) ·
 [Local-first, optionally collaborative](#local-first-optionally-collaborative) ·

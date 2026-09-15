@@ -2,7 +2,7 @@
 
 > Living status of what's shipped, what's partial, and what's planned. Kept in
 > sync with the architecture + handoff detail in `CLAUDE.md`.
-> Last synced: 2026-09-04.
+> Last synced: 2026-09-15.
 
 Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
 
@@ -12,7 +12,7 @@ Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
 
 | Area | Status | Notes |
 |---|---|---|
-| Desktop app (Tauri v2 + Next.js static export) | ✅ | Windows + Linux bundles via GH Actions; macOS deferred |
+| Desktop app (Tauri v2 + Next.js static export) | ✅ | Windows + Linux bundles plus Apple Silicon + Intel macOS DMGs via GH Actions; macOS is ad-hoc signed until Developer ID enrollment |
 | Local-first storage (SQLite + on-disk `.md`) | ✅ | `lib/storage` abstraction with local (SQLite/FS) + remote (gateway) impls |
 | Hosted stack (Go microservices / gRPC / Postgres / Redis / Kafka) | ✅ | Self-hostable, optional — most users never need it |
 | Releases | ✅ | v0.2.0–v0.6.0 on GitHub Releases |
@@ -67,7 +67,7 @@ Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
   - **Verified end-to-end via Playwright** against the live web stack (registered a throwaway account): screenplay rail-in-margin + save pill + header; import round-trips for md/txt→Prose, twee→IF, txt/cho→Poetry, md→TTRPG, fdx→Screenplay.
   - **Editor canvas as a brand surface — DONE** (`98f1cfe`): BRANDBOOK §8 "Editor canvas" codifies the one-page-everywhere contract (A4 sheets on a desk, margin tool rail, quiet page numbers, floating save pill; screenplay the lone US-Letter exception on the same `PagedSheets`), pinned in `PagedSheets.smoke.test.tsx` (sheet-per-page at A4, custom `pageSize` honoured, empty state, rail-only-when-supplied).
 - **Real-time co-editing — SHIPPED.** Element-level LWW + presence + live text edits over WebSocket, Redis fan-out across gateway instances, `edit_sessions` durable locks, remote carets with collaborator name-flags, per-connection rate limiting. Rolled out to every editor (IF first, then prose/poetry/comic/ttrpg/screenplay via the shared `useEditorRealtime` hook). Browser-verified two-participant. Still deferred: selection-range highlight (only the collapsed caret shipped), vault realtime (no hosted vault backend to sync through).
-- **Packaging** — macOS builds (unsigned ad-hoc path agreed), auto-updater (needs signing keys + `tauri-plugin-updater`), Windows code signing — deferred to public launch. Helm charts for the hosted stack.
+- **Packaging** — macOS Apple Silicon + Intel DMG builds ship through GitHub Actions on the unsigned/ad-hoc path. Auto-updater (needs signing keys + `tauri-plugin-updater`) and trusted Apple/Windows code signing remain deferred. Helm charts for the hosted stack.
 - **`.iw` portable project file — SHIPPED** (`ad4ede5`): a lossless single-JSON envelope of a non-vault project (project + scenes/elements + characters + locations + full beat board). Export from any non-vault editor's Export menu; import (new project) from the dashboard Import menu. JSON because non-vault data has no binary blobs (beat images are gateway URL refs); same envelope as the Drive-backup design. **Still deferred:** making `.iw` the on-disk *source of truth* for non-vault projects (replacing SQLite, like the vault) — a much larger rewrite; the shipped slice is import/export only.
 - **Server hygiene** — the gateway is now a single `/api/v1` tree (no legacy duplicate) and all collab/billing/workspace handlers are on `Endpoint[]` except the intentionally-manual `PaddleWebhook` (raw body for signature checks). The admin `GetSubscriptions` per-row usage fan-out is gone: a `GetBatchUsage` billing RPC now returns lifetime totals + current-month sums for the whole page in two grouped queries (Redis stays authoritative for monthly metrics via overlay). No remaining known hygiene items.
 - **Client** — eslint flat-config migration **DONE** (`08d7e90`/`6e9068f`: eslint 9 + `eslint-config-next` 16 + `eslint.config.mjs`; `no-unused-vars`/`no-explicit-any` promoted to errors). Element-domain physical rename (`script_elements` table) left as plumbing.

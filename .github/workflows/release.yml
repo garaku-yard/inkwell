@@ -1,8 +1,8 @@
 name: Release
 
-# Fires on any `v*` tag push. Builds Windows + Linux in parallel, drops the
-# installers into a published GitHub Release named after the tag. macOS is
-# intentionally skipped (no Apple Developer cert + notarization setup).
+# Fires on any `v*` tag push. Builds Windows, Linux, and macOS in parallel and
+# drops the installers into a published GitHub Release named after the tag.
+# macOS bundles are ad-hoc signed until Developer ID signing is configured.
 on:
   push:
     tags:
@@ -21,8 +21,16 @@ jobs:
         include:
           - platform: ubuntu-22.04
             label: Linux
+            bundles: appimage,deb
           - platform: windows-latest
             label: Windows
+            bundles: nsis
+          - platform: macos-latest
+            label: macOS (Apple Silicon)
+            bundles: dmg
+          - platform: macos-15-intel
+            label: macOS (Intel)
+            bundles: dmg
 
     name: Build ${{ matrix.label }}
     runs-on: ${{ matrix.platform }}
@@ -81,6 +89,7 @@ jobs:
         with:
           projectPath: ./client
           tauriScript: npx tauri
+          args: --bundles ${{ matrix.bundles }}
           tagName: ${{ github.ref_name }}
           releaseName: "Inkwell ${{ github.ref_name }}"
           releaseBody: |
@@ -94,12 +103,16 @@ jobs:
               public launch.
             - **Linux:** `.AppImage` (portable, works on most distros) or
               `.deb` (for Debian/Ubuntu).
+            - **macOS:** `.dmg` for Apple Silicon or Intel. These builds are
+              ad-hoc signed and not notarized yet, so on first launch use
+              Control-click → Open and confirm the Gatekeeper prompt.
 
             ### Notes
             - First launch creates a local SQLite database at
               `~/.config/com.inkwell.app/inkwell.db` (Linux) or
               `%APPDATA%\com.inkwell.app\inkwell.db` (Windows). All your
               projects stay on your machine — no server required.
+            - macOS uses `~/Library/Application Support/com.inkwell.app/inkwell.db`.
           # Published, not held as a draft. Every tag so far built cleanly and
           # then sat unpublished, so the repo showed six tags and no releases —
           # the artefacts existed but nobody could reach them.
