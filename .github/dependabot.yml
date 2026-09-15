@@ -7,15 +7,12 @@ updates:
     groups:
       client-dependencies:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: gomod
     directory: /server
     schedule:
       interval: weekly
-    groups:
-      server-dependencies:
-        patterns: ["*"]
-
   - package-ecosystem: cargo
     directory: /client/src-tauri
     schedule:
@@ -23,6 +20,7 @@ updates:
     groups:
       desktop-dependencies:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: github-actions
     directory: /
