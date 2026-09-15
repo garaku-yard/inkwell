@@ -201,12 +201,14 @@ async function reindexNoteLinks(
 export async function walkVaultFiles(
   folder: string,
   relPrefix = "",
+  strict = false,
 ): Promise<Array<{ rel: string; abs: string }>> {
   const out: Array<{ rel: string; abs: string }> = []
   let entries: Awaited<ReturnType<typeof readDir>>
   try {
     entries = await readDir(folder)
-  } catch {
+  } catch (error) {
+    if (strict) throw error
     return out
   }
   for (const entry of entries) {
@@ -214,7 +216,7 @@ export async function walkVaultFiles(
     const childRel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name
     const childAbs = joinPath(folder, entry.name)
     if (entry.isDirectory) {
-      out.push(...(await walkVaultFiles(childAbs, childRel)))
+      out.push(...(await walkVaultFiles(childAbs, childRel, strict)))
     } else if (entry.isFile) {
       out.push({ rel: childRel, abs: childAbs })
     }

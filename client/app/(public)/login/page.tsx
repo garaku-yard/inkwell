@@ -1,10 +1,11 @@
 "use client"
 
 import type React from "react"
-import { Suspense, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { Eye, EyeOff, AlertCircle } from "lucide-react"
+import { isTauri } from "@tauri-apps/api/core"
+import { ArrowLeft, Eye, EyeOff, AlertCircle } from "lucide-react"
 
 import { BrandLogo } from "@/components/brand-logo"
 import { Button } from "@/components/ui/button"
@@ -32,9 +33,12 @@ function LoginPageContent() {
 
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [desktop, setDesktop] = useState(false)
   const { login } = useAuth()
   const searchParams = useSearchParams()
   const nextPath = searchParams.get("next") || "/dashboard"
+
+  useEffect(() => setDesktop(isTauri()), [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,7 +89,15 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="relative min-h-screen bg-background flex items-center justify-center p-4">
+      {desktop && (
+        <Button asChild variant="ghost" className="absolute left-4 top-4">
+          <Link href="/dashboard">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Inkwell
+          </Link>
+        </Button>
+      )}
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-8">
           <BrandLogo />

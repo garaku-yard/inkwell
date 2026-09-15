@@ -6,6 +6,10 @@ mod open_file;
 mod scope;
 mod secrets;
 mod drive_oauth;
+// Consumed by the next backup-engine slice; kept compiled now so its HTTP
+// contract is tested before project traversal starts depending on it.
+#[allow(dead_code)]
+mod drive_client;
 
 /// Schema migrations applied to the local SQLite database on startup. Keep
 /// each migration immutable once shipped — edits to a previously released
@@ -109,6 +113,18 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0016_agent_undo.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 17,
+      description: "google drive backup mappings and run state",
+      sql: include_str!("../migrations/0017_drive_backup.sql"),
+      kind: MigrationKind::Up,
+    },
+    Migration {
+      version: 18,
+      description: "explicit per-project Google Drive backup selection",
+      sql: include_str!("../migrations/0018_drive_selection.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 
@@ -129,6 +145,7 @@ pub fn run() {
     .plugin(tauri_plugin_opener::init())
     .manage(open_file::PendingOpenFile::default())
     .manage(mcp::Bridge::default())
+    .manage(drive_client::DriveSession::default())
     .invoke_handler(tauri::generate_handler![
       secrets::secret_set,
       secrets::secret_get,
@@ -136,6 +153,9 @@ pub fn run() {
       drive_oauth::google_drive_status,
       drive_oauth::google_drive_connect,
       drive_oauth::google_drive_disconnect,
+      drive_client::google_drive_create_folder,
+      drive_client::google_drive_file_exists,
+      drive_client::google_drive_upsert_file,
       open_file::consume_pending_open_file,
       scope::allow_fs_dir,
       mcp::mcp_reply,

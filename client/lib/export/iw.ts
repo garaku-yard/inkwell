@@ -18,12 +18,12 @@ function download(filename: string, content: string) {
   URL.revokeObjectURL(url)
 }
 
-function slug(title: string) {
+export function projectExportSlug(title: string) {
   return title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "project"
 }
 
-/** Reads `projectId` in full and downloads it as `<title>.iw`. */
-export async function exportProjectToIw(projectId: string, userId: string): Promise<void> {
+/** Builds the same lossless payload used by downloads and Drive backups. */
+export async function buildProjectIw(projectId: string, userId: string, exportedAt = new Date().toISOString()) {
   const [project, characters, locations, board] = await Promise.all([
     getFullProject(projectId, userId),
     getProjectCharacters(projectId, userId),
@@ -38,7 +38,14 @@ export async function exportProjectToIw(projectId: string, userId: string): Prom
     lanes: board.lanes,
     connections: board.connections,
     outlineItems: board.outlineItems,
-    exportedAt: new Date().toISOString(),
+    drawings: board.drawings,
+    exportedAt,
   })
-  download(`${slug(project.title)}.iw`, serializeIw(iw))
+  return { project, iw, content: serializeIw(iw) }
+}
+
+/** Reads `projectId` in full and downloads it as `<title>.iw`. */
+export async function exportProjectToIw(projectId: string, userId: string): Promise<void> {
+  const { project, content } = await buildProjectIw(projectId, userId)
+  download(`${projectExportSlug(project.title)}.iw`, content)
 }

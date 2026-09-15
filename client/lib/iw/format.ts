@@ -10,11 +10,11 @@
  */
 
 import type { Character, FullProject, Location } from "@/services/project"
-import type { Beat, Connection, Lane, OutlineItem } from "@/lib/storage"
+import type { Beat, Connection, Drawing, Lane, OutlineItem } from "@/lib/storage"
 
 /** Discriminator + schema version written into every `.iw` file. */
 export const IW_FORMAT = "inkwell-project"
-export const IW_VERSION = 1
+export const IW_VERSION = 2
 
 /** One scene with its ordered elements (ids/timestamps dropped — recreated on import). */
 export interface IwScene {
@@ -50,6 +50,7 @@ export interface IwFile {
   lanes: Lane[]
   connections: Array<{ fromId: string; toId: string; fromSide: string; toSide: string }>
   outlineItems: Array<{ beatId: string; laneId: string; order: number; timelinePosition?: number; width?: number }>
+  drawings: Array<{ kind: Drawing["kind"]; data: Drawing["data"]; order: number }>
 }
 
 /** Inputs for {@link buildIwFile}, gathered by the export I/O layer. */
@@ -61,6 +62,7 @@ export interface IwBuildInput {
   lanes: Lane[]
   connections: Connection[]
   outlineItems: OutlineItem[]
+  drawings?: Drawing[]
   /** ISO timestamp stamped into the envelope (caller supplies the clock). */
   exportedAt: string
 }
@@ -111,6 +113,11 @@ export function buildIwFile(i: IwBuildInput): IwFile {
       timelinePosition: o.timelinePosition,
       width: o.width,
     })),
+    drawings: (i.drawings ?? []).map((drawing) => ({
+      kind: drawing.kind,
+      data: drawing.data,
+      order: drawing.order,
+    })),
   }
 }
 
@@ -160,5 +167,6 @@ export function parseIw(text: string): IwFile {
     lanes: o.lanes ?? [],
     connections: o.connections ?? [],
     outlineItems: o.outlineItems ?? [],
+    drawings: o.drawings ?? [],
   }
 }

@@ -21,6 +21,10 @@ fn client_id() -> &'static str {
     option_env!("GOOGLE_DRIVE_CLIENT_ID").unwrap_or(DEFAULT_CLIENT_ID)
 }
 
+fn client_secret() -> &'static str {
+    option_env!("GOOGLE_DRIVE_CLIENT_SECRET").unwrap_or("")
+}
+
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DriveAuthStatus {
@@ -33,6 +37,17 @@ pub struct DriveAuthStatus {
 struct TokenResponse {
     access_token: String,
     refresh_token: Option<String>,
+    #[serde(default = "default_expires_in")]
+    expires_in: u64,
+}
+
+fn default_expires_in() -> u64 {
+    3600
+}
+
+pub(crate) struct AccessToken {
+    pub(crate) value: String,
+    pub(crate) expires_in: u64,
 }
 
 #[derive(Deserialize)]
@@ -53,6 +68,41 @@ fn read_key(key: &str) -> Result<Option<String>, String> {
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(err) => Err(err.to_string()),
     }
+}
+
+/// Exchange the keychain-held refresh token for a short-lived access token.
+/// Access tokens deliberately stay in memory and are never persisted.
+pub(crate) fn refresh_access_token(
+    http: &reqwest::blocking::Client,
+) -> Result<AccessToken, String> {
+    let refresh_token = read_key(REFRESH_TOKEN_KEY)?.ok_or("Google Drive is not connected")?;
+    let mut form = vec![
+        ("client_id", client_id()),
+        ("refresh_token", refresh_token.as_str()),
+        ("grant_type", "refresh_token"),
+    ];
+    if !client_secret().is_empty() {
+        form.push(("client_secret", client_secret()));
+    }
+    let response = http
+        .post("https://oauth2.googleapis.com/token")
+        .form(&form)
+        .send()
+        .map_err(|e| format!("could not refresh Google authorization: {e}"))?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let detail = response.text().unwrap_or_default();
+        return Err(format!(
+            "could not refresh Google authorization: {status}: {detail}"
+        ));
+    }
+    let token: TokenResponse = response
+        .json()
+        .map_err(|e| format!("invalid Google token response: {e}"))?;
+    Ok(AccessToken {
+        value: token.access_token,
+        expires_in: token.expires_in,
+    })
 }
 
 fn delete_key(key: &str) -> Result<(), String> {
@@ -131,7 +181,7 @@ fn connect_blocking(app: AppHandle) -> Result<DriveAuthStatus, String> {
         .map_err(|e| format!("invalid Google callback: {e}"))?;
     let params: std::collections::HashMap<_, _> = callback.query_pairs().into_owned().collect();
     let response = if params.contains_key("code") {
-        tiny_http::Response::from_string("Inkwell is connected to Google Drive. You can close this window and return to the app.")
+        tiny_http::Response::from_string("Google authorization was received. You can close this window and return to Inkwell while it finishes connecting.")
     } else {
         tiny_http::Response::from_string(
             "Google Drive connection was not completed. You can close this window.",
@@ -154,18 +204,29 @@ fn connect_blocking(app: AppHandle) -> Result<DriveAuthStatus, String> {
         .timeout(Duration::from_secs(20))
         .build()
         .map_err(|e| e.to_string())?;
-    let token: TokenResponse = http
+    let mut form = vec![
+        ("client_id", client_id()),
+        ("code", code.as_str()),
+        ("code_verifier", verifier.as_str()),
+        ("grant_type", "authorization_code"),
+        ("redirect_uri", redirect_uri.as_str()),
+    ];
+    if !client_secret().is_empty() {
+        form.push(("client_secret", client_secret()));
+    }
+    let response = http
         .post("https://oauth2.googleapis.com/token")
-        .form(&[
-            ("client_id", client_id()),
-            ("code", code.as_str()),
-            ("code_verifier", verifier.as_str()),
-            ("grant_type", "authorization_code"),
-            ("redirect_uri", redirect_uri.as_str()),
-        ])
+        .form(&form)
         .send()
-        .and_then(|r| r.error_for_status())
-        .map_err(|e| format!("could not exchange Google authorization: {e}"))?
+        .map_err(|e| format!("could not exchange Google authorization: {e}"))?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let detail = response.text().unwrap_or_default();
+        return Err(format!(
+            "could not exchange Google authorization: {status}: {detail}"
+        ));
+    }
+    let token: TokenResponse = response
         .json()
         .map_err(|e| format!("invalid Google token response: {e}"))?;
     let refresh_token = token.refresh_token.ok_or(
@@ -193,7 +254,9 @@ fn connect_blocking(app: AppHandle) -> Result<DriveAuthStatus, String> {
 }
 
 #[tauri::command]
-pub async fn google_drive_disconnect() -> Result<DriveAuthStatus, String> {
+pub async fn google_drive_disconnect(
+    session: tauri::State<'_, super::drive_client::DriveSession>,
+) -> Result<DriveAuthStatus, String> {
     if let Some(token) = read_key(REFRESH_TOKEN_KEY)? {
         let _ = tauri::async_runtime::spawn_blocking(move || {
             reqwest::blocking::Client::new()
@@ -205,5 +268,6 @@ pub async fn google_drive_disconnect() -> Result<DriveAuthStatus, String> {
     }
     delete_key(REFRESH_TOKEN_KEY)?;
     delete_key(ACCOUNT_KEY)?;
+    session.clear();
     google_drive_status()
 }

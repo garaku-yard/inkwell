@@ -1,13 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { invoke, isTauri } from "@tauri-apps/api/core"
 import { CheckCircle2, Cloud, Loader2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
+import type { DriveBackupProgress, DriveBackupProject, DriveBackupStatus } from "@/lib/drive-backup"
 
 interface DriveAuthStatus {
   configured: boolean
@@ -19,6 +21,11 @@ export function IntegrationsSection() {
   const [desktop, setDesktop] = useState(false)
   const [status, setStatus] = useState<DriveAuthStatus | null>(null)
   const [busy, setBusy] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [backup, setBackup] = useState<DriveBackupStatus | null>(null)
+  const [progress, setProgress] = useState<DriveBackupProgress | null>(null)
+  const [projects, setProjects] = useState<DriveBackupProject[]>([])
+  const cancelRef = useRef<AbortController | null>(null)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -26,7 +33,16 @@ export function IntegrationsSection() {
     setDesktop(inDesktop)
     if (inDesktop) {
       void invoke<DriveAuthStatus>("google_drive_status")
-        .then(setStatus)
+        .then(async next => {
+          setStatus(next)
+          const { getDriveBackupStatus, listDriveBackupProjects } = await import("@/lib/drive-backup")
+          const [backupStatus, choices] = await Promise.all([
+            getDriveBackupStatus(),
+            listDriveBackupProjects(),
+          ])
+          setBackup(backupStatus)
+          setProjects(choices)
+        })
         .catch(error => toast({
           title: "Could not check Google Drive",
           description: error instanceof Error ? error.message : String(error),
@@ -37,13 +53,16 @@ export function IntegrationsSection() {
 
   const connect = async () => {
     setBusy(true)
+    setConnectionError(null)
     try {
       setStatus(await invoke<DriveAuthStatus>("google_drive_connect"))
       toast({ title: "Google Drive connected" })
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setConnectionError(message)
       toast({
         title: "Google Drive connection failed",
-        description: error instanceof Error ? error.message : String(error),
+        description: message,
         variant: "destructive",
       })
     } finally {
@@ -64,6 +83,52 @@ export function IntegrationsSection() {
       })
     } finally {
       setBusy(false)
+    }
+  }
+
+  const backUpProjects = async () => {
+    const controller = new AbortController()
+    cancelRef.current = controller
+    setBusy(true)
+    setProgress(null)
+    setBackup(current => current ? { ...current, status: "backing_up" } : { status: "backing_up" })
+    try {
+      const { backupSelectedProjectsToDrive, getDriveBackupStatus } = await import("@/lib/drive-backup")
+      const result = await backupSelectedProjectsToDrive(setProgress, controller.signal)
+      setBackup(await getDriveBackupStatus())
+      toast({
+        title: "Google Drive backup complete",
+        description: `${result.uploaded} uploaded, ${result.unchanged} unchanged${result.skipped.length ? `, ${result.skipped.length} too large` : ""}.`,
+      })
+    } catch (error) {
+      const { getDriveBackupStatus } = await import("@/lib/drive-backup")
+      setBackup(await getDriveBackupStatus().catch(() => ({ status: "error" as const })))
+      const stopped = error instanceof Error && error.name === "AbortError"
+      toast(stopped ? { title: "Google Drive backup stopped" } : {
+          title: "Google Drive backup failed",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        })
+    } finally {
+      setBusy(false)
+      setProgress(null)
+      cancelRef.current = null
+    }
+  }
+
+  const toggleProject = async (projectId: string, enabled: boolean) => {
+    const previous = projects
+    setProjects(current => current.map(project => project.id === projectId ? { ...project, enabled } : project))
+    try {
+      const { setDriveBackupProjectEnabled } = await import("@/lib/drive-backup")
+      await setDriveBackupProjectEnabled(projectId, enabled)
+    } catch (error) {
+      setProjects(previous)
+      toast({
+        title: "Could not update backup selection",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      })
     }
   }
 
@@ -119,6 +184,67 @@ export function IntegrationsSection() {
               ? "Backups are manual and one-way. Connecting does not upload anything until you choose Back up all now."
               : "Google Drive backup is available in the Inkwell desktop app."}
           </p>
+          {connectionError && (
+            <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              Google Drive connection failed: {connectionError}
+            </p>
+          )}
+          {desktop && status?.connected && (
+            <div className="space-y-4 rounded-lg border p-4">
+              <div>
+                <p className="text-sm font-medium">Projects to back up</p>
+                {projects.length === 0 ? (
+                  <p className="mt-1 text-xs text-muted-foreground">No local projects are available.</p>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {projects.map(project => (
+                      <label key={project.id} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={project.enabled}
+                          disabled={busy}
+                          onCheckedChange={checked => void toggleProject(project.id, checked === true)}
+                        />
+                        <span>{project.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {project.category === "vault" ? "Vault files" : ".iw + PDF"}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+              <div>
+                <p className="text-sm font-medium">
+                  {progress
+                    ? `Backing up ${progress.project}${progress.path ? ` — ${progress.path}` : ""}`
+                    : backup?.status === "error"
+                      ? "Last backup failed"
+                      : backup?.lastBackupAt
+                        ? `Last backup ${new Date(backup.lastBackupAt).toLocaleString()}`
+                        : "No backups yet"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {progress
+                    ? `${progress.completed} of ${progress.total} backup items`
+                    : backup?.error ?? "Vaults keep their files and folders; other projects include a lossless .iw and readable PDF."}
+                </p>
+              </div>
+                {busy ? (
+                  <Button variant="destructive" onClick={() => cancelRef.current?.abort()}>
+                    Stop backup
+                  </Button>
+                ) : (
+                  <Button
+                    disabled={!projects.some(project => project.enabled)}
+                    onClick={() => void backUpProjects()}
+                  >
+                    Back up selected projects
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

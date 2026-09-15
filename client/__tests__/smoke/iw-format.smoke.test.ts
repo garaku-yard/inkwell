@@ -52,6 +52,7 @@ describe("iw format", () => {
       lanes,
       connections,
       outlineItems,
+      drawings: [{ id: "d1", kind: "rect", data: { points: [{ x: 1, y: 2 }, { x: 30, y: 40 }], color: "#123456", width: 2 }, order: 0 }],
       exportedAt: "2026-06-22T00:00:00.000Z",
     })
 
@@ -74,6 +75,7 @@ describe("iw format", () => {
     expect(parsed.beats[0].id).toBe("b1")
     expect(parsed.lanes[0].id).toBe("l1")
     expect(parsed.outlineItems[0]).toEqual({ beatId: "b1", laneId: "l1", order: 0, timelinePosition: 5, width: 80 })
+    expect(parsed.drawings[0]).toEqual({ kind: "rect", data: { points: [{ x: 1, y: 2 }, { x: 30, y: 40 }], color: "#123456", width: 2 }, order: 0 })
     // Whole-object structural equality is the real losslessness guarantee.
     expect(parsed).toEqual(built)
   })
@@ -86,5 +88,12 @@ describe("iw format", () => {
   it("rejects a file from a newer schema version", () => {
     const future = JSON.stringify({ format: IW_FORMAT, version: IW_VERSION + 1, project: { category: "novel" } })
     expect(() => parseIw(future)).toThrow(/newer version/)
+  })
+
+  it("opens version 1 files without a drawing layer", () => {
+    const legacy = parseIw(JSON.stringify({
+      format: IW_FORMAT, version: 1, project: { title: "Old", category: "novel" },
+    }))
+    expect(legacy.drawings).toEqual([])
   })
 })

@@ -44,7 +44,7 @@ function pageNumber(doc: jsPDF, n: number) {
   doc.text(label, PAGE_W - MARGIN_RIGHT, MARGIN_TOP - LINE_H, { align: "right" })
 }
 
-export function exportScreenplayToPDF(project: FullProject): void {
+function buildScreenplayPDF(project: FullProject): jsPDF {
   const doc = new jsPDF({
     unit: "pt",
     format: "letter",
@@ -199,6 +199,15 @@ export function exportScreenplayToPDF(project: FullProject): void {
   doc.setFont("Courier", "bold")
   doc.text("FADE OUT.", MARGIN_LEFT + TEXT_W, y, { align: "right" })
 
+  return doc
+}
+
+/** Produces PDF bytes without opening a save dialog (Drive backup path). */
+export function renderScreenplayPdfBytes(project: FullProject): Uint8Array {
+  return new Uint8Array(buildScreenplayPDF(project).output("arraybuffer"))
+}
+
+export function exportScreenplayToPDF(project: FullProject): void {
   const filename = `${project.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`
-  doc.save(filename)
+  buildScreenplayPDF(project).save(filename)
 }

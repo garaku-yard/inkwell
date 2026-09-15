@@ -1,7 +1,7 @@
 # Design log — Google Drive backup (2026-06-22)
 
 > One-way backup of a user's projects to **their own** Google Drive.
-> Status: **scoped, not built.** Desktop-only. Sits on top of the desktop
+> Status: **shipped 2026-09-15.** Desktop-only. Sits on top of the desktop
 > account-link + sync work ([reference/sync-engine.md](../reference/sync-engine.md)).
 > This is the Settings → Integrations "#16" item, narrowed from the original
 > "cloud-storage OAuth (Drive/Dropbox/OneDrive)" to the smallest valuable slice.
@@ -135,3 +135,14 @@ A free **Google Cloud OAuth client**: OAuth consent screen (External; scope
 - **Opt-in granularity** — "back up everything" vs per-project toggle.
 - **User deletes the `Inkwell/` folder in Drive** — re-create + re-upload
   (stale `drive_file_id`s 404 → fall back to create).
+
+## Implementation note (2026-09-15)
+
+Shipped with explicit per-project selection and cancellation, two safety
+improvements learned during live verification. Non-vault backups use the
+portable `.iw` extension rather than the design draft's `.inkwell.json`; the
+payload is the same versioned JSON envelope used by the dashboard importer.
+Format v2 adds beat-board drawings while keeping version 1 imports compatible.
+The generic PDF renderer covers every non-screenplay editor and was visually
+verified across multi-page output; screenplays retain their dedicated renderer.
+OAuth and both backup paths were exercised against a real Google Drive account.

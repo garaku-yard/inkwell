@@ -7,7 +7,7 @@
  */
 
 import { createBeat, createConnection } from "@/services/beat"
-import { createLane, createOutlineItem } from "@/services/beat-board"
+import { createDrawing, createLane, createOutlineItem } from "@/services/beat-board"
 import {
   createCharacter,
   createLocation,
@@ -106,6 +106,9 @@ export async function importIwAsProject(iw: IwFile, userId: string): Promise<Pro
       timelinePosition: oi.timelinePosition,
       width: oi.width,
     })
+  }
+  for (const drawing of iw.drawings) {
+    await createDrawing(project.id, drawing)
   }
 
   return project
