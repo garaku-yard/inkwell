@@ -1,0 +1,10 @@
+{
+  "expires": "2026-11-15",
+  "packages": [
+    "@huggingface/transformers",
+    "adm-zip",
+    "onnxruntime-node",
+    "sharp"
+  ],
+  "advisories": [1123686, 1193734, 1124066, 1193725]
+}
