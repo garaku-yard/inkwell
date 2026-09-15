@@ -133,10 +133,12 @@ context smaller than ~128 px.
   regenerated from the nib monogram via `tauri icon`. `source.svg` embeds the
   mark so `rsvg-convert source.svg | tauri icon` reproduces the full set.
 
-**Still to create (extrapolation):**
-- **Apple touch icon** (180 px) and **maskable PWA icon** (512 px).
-- **Open-graph image** (1200 × 630) — monogram + wordmark + tagline on the
-  primary background colour.
+**Web and social:**
+- **Apple touch icon** — `client/public/brand/apple-touch-icon.png` (180 px).
+- **Maskable PWA icon** — `client/public/brand/maskable-icon.png` (512 px),
+  with an opaque charcoal field and the monogram inside the mask-safe area.
+- **Open-graph image** — `client/public/brand/open-graph.png` (1200 × 630):
+  monogram + wordmark + “Write anything.” on a quiet warm-paper field.
 
 ### Clear space
 
