@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /client
+    schedule:
+      interval: weekly
+    groups:
+      client-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: gomod
+    directory: /server
+    schedule:
+      interval: weekly
+    groups:
+      server-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: cargo
+    directory: /client/src-tauri
+    schedule:
+      interval: weekly
+    groups:
+      desktop-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

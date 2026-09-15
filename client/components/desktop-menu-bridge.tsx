@@ -41,7 +41,7 @@ export function DesktopMenuBridge() {
           // Tauri's webview honours target=_blank by opening in the system
           // browser when the shell plugin is installed. Fall back to in-app
           // navigation if that plugin isn't present.
-          window.open("https://github.com/l1roii/inkwell", "_blank", "noopener,noreferrer")
+          window.open("https://github.com/garaku-yard/inkwell", "_blank", "noopener,noreferrer")
         }),
       ])
       if (cancelled) {

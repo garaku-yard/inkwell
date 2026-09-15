@@ -1,5 +1,5 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react"
-import { describe, expect, it, vi, beforeEach } from "vitest"
+import { describe, expect, it, vi, beforeEach, type Mock } from "vitest"
 
 import { NotificationsSection } from "@/components/settings/sections/notifications-section"
 import type { Capability, NotificationPreferences } from "@/lib/storage"
@@ -17,8 +17,8 @@ const STORED: NotificationPreferences = {
 }
 
 describe("NotificationsSection — smoke", () => {
-  let getPreferences: ReturnType<typeof vi.fn>
-  let updatePreferences: ReturnType<typeof vi.fn>
+  let getPreferences: Mock<() => Promise<NotificationPreferences>>
+  let updatePreferences: Mock<(prefs: NotificationPreferences) => Promise<NotificationPreferences>>
 
   beforeEach(() => {
     getPreferences = vi.fn(async () => STORED)

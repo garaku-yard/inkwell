@@ -363,7 +363,7 @@ function UnsupportedPlaceholder() {
               your keys from the{" "}
               <a
                 className="underline underline-offset-2"
-                href="https://github.com/l1roii/inkwell/releases"
+                href="https://github.com/garaku-yard/inkwell/releases"
                 target="_blank"
                 rel="noreferrer"
               >

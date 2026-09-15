@@ -1,7 +1,7 @@
 name: Release
 
 # Fires on any `v*` tag push. Builds Windows + Linux in parallel, drops the
-# installers into a GitHub Release draft named after the tag. macOS is
+# installers into a published GitHub Release named after the tag. macOS is
 # intentionally skipped (no Apple Developer cert + notarization setup).
 on:
   push:
