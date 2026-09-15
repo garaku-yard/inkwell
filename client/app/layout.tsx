@@ -65,8 +65,35 @@ const FONT_VARIABLES = [
 ].join(" ");
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://inkwell.garakuyard.com"),
   title: "Inkwell",
   description: "Write anything. Screenplay, novel, comic, poetry, and more.",
+  applicationName: "Inkwell",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icon.png",
+    apple: "/brand/apple-touch-icon.png",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Inkwell",
+    title: "Inkwell",
+    description: "Write anything. Screenplay, novel, comic, poetry, and more.",
+    images: [
+      {
+        url: "/brand/open-graph.png",
+        width: 1200,
+        height: 630,
+        alt: "Inkwell — Write anything.",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Inkwell",
+    description: "Write anything. Screenplay, novel, comic, poetry, and more.",
+    images: ["/brand/open-graph.png"],
+  },
 };
 
 export default function RootLayout({

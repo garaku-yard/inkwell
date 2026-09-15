@@ -1,0 +1,17 @@
+{
+  "name": "Inkwell",
+  "short_name": "Inkwell",
+  "description": "Write anything. Screenplay, novel, comic, poetry, and more.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f4ec",
+  "theme_color": "#1f2420",
+  "icons": [
+    {
+      "src": "/brand/maskable-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
