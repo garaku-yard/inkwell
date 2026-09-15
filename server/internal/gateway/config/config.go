@@ -178,7 +178,7 @@ func Load() (*Config, error) {
 	for kind, defModel := range map[string]string{
 		"openai":    "gpt-4o-mini",
 		"anthropic": "claude-haiku-4-5",
-		"gemini":    "gemini-2.0-flash",
+		"gemini":    "gemini-3.5-flash-lite",
 	} {
 		envKind := strings.ToUpper(kind)
 		if key := env.String("AI_MANAGED_"+envKind+"_KEY", ""); key != "" {

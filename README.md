@@ -169,6 +169,10 @@ async domain events with a transactional outbox.
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the service tour, boundaries,
 and how to add a new service.
 
+Operators enabling Inkwell-supplied AI should follow the
+[managed-AI runbook](./server/docs/managed-ai-operations.md). Managed providers
+stay hidden until their server-side key is configured.
+
 ---
 
 ## Develop
