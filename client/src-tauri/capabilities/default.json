@@ -53,6 +53,7 @@
     "opener:default",
     "opener:allow-open-url",
     "opener:allow-open-path",
-    "opener:allow-reveal-item-in-dir"
+    "opener:allow-reveal-item-in-dir",
+    "updater:default"
   ]
 }

@@ -161,6 +161,12 @@ pub fn run() {
       mcp::mcp_reply,
     ])
     .setup(|app| {
+      // Paid platform certificates are not required for Tauri's cryptographic
+      // update signatures. Keep update checks off on macOS, however, until the
+      // app itself can be Developer ID signed and notarized.
+      #[cfg(any(windows, target_os = "linux"))]
+      app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+
       // Make sure the window advertises the bundle icon on platforms that
       // look at the window's own icon (most Linux WMs, Windows taskbar).
       // Without this the taskbar often falls back to a generic icon in
