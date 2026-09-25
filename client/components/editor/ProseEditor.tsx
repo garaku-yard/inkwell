@@ -40,6 +40,8 @@ import {
 import { updateScriptElement } from "@/services/editor"
 import { updateSceneContent } from "@/services/project"
 import { DocumentMetadataDialog } from "./shared/DocumentMetadataDialog"
+import { DocumentFoundationDialog } from "./shared/DocumentFoundationDialog"
+import { useDocumentFoundation } from "./shared/useDocumentFoundation"
 import { EditorCommandPalette, type EditorCommand } from "./shared/EditorCommandPalette"
 import { writeDocumentMetadata, type DocumentMetadata } from "@/lib/editor/document-metadata"
 
@@ -140,6 +142,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     units: scenes,
     setUnits: setScenes,
   })
+  const foundation = useDocumentFoundation({ projectId: projectData.id, userId: user?.id, scenes, setScenes })
 
   // Track the last-focused block so the right-edge tool rail knows where to act:
   // an empty focused line is transformed into the chosen type, otherwise a new
@@ -621,6 +624,13 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                 onSave={saveMetadata}
               />
             )}
+            <DocumentFoundationDialog
+              category="prose"
+              scene={scenes.find((scene) => scene.id === activeChapterId) ?? scenes[0]}
+              onTemplate={foundation.createFromTemplate}
+              onCapture={foundation.captureRevision}
+              onVariant={foundation.openVariant}
+            />
             <EditorCommandPalette commands={commands} />
             <InlineFormattingToolbar />
           </>}
@@ -657,6 +667,26 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
                   // fflate is heavy — load it only when the user exports.
                   const { exportProseToEpub } = await import("@/lib/export/prose-epub")
                   await exportProseToEpub({ ...projectData, scenes })
+                },
+              }),
+            },
+            {
+              label: "Manuscript PDF (.pdf)",
+              onClick: () => void runExport({
+                extension: "pdf", projectTitle: projectData.title,
+                run: async () => {
+                  const { downloadManuscript } = await import("@/lib/export/manuscript")
+                  downloadManuscript({ ...projectData, scenes }, "prose", "pdf")
+                },
+              }),
+            },
+            {
+              label: "Manuscript Word (.docx)",
+              onClick: () => void runExport({
+                extension: "docx", projectTitle: projectData.title,
+                run: async () => {
+                  const { downloadManuscript } = await import("@/lib/export/manuscript")
+                  downloadManuscript({ ...projectData, scenes }, "prose", "docx")
                 },
               }),
             },
