@@ -37,6 +37,8 @@ import {
 import { useEditorComments } from "./shared/useEditorComments"
 import { PagedSheets } from "./shared/PagedSheets"
 import { DocumentMetadataDialog } from "./shared/DocumentMetadataDialog"
+import { DocumentFoundationDialog } from "./shared/DocumentFoundationDialog"
+import { useDocumentFoundation } from "./shared/useDocumentFoundation"
 import { EditorCommandPalette, type EditorCommand } from "./shared/EditorCommandPalette"
 import { writeDocumentMetadata, type DocumentMetadata } from "@/lib/editor/document-metadata"
 import { updateSceneContent } from "@/services/project"
@@ -120,6 +122,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     units: scenes,
     setUnits: setScenes,
   })
+  const foundation = useDocumentFoundation({ projectId: projectData.id, userId: user?.id, scenes, setScenes })
 
   const totalLines = scenes.reduce((acc, s) => acc + countLines(s.elements ?? []), 0)
 
@@ -548,6 +551,28 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                 run: () => exportProjectToChordPro({ ...projectData, scenes }),
               }),
             },
+            ...(!isLyrics ? [
+              {
+                label: "Submission PDF (.pdf)",
+                onClick: () => void runExport({
+                  extension: "pdf", projectTitle: projectData.title,
+                  run: async () => {
+                    const { downloadManuscript } = await import("@/lib/export/manuscript")
+                    downloadManuscript({ ...projectData, scenes }, "poetry", "pdf")
+                  },
+                }),
+              },
+              {
+                label: "Submission Word (.docx)",
+                onClick: () => void runExport({
+                  extension: "docx", projectTitle: projectData.title,
+                  run: async () => {
+                    const { downloadManuscript } = await import("@/lib/export/manuscript")
+                    downloadManuscript({ ...projectData, scenes }, "poetry", "docx")
+                  },
+                }),
+              },
+            ] : []),
           ]}
           leading={
             <>
@@ -559,6 +584,13 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                   onSave={saveMetadata}
                 />
               )}
+              <DocumentFoundationDialog
+                category={isLyrics ? "lyrics" : "poetry"}
+                scene={scenes.find((scene) => scene.id === activePoemId) ?? scenes[0]}
+                onTemplate={foundation.createFromTemplate}
+                onCapture={foundation.captureRevision}
+                onVariant={foundation.openVariant}
+              />
               <EditorCommandPalette commands={commands} />
               <InlineFormattingToolbar />
               <Button
