@@ -24,6 +24,8 @@ import { useExportToast } from "@/lib/export/use-export-toast"
 import { parseMarkdownToProse } from "@/lib/import/markdown-prose"
 import { importIntoProject } from "@/lib/import/import-into-project"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import { InlineTextEditable, InlineFormattingToolbar } from "./shared/InlineTextEditable"
+import { plainInlineText } from "@/lib/editor/inline-content"
 import { EditorWorkspace } from "./shared/EditorWorkspace"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { PresencePips } from "./shared/PresencePips"
@@ -85,7 +87,7 @@ type ProseBlock =
 
 function wordCount(text: string | null | undefined): number {
   if (!text) return 0
-  return text.trim().split(/\s+/).filter(Boolean).length
+  return plainInlineText(text).trim().split(/\s+/).filter(Boolean).length
 }
 
 export function ProseEditor({ projectData }: ProseEditorProps) {
@@ -261,7 +263,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
       const scene = scenes.find((s) => s.id === a.sceneId)
       const idx = scene?.elements?.findIndex((e) => e.id === a.elementId) ?? -1
       const el = idx >= 0 ? scene!.elements![idx] : null
-      if (el && (el.content ?? "") === "") {
+      if (el && plainInlineText(el.content ?? "") === "") {
         void handleTransformElement(a.sceneId, a.elementId, t)
         return
       }
@@ -355,7 +357,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
       if (b.kind === "emptyChapter") return 40
       const { el } = b
       if (el.element_type === "scene_break") return 80
-      const len = (el.content ?? "").length
+      const len = plainInlineText(el.content ?? "").length
       if (el.element_type === "chapter_heading") {
         return 56 + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * 34
       }
@@ -417,7 +419,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     }
     if (el.element_type === "chapter_heading") {
       return (
-        <StableContentEditable
+        <InlineTextEditable
           key={el.id}
           id={`el-${el.id}`}
           value={el.content}
@@ -431,7 +433,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     }
     if (el.element_type === "heading_2") {
       return (
-        <StableContentEditable
+        <InlineTextEditable
           key={el.id}
           id={`el-${el.id}`}
           value={el.content}
@@ -445,7 +447,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     }
     if (el.element_type === "heading_3") {
       return (
-        <StableContentEditable
+        <InlineTextEditable
           key={el.id}
           id={`el-${el.id}`}
           value={el.content}
@@ -460,7 +462,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     if (el.element_type === "scene_heading_stinger") {
       // Stage-direction-style opener: small caps, italic, hairline rule.
       return (
-        <StableContentEditable
+        <InlineTextEditable
           key={el.id}
           id={`el-${el.id}`}
           value={el.content}
@@ -475,7 +477,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     if (el.element_type === "dialogue") {
       // Hanging indent + opening curly quote, set apart from prose.
       return (
-        <StableContentEditable
+        <InlineTextEditable
           key={el.id}
           id={`el-${el.id}`}
           value={el.content}
@@ -489,7 +491,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     }
     // paragraph — first-line indent except right after a break/heading
     return (
-      <StableContentEditable
+      <InlineTextEditable
         key={el.id}
         id={`el-${el.id}`}
         value={el.content}
@@ -620,6 +622,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
               />
             )}
             <EditorCommandPalette commands={commands} />
+            <InlineFormattingToolbar />
           </>}
           importItems={[
             {

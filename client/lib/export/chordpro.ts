@@ -18,6 +18,7 @@
  */
 
 import type { FullProject, ProjectElement } from "@/services/project"
+import { plainInlineText } from "@/lib/editor/inline-content"
 
 /** Inserts chord tokens from a chord_row into the matching line at
  *  the column positions implied by the chord_row's whitespace.
@@ -59,7 +60,8 @@ function songToChordPro(elements: ProjectElement[]): string[] {
 
   for (let i = 0; i < elements.length; i++) {
     const el = elements[i]
-    const content = (el.content ?? "").trim()
+    const rawContent = plainInlineText(el.content ?? "")
+    const content = rawContent.trim()
 
     if (el.element_type === "section_label") {
       if (content) lines.push(`{comment: ${content}}`)
@@ -73,7 +75,7 @@ function songToChordPro(elements: ProjectElement[]): string[] {
       // aren't silently lost.
       const next = elements[i + 1]
       if (next && next.element_type === "line") {
-        lines.push(mergeChordsIntoLine(el.content ?? "", next.content ?? ""))
+        lines.push(mergeChordsIntoLine(rawContent, plainInlineText(next.content ?? "")))
         i += 1
         continue
       }
@@ -82,7 +84,7 @@ function songToChordPro(elements: ProjectElement[]): string[] {
     }
 
     if (el.element_type === "line") {
-      lines.push(el.content ?? "")
+      lines.push(plainInlineText(el.content ?? ""))
       continue
     }
 
