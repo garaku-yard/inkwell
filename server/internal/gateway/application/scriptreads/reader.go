@@ -6,6 +6,7 @@ package scriptreads
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"inkwell/server/internal/gateway/handlers"
@@ -123,6 +124,33 @@ func (r *Reader) ReadScene(ctx context.Context, userID, projectID, sceneID strin
 		return nil, err
 	}
 	return &SceneContent{Scene: scene, Elements: elements}, nil
+}
+
+func (r *Reader) ListCharacters(ctx context.Context, userID, projectID string) ([]*scriptspb.Character, error) {
+	role, err := handlers.RequireProjectRole(ctx, userID, projectID, handlers.ActionRead, r.scripts, r.collab, r.workspace)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := r.scripts.GetProjectCharacters(ctx, &scriptspb.GetProjectCharactersRequest{
+		ProjectId: projectID, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Characters, nil
+}
+
+func (r *Reader) ReadCharacter(ctx context.Context, userID, projectID, reference string) (*scriptspb.Character, error) {
+	characters, err := r.ListCharacters(ctx, userID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	for _, character := range characters {
+		if character.Id == reference || strings.EqualFold(character.Name, reference) {
+			return character, nil
+		}
+	}
+	return nil, nil
 }
 
 func (r *Reader) sceneElements(ctx context.Context, userID, sceneID string, role handlers.ProjectRole) ([]*scriptspb.ProjectElement, error) {

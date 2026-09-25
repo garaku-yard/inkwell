@@ -95,9 +95,11 @@ describe("tools/list", () => {
     expect(writes).toEqual([
       "create_project",
       "create_scene",
+      "create_character",
       "append_to_scene",
       "add_beat",
       "rename_scene",
+      "update_character",
       "rewrite_scene",
       "delete_scene",
     ])

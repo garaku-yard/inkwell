@@ -1,5 +1,8 @@
 import { scenes } from "../scenes"
+import { elements } from "../elements"
+import { projects } from "../projects"
 import { LOCAL_USER_ID } from "../shared"
+import { renamePassageLinks } from "@/lib/interactive-fiction/runtime"
 import type { ToolArgs, ToolEntry } from "./types"
 
 function stringArg(args: ToolArgs, key: string): string {
@@ -19,8 +22,7 @@ export const renameScene: ToolEntry = {
     description:
       "Change a scene's heading in the project this conversation is open on. " +
       "In interactive fiction the heading is the passage name that [[links]] " +
-      "point at, so renaming one breaks any link to the old name — fix those " +
-      "with rewrite_scene afterwards.",
+      "point at; Inkwell updates exact link targets across the project automatically.",
     parameters: {
       type: "object",
       properties: {
@@ -54,6 +56,18 @@ export const renameScene: ToolEntry = {
 
     const before = scene.scene_heading || "(untitled scene)"
     await scenes.updateHeading(scene.id, LOCAL_USER_ID, heading)
-    return `Renamed "${before}" to "${heading}".`
+    let rewritten = 0
+    const project = await projects.getById(ctx.projectId, LOCAL_USER_ID)
+    if (project?.category === "interactive_fiction") {
+      for (const passage of list) {
+        for (const element of await elements.listForScene(passage.id, LOCAL_USER_ID)) {
+          const content = renamePassageLinks(element.content, scene.scene_heading, heading)
+          if (content === element.content) continue
+          await elements.update(element.id, { content })
+          rewritten++
+        }
+      }
+    }
+    return `Renamed "${before}" to "${heading}".${rewritten ? ` Updated ${rewritten} passage link${rewritten === 1 ? "" : "s"}.` : ""}`
   },
 }

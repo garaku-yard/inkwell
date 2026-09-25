@@ -37,6 +37,115 @@ export const SHARED_TOOL_CONTRACTS: Record<string, ToolSpec> = {
       ]
     }
   },
+  "list_characters": {
+    "name": "list_characters",
+    "description": "List the character profiles in the open project, including each character's role and id. Character profiles contain stable story facts; gameplay state remains in interactive-fiction variables.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  "read_character": {
+    "name": "read_character",
+    "description": "Read a character profile from the open project by id or exact name, including description, traits, motivation, voice, and relationships.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "character": {
+          "type": "string",
+          "description": "Character id or exact name."
+        }
+      },
+      "required": [
+        "character"
+      ]
+    }
+  },
+  "create_character": {
+    "name": "create_character",
+    "description": "Create a character profile in the open project. Store stable story facts here; do not put changing gameplay values such as health, trust, inventory, or flags in the profile.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The character's name."
+        },
+        "role": {
+          "type": "string",
+          "description": "Their story role, such as protagonist, ally, or rival."
+        },
+        "description": {
+          "type": "string",
+          "description": "Stable background and personality facts."
+        },
+        "traits": {
+          "type": "string",
+          "description": "A concise set of defining traits."
+        },
+        "motivation": {
+          "type": "string",
+          "description": "What the character wants and why."
+        },
+        "voice": {
+          "type": "string",
+          "description": "Cadence, vocabulary, and verbal habits."
+        },
+        "relationships": {
+          "type": "string",
+          "description": "Their important relationships to other characters."
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  },
+  "update_character": {
+    "name": "update_character",
+    "description": "Update selected fields on a character profile in the open project. Omitted fields remain unchanged. Use interactive-fiction variables for changing gameplay state.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "character": {
+          "type": "string",
+          "description": "Character id or exact current name."
+        },
+        "name": {
+          "type": "string",
+          "description": "A new name."
+        },
+        "role": {
+          "type": "string",
+          "description": "A new story role."
+        },
+        "description": {
+          "type": "string",
+          "description": "New background and personality facts."
+        },
+        "traits": {
+          "type": "string",
+          "description": "New defining traits."
+        },
+        "motivation": {
+          "type": "string",
+          "description": "A new motivation."
+        },
+        "voice": {
+          "type": "string",
+          "description": "New voice notes."
+        },
+        "relationships": {
+          "type": "string",
+          "description": "New relationship notes."
+        }
+      },
+      "required": [
+        "character"
+      ]
+    }
+  },
   "create_project": {
     "name": "create_project",
     "description": "Create a writing project owned by the caller, optionally in an organization where they have a writing role.",

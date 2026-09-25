@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/AuthContext"
+import { getApiBaseUrl } from "@/lib/api"
 import { updateUserProfile, uploadAvatar } from "@/services/settings"
 import { getMyBilling } from "@/services/billing"
 import type { MyBilling } from "@/types/billing"
@@ -142,7 +143,9 @@ export function AccountSection({ user }: AccountSectionProps) {
               <AvatarImage
                 src={
                   authUser?.avatarUrl
-                    ? `${process.env.NEXT_PUBLIC_API_URL}${authUser.avatarUrl}`
+                    ? /^https?:\/\//.test(authUser.avatarUrl)
+                      ? authUser.avatarUrl
+                      : `${getApiBaseUrl()}${authUser.avatarUrl}`
                     : undefined
                 }
                 alt={user?.username || "Avatar"}

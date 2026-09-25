@@ -37,6 +37,7 @@ const (
 	ScriptsService_CreateCharacter_FullMethodName          = "/scripts.ScriptsService/CreateCharacter"
 	ScriptsService_GetProjectCharacters_FullMethodName     = "/scripts.ScriptsService/GetProjectCharacters"
 	ScriptsService_UpdateCharacter_FullMethodName          = "/scripts.ScriptsService/UpdateCharacter"
+	ScriptsService_DeleteCharacter_FullMethodName          = "/scripts.ScriptsService/DeleteCharacter"
 	ScriptsService_CreateLocation_FullMethodName           = "/scripts.ScriptsService/CreateLocation"
 	ScriptsService_GetProjectLocations_FullMethodName      = "/scripts.ScriptsService/GetProjectLocations"
 	ScriptsService_CreateElement_FullMethodName            = "/scripts.ScriptsService/CreateElement"
@@ -94,6 +95,7 @@ type ScriptsServiceClient interface {
 	CreateCharacter(ctx context.Context, in *CreateCharacterRequest, opts ...grpc.CallOption) (*CreateCharacterResponse, error)
 	GetProjectCharacters(ctx context.Context, in *GetProjectCharactersRequest, opts ...grpc.CallOption) (*GetProjectCharactersResponse, error)
 	UpdateCharacter(ctx context.Context, in *UpdateCharacterRequest, opts ...grpc.CallOption) (*UpdateCharacterResponse, error)
+	DeleteCharacter(ctx context.Context, in *DeleteCharacterRequest, opts ...grpc.CallOption) (*DeleteCharacterResponse, error)
 	// Location management
 	CreateLocation(ctx context.Context, in *CreateLocationRequest, opts ...grpc.CallOption) (*CreateLocationResponse, error)
 	GetProjectLocations(ctx context.Context, in *GetProjectLocationsRequest, opts ...grpc.CallOption) (*GetProjectLocationsResponse, error)
@@ -325,6 +327,16 @@ func (c *scriptsServiceClient) UpdateCharacter(ctx context.Context, in *UpdateCh
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateCharacterResponse)
 	err := c.cc.Invoke(ctx, ScriptsService_UpdateCharacter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scriptsServiceClient) DeleteCharacter(ctx context.Context, in *DeleteCharacterRequest, opts ...grpc.CallOption) (*DeleteCharacterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteCharacterResponse)
+	err := c.cc.Invoke(ctx, ScriptsService_DeleteCharacter_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -647,6 +659,7 @@ type ScriptsServiceServer interface {
 	CreateCharacter(context.Context, *CreateCharacterRequest) (*CreateCharacterResponse, error)
 	GetProjectCharacters(context.Context, *GetProjectCharactersRequest) (*GetProjectCharactersResponse, error)
 	UpdateCharacter(context.Context, *UpdateCharacterRequest) (*UpdateCharacterResponse, error)
+	DeleteCharacter(context.Context, *DeleteCharacterRequest) (*DeleteCharacterResponse, error)
 	// Location management
 	CreateLocation(context.Context, *CreateLocationRequest) (*CreateLocationResponse, error)
 	GetProjectLocations(context.Context, *GetProjectLocationsRequest) (*GetProjectLocationsResponse, error)
@@ -757,6 +770,9 @@ func (UnimplementedScriptsServiceServer) GetProjectCharacters(context.Context, *
 }
 func (UnimplementedScriptsServiceServer) UpdateCharacter(context.Context, *UpdateCharacterRequest) (*UpdateCharacterResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateCharacter not implemented")
+}
+func (UnimplementedScriptsServiceServer) DeleteCharacter(context.Context, *DeleteCharacterRequest) (*DeleteCharacterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteCharacter not implemented")
 }
 func (UnimplementedScriptsServiceServer) CreateLocation(context.Context, *CreateLocationRequest) (*CreateLocationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateLocation not implemented")
@@ -1186,6 +1202,24 @@ func _ScriptsService_UpdateCharacter_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ScriptsServiceServer).UpdateCharacter(ctx, req.(*UpdateCharacterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScriptsService_DeleteCharacter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteCharacterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScriptsServiceServer).DeleteCharacter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScriptsService_DeleteCharacter_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScriptsServiceServer).DeleteCharacter(ctx, req.(*DeleteCharacterRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1790,6 +1824,10 @@ var ScriptsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateCharacter",
 			Handler:    _ScriptsService_UpdateCharacter_Handler,
+		},
+		{
+			MethodName: "DeleteCharacter",
+			Handler:    _ScriptsService_DeleteCharacter_Handler,
 		},
 		{
 			MethodName: "CreateLocation",

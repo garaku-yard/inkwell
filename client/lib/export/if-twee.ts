@@ -10,6 +10,10 @@
  */
 
 import type { FullProject } from "@/services/project"
+import {
+  compileElementToSugarCube,
+  parsePassageMetadata,
+} from "@/lib/interactive-fiction/runtime"
 
 /** Wrap a tag set in the `[tag1 tag2]` form Twee expects. Tags with
  *  spaces are quoted because Twee treats whitespace as the separator. */
@@ -24,6 +28,19 @@ function formatTags(tags: string[]): string {
  *  header; the body is plain text. */
 function escapeName(name: string): string {
   return name.replace(/([\\:[\]{}])/g, "\\$1")
+}
+
+function stableIFID(project: FullProject): string {
+  const compact = project.id.replace(/[^a-f0-9]/gi, "").toUpperCase()
+  if (compact.length >= 32) return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20, 32)}`
+  let a = 0x811c9dc5
+  let b = 0x9e3779b9
+  for (const ch of `${project.id}:${project.title}`) {
+    a = Math.imul(a ^ ch.charCodeAt(0), 0x01000193) >>> 0
+    b = Math.imul(b ^ ch.charCodeAt(0), 0x85ebca6b) >>> 0
+  }
+  const hex = `${a.toString(16).padStart(8, "0")}${b.toString(16).padStart(8, "0")}${((a ^ b) >>> 0).toString(16).padStart(8, "0")}${(Math.imul(a, b) >>> 0).toString(16).padStart(8, "0")}`.toUpperCase()
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
 }
 
 /**
@@ -46,24 +63,32 @@ export function projectToTwee(project: FullProject): string {
   // the project name.
   blocks.push(`:: StoryTitle\n${project.title}`)
   blocks.push(
-    `:: StoryData\n${JSON.stringify({ ifid: crypto.randomUUID().toUpperCase(), format: "SugarCube", "format-version": "2.36.1" }, null, 2)}`,
+    `:: StoryData\n${JSON.stringify({ ifid: stableIFID(project), format: "SugarCube", "format-version": "2.36.1" }, null, 2)}`,
   )
+
+  const story = passages[0] ? parsePassageMetadata(passages[0].content).story : undefined
+  if (story?.variables.length) {
+    const initializers = story.variables.map((variable) => `<<set $${variable.name} = ${JSON.stringify(variable.initialValue)}>>`)
+    blocks.push(`:: StoryInit [script]\n${initializers.join("\n")}`)
+  }
 
   for (let i = 0; i < passages.length; i++) {
     const passage = passages[i]
-    const tags: string[] = []
-    if (i === 0) tags.push("Start")
+    const metadata = parsePassageMetadata(passage.content)
+    const tags: string[] = [...metadata.tags]
+    if (passage.id === (story?.startPassageId ?? passages[0]?.id)) tags.push("Start")
 
     const elements = [...(passage.elements ?? [])].sort(
       (a, b) => a.line_number - b.line_number,
     )
     const body = elements
-      .map((el) => el.content ?? "")
+      .map(compileElementToSugarCube)
       .filter((s) => s.length > 0)
       .join("\n\n")
 
     const name = escapeName(passage.scene_heading || `Passage ${i + 1}`)
-    blocks.push(`:: ${name}${formatTags(tags)}\n${body}`)
+    const color = metadata.color ? ` ${JSON.stringify({ "inkwell-color": metadata.color })}` : ""
+    blocks.push(`:: ${name}${formatTags(tags)}${color}\n${body}`)
   }
 
   return blocks.join("\n\n") + "\n"

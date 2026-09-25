@@ -31,6 +31,7 @@ export async function importIntoProject(
     const scene = parsed.scenes[sceneIdx]
     const createdScene = await createScene(projectId, userId, {
       scene_heading: scene.heading,
+      content: scene.content,
       order_index: baseOrderIndex + sceneIdx,
     })
 

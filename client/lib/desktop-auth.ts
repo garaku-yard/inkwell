@@ -26,6 +26,32 @@ const TOKEN_SECRET_KEY = "auth.token"
 /** Keychain account holding the refresh token (renews the access token). */
 const REFRESH_SECRET_KEY = "auth.refreshToken"
 
+/**
+ * Validates and canonicalises a user-entered gateway origin. HTTP is allowed
+ * for localhost and private self-hosted installations; credentials, query
+ * strings, and fragments are rejected because this value is an API base URL.
+ */
+export function normalizeGatewayUrl(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) throw new Error("Enter the URL of your Inkwell host.")
+
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    throw new Error("Enter a complete host URL, including http:// or https://.")
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("The host URL must use http:// or https://.")
+  }
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error("The host URL cannot contain credentials, a query, or a fragment.")
+  }
+
+  return parsed.toString().replace(/\/+$/, "")
+}
+
 /** Writes (or deletes, when null) a secret, swallowing keychain errors. */
 async function writeSecret(key: string, value: string | null): Promise<void> {
   try {
@@ -54,7 +80,7 @@ export function getStoredGatewayUrl(): string | null {
  * @param url - Gateway origin (e.g. `https://inkwell.garakuyard.com`), or null.
  */
 export function setStoredGatewayUrl(url: string | null): void {
-  const trimmed = url?.trim()
+  const trimmed = url?.trim() ? normalizeGatewayUrl(url) : null
   if (typeof localStorage !== "undefined") {
     if (trimmed) localStorage.setItem(GATEWAY_URL_KEY, trimmed)
     else localStorage.removeItem(GATEWAY_URL_KEY)

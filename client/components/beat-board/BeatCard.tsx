@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { MoreHorizontal, Trash2, GripHorizontal, Upload, Palette } from "lucide-react"
+import { getApiBaseUrl } from "@/lib/api"
 import type { Beat } from "@/services/beat"
 
 const PRESET_COLORS = [
@@ -61,7 +62,7 @@ export function BeatCard({
         <div className="absolute inset-0 rounded-lg overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={`${process.env.NEXT_PUBLIC_API_URL}${beat.imageUrl}`}
+            src={/^https?:\/\//.test(beat.imageUrl) ? beat.imageUrl : `${getApiBaseUrl()}${beat.imageUrl}`}
             alt={beat.title}
             className="w-full h-full object-cover"
           />

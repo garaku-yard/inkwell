@@ -48,6 +48,18 @@ export const scenes: SceneStorage = {
     return toScene(rows[0])
   },
 
+  updateContent: async (sceneId, _userId, content) => {
+    const db = await getDb()
+    const ts = now()
+    await db.execute(
+      "UPDATE scenes SET content = ?, updated_at = ? WHERE id = ?",
+      [content, ts, sceneId],
+    )
+    const rows = await db.select<SceneRow[]>("SELECT * FROM scenes WHERE id = ?", [sceneId])
+    if (rows[0]) await markDirty(db, "scene", rows[0].project_id, sceneId)
+    return toScene(rows[0])
+  },
+
   delete: async (sceneId) => {
     const db = await getDb()
     const ts = now()

@@ -6,6 +6,56 @@
 > handoff notes + git history). The live status matrix is
 > [PLANNING.md](../../PLANNING.md); forward intent is [roadmap.md](./roadmap.md).
 
+## Interactive Fiction Play now runs the story authors wrote
+
+Play now executes typed variable assignments and conditional branches through
+the same small expression dialect used by the SugarCube exporter. Story tools
+add an explicit start passage, typed initial variables, passage tags and colors,
+named reproducible entry states, a live variable watch, execution history, and
+diagnostics for syntax, broken links, dead ends, unreachable passages,
+undefined variables, impossible conditions, and duplicate passage names.
+Renaming a passage rewrites exact inbound link targets in the editor, desktop
+MCP, and hosted Writing Buddy paths.
+
+Twee output is deterministic, carries initial state and passage metadata, and
+round-trips Inkwell-authored `set` and `if` elements on import. The supported
+dialect and SugarCube mapping are recorded in
+[the runtime contract](./reference/interactive-fiction-runtime.md). This closes
+Orbit #405.
+
+## Character profiles work locally, in the cloud, and through writing tools
+
+Character profiles now have the same create, list, read, update, and delete
+path in desktop and hosted projects. The hosted path persists profiles in
+PostgreSQL, checks the authenticated actor's project role on every operation,
+and soft-deletes removed profiles. The shared AI tool contract exposes safe
+character reads and approval-gated creates/updates to both the desktop MCP
+bridge and hosted Writing Buddy, including stable traits, motivation, voice,
+and relationship notes. Runtime values such as health, inventory, and story
+flags remain Interactive Fiction variables.
+
+HTTP, application, tool-contract, and gRPC boundary tests cover identity and
+role propagation, case-insensitive lookup, duplicate prevention, partial
+updates, explicit attribute clearing, and soft deletion. This closes Orbit
+#410.
+
+## Comic exports are scripts, not text disguised as page art
+
+The Comic editor previously offered a `.cbz` whose archive contained plain-text
+files. That mislabeled a writer-to-artist script as a finished page-art package
+and depended on comic readers accepting entries they are not designed to
+render. The export menu now produces dedicated comic-script PDF and DOCX files:
+US-Letter title and script pages, numbered pages and panels, and distinct
+formatting for descriptions, characters, dialogue, captions, sound effects,
+and transitions. The DOCX is standards-based OOXML with named script styles so
+an editor can restyle it after handoff. CBZ will return only if Inkwell gains
+rendered or imported page artwork to package.
+
+The byte renderers have focused tests, the complete client suite passes, both
+PDF pages passed a rendered visual inspection, and LibreOffice independently
+opened the DOCX and rendered it to PDF. This closes Orbit #406; richer comic
+production metadata and workflow remain in #407.
+
 ## Organization ownership now survives desktop sync
 
 The desktop project mapper and scripts-service sync pipeline now carry

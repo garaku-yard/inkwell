@@ -4,7 +4,6 @@ import type React from "react"
 import { Suspense, useEffect, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { isTauri } from "@tauri-apps/api/core"
 import { ArrowLeft, Eye, EyeOff, AlertCircle } from "lucide-react"
 
 import { BrandLogo } from "@/components/brand-logo"
@@ -17,6 +16,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { loginUser } from "@/services/auth"
 import { useAuth } from "@/lib/AuthContext"
 import { FullPageSpinner } from "@/components/shared/FullPageSpinner"
+import { CloudHostPicker, type CloudHostMode } from "@/components/cloud-host-picker"
+import { getStorage } from "@/lib/storage"
+import { OFFICIAL_GATEWAY_URL } from "@/lib/api"
+import {
+  getStoredGatewayUrl,
+  normalizeGatewayUrl,
+  setStoredGatewayUrl,
+} from "@/lib/desktop-auth"
 
 export interface LoginRequest {
   email: string
@@ -33,12 +40,34 @@ function LoginPageContent() {
 
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [desktop, setDesktop] = useState(false)
+  // Storage is already bound before this page renders. The sync capability is
+  // a stronger desktop signal than a second runtime-global check and keeps the
+  // local escape route available on every account-linking screen.
+  const desktop = getStorage().capabilities.has("sync")
+  const [hostMode, setHostMode] = useState<CloudHostMode>("official")
+  const [customHost, setCustomHost] = useState("")
   const { login } = useAuth()
   const searchParams = useSearchParams()
-  const nextPath = searchParams.get("next") || "/dashboard"
+  const requestedNextPath = searchParams.get("next")
+  const nextPath = requestedNextPath || "/dashboard"
 
-  useEffect(() => setDesktop(isTauri()), [])
+  useEffect(() => {
+    if (!desktop) return
+    const stored = getStoredGatewayUrl()
+    if (stored && stored !== OFFICIAL_GATEWAY_URL) {
+      setHostMode("custom")
+      setCustomHost(stored)
+    }
+  }, [desktop])
+
+  const applyDesktopHost = () => {
+    if (!desktop) return
+    if (hostMode === "official") {
+      setStoredGatewayUrl(null)
+      return
+    }
+    setStoredGatewayUrl(normalizeGatewayUrl(customHost))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,6 +75,7 @@ function LoginPageContent() {
     setError(null)
 
     try {
+      applyDesktopHost()
       const data = await loginUser({
         email,
         password,
@@ -89,7 +119,7 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="relative min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="relative h-full overflow-y-auto bg-background">
       {desktop && (
         <Button asChild variant="ghost" className="absolute left-4 top-4">
           <Link href="/dashboard">
@@ -98,15 +128,21 @@ function LoginPageContent() {
           </Link>
         </Button>
       )}
-      <div className="w-full max-w-md">
+      <div className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-4 py-16">
         <div className="flex justify-center mb-8">
           <BrandLogo />
         </div>
 
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
-            <CardDescription className="text-center">Sign in to your account to continue writing</CardDescription>
+            <CardTitle className="text-2xl text-center">
+              {desktop ? "Link a cloud account" : "Welcome back"}
+            </CardTitle>
+            <CardDescription className="text-center">
+              {desktop
+                ? "Optional — Inkwell continues to work locally without an account."
+                : "Sign in to your account to continue writing"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
 
@@ -119,6 +155,15 @@ function LoginPageContent() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {desktop && !totpRequired && (
+                <CloudHostPicker
+                  mode={hostMode}
+                  customUrl={customHost}
+                  disabled={isLoading}
+                  onModeChange={setHostMode}
+                  onCustomUrlChange={setCustomHost}
+                />
+              )}
               {!totpRequired ? (
                 <>
                   <div className="space-y-2">
@@ -195,7 +240,18 @@ function LoginPageContent() {
 
             <div className="text-center text-sm">
               {"Don't have an account? "}
-              <Link href="/register" className="font-medium text-primary hover:underline">
+              <Link
+                href={requestedNextPath ? `/register?next=${encodeURIComponent(requestedNextPath)}` : "/register"}
+                onClick={(event) => {
+                  try {
+                    applyDesktopHost()
+                  } catch (err) {
+                    event.preventDefault()
+                    setError(err instanceof Error ? err.message : "Invalid cloud host")
+                  }
+                }}
+                className="font-medium text-primary hover:underline"
+              >
                 Sign up
               </Link>
             </div>

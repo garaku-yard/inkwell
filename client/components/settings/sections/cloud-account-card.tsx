@@ -2,18 +2,21 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { isTauri } from "@tauri-apps/api/core"
 import { Cloud, CloudOff, Loader2, LogIn, UserPlus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { CloudHostPicker, type CloudHostMode } from "@/components/cloud-host-picker"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/AuthContext"
-import { getApiBaseUrl, getAuthToken } from "@/lib/api"
-import { getStoredGatewayUrl, setStoredGatewayUrl } from "@/lib/desktop-auth"
+import { getApiBaseUrl, getAuthToken, OFFICIAL_GATEWAY_URL } from "@/lib/api"
+import { getStorage } from "@/lib/storage"
+import {
+  getStoredGatewayUrl,
+  normalizeGatewayUrl,
+  setStoredGatewayUrl,
+} from "@/lib/desktop-auth"
 
 /**
  * Desktop-only "Cloud account" card. Inkwell is local-first: the app works
@@ -27,10 +30,10 @@ import { getStoredGatewayUrl, setStoredGatewayUrl } from "@/lib/desktop-auth"
  * override a self-hoster needs before signing in.
  */
 export function CloudAccountCard() {
-  // Defer the isTauri() gate to the client so SSR and first paint agree (the
-  // flag only exists in the webview), avoiding a hydration mismatch.
-  const [show, setShow] = useState(false)
-  useEffect(() => setShow(isTauri()), [])
+  // Storage is bound before settings renders. The sync capability identifies
+  // the local-first desktop implementation without another runtime-global
+  // check that can disagree with the already-selected storage backend.
+  const show = getStorage().capabilities.has("sync")
 
   const router = useRouter()
   const { toast } = useToast()
@@ -38,14 +41,21 @@ export function CloudAccountCard() {
 
   const [linked, setLinked] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [hostMode, setHostMode] = useState<CloudHostMode>("official")
   const [gatewayUrl, setGatewayUrl] = useState("")
   const [savingGateway, setSavingGateway] = useState(false)
 
   useEffect(() => {
     if (!show) return
     setLinked(getAuthToken() !== null)
-    // Show the saved override if any, otherwise the default origin in effect.
-    setGatewayUrl(getStoredGatewayUrl() ?? getApiBaseUrl())
+    const stored = getStoredGatewayUrl()
+    if (stored && stored !== OFFICIAL_GATEWAY_URL) {
+      setHostMode("custom")
+      setGatewayUrl(stored)
+    } else {
+      setHostMode("official")
+      setGatewayUrl("")
+    }
   }, [show])
 
   if (!show) return null
@@ -63,16 +73,31 @@ export function CloudAccountCard() {
     }
   }
 
-  const handleSaveGateway = () => {
+  const applyGateway = (showSuccess: boolean): boolean => {
     setSavingGateway(true)
     try {
-      setStoredGatewayUrl(gatewayUrl.trim() || null)
-      // Reflect the value actually applied (default substituted, slash trimmed).
-      setGatewayUrl(getStoredGatewayUrl() ?? getApiBaseUrl())
-      toast({ title: "Gateway updated", description: `Signing in will use ${getApiBaseUrl()}.` })
+      setStoredGatewayUrl(hostMode === "official" ? null : normalizeGatewayUrl(gatewayUrl))
+      if (hostMode === "custom") setGatewayUrl(getStoredGatewayUrl() ?? "")
+      if (showSuccess) {
+        toast({ title: "Gateway updated", description: `Signing in will use ${getApiBaseUrl()}.` })
+      }
+      return true
+    } catch (err) {
+      toast({
+        title: "Invalid cloud host",
+        description: err instanceof Error ? err.message : "Check the host URL and try again.",
+        variant: "destructive",
+      })
+      return false
     } finally {
       setSavingGateway(false)
     }
+  }
+
+  const handleSaveGateway = () => applyGateway(true)
+
+  const openAccountRoute = (path: string) => {
+    if (applyGateway(false)) router.push(path)
   }
 
   return (
@@ -108,11 +133,11 @@ export function CloudAccountCard() {
               Not signed in. Sign in to link this device to your account.
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => router.push("/login?next=/settings")}>
+              <Button size="sm" onClick={() => openAccountRoute("/login?next=/settings")}>
                 <LogIn className="h-4 w-4 mr-2" />
                 Sign in
               </Button>
-              <Button size="sm" variant="outline" onClick={() => router.push("/register?next=/settings")}>
+              <Button size="sm" variant="outline" onClick={() => openAccountRoute("/register?next=/settings")}>
                 <UserPlus className="h-4 w-4 mr-2" />
                 Create account
               </Button>
@@ -122,30 +147,20 @@ export function CloudAccountCard() {
 
         <Separator />
 
-        {/* Gateway override — self-hosters point at their own stack; everyone
-            else leaves it on the default. Editable while signed out so it can be
-            set before the first sign-in. */}
-        <div className="space-y-2">
-          <Label htmlFor="gateway-url">Gateway URL</Label>
-          <div className="flex gap-2">
-            <Input
-              id="gateway-url"
-              value={gatewayUrl}
-              onChange={(e) => setGatewayUrl(e.target.value)}
-              placeholder="https://inkwell.garakuyard.com"
-              disabled={linked || savingGateway}
-              spellCheck={false}
-              autoCapitalize="off"
-            />
+        <div className="space-y-3">
+          <CloudHostPicker
+            mode={hostMode}
+            customUrl={gatewayUrl}
+            disabled={linked || savingGateway}
+            onModeChange={setHostMode}
+            onCustomUrlChange={setGatewayUrl}
+          />
+          <div className="flex items-center gap-3">
             <Button variant="outline" size="sm" onClick={handleSaveGateway} disabled={linked || savingGateway}>
-              Save
+              Save host
             </Button>
+            {linked && <p className="text-sm text-muted-foreground">Sign out to change the host.</p>}
           </div>
-          <p className="text-sm text-muted-foreground">
-            {linked
-              ? "Sign out to change the gateway."
-              : "Leave as the default unless you self-host. Clear the field and save to reset to the default."}
-          </p>
         </div>
       </CardContent>
     </Card>

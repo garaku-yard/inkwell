@@ -16,6 +16,26 @@ type writeScriptsStub struct {
 	role                                      scriptspb.CallerRole
 	projects                                  int
 	elementType, elementContent, sceneContent string
+	characters                                []*scriptspb.Character
+	characterCreate                           *scriptspb.CreateCharacterRequest
+	characterUpdate                           *scriptspb.UpdateCharacterRequest
+	scenes                                    []*scriptspb.Scene
+	elements                                  map[string][]*scriptspb.ProjectElement
+	updatedElement                            *scriptspb.UpdateElementRequest
+}
+
+func (s *writeScriptsStub) GetProjectCharacters(context.Context, *scriptspb.GetProjectCharactersRequest, ...grpc.CallOption) (*scriptspb.GetProjectCharactersResponse, error) {
+	return &scriptspb.GetProjectCharactersResponse{Characters: s.characters}, nil
+}
+
+func (s *writeScriptsStub) CreateCharacter(_ context.Context, r *scriptspb.CreateCharacterRequest, _ ...grpc.CallOption) (*scriptspb.CreateCharacterResponse, error) {
+	s.characterCreate = r
+	return &scriptspb.CreateCharacterResponse{Character: &scriptspb.Character{Id: "c1", ProjectId: r.ProjectId, Name: r.Name}}, nil
+}
+
+func (s *writeScriptsStub) UpdateCharacter(_ context.Context, r *scriptspb.UpdateCharacterRequest, _ ...grpc.CallOption) (*scriptspb.UpdateCharacterResponse, error) {
+	s.characterUpdate = r
+	return &scriptspb.UpdateCharacterResponse{Character: &scriptspb.Character{Id: r.CharacterId, ProjectId: "p"}}, nil
 }
 
 func (s *writeScriptsStub) CreateProject(_ context.Context, r *scriptspb.CreateProjectRequest, _ ...grpc.CallOption) (*scriptspb.CreateProjectResponse, error) {
@@ -34,10 +54,17 @@ func (s *writeScriptsStub) CreateScene(_ context.Context, r *scriptspb.CreateSce
 func (s *writeScriptsStub) GetResourceProject(context.Context, *scriptspb.GetResourceProjectRequest, ...grpc.CallOption) (*scriptspb.GetResourceProjectResponse, error) {
 	return &scriptspb.GetResourceProjectResponse{ProjectId: "p"}, nil
 }
+
 func (s *writeScriptsStub) GetProjectScenes(context.Context, *scriptspb.GetProjectScenesRequest, ...grpc.CallOption) (*scriptspb.GetProjectScenesResponse, error) {
+	if s.scenes != nil {
+		return &scriptspb.GetProjectScenesResponse{Scenes: s.scenes}, nil
+	}
 	return &scriptspb.GetProjectScenesResponse{Scenes: []*scriptspb.Scene{{Id: "s", ProjectId: "p", Content: "before"}}}, nil
 }
-func (s *writeScriptsStub) GetSceneElements(context.Context, *scriptspb.GetSceneElementsRequest, ...grpc.CallOption) (*scriptspb.GetSceneElementsResponse, error) {
+func (s *writeScriptsStub) GetSceneElements(_ context.Context, request *scriptspb.GetSceneElementsRequest, _ ...grpc.CallOption) (*scriptspb.GetSceneElementsResponse, error) {
+	if s.elements != nil {
+		return &scriptspb.GetSceneElementsResponse{Elements: s.elements[request.SceneId]}, nil
+	}
 	return &scriptspb.GetSceneElementsResponse{Elements: []*scriptspb.ProjectElement{{Id: "e0", SceneId: "s", Type: "body", Content: "before"}}}, nil
 }
 func (s *writeScriptsStub) CreateElement(_ context.Context, r *scriptspb.CreateElementRequest, _ ...grpc.CallOption) (*scriptspb.CreateElementResponse, error) {
@@ -47,6 +74,10 @@ func (s *writeScriptsStub) CreateElement(_ context.Context, r *scriptspb.CreateE
 func (s *writeScriptsStub) UpdateScene(_ context.Context, r *scriptspb.UpdateSceneRequest, _ ...grpc.CallOption) (*scriptspb.UpdateSceneResponse, error) {
 	s.sceneContent = r.GetContent()
 	return &scriptspb.UpdateSceneResponse{Scene: &scriptspb.Scene{Id: r.SceneId, ProjectId: "p", Content: s.sceneContent}}, nil
+}
+func (s *writeScriptsStub) UpdateElement(_ context.Context, r *scriptspb.UpdateElementRequest, _ ...grpc.CallOption) (*scriptspb.UpdateElementResponse, error) {
+	s.updatedElement = r
+	return &scriptspb.UpdateElementResponse{Element: &scriptspb.ProjectElement{Id: r.ElementId, Content: r.GetContent()}}, nil
 }
 
 type writeCollabStub struct {
@@ -112,5 +143,43 @@ func TestAppendToInteractiveFictionCreatesVisibleBodyElement(t *testing.T) {
 	}
 	if s.elementType != "body" || s.elementContent != "Earth hangs far away." || s.sceneContent != "before\n\nEarth hangs far away." {
 		t.Fatalf("element=(%q,%q) scene=%q", s.elementType, s.elementContent, s.sceneContent)
+	}
+}
+
+func TestCharacterWritesPreventDuplicatesAndPreserveEmptyAttributePatch(t *testing.T) {
+	s := &writeScriptsStub{owner: "u", characters: []*scriptspb.Character{{Id: "c1", ProjectId: "p", Name: "Mara"}}}
+	w := New(s, nil, nil)
+	if _, err := w.CreateCharacter(context.Background(), "u", "p", CreateCharacterInput{Name: " mara "}); err == nil {
+		t.Fatal("case-insensitive duplicate character was accepted")
+	}
+	if s.characterCreate != nil {
+		t.Fatal("duplicate reached CreateCharacter")
+	}
+
+	empty := map[string]string{}
+	if _, err := w.UpdateCharacter(context.Background(), "u", "p", "mArA", UpdateCharacterInput{Attributes: &empty}); err != nil {
+		t.Fatal(err)
+	}
+	if s.characterUpdate == nil || !s.characterUpdate.AttributesSet || s.characterUpdate.Attributes == nil || s.characterUpdate.CharacterId != "c1" {
+		t.Fatalf("update request=%#v", s.characterUpdate)
+	}
+}
+
+func TestRenameInteractiveFictionPassageUpdatesExactLinkTargets(t *testing.T) {
+	s := &writeScriptsStub{
+		owner: "u",
+		scenes: []*scriptspb.Scene{
+			{Id: "old", ProjectId: "p", SceneHeading: "Old"},
+			{Id: "other", ProjectId: "p", SceneHeading: "Other"},
+		},
+		elements: map[string][]*scriptspb.ProjectElement{
+			"other": {{Id: "linked", SceneId: "other", Content: "[[Open -> Old]] and [[Older]]"}},
+		},
+	}
+	if _, err := New(s, nil, nil).RenameScene(context.Background(), "u", "p", "old", "New", "interactive_fiction"); err != nil {
+		t.Fatal(err)
+	}
+	if s.updatedElement == nil || s.updatedElement.GetContent() != "[[Open -> New]] and [[Older]]" {
+		t.Fatalf("updated element=%#v", s.updatedElement)
 	}
 }
