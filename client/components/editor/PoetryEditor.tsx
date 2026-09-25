@@ -35,6 +35,7 @@ import {
 import { useEditorComments } from "./shared/useEditorComments"
 import { PagedSheets } from "./shared/PagedSheets"
 import { DocumentMetadataDialog } from "./shared/DocumentMetadataDialog"
+import { EditorCommandPalette, type EditorCommand } from "./shared/EditorCommandPalette"
 import { writeDocumentMetadata, type DocumentMetadata } from "@/lib/editor/document-metadata"
 import { updateSceneContent } from "@/services/project"
 import { type RailEntry } from "./shared/EditorToolRail"
@@ -455,6 +456,26 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     )
   }
 
+  const commands: EditorCommand[] = [
+    { id: "new-unit", label: isLyrics ? "New song" : "New poem", group: "Document", run: () => handleAddPoem() },
+    { id: "line", label: "Insert line", group: "Insert", keywords: ["verse"], run: () => handleRailSelect("line") },
+    { id: "stanza", label: "Insert stanza break", group: "Insert", run: () => handleRailSelect("stanza_break") },
+    ...(isLyrics ? [
+      { id: "section", label: "Insert section", group: "Insert", run: () => handleRailSelect("section_label") },
+      { id: "chords", label: "Insert chord row", group: "Insert", run: () => handleRailSelect("chord_row") },
+    ] : []),
+    ...scenes.map((scene, index) => ({
+      id: `go-${scene.id}`,
+      label: `Go to ${scene.scene_heading || (isLyrics ? "untitled song" : "untitled poem")}`,
+      group: "Navigate",
+      keywords: [String(index + 1)],
+      run: () => {
+        poemRefs.current.get(scene.id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+        document.getElementById(`head-${scene.id}`)?.focus()
+      },
+    })),
+  ]
+
   return (
     <ProjectShell
       projectId={projectData.id}
@@ -535,6 +556,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                   onSave={saveMetadata}
                 />
               )}
+              <EditorCommandPalette commands={commands} />
               <Button
                 variant="ghost"
                 size="icon"

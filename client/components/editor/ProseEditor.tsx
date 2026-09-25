@@ -38,6 +38,7 @@ import {
 import { updateScriptElement } from "@/services/editor"
 import { updateSceneContent } from "@/services/project"
 import { DocumentMetadataDialog } from "./shared/DocumentMetadataDialog"
+import { EditorCommandPalette, type EditorCommand } from "./shared/EditorCommandPalette"
 import { writeDocumentMetadata, type DocumentMetadata } from "@/lib/editor/document-metadata"
 
 type ProseElementType =
@@ -551,6 +552,25 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     return renderElement(b.scene, b.el, b.elIdx)
   }
 
+  const commands: EditorCommand[] = [
+    { id: "new-unit", label: "New chapter", group: "Document", run: () => handleAddChapter() },
+    { id: "paragraph", label: "Insert paragraph", group: "Insert", run: () => handleRailSelect("paragraph") },
+    { id: "dialogue", label: "Insert dialogue", group: "Insert", run: () => handleRailSelect("dialogue") },
+    { id: "heading-2", label: "Insert heading 2", group: "Insert", run: () => handleRailSelect("heading_2") },
+    { id: "heading-3", label: "Insert heading 3", group: "Insert", run: () => handleRailSelect("heading_3") },
+    { id: "scene-break", label: "Insert scene break", group: "Insert", run: () => handleRailSelect("scene_break") },
+    ...scenes.map((scene, index) => ({
+      id: `go-${scene.id}`,
+      label: `Go to ${scene.scene_heading || "untitled chapter"}`,
+      group: "Navigate",
+      keywords: [String(index + 1)],
+      run: () => {
+        chapterRefs.current.get(scene.id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+        document.getElementById(`head-${scene.id}`)?.focus()
+      },
+    })),
+  ]
+
   return (
     <ProjectShell
       projectId={projectData.id}
@@ -590,14 +610,17 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
-          leading={(scenes.find((scene) => scene.id === activeChapterId) ?? scenes[0]) && (
-            <DocumentMetadataDialog
-              key={activeChapterId ?? scenes[0].id}
-              scene={scenes.find((scene) => scene.id === activeChapterId) ?? scenes[0]}
-              label="Chapter"
-              onSave={saveMetadata}
-            />
-          )}
+          leading={<>
+            {(scenes.find((scene) => scene.id === activeChapterId) ?? scenes[0]) && (
+              <DocumentMetadataDialog
+                key={activeChapterId ?? scenes[0].id}
+                scene={scenes.find((scene) => scene.id === activeChapterId) ?? scenes[0]}
+                label="Chapter"
+                onSave={saveMetadata}
+              />
+            )}
+            <EditorCommandPalette commands={commands} />
+          </>}
           importItems={[
             {
               label: "Markdown / Text (.md, .txt)",
