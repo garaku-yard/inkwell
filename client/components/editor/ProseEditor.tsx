@@ -36,6 +36,9 @@ import {
   type FullProject,
 } from "@/services/project"
 import { updateScriptElement } from "@/services/editor"
+import { updateSceneContent } from "@/services/project"
+import { DocumentMetadataDialog } from "./shared/DocumentMetadataDialog"
+import { writeDocumentMetadata, type DocumentMetadata } from "@/lib/editor/document-metadata"
 
 type ProseElementType =
   | "chapter_heading"
@@ -144,6 +147,15 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const totalWords = scenes.reduce((acc, scene) => {
     return acc + (scene.elements ?? []).reduce((s, el) => s + wordCount(el.content), 0)
   }, 0)
+
+  const saveMetadata = async (sceneId: string, metadata: DocumentMetadata) => {
+    if (!user?.id) throw new Error("Sign in to save metadata.")
+    const scene = scenes.find((item) => item.id === sceneId)
+    if (!scene) throw new Error("This chapter is no longer available.")
+    const content = writeDocumentMetadata(scene.content, metadata)
+    await updateSceneContent(sceneId, user.id, content)
+    setScenes((current) => current.map((item) => item.id === sceneId ? { ...item, content } : item))
+  }
 
   // What a new comment attaches to: the focused body element, or the chapter
   // heading (a scene) when the heading itself is focused.
@@ -578,6 +590,14 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
+          leading={(scenes.find((scene) => scene.id === activeChapterId) ?? scenes[0]) && (
+            <DocumentMetadataDialog
+              key={activeChapterId ?? scenes[0].id}
+              scene={scenes.find((scene) => scene.id === activeChapterId) ?? scenes[0]}
+              label="Chapter"
+              onSave={saveMetadata}
+            />
+          )}
           importItems={[
             {
               label: "Markdown / Text (.md, .txt)",
