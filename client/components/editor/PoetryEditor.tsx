@@ -34,6 +34,9 @@ import {
 } from "./shared/EditorSidebar"
 import { useEditorComments } from "./shared/useEditorComments"
 import { PagedSheets } from "./shared/PagedSheets"
+import { DocumentMetadataDialog } from "./shared/DocumentMetadataDialog"
+import { writeDocumentMetadata, type DocumentMetadata } from "@/lib/editor/document-metadata"
+import { updateSceneContent } from "@/services/project"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { paginate } from "@/lib/editor/paginate"
 import {
@@ -116,6 +119,15 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   })
 
   const totalLines = scenes.reduce((acc, s) => acc + countLines(s.elements ?? []), 0)
+
+  const saveMetadata = async (sceneId: string, metadata: DocumentMetadata) => {
+    if (!user?.id) throw new Error("Sign in to save metadata.")
+    const scene = scenes.find((item) => item.id === sceneId)
+    if (!scene) throw new Error("This poem is no longer available.")
+    const content = writeDocumentMetadata(scene.content, metadata)
+    await updateSceneContent(sceneId, user.id, content)
+    setScenes((current) => current.map((item) => item.id === sceneId ? { ...item, content } : item))
+  }
 
   const activeCommentTarget = useEditorCommentTarget({ units: scenes, focusedElementId, activeUnitId: activePoemId })
 
@@ -515,6 +527,14 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
           ]}
           leading={
             <>
+              {(scenes.find((scene) => scene.id === activePoemId) ?? scenes[0]) && (
+                <DocumentMetadataDialog
+                  key={activePoemId ?? scenes[0].id}
+                  scene={scenes.find((scene) => scene.id === activePoemId) ?? scenes[0]}
+                  label={isLyrics ? "Song" : "Poem"}
+                  onSave={saveMetadata}
+                />
+              )}
               <Button
                 variant="ghost"
                 size="icon"
