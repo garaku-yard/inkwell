@@ -15,5 +15,6 @@ export interface SceneStorage {
   create(projectId: string, userId: string, input: CreateSceneInput): Promise<Scene>
   listForProject(projectId: string, userId: string): Promise<Scene[]>
   updateHeading(sceneId: string, userId: string, heading: string): Promise<Scene>
+  updateContent(sceneId: string, userId: string, content: string): Promise<Scene>
   delete(sceneId: string): Promise<void>
 }

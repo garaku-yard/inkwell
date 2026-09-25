@@ -12,8 +12,12 @@
  * at runtime via {@link setApiBaseUrl} (e.g. a self-hoster pointing at their
  * own stack), so the baked value is only a starting point.
  */
+export const OFFICIAL_GATEWAY_URL = "https://inkwell.garakuyard.com";
+
 const DEFAULT_API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://inkwell.garakuyard.com";
+  process.env.NEXT_PUBLIC_BUILD_TARGET === "tauri"
+    ? OFFICIAL_GATEWAY_URL
+    : process.env.NEXT_PUBLIC_API_URL || OFFICIAL_GATEWAY_URL;
 
 /**
  * Header a native client sets to identify itself to the gateway. Its presence

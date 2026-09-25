@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import type { Scene } from "@/services/project"
 import { cn } from "@/lib/utils"
+import { parsePassageMetadata } from "@/lib/interactive-fiction/runtime"
 
 const NODE_W = 160
 const NODE_H = 60
@@ -205,6 +206,7 @@ export function PassageGraph({ passages, activePassageId, onSelectPassage }: Pas
           const isActive = passage.id === activePassageId
           const outLinks = edges.filter((e) => e.from === passage.id).length
           const inLinks = edges.filter((e) => e.to === passage.id).length
+          const metadata = parsePassageMetadata(passage.content)
 
           return (
             <div
@@ -216,17 +218,21 @@ export function PassageGraph({ passages, activePassageId, onSelectPassage }: Pas
                   ? "border-primary bg-primary/10 shadow-primary/20 shadow-md ring-2 ring-primary/30"
                   : nodeAccent(passage.id)
               )}
-              style={{ left: pos.x, top: pos.y, width: NODE_W, height: NODE_H }}
+              style={{
+                left: pos.x, top: pos.y, width: NODE_W, height: NODE_H,
+                ...(metadata.color ? { borderColor: metadata.color } : {}),
+              }}
               onMouseDown={(e) => onMouseDown(e, passage.id)}
               onClick={() => onSelectPassage(passage.id)}
             >
               <p className="text-xs font-semibold truncate text-foreground leading-tight">
                 {passage.scene_heading || "Untitled"}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
+              <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
                 {outLinks > 0 || inLinks > 0
                   ? `${outLinks} out · ${inLinks} in`
                   : "no links"}
+                {metadata.tags[0] ? ` · ${metadata.tags[0]}` : ""}
               </p>
             </div>
           )

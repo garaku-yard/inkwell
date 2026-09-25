@@ -236,6 +236,15 @@ func SetupRouter(cfg *config.Config) (http.Handler, error) {
 				r.Delete("/{sceneId}", scriptsHandler.DeleteScene)
 			})
 
+			// Character profiles
+			r.Route("/characters", func(r chi.Router) {
+				r.Get("/", scriptsHandler.GetProjectCharacters)
+				r.Post("/", scriptsHandler.CreateCharacter)
+				r.Put("/{characterId}", scriptsHandler.UpdateCharacter)
+				r.Patch("/{characterId}", scriptsHandler.UpdateCharacter)
+				r.Delete("/{characterId}", scriptsHandler.DeleteCharacter)
+			})
+
 			// Elements
 			r.Route("/elements", func(r chi.Router) {
 				r.Get("/", scriptsHandler.GetSceneElements)

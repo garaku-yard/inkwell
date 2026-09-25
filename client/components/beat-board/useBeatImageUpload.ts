@@ -1,6 +1,7 @@
 import type React from "react"
 import { useCallback } from "react"
 
+import { getApiBaseUrl } from "@/lib/api"
 import { createBeat, updateBeat, type Beat } from "@/services/beat"
 import { toCanvasPoint } from "./canvasGeometry"
 
@@ -156,7 +157,7 @@ async function uploadImage(file: File): Promise<string> {
   formData.append("image", compressedBlob, file.name)
 
   const uploadResponse = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v1/beats/upload-image`,
+    `${getApiBaseUrl()}/api/v1/beats/upload-image`,
     {
       method: "POST",
       credentials: "include",

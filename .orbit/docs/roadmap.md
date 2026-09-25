@@ -9,6 +9,16 @@
 
 ## Near-term — finish what's built
 
+- **Launch correctness and operations.** Finish the active dependency-security
+  change, health/readiness checks, production deployment contract, log
+  redaction, operator bootstrap, and Paddle sandbox checkout. These are the
+  remaining gates between a working stack and an operable public service.
+- **Editor capability foundation.** The format-native editors have sound
+  document vocabularies, but their craft and production layers are uneven.
+  Build shared inline marks, semantic metadata, command discovery, revision
+  snapshots, diagnostics, and output profiles before duplicating them in nine
+  editors. Full findings and delivery order:
+  [2026-09-23 editor toolset audit](./log/2026-09-23-editor-toolset-audit.md).
 - **Two-device sync verification — done (2026-07-16), and it earned its keep.**
   Both engines are now verified app-level through two live Tauri webviews. The row
   engine passed (fresh-device pull, both edit directions, tombstones, and the
@@ -34,33 +44,27 @@
 
 ## Queued — product / UX
 
-- **Google Drive backup** (Settings → Integrations "#16") — **scoped, not built**.
-  One-way, Google-only, `drive.file` scope ($0), all projects, manual trigger,
-  desktop-only. Full design:
-  [log/2026-06-22-drive-backup-design.md](./log/2026-06-22-drive-backup-design.md);
-  rationale: [decisions/0021](./decisions/0021-drive-backup-google-only.md).
-  Needs a free operator Google OAuth client; build inert-until-set. ~2 sessions.
+- **Editor depth program.** Poetry/Lyrics and Interactive Fiction are first,
+  followed by screenplay/comic production, prose/memoir editorial workflow,
+  and TTRPG/Vault specialist tools. This is a capability program rather than a
+  count of toolbar buttons; see the
+  [editor toolset audit](./log/2026-09-23-editor-toolset-audit.md).
 - **`.iw` as on-disk source of truth.** The portable `.iw` envelope ships as
   import/export only; making it the on-disk store for non-vault projects
   (replacing SQLite, like the vault) is a much larger rewrite, deferred until the
   vault UX is proven stable (it is now). [decisions/0016](./decisions/0016-iw-portable-project-file.md).
-- **Format-unique nice-to-haves.** Comic CBR (RAR) export beyond the shipped CBZ;
-  advanced syllable scansion with meter detection.
+- **Format-unique follow-ons.** Configurable poetic-form analysis, screenplay
+  production reports, TTRPG system packs, and art-backed comic packaging after
+  the corresponding core workflows ship.
 - **Brand assets.** Apple touch / maskable PWA icons, an Open-Graph image, an
   optional display serif for marketing pull quotes (tracked in
   [BRANDBOOK.md](../../BRANDBOOK.md)).
 
 ## Queued — infra / packaging
 
-- **macOS builds (unsigned ad-hoc path).** Add `macos-latest` + `macos-13` to the
-  release matrix; Tauri ad-hoc-signs when `APPLE_SIGNING_IDENTITY` is unset.
-  Worse first-run UX than Windows-unsigned (Gatekeeper right-click-Open once).
-  Upgrade path to a Developer ID later flips it to "verified" with no code change.
-- **Auto-updater.** The release workflow already picks up
-  `TAURI_SIGNING_PRIVATE_KEY` when set; needs key generation + public key in
-  `tauri.conf.json` + `tauri-plugin-updater`. Blocked on macOS signing for the
-  mac path (unsigned updates can't pass Gatekeeper). Recipe in
-  [RELEASING.md](../../RELEASING.md).
+- **Trusted desktop signing.** macOS Intel/Apple Silicon and the signed Tauri
+  updater pipeline ship; public trust still needs Apple Developer ID and Windows
+  OV certificate enrollment.
 - **Windows code signing.** OV cert (~$100–400/yr), deferred to public launch.
 - **Helm charts** for a Kubernetes deploy of the hosted stack (one chart per
   service + umbrella).

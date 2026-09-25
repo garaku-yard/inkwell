@@ -4,6 +4,7 @@ package scriptwrites
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"inkwell/server/internal/gateway/application/scriptreads"
@@ -48,6 +49,70 @@ type CreateSceneInput struct {
 	OrderIndex                      int32
 }
 
+type CreateCharacterInput struct {
+	Name, Description, Role string
+	Attributes              map[string]string
+}
+
+func (w *Writer) CreateCharacter(ctx context.Context, userID, projectID string, in CreateCharacterInput) (*scriptspb.Character, error) {
+	if strings.TrimSpace(in.Name) == "" {
+		return nil, errors.New("name is required")
+	}
+	existing, err := w.reads.ListCharacters(ctx, userID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	for _, character := range existing {
+		if strings.EqualFold(character.Name, strings.TrimSpace(in.Name)) {
+			return nil, fmt.Errorf("a character named %q already exists", strings.TrimSpace(in.Name))
+		}
+	}
+	role, err := handlers.RequireProjectRole(ctx, userID, projectID, handlers.ActionEditContent, w.scripts, w.collab, w.workspace)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := w.scripts.CreateCharacter(ctx, &scriptspb.CreateCharacterRequest{
+		ProjectId: projectID, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role),
+		Name: strings.TrimSpace(in.Name), Description: in.Description, Role: in.Role, Attributes: in.Attributes,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Character, nil
+}
+
+type UpdateCharacterInput struct {
+	Name, Description, Role *string
+	Attributes              *map[string]string
+}
+
+func (w *Writer) UpdateCharacter(ctx context.Context, userID, projectID, reference string, in UpdateCharacterInput) (*scriptspb.Character, error) {
+	current, err := w.reads.ReadCharacter(ctx, userID, projectID, reference)
+	if err != nil {
+		return nil, err
+	}
+	if current == nil {
+		return nil, errors.New("character not found")
+	}
+	role, err := handlers.RequireProjectRole(ctx, userID, projectID, handlers.ActionEditContent, w.scripts, w.collab, w.workspace)
+	if err != nil {
+		return nil, err
+	}
+	req := &scriptspb.UpdateCharacterRequest{
+		CharacterId: current.Id, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role),
+		Name: in.Name, Description: in.Description, Role: in.Role,
+	}
+	if in.Attributes != nil {
+		req.Attributes = *in.Attributes
+		req.AttributesSet = true
+	}
+	resp, err := w.scripts.UpdateCharacter(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Character, nil
+}
+
 func (w *Writer) CreateScene(ctx context.Context, userID, projectID string, in CreateSceneInput) (*scriptspb.Scene, error) {
 	role, err := handlers.RequireProjectRole(ctx, userID, projectID, handlers.ActionEditContent, w.scripts, w.collab, w.workspace)
 	if err != nil {
@@ -70,19 +135,81 @@ func (w *Writer) sceneRole(ctx context.Context, userID, projectID, sceneID strin
 	}
 	return handlers.RequireProjectRole(ctx, userID, p.ProjectId, handlers.ActionEditContent, w.scripts, w.collab, w.workspace)
 }
-func (w *Writer) RenameScene(ctx context.Context, userID, projectID, sceneID, heading string) (*scriptspb.Scene, error) {
+func (w *Writer) RenameScene(ctx context.Context, userID, projectID, sceneID, heading string, category ...string) (*scriptspb.Scene, error) {
 	if strings.TrimSpace(heading) == "" {
 		return nil, errors.New("scene_heading is required")
+	}
+	current, err := w.reads.ReadScene(ctx, userID, projectID, sceneID)
+	if err != nil {
+		return nil, err
+	}
+	if current.Scene == nil {
+		return nil, errors.New("scene not found")
 	}
 	role, err := w.sceneRole(ctx, userID, projectID, sceneID)
 	if err != nil {
 		return nil, err
+	}
+	if len(category) > 0 && category[0] == "interactive_fiction" {
+		scenes, listErr := w.reads.ListScenes(ctx, userID, projectID)
+		if listErr != nil {
+			return nil, listErr
+		}
+		for _, scene := range scenes {
+			content, readErr := w.reads.ReadScene(ctx, userID, projectID, scene.Id)
+			if readErr != nil {
+				return nil, readErr
+			}
+			for _, element := range content.Elements {
+				next := renamePassageLinks(element.Content, current.Scene.SceneHeading, heading)
+				if next == element.Content {
+					continue
+				}
+				if _, updateErr := w.scripts.UpdateElement(ctx, &scriptspb.UpdateElementRequest{
+					ElementId: element.Id, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role), Content: &next,
+				}); updateErr != nil {
+					return nil, updateErr
+				}
+			}
+		}
 	}
 	r, err := w.scripts.UpdateScene(ctx, &scriptspb.UpdateSceneRequest{SceneId: sceneID, UserId: userID, CallerRole: handlers.ScriptsCallerRole(role), SceneHeading: &heading})
 	if err != nil {
 		return nil, err
 	}
 	return r.Scene, nil
+}
+
+func renamePassageLinks(content, previous, next string) string {
+	wanted := strings.ToLower(strings.TrimSpace(previous))
+	for offset := 0; ; {
+		start := strings.Index(content[offset:], "[[")
+		if start < 0 {
+			return content
+		}
+		start += offset
+		end := strings.Index(content[start+2:], "]]")
+		if end < 0 {
+			return content
+		}
+		end += start + 2
+		inner := content[start+2 : end]
+		targetStart, targetEnd := 0, len(inner)
+		if arrow := strings.LastIndex(inner, "->"); arrow >= 0 {
+			targetStart = arrow + 2
+		} else if pipe := strings.Index(inner, "|"); pipe >= 0 {
+			targetEnd = pipe
+		}
+		target := strings.TrimSpace(inner[targetStart:targetEnd])
+		if strings.ToLower(target) == wanted {
+			leading := len(inner[targetStart:targetEnd]) - len(strings.TrimLeft(inner[targetStart:targetEnd], " \t"))
+			trailing := len(inner[targetStart:targetEnd]) - len(strings.TrimRight(inner[targetStart:targetEnd], " \t"))
+			replacement := inner[:targetStart+leading] + next + inner[targetEnd-trailing:]
+			content = content[:start+2] + replacement + content[end:]
+			end = start + 2 + len(replacement)
+		}
+		offset = end + 2
+	}
 }
 func (w *Writer) AppendToScene(ctx context.Context, userID, projectID, sceneID, content, category string) (*scriptspb.Scene, error) {
 	if content == "" {

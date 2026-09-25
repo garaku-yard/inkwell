@@ -16,12 +16,40 @@ type scriptsStub struct {
 	scenes        []*scriptspb.Scene
 	elements      []*scriptspb.ProjectElement
 	elementsCalls int
+	characters    []*scriptspb.Character
 	seenUser      string
 	seenRole      scriptspb.CallerRole
 }
 
+func (s *scriptsStub) GetProjectCharacters(_ context.Context, req *scriptspb.GetProjectCharactersRequest, _ ...grpc.CallOption) (*scriptspb.GetProjectCharactersResponse, error) {
+	s.seenUser, s.seenRole = req.UserId, req.CallerRole
+	return &scriptspb.GetProjectCharactersResponse{Characters: s.characters}, nil
+}
+
 func (s *scriptsStub) GetProjectAccessMetadata(context.Context, *scriptspb.GetProjectAccessMetadataRequest, ...grpc.CallOption) (*scriptspb.GetProjectAccessMetadataResponse, error) {
 	return &scriptspb.GetProjectAccessMetadataResponse{OwnerId: s.ownerID}, nil
+}
+
+func TestReadCharacterResolvesIDOrCaseInsensitiveNameWithProjectAccess(t *testing.T) {
+	stub := &scriptsStub{
+		ownerID: "owner-1",
+		characters: []*scriptspb.Character{
+			{Id: "character-1", ProjectId: "project-1", Name: "Mara"},
+		},
+	}
+	reader := New(stub, nil, nil)
+
+	byName, err := reader.ReadCharacter(context.Background(), "owner-1", "project-1", "mArA")
+	if err != nil || byName.GetId() != "character-1" {
+		t.Fatalf("character=%#v err=%v", byName, err)
+	}
+	byID, err := reader.ReadCharacter(context.Background(), "owner-1", "project-1", "character-1")
+	if err != nil || byID.GetName() != "Mara" {
+		t.Fatalf("character=%#v err=%v", byID, err)
+	}
+	if stub.seenUser != "owner-1" || stub.seenRole != scriptspb.CallerRole_CALLER_ROLE_OWNER {
+		t.Fatalf("actor=%q role=%s", stub.seenUser, stub.seenRole)
+	}
 }
 
 func (s *scriptsStub) GetProjectScenes(_ context.Context, req *scriptspb.GetProjectScenesRequest, _ ...grpc.CallOption) (*scriptspb.GetProjectScenesResponse, error) {

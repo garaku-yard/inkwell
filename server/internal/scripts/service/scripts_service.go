@@ -58,11 +58,11 @@ type ScriptsService interface {
 	UpdateScene(ctx context.Context, sceneID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.ScenePatch) (*domain.Scene, error)
 	DeleteScene(ctx context.Context, sceneID, userID uuid.UUID, callerRole domain.CallerRole) error
 
-	// Character operations — unimplemented at the gRPC handler layer today;
-	// callerRole is threaded through anyway for signature consistency.
+	// Character operations.
 	CreateCharacter(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, character *domain.Character) (*domain.Character, error)
 	GetProjectCharacters(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) ([]*domain.Character, error)
 	UpdateCharacter(ctx context.Context, characterID, userID uuid.UUID, callerRole domain.CallerRole, updates *domain.CharacterPatch) (*domain.Character, error)
+	DeleteCharacter(ctx context.Context, characterID, userID uuid.UUID, callerRole domain.CallerRole) error
 
 	// Location operations — unimplemented at the gRPC handler layer today.
 	CreateLocation(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole, location *domain.Location) (*domain.Location, error)
@@ -450,6 +450,12 @@ func (s *scriptsService) GetResourceProject(ctx context.Context, kind domain.Res
 			return uuid.Nil, err
 		}
 		return scene.ProjectID, nil
+	case domain.ResourceKindCharacter:
+		character, err := s.repo.Character.GetCharacter(ctx, resourceID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return character.ProjectID, nil
 	default:
 		return uuid.Nil, fmt.Errorf("unknown resource kind: %d", kind)
 	}
@@ -639,6 +645,12 @@ func (s *scriptsService) CreateCharacter(ctx context.Context, projectID, userID 
 	if err := s.verifyProjectAccess(ctx, projectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
 		return nil, err
 	}
+	if character == nil || character.Name == "" {
+		return nil, fmt.Errorf("%w: character name cannot be empty", domain.ErrInvalidProjectData)
+	}
+	if character.Attributes == nil {
+		character.Attributes = map[string]string{}
+	}
 
 	character.ID = uuid.New()
 	character.ProjectID = projectID
@@ -692,6 +704,17 @@ func (s *scriptsService) UpdateCharacter(ctx context.Context, characterID, userI
 	}
 
 	return character, nil
+}
+
+func (s *scriptsService) DeleteCharacter(ctx context.Context, characterID, userID uuid.UUID, callerRole domain.CallerRole) error {
+	character, err := s.repo.Character.GetCharacter(ctx, characterID)
+	if err != nil {
+		return err
+	}
+	if err := s.verifyProjectAccess(ctx, character.ProjectID, userID, callerRole, domain.CallerRoleEditor); err != nil {
+		return err
+	}
+	return s.repo.Character.DeleteCharacter(ctx, characterID)
 }
 
 // Location operations

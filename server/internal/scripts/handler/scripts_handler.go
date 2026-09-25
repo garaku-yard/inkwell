@@ -512,19 +512,93 @@ func (h *ScriptsHandler) DeleteScene(ctx context.Context, req *scriptspb.DeleteS
 	}, nil
 }
 
-// CreateCharacter is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) CreateCharacter(ctx context.Context, req *scriptspb.CreateCharacterRequest) (*scriptspb.CreateCharacterResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateCharacter not implemented")
+	if req.ProjectId == "" || req.UserId == "" || req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "project_id, user_id, and name are required")
+	}
+	projectID, err := uuid.Parse(req.ProjectId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
+	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	created, err := h.service.CreateCharacter(ctx, projectID, userID, callerRoleFromProto(req.CallerRole), &domain.Character{
+		Name: req.Name, Description: req.Description, Role: req.Role, Attributes: req.Attributes,
+	})
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+	return &scriptspb.CreateCharacterResponse{Character: convertCharacterToProto(created)}, nil
 }
 
-// GetProjectCharacters is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) GetProjectCharacters(ctx context.Context, req *scriptspb.GetProjectCharactersRequest) (*scriptspb.GetProjectCharactersResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetProjectCharacters not implemented")
+	if req.ProjectId == "" || req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "project_id and user_id are required")
+	}
+	projectID, err := uuid.Parse(req.ProjectId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid project_id: %v", err)
+	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	characters, err := h.service.GetProjectCharacters(ctx, projectID, userID, callerRoleFromProto(req.CallerRole))
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+	out := make([]*scriptspb.Character, len(characters))
+	for i, character := range characters {
+		out[i] = convertCharacterToProto(character)
+	}
+	return &scriptspb.GetProjectCharactersResponse{Characters: out}, nil
 }
 
-// UpdateCharacter is not yet implemented and always returns codes.Unimplemented.
 func (h *ScriptsHandler) UpdateCharacter(ctx context.Context, req *scriptspb.UpdateCharacterRequest) (*scriptspb.UpdateCharacterResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateCharacter not implemented")
+	if req.CharacterId == "" || req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "character_id and user_id are required")
+	}
+	characterID, err := uuid.Parse(req.CharacterId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid character_id: %v", err)
+	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	patch := &domain.CharacterPatch{Name: req.Name, Description: req.Description, Role: req.Role}
+	if req.AttributesSet {
+		attributes := req.Attributes
+		if attributes == nil {
+			attributes = map[string]string{}
+		}
+		patch.Attributes = &attributes
+	}
+	updated, err := h.service.UpdateCharacter(ctx, characterID, userID, callerRoleFromProto(req.CallerRole), patch)
+	if err != nil {
+		return nil, handleServiceError(err)
+	}
+	return &scriptspb.UpdateCharacterResponse{Character: convertCharacterToProto(updated)}, nil
+}
+
+func (h *ScriptsHandler) DeleteCharacter(ctx context.Context, req *scriptspb.DeleteCharacterRequest) (*scriptspb.DeleteCharacterResponse, error) {
+	if req.CharacterId == "" || req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "character_id and user_id are required")
+	}
+	characterID, err := uuid.Parse(req.CharacterId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid character_id: %v", err)
+	}
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
+	}
+	if err := h.service.DeleteCharacter(ctx, characterID, userID, callerRoleFromProto(req.CallerRole)); err != nil {
+		return nil, handleServiceError(err)
+	}
+	return &scriptspb.DeleteCharacterResponse{Success: true}, nil
 }
 
 // CreateLocation is not yet implemented and always returns codes.Unimplemented.
@@ -844,6 +918,25 @@ func convertElementToProto(element *domain.ProjectElement) *scriptspb.ProjectEle
 	return protoElement
 }
 
+func convertCharacterToProto(character *domain.Character) *scriptspb.Character {
+	return &scriptspb.Character{
+		Id:          character.ID.String(),
+		ProjectId:   character.ProjectID.String(),
+		Name:        character.Name,
+		Description: character.Description,
+		Role:        character.Role,
+		Attributes:  character.Attributes,
+		CreatedAt: &common.Timestamp{
+			Seconds: character.CreatedAt.Unix(),
+			Nanos:   int32(character.CreatedAt.Nanosecond()),
+		},
+		UpdatedAt: &common.Timestamp{
+			Seconds: character.UpdatedAt.Unix(),
+			Nanos:   int32(character.UpdatedAt.Nanosecond()),
+		},
+	}
+}
+
 // convertSceneToProto maps a domain Scene to the scripts proto Scene message.
 // outline_unit_id is only set when the scene is linked to a beat-board outline unit.
 func convertSceneToProto(scene *domain.Scene) *scriptspb.Scene {
@@ -986,6 +1079,8 @@ func resourceKindFromProto(t scriptspb.ResourceType) (domain.ResourceKind, bool)
 		return domain.ResourceKindDrawing, true
 	case scriptspb.ResourceType_RESOURCE_TYPE_SCENE:
 		return domain.ResourceKindScene, true
+	case scriptspb.ResourceType_RESOURCE_TYPE_CHARACTER:
+		return domain.ResourceKindCharacter, true
 	default:
 		return domain.ResourceKindUnspecified, false
 	}

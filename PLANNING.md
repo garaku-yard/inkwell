@@ -2,7 +2,7 @@
 
 > Living status of what's shipped, what's partial, and what's planned. Kept in
 > sync with the architecture + handoff detail in `CLAUDE.md`.
-> Last synced: 2026-09-15.
+> Last synced: 2026-09-23.
 
 Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
 
@@ -21,9 +21,17 @@ Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
 
 | Editor | Status | Notes |
 |---|---|---|
-| Screenplay | ✅ | element types, scene/character autocomplete, FDX + PDF export, FDX import. Now on the **shared `PagedSheets`** surface too (US-Letter geometry preserved) — the bespoke `EditorPane` + top `Toolbar` are gone; comments unified onto `useEditorComments` |
-| Prose, Poetry / Lyrics, Comic, TTRPG, Interactive Fiction, Memoir | ✅ | per-format element vocabularies, screenplay-class keyboard parity, format-specific export (EPUB / ChordPro / CBZ / Twee / txt / md). **All formats now on the shared A4 page + margin tool rail** (Comic/TTRPG/IF converted; `716703a`) |
+| Screenplay | ⚠️ | Core screenplay elements, scene/character autocomplete, FDX/PDF, shared US-Letter `PagedSheets`, and comments ship. Production title pages, revisions/locked pages, dual dialogue, scene numbers, and related reporting remain (#407). |
+| Prose | ⚠️ | Core paragraph/dialogue/heading/scene structure, EPUB, and the shared A4 surface ship. Long-form metadata, front/back matter, revision/compile tools, and submission output remain (#408). |
+| Memoir | ⚠️ | Uses the Prose surface. A distinct chronology, people/place/source, evidence, fact-check, and privacy workflow remains (#408). |
+| Poetry / Lyrics | ⚠️ | Line/stanza editing and basic section/chord rows ship. Spatial verse layout, form/revision/submission tools, and a distinct ChordPro-native Lyrics workflow remain (#404). |
+| Comic | ⚠️ | Core panel/character/balloon/caption/SFX structure and dedicated comic-script PDF/DOCX handoff ship. CBZ is intentionally absent until projects contain page art. Richer lettering, pacing, and production tools remain (#407). |
+| TTRPG | ⚠️ | Generic prose, stat, table, random-table, note, and rule blocks ship. System packs, cross-references, maps/figures, and book layout remain (#409). |
+| Interactive Fiction | ⚠️ | Typed variables, conditional/set execution in Play, variable watch/history, passage tags/colors, exact-link rename, named test states, diagnostics, deterministic SugarCube Twee, and local/hosted character tooling ship (#405, #410). Story CSS/scripts, media resources, reusable macros, and richer save-state authoring remain. |
 | Vault (markdown) | ✅ | CM6 live-preview, `[[wikilinks]]` + backlinks, subfolder tree, recursive fs watcher, force-directed graph, `#tags`, attachments, rename sweep |
+
+The detailed professional-capability review is
+[`.orbit/docs/log/2026-09-23-editor-toolset-audit.md`](.orbit/docs/log/2026-09-23-editor-toolset-audit.md).
 
 ## Features
 
@@ -35,11 +43,11 @@ Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
 | Workspaces | ✅ | switcher, per-category, drag-reorder |
 | Auth | ✅ | cookie/JWT, register/login, sessions. Usernames are **not** globally unique — the `(username, user_tag)` pair is (Discord-style "Model B") |
 | Collaboration | ✅ | collaborators, invitations, comments, presence, live co-editing with remote carets (`useEditorRealtime`, all editors) |
-| Export | ✅ | PDF / FDX / EPUB / ChordPro / CBZ / Twee / txt / md, client-side; plus lossless **`.iw`** project files (every non-vault editor) |
+| Export | ✅ | PDF / comic-script DOCX / FDX / EPUB / ChordPro / Twee / txt / md and lossless **`.iw`** project files ship. CBZ is reserved for a future art-backed comic workflow rather than mislabeling script text as finished comic pages. |
 | Import | ✅ | Per-format, client-side, in every editor (`716703a`). Editor Import lands **into the current project**; dashboard Import creates a new one. Parsers: `.md`/`.txt`→Prose+TTRPG, `.twee`→IF, `.txt`/`.cho`→Poetry, `.fdx`→Screenplay; lossless **`.iw`**→new project (dashboard). Verified end-to-end (Playwright). Comic omitted (no clean text inverse). |
 | BYO AI chat (every editor) | ✅ | OpenAI / Anthropic / Gemini / openai_compatible; desktop keys in OS keychain, hosted keys AES-256-GCM in `aisettings-service` |
 | Vault-as-knowledge (RAG) | ✅ | desktop-only; local embeddings (`@huggingface/transformers`, all-MiniLM-L6-v2), brute-force cosine, `read_note` tool |
-| Cloud sync (opt-in, desktop) | ⚠️ | two engines built + server-verified: DB-row sync (incremental `sync_outbox` push, tombstones, last-sync-wins) + path-keyed **vault file sync** (md + binary attachments). **Two-device app-level verify on a running desktop build still pending.** See [`.orbit/docs/reference/sync-engine.md`](.orbit/docs/reference/sync-engine.md) + Open/deferred |
+| Cloud sync (opt-in, desktop) | ⚠️ | DB-row and path-keyed vault-file engines are built and two-device app-verified, including stale-device protection, binary attachments, and deletes. One human pass through the native vault folder picker remains. See [`.orbit/docs/reference/sync-engine.md`](.orbit/docs/reference/sync-engine.md). |
 | Settings (11 sections) | ✅ | appearance / themes / per-editor fonts wired; some sections informational |
 | Admin billing | ⚠️ | tier editor + subscriptions UI present; **enforcement gated on the monetization decision** |
 
@@ -67,7 +75,7 @@ Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
   - **Verified end-to-end via Playwright** against the live web stack (registered a throwaway account): screenplay rail-in-margin + save pill + header; import round-trips for md/txt→Prose, twee→IF, txt/cho→Poetry, md→TTRPG, fdx→Screenplay.
   - **Editor canvas as a brand surface — DONE** (`98f1cfe`): BRANDBOOK §8 "Editor canvas" codifies the one-page-everywhere contract (A4 sheets on a desk, margin tool rail, quiet page numbers, floating save pill; screenplay the lone US-Letter exception on the same `PagedSheets`), pinned in `PagedSheets.smoke.test.tsx` (sheet-per-page at A4, custom `pageSize` honoured, empty state, rail-only-when-supplied).
 - **Real-time co-editing — SHIPPED.** Element-level LWW + presence + live text edits over WebSocket, Redis fan-out across gateway instances, `edit_sessions` durable locks, remote carets with collaborator name-flags, per-connection rate limiting. Rolled out to every editor (IF first, then prose/poetry/comic/ttrpg/screenplay via the shared `useEditorRealtime` hook). Browser-verified two-participant. Still deferred: selection-range highlight (only the collapsed caret shipped), vault realtime (no hosted vault backend to sync through).
-- **Packaging** — macOS Apple Silicon + Intel DMG builds ship through GitHub Actions on the unsigned/ad-hoc path. Auto-updater (needs signing keys + `tauri-plugin-updater`) and trusted Apple/Windows code signing remain deferred. Helm charts for the hosted stack.
+- **Packaging** — macOS Apple Silicon + Intel DMG builds and the signed Tauri updater pipeline ship through GitHub Actions. Trusted Apple/Windows code signing and Helm charts for the hosted stack remain deferred.
 - **`.iw` portable project file — SHIPPED** (`ad4ede5`): a lossless single-JSON envelope of a non-vault project (project + scenes/elements + characters + locations + full beat board). Export from any non-vault editor's Export menu; import (new project) from the dashboard Import menu. JSON because non-vault data has no binary blobs (beat images are gateway URL refs); same envelope as the Drive-backup design. **Still deferred:** making `.iw` the on-disk *source of truth* for non-vault projects (replacing SQLite, like the vault) — a much larger rewrite; the shipped slice is import/export only.
 - **Server hygiene** — the gateway is now a single `/api/v1` tree (no legacy duplicate) and all collab/billing/workspace handlers are on `Endpoint[]` except the intentionally-manual `PaddleWebhook` (raw body for signature checks). The admin `GetSubscriptions` per-row usage fan-out is gone: a `GetBatchUsage` billing RPC now returns lifetime totals + current-month sums for the whole page in two grouped queries (Redis stays authoritative for monthly metrics via overlay). No remaining known hygiene items.
 - **Client** — eslint flat-config migration **DONE** (`08d7e90`/`6e9068f`: eslint 9 + `eslint-config-next` 16 + `eslint.config.mjs`; `no-unused-vars`/`no-explicit-any` promoted to errors). Element-domain physical rename (`script_elements` table) left as plumbing.

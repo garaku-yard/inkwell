@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react"
+import { ArrowLeft, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react"
 
 import { BrandLogo } from "@/components/brand-logo"
 import { Button } from "@/components/ui/button"
@@ -15,8 +15,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 import { registerUser, RegisterRequest } from "@/services/auth"
 import { useAuth } from "@/lib/AuthContext"
+import { getStorage } from "@/lib/storage"
 
 export default function RegisterPage() {
+  const desktop = getStorage().capabilities.has("sync")
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formData, setFormData] = useState({
@@ -95,8 +97,16 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="relative h-full overflow-y-auto bg-background">
+      {desktop && (
+        <Button asChild variant="ghost" className="absolute left-4 top-4">
+          <Link href="/dashboard">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Inkwell
+          </Link>
+        </Button>
+      )}
+      <div className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-4 py-16">
         <div className="flex justify-center mb-8">
           <BrandLogo />
         </div>
@@ -104,7 +114,11 @@ export default function RegisterPage() {
         <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">Create an account</CardTitle>
-            <CardDescription className="text-center">Create your Inkwell account</CardDescription>
+            <CardDescription className="text-center">
+              {desktop
+                ? "Optional — create an account for cloud services while keeping your work local."
+                : "Create your Inkwell account"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
 

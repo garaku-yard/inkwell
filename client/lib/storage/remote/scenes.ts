@@ -24,6 +24,14 @@ export const scenes: SceneStorage = {
     return response.scene
   },
 
+  updateContent: async (sceneId, _userId, content) => {
+    const response = await apiClient<{ scene: Scene }>(`scenes/${encodeURIComponent(sceneId)}`, {
+      method: "PATCH",
+      body: { content },
+    })
+    return response.scene
+  },
+
   delete: async (sceneId) => {
     await apiClient<void>(`scenes/${sceneId}`, { method: "DELETE" })
   },

@@ -92,7 +92,7 @@ func TestHostedToolsAreProjectScoped(t *testing.T) {
 	if got := hostedTools("", "", true); len(got) != 2 || got[0].Name != "list_projects" {
 		t.Fatalf("global tools: %#v", got)
 	}
-	if got := hostedTools("p1", "novel", true); len(got) != 7 {
+	if got := hostedTools("p1", "novel", true); len(got) != 11 {
 		t.Fatalf("project tools: %#v", got)
 	} else {
 		for _, tool := range got {
@@ -101,7 +101,7 @@ func TestHostedToolsAreProjectScoped(t *testing.T) {
 			}
 		}
 	}
-	if got := hostedTools("p1", "novel", false); len(got) != 2 {
+	if got := hostedTools("p1", "novel", false); len(got) != 4 {
 		t.Fatalf("degraded tools: %#v", got)
 	}
 }

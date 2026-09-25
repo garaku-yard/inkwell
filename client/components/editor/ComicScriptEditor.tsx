@@ -454,14 +454,24 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
               }),
             },
             {
-              label: "Export as Comic Book Zip (.cbz)",
+              label: "Export as Comic Script (.pdf)",
               onClick: () => void runExport({
-                extension: "cbz",
+                extension: "pdf",
                 projectTitle: projectData.title,
                 run: async () => {
-                  // fflate is heavy — load it only when the user exports.
-                  const { exportComicToCBZ } = await import("@/lib/export/comic-cbz")
-                  await exportComicToCBZ({ ...projectData, scenes: pages })
+                  const { exportComicScriptToPDF } = await import("@/lib/export/comic-script")
+                  exportComicScriptToPDF({ ...projectData, scenes: pages })
+                },
+              }),
+            },
+            {
+              label: "Export as Comic Script (.docx)",
+              onClick: () => void runExport({
+                extension: "docx",
+                projectTitle: projectData.title,
+                run: async () => {
+                  const { exportComicScriptToDOCX } = await import("@/lib/export/comic-script")
+                  exportComicScriptToDOCX({ ...projectData, scenes: pages })
                 },
               }),
             },

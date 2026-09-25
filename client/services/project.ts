@@ -216,6 +216,12 @@ export const updateSceneHeading = (
   sceneHeading: string,
 ): Promise<Scene> => getStorage().scenes.updateHeading(sceneId, userId, sceneHeading)
 
+export const updateSceneContent = (
+  sceneId: string,
+  userId: string,
+  content: string,
+): Promise<Scene> => getStorage().scenes.updateContent(sceneId, userId, content)
+
 // ─── Elements ─────────────────────────────────────────────────────────────
 
 // The legacy createElement signature takes a free-form scene id + element
@@ -281,6 +287,20 @@ export const getProjectCharacters = (
   projectId: string,
   userId: string,
 ): Promise<Character[]> => getStorage().characters.listForProject(projectId, userId)
+
+export const updateCharacter = (
+  characterId: string,
+  userId: string,
+  characterData: {
+    name?: string
+    description?: string
+    role?: string
+    attributes?: Record<string, string>
+  },
+): Promise<Character> => getStorage().characters.update(characterId, userId, characterData)
+
+export const deleteCharacter = (characterId: string, userId: string): Promise<void> =>
+  getStorage().characters.delete(characterId, userId)
 
 export const createLocation = (
   projectId: string,

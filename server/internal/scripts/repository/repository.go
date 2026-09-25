@@ -786,25 +786,6 @@ func (r *sceneRepository) DeleteScene(ctx context.Context, sceneID uuid.UUID) er
 	return err
 }
 
-type characterRepository struct{ db *sql.DB }
-
-func NewCharacterRepository(db *sql.DB) CharacterRepository { return &characterRepository{db} }
-func (r *characterRepository) CreateCharacter(ctx context.Context, character *domain.Character) error {
-	return nil
-}
-func (r *characterRepository) GetCharacter(ctx context.Context, characterID uuid.UUID) (*domain.Character, error) {
-	return nil, nil
-}
-func (r *characterRepository) GetProjectCharacters(ctx context.Context, projectID uuid.UUID) ([]*domain.Character, error) {
-	return nil, nil
-}
-func (r *characterRepository) UpdateCharacter(ctx context.Context, character *domain.Character) error {
-	return nil
-}
-func (r *characterRepository) DeleteCharacter(ctx context.Context, characterID uuid.UUID) error {
-	return nil
-}
-
 type locationRepository struct{ db *sql.DB }
 
 func NewLocationRepository(db *sql.DB) LocationRepository { return &locationRepository{db} }

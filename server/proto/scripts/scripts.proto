@@ -384,6 +384,7 @@ message CreateCharacterRequest {
   string description = 4;
   string role = 5;
   map<string, string> attributes = 6;
+  CallerRole caller_role = 7;
 }
 
 message CreateCharacterResponse {
@@ -393,6 +394,7 @@ message CreateCharacterResponse {
 message GetProjectCharactersRequest {
   string project_id = 1;
   string user_id = 2; // For authorization check
+  CallerRole caller_role = 3;
 }
 
 message GetProjectCharactersResponse {
@@ -406,10 +408,24 @@ message UpdateCharacterRequest {
   optional string description = 4;
   optional string role = 5;
   map<string, string> attributes = 6;
+  CallerRole caller_role = 7;
+  // Proto maps have no presence bit, so this distinguishes omission from an
+  // explicit empty object that clears all character attributes.
+  bool attributes_set = 8;
 }
 
 message UpdateCharacterResponse {
   Character character = 1;
+}
+
+message DeleteCharacterRequest {
+  string character_id = 1;
+  string user_id = 2;
+  CallerRole caller_role = 3;
+}
+
+message DeleteCharacterResponse {
+  bool success = 1;
 }
 
 // Location requests/responses
@@ -833,6 +849,7 @@ enum ResourceType {
   // real project and fell back to trusting the raw caller id or an
   // unconditional bypass-and-retry (see the ADR 0029 gap this closes).
   RESOURCE_TYPE_SCENE = 7;
+  RESOURCE_TYPE_CHARACTER = 8;
 }
 
 message GetResourceProjectRequest {
@@ -962,6 +979,7 @@ service ScriptsService {
   rpc CreateCharacter(CreateCharacterRequest) returns (CreateCharacterResponse);
   rpc GetProjectCharacters(GetProjectCharactersRequest) returns (GetProjectCharactersResponse);
   rpc UpdateCharacter(UpdateCharacterRequest) returns (UpdateCharacterResponse);
+  rpc DeleteCharacter(DeleteCharacterRequest) returns (DeleteCharacterResponse);
   
   // Location management
   rpc CreateLocation(CreateLocationRequest) returns (CreateLocationResponse);

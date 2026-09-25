@@ -9,14 +9,18 @@ const h = vi.hoisted(() => ({
   hits: [] as Array<Record<string, unknown>>,
   notes: {} as Record<string, { title: string; filename: string; content: string }>,
   beats: [] as unknown[],
+  characters: [] as Array<Record<string, unknown>>,
   category: "novel",
   listForProject: vi.fn(),
   retrieve: vi.fn(),
   createScene: vi.fn(),
   createElement: vi.fn(),
   createBeat: vi.fn(),
+  createCharacter: vi.fn(),
+  updateCharacter: vi.fn(),
   deleteScene: vi.fn(),
   updateHeading: vi.fn(),
+  updateElement: vi.fn(),
   deleteElement: vi.fn(),
   orgAvailable: vi.fn(),
   orgList: vi.fn(),
@@ -59,6 +63,7 @@ vi.mock("@/lib/storage/local/elements", () => ({
     listForScene: async (sceneId: string) => h.elements[sceneId] ?? [],
     create: h.createElement,
     delete: h.deleteElement,
+    update: h.updateElement,
   },
 }))
 
@@ -74,6 +79,14 @@ vi.mock("@/lib/storage/local/beat-board", () => ({
   beatBoard: {
     getBoard: async () => ({ beats: h.beats, connections: [], lanes: [], outlineItems: [] }),
     createBeat: h.createBeat,
+  },
+}))
+
+vi.mock("@/lib/storage/local/characters", () => ({
+  characters: {
+    listForProject: async () => h.characters,
+    create: h.createCharacter,
+    update: h.updateCharacter,
   },
 }))
 
@@ -116,6 +129,18 @@ beforeEach(() => {
   }
   h.category = "novel"
   h.beats = []
+  h.characters = [
+    {
+      id: "c1",
+      project_id: "proj1",
+      name: "Mara",
+      role: "protagonist",
+      description: "A cautious salvage pilot.",
+      attributes: { traits: "observant", motivation: "find her sister" },
+      created_at: "2026-08-01T00:00:00Z",
+      updated_at: "2026-08-01T00:00:00Z",
+    },
+  ]
   h.notes = { Cats: { title: "Cats", filename: "Cats.md", content: "Cats are independent." } }
   h.hits = [{ title: "Cats", text: "cats excerpt", score: 0.8321 }]
   h.listForProject.mockReset()
@@ -130,8 +155,17 @@ beforeEach(() => {
   h.createElement.mockResolvedValue({})
   h.createBeat.mockReset()
   h.createBeat.mockResolvedValue({})
+  h.createCharacter.mockReset()
+  h.createCharacter.mockImplementation(async (_projectId, _userId, input) => ({
+    id: "c2", project_id: "proj1", ...input, created_at: "now", updated_at: "now",
+  }))
+  h.updateCharacter.mockReset()
+  h.updateCharacter.mockImplementation(async (id, _userId, input) => ({
+    ...h.characters.find((character) => character.id === id), ...input, id,
+  }))
   h.deleteScene.mockReset().mockResolvedValue(undefined)
   h.updateHeading.mockReset().mockResolvedValue({})
+  h.updateElement.mockReset().mockResolvedValue({})
   h.deleteElement.mockReset().mockResolvedValue(undefined)
   h.orgAvailable.mockReset()
   h.orgAvailable.mockResolvedValue(false)
@@ -154,13 +188,17 @@ describe("tool registry", () => {
       "list_projects",
       "list_scenes",
       "read_scene",
+      "list_characters",
+      "read_character",
       "search_notes",
       "read_note",
       "create_project",
       "create_scene",
+      "create_character",
       "append_to_scene",
       "add_beat",
       "rename_scene",
+      "update_character",
       "rewrite_scene",
       "delete_scene",
     ])
@@ -204,9 +242,11 @@ describe("tool registry", () => {
     expect(mutating).toEqual([
       "create_project",
       "create_scene",
+      "create_character",
       "append_to_scene",
       "add_beat",
       "rename_scene",
+      "update_character",
       "rewrite_scene",
       "delete_scene",
     ])
@@ -555,6 +595,55 @@ describe("append_to_scene", () => {
   })
 })
 
+describe("character tools", () => {
+  it("lists and reads stable character profile details", async () => {
+    await expect(tool("list_characters").run({}, ctx)).resolves.toContain(
+      "Mara — protagonist",
+    )
+    const profile = await tool("read_character").run({ character: "Mara" }, ctx)
+    expect(profile).toContain("Traits: observant")
+    expect(profile).toContain("Motivation: find her sister")
+  })
+
+  it("creates a profile without treating gameplay variables as attributes", async () => {
+    const out = await tool("create_character").run(
+      { name: "Ivo", role: "rival", traits: "reckless", health: "3" },
+      ctx,
+    )
+    expect(h.createCharacter).toHaveBeenCalledWith(
+      "proj1",
+      expect.any(String),
+      expect.objectContaining({
+        name: "Ivo",
+        role: "rival",
+        attributes: { traits: "reckless" },
+      }),
+    )
+    expect(out).toContain("Created character")
+  })
+
+  it("updates only the profile fields provided", async () => {
+    const out = await tool("update_character").run(
+      { character: "c1", voice: "short, precise sentences" },
+      ctx,
+    )
+    expect(h.updateCharacter).toHaveBeenCalledWith(
+      "c1",
+      expect.any(String),
+      expect.objectContaining({
+        name: undefined,
+        role: undefined,
+        description: undefined,
+        attributes: expect.objectContaining({
+          traits: "observant",
+          voice: "short, precise sentences",
+        }),
+      }),
+    )
+    expect(out).toContain("Updated character profile")
+  })
+})
+
 describe("add_beat", () => {
   it("lays cards out in a grid instead of stacking them at the origin", async () => {
     h.beats = [{}, {}, {}, {}]
@@ -611,6 +700,18 @@ describe("rename_scene", () => {
       tool("rename_scene").run({ scene_id: "s1", heading: "  " }, ctx),
     ).resolves.toBe("Give the scene a heading.")
     expect(h.updateHeading).not.toHaveBeenCalled()
+  })
+
+  it("rewrites exact passage link targets for interactive fiction", async () => {
+    h.category = "interactive_fiction"
+    h.scenes = [
+      { id: "s1", scene_heading: "Old", content: "", order_index: 0 },
+      { id: "s2", scene_heading: "Other", content: "", order_index: 1 },
+    ]
+    h.elements = { s1: [], s2: [{ id: "e1", content: "[[Label -> Old]] and [[Older]]" }] }
+    const out = await tool("rename_scene").run({ scene_id: "s1", heading: "New" }, ctx)
+    expect(h.updateElement).toHaveBeenCalledWith("e1", { content: "[[Label -> New]] and [[Older]]" })
+    expect(out).toContain("Updated 1 passage link")
   })
 
   // Losing one short line that the reply quotes back is not the same as

@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api"
+import { apiClient, getApiBaseUrl } from "@/lib/api"
 
 import type {
   DataDeletionRequest,
@@ -15,7 +15,7 @@ export const settings: SettingsStorage = {
   uploadAvatar: async (file: File): Promise<string> => {
     const form = new FormData()
     form.append("image", file)
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/me/avatar`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/users/me/avatar`, {
       method: "POST",
       credentials: "include",
       body: form,

@@ -15,6 +15,9 @@ export interface ParsedElement {
 /** One scene/chapter/page/passage with its ordered elements. */
 export interface ParsedScene {
   heading: string
+  /** Optional scene-level metadata. Interactive Fiction stores passage tags,
+   * color, variable definitions, and test states here. */
+  content?: string
   elements: ParsedElement[]
 }
 

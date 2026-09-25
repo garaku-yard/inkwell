@@ -21,6 +21,7 @@ const (
 	ResourceKindElement
 	ResourceKindDrawing
 	ResourceKindScene
+	ResourceKindCharacter
 )
 
 // Beat represents a story beat in the beat board

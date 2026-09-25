@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
-import { Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Play, RotateCcw, ChevronLeft, AlignLeft, Split, Braces, StickyNote } from "lucide-react"
+import { Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Play, RotateCcw, ChevronLeft, AlignLeft, Split, Braces, StickyNote, Activity } from "lucide-react"
 import { PassageGraph } from "./PassageGraph"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -16,6 +16,8 @@ import { useElementAutosave } from "./shared/useElementAutosave"
 import { dispatchKey } from "@/lib/editor/keymap"
 import { createIFKeymap } from "./if/keymap"
 import { PassageAutocomplete } from "./if/PassageAutocomplete"
+import { CharacterManagerDialog } from "./if/CharacterManagerDialog"
+import { StoryToolsDialog } from "./if/StoryToolsDialog"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToTwee } from "@/lib/export/if-twee"
 import { useExportToast } from "@/lib/export/use-export-toast"
@@ -38,9 +40,25 @@ import { paginate } from "@/lib/editor/paginate"
 import {
   createScene,
   createSceneElement,
+  updateElementContent,
+  updateSceneContent,
   type ProjectElement,
   type FullProject,
 } from "@/services/project"
+import {
+  EMPTY_IF_STORY_SETTINGS,
+  executePassage,
+  initialVariables,
+  parsePassageMetadata,
+  renamePassageLinks,
+  serializePassageMetadata,
+  type IFExecutionEvent,
+  type IFPassageMetadata,
+  type IFRenderedElement,
+  type IFStorySettings,
+  type IFTestState,
+  type IFVariables,
+} from "@/lib/interactive-fiction/runtime"
 
 // Element types:
 // body        — prose the player reads
@@ -51,6 +69,15 @@ import {
 type IFElementType = "body" | "choice" | "conditional" | "set" | "note"
 
 type IFScene = NonNullable<FullProject["scenes"]>[number]
+
+interface PlaySnapshot {
+  passageId: string
+  inputVariables: IFVariables
+  variables: IFVariables
+  rendered: IFRenderedElement[]
+  events: IFExecutionEvent[]
+  errors: string[]
+}
 
 /** One renderable unit on the active passage's A4 sheet — its header
  *  (title + link hint), the empty-passage placeholder, or a single
@@ -130,7 +157,12 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   // passage ids. Resets when the user re-enters play mode from the
   // toolbar so each playthrough starts from the start passage.
   const [playCursor, setPlayCursor] = useState<string | null>(null)
-  const [playHistory, setPlayHistory] = useState<string[]>([])
+  const [playHistory, setPlayHistory] = useState<PlaySnapshot[]>([])
+  const [playInputVariables, setPlayInputVariables] = useState<IFVariables>({})
+  const [playVariables, setPlayVariables] = useState<IFVariables>({})
+  const [playRendered, setPlayRendered] = useState<IFRenderedElement[]>([])
+  const [playEvents, setPlayEvents] = useState<IFExecutionEvent[]>([])
+  const [playErrors, setPlayErrors] = useState<string[]>([])
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
@@ -147,6 +179,78 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const [focusedElementId, setFocusedElementId] = useState<string | null>(null)
 
   const activePassage = passages.find(p => p.id === activePassageId) ?? null
+  const storySettings = useMemo(
+    () => parsePassageMetadata(passages[0]?.content).story ?? EMPTY_IF_STORY_SETTINGS,
+    [passages],
+  )
+
+  const enterPlayPassage = useCallback((passageId: string, variables: IFVariables, priorEvents: IFExecutionEvent[] = []) => {
+    const passage = passages.find((item) => item.id === passageId)
+    if (!passage) return
+    const result = executePassage(passage, variables, storySettings.variables)
+    setPlayCursor(passageId)
+    setPlayInputVariables({ ...variables })
+    setPlayVariables(result.variables)
+    setPlayRendered(result.elements)
+    setPlayEvents([...priorEvents, ...result.events])
+    setPlayErrors(result.errors)
+  }, [passages, storySettings.variables])
+
+  const startPlay = useCallback(() => {
+    const start = passages.find((passage) => passage.id === storySettings.startPassageId) ?? passages[0]
+    setPlayHistory([])
+    setPlayEvents([])
+    if (!start) {
+      setPlayCursor(null); setPlayInputVariables({}); setPlayVariables({}); setPlayRendered([]); setPlayErrors([])
+      return
+    }
+    enterPlayPassage(start.id, initialVariables(storySettings.variables), [])
+  }, [enterPlayPassage, passages, storySettings.startPassageId, storySettings.variables])
+
+  const loadTestState = useCallback((state: IFTestState) => {
+    setPlayHistory([])
+    setPlayEvents([])
+    enterPlayPassage(state.passageId, state.variables, [])
+    setView("play")
+  }, [enterPlayPassage])
+
+  const saveStoryTools = useCallback(async (settings: IFStorySettings, passageId: string | null, passageMetadata: IFPassageMetadata) => {
+    if (!user?.id || passages.length === 0) return
+    const updates = new Map<string, string>()
+    const first = passages[0]
+    const firstMetadata = parsePassageMetadata(first.content)
+    updates.set(first.id, serializePassageMetadata({ ...firstMetadata, story: settings }))
+    if (passageId) {
+      const current = parsePassageMetadata(passages.find((item) => item.id === passageId)?.content)
+      updates.set(passageId, serializePassageMetadata({
+        ...current,
+        tags: passageMetadata.tags,
+        color: passageMetadata.color,
+        story: passageId === first.id ? settings : current.story,
+      }))
+    }
+    await Promise.all([...updates].map(([id, content]) => updateSceneContent(id, user.id, content)))
+    setPassages((current) => current.map((passage) => updates.has(passage.id) ? { ...passage, content: updates.get(passage.id)! } : passage))
+    toast({ title: "Story settings saved", description: "Variables, passage metadata, and test states are ready for Play and Twee export." })
+  }, [passages, toast, user?.id])
+
+  const renameStartRef = useRef<Map<string, string>>(new Map())
+  const finishPassageRename = useCallback(async (passageId: string, nextName: string) => {
+    const previous = renameStartRef.current.get(passageId)?.trim()
+    renameStartRef.current.delete(passageId)
+    const next = nextName.trim()
+    if (!previous || !next || previous.toLowerCase() === next.toLowerCase()) return
+    const changed: Array<{ id: string; content: string }> = []
+    setPassages((current) => current.map((passage) => ({
+      ...passage,
+      elements: (passage.elements ?? []).map((element) => {
+        const content = renamePassageLinks(element.content, previous, next)
+        if (content !== element.content) changed.push({ id: element.id, content })
+        return content === element.content ? element : { ...element, content }
+      }),
+    })))
+    await Promise.all(changed.map((item) => updateElementContent(item.id, user?.id ?? "", item.content)))
+  }, [user?.id])
 
   // Opening a project with no passages leaves nothing selected. If passages
   // then appear — imported, or written by an agent through the MCP bridge —
@@ -701,10 +805,11 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   /** Render any write-view block — passage header, empty placeholder, or element. */
   const renderBlock = (b: IFBlock) => {
     if (b.kind === "passageHead") {
-      const isStart = passages.findIndex((p) => p.id === b.passage.id) === 0
+      const isStart = b.passage.id === (storySettings.startPassageId ?? passages[0]?.id)
       const here = peersByPassage.get(b.passage.id)
+      const metadata = parsePassageMetadata(b.passage.content)
       return (
-        <div>
+        <div style={metadata.color ? { borderTop: `3px solid ${metadata.color}`, paddingTop: "0.75rem" } : undefined}>
           {here && here.length > 0 && (
             <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-0.5 text-xs text-muted-foreground">
               <PresencePips peers={here} />
@@ -723,9 +828,16 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               id={`head-${b.passage.id}`}
               value={b.passage.scene_heading ?? ""}
               onValueChange={(next) => handleContentChange(b.passage.id, next, true)}
+              onFocus={() => renameStartRef.current.set(b.passage.id, b.passage.scene_heading)}
+              onBlur={(event) => void finishPassageRename(b.passage.id, event.currentTarget.textContent ?? "")}
               className="text-xl font-bold outline-none pb-2 border-b empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
               data-placeholder="Passage name"
             />
+            {metadata.tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {metadata.tags.map((tag) => <span key={tag} className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">{tag}</span>)}
+              </div>
+            )}
           </div>
           <p className="text-xs text-muted-foreground/50 mb-8 mt-1.5">
             Link with{" "}
@@ -822,6 +934,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             },
           ]}
           leading={
+            <div className="flex items-center gap-2">
             <div role="group" aria-label="View mode" className="flex items-center rounded-md border overflow-hidden text-xs">
               <button
                 onClick={() => setView("write")}
@@ -845,11 +958,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               </button>
               <button
                 onClick={() => {
-                  // Reset to the first passage so each playthrough starts
-                  // from the canonical entry point regardless of which
-                  // passage was being edited.
-                  setPlayCursor(passages[0]?.id ?? null)
-                  setPlayHistory([])
+                  startPlay()
                   setView("play")
                 }}
                 aria-pressed={view === "play"}
@@ -860,6 +969,18 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               >
                 <Play className="h-3 w-3" /> Play
               </button>
+            </div>
+            <CharacterManagerDialog projectId={projectData.id} userId={user?.id} passages={passages} />
+            <StoryToolsDialog
+              passages={passages}
+              activePassageId={activePassageId}
+              runtimePassageId={playCursor}
+              runtimeVariables={playInputVariables}
+              settings={storySettings}
+              onSave={saveStoryTools}
+              onSelectPassage={(id) => { setActivePassageId(id); setView("write") }}
+              onLoadTestState={loadTestState}
+            />
             </div>
           }
         />
@@ -887,21 +1008,30 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               p => p.scene_heading.toLowerCase().trim() === target.toLowerCase().trim(),
             )
             if (!next || !playCursor) return
-            setPlayHistory(prev => [...prev, playCursor])
-            setPlayCursor(next.id)
+            setPlayHistory(prev => [...prev, {
+              passageId: playCursor,
+              inputVariables: { ...playInputVariables },
+              variables: { ...playVariables },
+              rendered: playRendered,
+              events: playEvents,
+              errors: playErrors,
+            }])
+            enterPlayPassage(next.id, playVariables, playEvents)
           }
           const goBack = () => {
             setPlayHistory(prev => {
               if (prev.length === 0) return prev
               const previous = prev[prev.length - 1]
-              setPlayCursor(previous)
+              setPlayCursor(previous.passageId)
+              setPlayInputVariables(previous.inputVariables)
+              setPlayVariables(previous.variables)
+              setPlayRendered(previous.rendered)
+              setPlayEvents(previous.events)
+              setPlayErrors(previous.errors)
               return prev.slice(0, -1)
             })
           }
-          const restart = () => {
-            setPlayCursor(passages[0]?.id ?? null)
-            setPlayHistory([])
-          }
+          const restart = startPlay
           return (
             <div className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background">
               {/* The same background is repeated on this inner page, and it is
@@ -914,7 +1044,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                   on 1.78px stems, the one that scrolls at 0.0% on 2.53px —
                   zero fringing is the signature of the fallback, not of clean
                   text. Same fix as EditorSidebar; see the note there. */}
-              <div className="max-w-[660px] mx-auto bg-secondary px-8 py-10 dark:bg-background">
+              <div className="max-w-[960px] mx-auto bg-secondary px-8 py-10 dark:bg-background">
                 {/* Player toolbar */}
                 <div className="flex items-center justify-between mb-6 text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">
@@ -946,30 +1076,19 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                     </Button>
                   </div>
                 ) : (
+                  <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_220px]">
                   <article className="prose prose-sm max-w-none">
                     <h2 className="text-xl font-semibold mb-6">
                       {cursor.scene_heading || "Untitled"}
                     </h2>
-                    {(cursor.elements ?? []).map((el) => {
-                      // Skip author-only elements at runtime.
-                      if (el.element_type === "note" || el.element_type === "set") return null
-                      // `conditional` elements aren't fully evaluated yet —
-                      // we render them inert in muted styling so authors
-                      // still see them flagged in the preview.
-                      if (el.element_type === "conditional") {
-                        return (
-                          <div key={el.id} className="my-3 px-3 py-2 rounded border border-dashed text-xs text-muted-foreground">
-                            <span className="font-mono">{el.content}</span>
-                            <p className="mt-1 not-italic">Conditionals aren&apos;t evaluated in preview yet — both branches are reachable from the writer&apos;s view.</p>
-                          </div>
-                        )
-                      }
+                    {playErrors.map((error) => <div key={error} className="my-3 rounded border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</div>)}
+                    {playRendered.map((el) => {
                       // body and choice both tokenize identically; the
                       // difference is presentation. Choice elements
                       // bunch into a button stack at the end of the
                       // passage; body elements get inline links.
                       const segments = tokenizeBody(el.content)
-                      if (el.element_type === "choice") {
+                      if (el.type === "choice") {
                         return (
                           <div key={el.id} className="my-2">
                             {segments.map((seg, i) =>
@@ -1015,6 +1134,25 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                       )
                     })}
                   </article>
+                  <aside className="space-y-4 text-xs">
+                    <div className="rounded-md border bg-background/60 p-3">
+                      <h3 className="mb-2 font-semibold">Variable watch</h3>
+                      {Object.keys(playVariables).length === 0 ? <p className="text-muted-foreground">No variables set.</p> : (
+                        <dl className="space-y-1.5 font-mono">
+                          {Object.entries(playVariables).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => (
+                            <div key={name} className="flex justify-between gap-2"><dt>${name}</dt><dd className="truncate text-muted-foreground">{JSON.stringify(value)}</dd></div>
+                          ))}
+                        </dl>
+                      )}
+                    </div>
+                    <div className="rounded-md border bg-background/60 p-3">
+                      <h3 className="mb-2 flex items-center gap-1.5 font-semibold"><Activity className="h-3.5 w-3.5" /> Execution history</h3>
+                      {playEvents.length === 0 ? <p className="text-muted-foreground">No logic executed yet.</p> : (
+                        <ol className="space-y-2 text-muted-foreground">{playEvents.map((event, index) => <li key={`${event.elementId}-${index}`}><span className="mr-1 font-mono text-foreground">{index + 1}.</span>{event.message}</li>)}</ol>
+                      )}
+                    </div>
+                  </aside>
+                  </div>
                 )}
               </div>
             </div>

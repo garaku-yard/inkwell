@@ -63,9 +63,9 @@ func hostedTools(projectID, category string, destructive bool) []aiadapter.Tool 
 		// A project chat must only receive tools that act on the open project.
 		// Offering create_project here lets a model misinterpret requests such as
 		// "change the title" and silently create a duplicate project.
-		names = []string{"list_units", "read_unit"}
+		names = []string{"list_units", "read_unit", "list_characters", "read_character"}
 		if destructive {
-			names = append(names, "create_unit", "append_to_unit", "rename_unit", "rewrite_unit", "delete_unit")
+			names = append(names, "create_unit", "append_to_unit", "rename_unit", "rewrite_unit", "delete_unit", "create_character", "update_character")
 		}
 	}
 	out := make([]aiadapter.Tool, 0, len(names))
@@ -192,7 +192,7 @@ func (h *AIHandler) runToolLoop(ctx context.Context, w io.Writer, flusher http.F
 func requiresApproval(tool string) bool {
 	switch tool {
 	case "create_scene", "append_to_scene", "add_beat", "rename_scene", "rewrite_scene", "delete_scene",
-		"create_unit", "append_to_unit", "rename_unit", "rewrite_unit", "delete_unit":
+		"create_unit", "append_to_unit", "rename_unit", "rewrite_unit", "delete_unit", "create_character", "update_character":
 		return true
 	default:
 		return false
@@ -301,7 +301,7 @@ func cleanHeading(value string) string {
 }
 
 func (h *AIHandler) executeReadTool(ctx context.Context, userID, projectID string, call aiadapter.ToolCall) string {
-	if call.Name != "list_projects" && call.Name != "list_scenes" && call.Name != "read_scene" && call.Name != "list_units" && call.Name != "read_unit" {
+	if call.Name != "list_projects" && call.Name != "list_scenes" && call.Name != "read_scene" && call.Name != "list_units" && call.Name != "read_unit" && call.Name != "list_characters" && call.Name != "read_character" {
 		encoded, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("unknown tool: %s", call.Name)})
 		return string(encoded)
 	}
@@ -365,6 +365,29 @@ func (h *AIHandler) executeReadTool(ctx context.Context, userID, projectID strin
 				value = map[string]any{"error": "unit not found"}
 			}
 		}
+	case "list_characters":
+		if projectID == "" {
+			err = errors.New("projectId is required")
+		} else {
+			value, err = h.reads.ListCharacters(ctx, userID, projectID)
+		}
+	case "read_character":
+		var args struct {
+			Character string `json:"character"`
+		}
+		if json.Unmarshal([]byte(call.Arguments), &args) != nil || strings.TrimSpace(args.Character) == "" {
+			err = errors.New("character is required")
+		} else if projectID == "" {
+			err = errors.New("projectId is required")
+		} else {
+			character, readErr := h.reads.ReadCharacter(ctx, userID, projectID, strings.TrimSpace(args.Character))
+			err = readErr
+			if err == nil && character == nil {
+				value = map[string]string{"error": "character not found"}
+			} else if err == nil {
+				value = character
+			}
+		}
 	}
 	if err != nil {
 		encoded, _ := json.Marshal(map[string]string{"error": err.Error()})
@@ -378,11 +401,11 @@ func (h *AIHandler) executeReadTool(ctx context.Context, userID, projectID strin
 }
 
 func (h *AIHandler) executeHostedTool(ctx context.Context, userID, projectID, category string, call aiadapter.ToolCall) string {
-	if call.Name == "list_projects" || call.Name == "list_scenes" || call.Name == "read_scene" || call.Name == "list_units" || call.Name == "read_unit" {
+	if call.Name == "list_projects" || call.Name == "list_scenes" || call.Name == "read_scene" || call.Name == "list_units" || call.Name == "read_unit" || call.Name == "list_characters" || call.Name == "read_character" {
 		return h.executeReadTool(ctx, userID, projectID, call)
 	}
 	call = asSceneTool(call)
-	if call.Name != "create_project" && call.Name != "create_scene" && call.Name != "append_to_scene" && call.Name != "add_beat" && call.Name != "rename_scene" {
+	if call.Name != "create_project" && call.Name != "create_scene" && call.Name != "append_to_scene" && call.Name != "add_beat" && call.Name != "rename_scene" && call.Name != "create_character" && call.Name != "update_character" {
 		encoded, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("unknown tool: %s", call.Name)})
 		return string(encoded)
 	}
@@ -390,19 +413,26 @@ func (h *AIHandler) executeHostedTool(ctx context.Context, userID, projectID, ca
 		return `{"error":"hosted write tools are unavailable"}`
 	}
 	var args struct {
-		Title         string `json:"title"`
-		Description   string `json:"description"`
-		Category      string `json:"category"`
-		OrgID         string `json:"org_id"`
-		SceneID       string `json:"scene_id"`
-		Heading       string `json:"scene_heading"`
-		HeadingAlias  string `json:"heading"`
-		Content       string `json:"content"`
-		OutlineUnitID string `json:"outline_unit_id"`
-		OrderIndex    int32  `json:"order_index"`
-		Color         string `json:"color"`
-		ActNumber     int32  `json:"act_number"`
-		Order         int32  `json:"order"`
+		Title         string  `json:"title"`
+		Description   string  `json:"description"`
+		Category      string  `json:"category"`
+		OrgID         string  `json:"org_id"`
+		SceneID       string  `json:"scene_id"`
+		Heading       string  `json:"scene_heading"`
+		HeadingAlias  string  `json:"heading"`
+		Content       string  `json:"content"`
+		OutlineUnitID string  `json:"outline_unit_id"`
+		OrderIndex    int32   `json:"order_index"`
+		Color         string  `json:"color"`
+		ActNumber     int32   `json:"act_number"`
+		Order         int32   `json:"order"`
+		Character     string  `json:"character"`
+		Name          *string `json:"name"`
+		Role          *string `json:"role"`
+		Traits        *string `json:"traits"`
+		Motivation    *string `json:"motivation"`
+		Voice         *string `json:"voice"`
+		Relationships *string `json:"relationships"`
 	}
 	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
 		return `{"error":"invalid tool arguments"}`
@@ -441,7 +471,57 @@ func (h *AIHandler) executeHostedTool(ctx context.Context, userID, projectID, ca
 		if projectID == "" || args.SceneID == "" {
 			err = errors.New("projectId and scene_id are required")
 		} else {
-			value, err = h.writes.RenameScene(ctx, userID, projectID, args.SceneID, args.Heading)
+			value, err = h.writes.RenameScene(ctx, userID, projectID, args.SceneID, args.Heading, category)
+		}
+	case "create_character":
+		if projectID == "" {
+			err = errors.New("projectId is required")
+		} else if args.Name == nil || strings.TrimSpace(*args.Name) == "" {
+			err = errors.New("name is required")
+		} else {
+			attributes := characterToolAttributes(args.Traits, args.Motivation, args.Voice, args.Relationships)
+			description, role := "", ""
+			if args.Description != "" {
+				description = args.Description
+			}
+			if args.Role != nil {
+				role = strings.TrimSpace(*args.Role)
+			}
+			value, err = h.writes.CreateCharacter(ctx, userID, projectID, scriptwrites.CreateCharacterInput{
+				Name: strings.TrimSpace(*args.Name), Description: description, Role: role, Attributes: attributes,
+			})
+		}
+	case "update_character":
+		if projectID == "" || strings.TrimSpace(args.Character) == "" {
+			err = errors.New("projectId and character are required")
+		} else {
+			current, readErr := h.reads.ReadCharacter(ctx, userID, projectID, strings.TrimSpace(args.Character))
+			if readErr != nil {
+				err = readErr
+			} else if current == nil {
+				err = errors.New("character not found")
+			} else {
+				var attributes *map[string]string
+				if args.Traits != nil || args.Motivation != nil || args.Voice != nil || args.Relationships != nil {
+					merged := make(map[string]string, len(current.Attributes))
+					for key, item := range current.Attributes {
+						merged[key] = item
+					}
+					applyCharacterAttribute(merged, "traits", args.Traits)
+					applyCharacterAttribute(merged, "motivation", args.Motivation)
+					applyCharacterAttribute(merged, "voice", args.Voice)
+					applyCharacterAttribute(merged, "relationships", args.Relationships)
+					attributes = &merged
+				}
+				var description *string
+				if _, present := rawStringField(call.Arguments, "description"); present {
+					cleaned := strings.TrimSpace(args.Description)
+					description = &cleaned
+				}
+				value, err = h.writes.UpdateCharacter(ctx, userID, projectID, current.Id, scriptwrites.UpdateCharacterInput{
+					Name: args.Name, Description: description, Role: args.Role, Attributes: attributes,
+				})
+			}
 		}
 	default:
 		err = fmt.Errorf("unknown tool: %s", call.Name)
@@ -455,6 +535,43 @@ func (h *AIHandler) executeHostedTool(ctx context.Context, userID, projectID, ca
 		return `{"error":"could not encode tool result"}`
 	}
 	return string(encoded)
+}
+
+func characterToolAttributes(traits, motivation, voice, relationships *string) map[string]string {
+	out := map[string]string{}
+	applyCharacterAttribute(out, "traits", traits)
+	applyCharacterAttribute(out, "motivation", motivation)
+	applyCharacterAttribute(out, "voice", voice)
+	applyCharacterAttribute(out, "relationships", relationships)
+	return out
+}
+
+func applyCharacterAttribute(target map[string]string, key string, value *string) {
+	if value == nil {
+		return
+	}
+	cleaned := strings.TrimSpace(*value)
+	if cleaned == "" {
+		delete(target, key)
+		return
+	}
+	target[key] = cleaned
+}
+
+func rawStringField(arguments, key string) (string, bool) {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal([]byte(arguments), &fields) != nil {
+		return "", false
+	}
+	raw, ok := fields[key]
+	if !ok {
+		return "", false
+	}
+	var value string
+	if json.Unmarshal(raw, &value) != nil {
+		return "", false
+	}
+	return value, true
 }
 
 func asSceneTool(call aiadapter.ToolCall) aiadapter.ToolCall {

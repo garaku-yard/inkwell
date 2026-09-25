@@ -19,15 +19,19 @@ import type { ToolSpec } from "@/lib/ai/providers"
 import { addBeat } from "./add-beat"
 import { appendToScene } from "./append-to-scene"
 import { createProject } from "./create-project"
+import { createCharacterTool } from "./create-character"
 import { createScene } from "./create-scene"
 import { deleteScene } from "./delete-scene"
 import { listProjects } from "./list-projects"
+import { listCharacters } from "./list-characters"
 import { listScenes } from "./list-scenes"
 import { readNote } from "./read-note"
+import { readCharacter } from "./read-character"
 import { readScene } from "./read-scene"
 import { renameScene } from "./rename-scene"
 import { rewriteScene } from "./rewrite-scene"
 import { searchNotes } from "./search-notes"
+import { updateCharacterTool } from "./update-character"
 import type { ToolArgs, ToolEntry } from "./types"
 
 export type { ToolArgs, ToolContext, ToolEntry, ToolRequirement } from "./types"
@@ -49,13 +53,17 @@ const ENTRIES: ToolEntry[] = [
   listProjects,
   listScenes,
   readScene,
+  listCharacters,
+  readCharacter,
   searchNotes,
   readNote,
   createProject,
   createScene,
+  createCharacterTool,
   appendToScene,
   addBeat,
   renameScene,
+  updateCharacterTool,
   rewriteScene,
   deleteScene,
 ]

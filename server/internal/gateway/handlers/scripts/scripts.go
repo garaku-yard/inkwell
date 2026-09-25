@@ -585,6 +585,142 @@ func (h *ScriptsHandler) DeleteScene(w http.ResponseWriter, r *http.Request) {
 	}.ServeHTTP(w, r)
 }
 
+type characterBody struct {
+	ProjectID   string             `json:"project_id"`
+	Name        *string            `json:"name"`
+	Description *string            `json:"description"`
+	Role        *string            `json:"role"`
+	Attributes  *map[string]string `json:"attributes"`
+}
+
+func (h *ScriptsHandler) CreateCharacter(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[characterBody, map[string]interface{}]{
+		Method:        http.MethodPost,
+		Auth:          true,
+		Decode:        handlers.JSONBody[characterBody],
+		SuccessStatus: http.StatusCreated,
+		Handle: func(r *http.Request, userID string, body *characterBody) (*map[string]interface{}, error) {
+			if body.ProjectID == "" || body.Name == nil || *body.Name == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project_id and name are required")
+			}
+			role, err := handlers.RequireProjectRole(r.Context(), userID, body.ProjectID, handlers.ActionEditContent, h.scriptsClient, h.collabClient, h.workspaceClient)
+			if err != nil {
+				return nil, err
+			}
+			description, characterRole := "", ""
+			if body.Description != nil {
+				description = *body.Description
+			}
+			if body.Role != nil {
+				characterRole = *body.Role
+			}
+			attributes := map[string]string{}
+			if body.Attributes != nil {
+				attributes = *body.Attributes
+			}
+			resp, err := h.scriptsClient.CreateCharacter(r.Context(), &scriptspb.CreateCharacterRequest{
+				ProjectId: body.ProjectID, UserId: userID, CallerRole: callerRoleToProto(role),
+				Name: *body.Name, Description: description, Role: characterRole, Attributes: attributes,
+			})
+			if err != nil {
+				return nil, err
+			}
+			result := map[string]interface{}{"character": convertCharacterFromProto(resp.Character)}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+func (h *ScriptsHandler) GetProjectCharacters(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, map[string]interface{}]{
+		Method: http.MethodGet,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]interface{}, error) {
+			projectID := r.URL.Query().Get("project_id")
+			if projectID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "project_id is required")
+			}
+			role, err := handlers.RequireProjectRole(r.Context(), userID, projectID, handlers.ActionRead, h.scriptsClient, h.collabClient, h.workspaceClient)
+			if err != nil {
+				return nil, err
+			}
+			resp, err := h.scriptsClient.GetProjectCharacters(r.Context(), &scriptspb.GetProjectCharactersRequest{
+				ProjectId: projectID, UserId: userID, CallerRole: callerRoleToProto(role),
+			})
+			if err != nil {
+				return nil, err
+			}
+			characters := make([]map[string]interface{}, len(resp.Characters))
+			for i, character := range resp.Characters {
+				characters[i] = convertCharacterFromProto(character)
+			}
+			result := map[string]interface{}{"characters": characters}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+func (h *ScriptsHandler) UpdateCharacter(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[characterBody, map[string]interface{}]{
+		Auth:   true,
+		Decode: handlers.JSONBody[characterBody],
+		Handle: func(r *http.Request, userID string, body *characterBody) (*map[string]interface{}, error) {
+			characterID := chi.URLParam(r, "characterId")
+			if characterID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "character ID is required")
+			}
+			if body.Name == nil && body.Description == nil && body.Role == nil && body.Attributes == nil {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "at least one character field is required")
+			}
+			role, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_CHARACTER, characterID, handlers.ActionEditContent)
+			if err != nil {
+				return nil, err
+			}
+			req := &scriptspb.UpdateCharacterRequest{
+				CharacterId: characterID, UserId: userID, CallerRole: callerRoleToProto(role),
+				Name: body.Name, Description: body.Description, Role: body.Role,
+			}
+			if body.Attributes != nil {
+				req.Attributes = *body.Attributes
+				req.AttributesSet = true
+			}
+			resp, err := h.scriptsClient.UpdateCharacter(r.Context(), req)
+			if err != nil {
+				return nil, err
+			}
+			result := map[string]interface{}{"character": convertCharacterFromProto(resp.Character)}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
+func (h *ScriptsHandler) DeleteCharacter(w http.ResponseWriter, r *http.Request) {
+	handlers.Endpoint[struct{}, map[string]bool]{
+		Method: http.MethodDelete,
+		Auth:   true,
+		Decode: handlers.NoBody[struct{}],
+		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]bool, error) {
+			characterID := chi.URLParam(r, "characterId")
+			if characterID == "" {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "character ID is required")
+			}
+			role, err := h.authorizeResource(r.Context(), userID, scriptspb.ResourceType_RESOURCE_TYPE_CHARACTER, characterID, handlers.ActionEditContent)
+			if err != nil {
+				return nil, err
+			}
+			resp, err := h.scriptsClient.DeleteCharacter(r.Context(), &scriptspb.DeleteCharacterRequest{
+				CharacterId: characterID, UserId: userID, CallerRole: callerRoleToProto(role),
+			})
+			if err != nil {
+				return nil, err
+			}
+			result := map[string]bool{"success": resp.Success}
+			return &result, nil
+		},
+	}.ServeHTTP(w, r)
+}
+
 // CreateElement adds a new script element (e.g. dialogue, action, transition)
 // to a scene within a project. The element is attributed to the authenticated
 // caller; a user_id field in the request body is ignored.
@@ -863,4 +999,13 @@ func convertElementFromProto(element *scriptspb.ProjectElement) map[string]inter
 	result["updated_at"] = handlers.TimestampToString(element.UpdatedAt)
 
 	return result
+}
+
+func convertCharacterFromProto(character *scriptspb.Character) map[string]interface{} {
+	return map[string]interface{}{
+		"id": character.Id, "project_id": character.ProjectId, "name": character.Name,
+		"description": character.Description, "role": character.Role, "attributes": character.Attributes,
+		"created_at": handlers.TimestampToString(character.CreatedAt),
+		"updated_at": handlers.TimestampToString(character.UpdatedAt),
+	}
 }
