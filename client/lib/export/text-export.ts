@@ -1,4 +1,5 @@
 import type { FullProject } from "@/services/project"
+import { inlineToMarkdown, plainInlineText } from "@/lib/editor/inline-content"
 
 /** Downloads a string as a file. */
 function download(filename: string, content: string, mime = "text/plain") {
@@ -25,8 +26,9 @@ export function exportProjectToText(project: FullProject) {
       lines.push("-".repeat(scene.scene_heading.length))
     }
     for (const el of scene.elements ?? []) {
-      if (!el.content.trim()) continue
-      lines.push(el.content)
+      const content = plainInlineText(el.content)
+      if (!content.trim()) continue
+      lines.push(content)
       lines.push("")
     }
     lines.push("")
@@ -42,17 +44,18 @@ export function exportProjectToMarkdown(project: FullProject) {
   for (const scene of project.scenes ?? []) {
     if (scene.scene_heading) lines.push(`## ${scene.scene_heading}`, "")
     for (const el of scene.elements ?? []) {
-      if (!el.content.trim()) continue
+      if (!plainInlineText(el.content).trim()) continue
+      const content = inlineToMarkdown(el.content)
       if (el.element_type === "chapter_heading") {
-        lines.push(`### ${el.content}`, "")
+        lines.push(`### ${content}`, "")
       } else if (el.element_type === "heading_2") {
-        lines.push(`#### ${el.content}`, "")
+        lines.push(`#### ${content}`, "")
       } else if (el.element_type === "heading_3") {
-        lines.push(`##### ${el.content}`, "")
+        lines.push(`##### ${content}`, "")
       } else if (el.element_type === "scene_break") {
         lines.push("---", "")
       } else {
-        lines.push(el.content, "")
+        lines.push(content, "")
       }
     }
   }

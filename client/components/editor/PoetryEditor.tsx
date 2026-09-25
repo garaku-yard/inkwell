@@ -21,6 +21,8 @@ import { parsePlainTextToPoetry, parseChordProToPoetry } from "@/lib/import/poet
 import { importIntoProject } from "@/lib/import/import-into-project"
 import { type ParsedProject } from "@/lib/import/types"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import { InlineTextEditable, InlineFormattingToolbar } from "./shared/InlineTextEditable"
+import { plainInlineText } from "@/lib/editor/inline-content"
 import { EditorWorkspace } from "./shared/EditorWorkspace"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { PresencePips } from "./shared/PresencePips"
@@ -426,7 +428,8 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
       return <div key={el.id} className="h-5" />
     }
     const showLineNum = !isLyrics && !centered && lineNumber % 5 === 0
-    const sylCount = showSyllables && el.content.trim() ? syllable(el.content) : null
+    const lineText = plainInlineText(el.content)
+    const sylCount = showSyllables && lineText.trim() ? syllable(lineText) : null
     return (
       <div key={el.id} className={cn("relative group/line", centered && !isLyrics && "text-center")}>
         {showLineNum && (
@@ -445,12 +448,12 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
             {sylCount}σ
           </span>
         )}
-        <StableContentEditable
+        <InlineTextEditable
           id={`el-${el.id}`}
           value={el.content}
           onValueChange={(next) => handleContentChange(el.id, next, false)}
           onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-          className="outline-none leading-loose text-base min-h-[1.5rem] empty:before:content-['\200b']"
+          className="outline-none leading-loose text-base min-h-[1.5rem] whitespace-pre-wrap empty:before:content-['\200b']"
         />
       </div>
     )
@@ -557,6 +560,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                 />
               )}
               <EditorCommandPalette commands={commands} />
+              <InlineFormattingToolbar />
               <Button
                 variant="ghost"
                 size="icon"

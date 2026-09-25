@@ -18,6 +18,7 @@
 
 import { strToU8, zipSync, type Zippable } from "fflate"
 import type { FullProject, Scene, ProjectElement } from "@/services/project"
+import { inlineToHtml, plainInlineText } from "@/lib/editor/inline-content"
 
 // ─── XML helpers ────────────────────────────────────────────────────
 
@@ -45,8 +46,8 @@ function slugify(s: string): string {
  *  fragment. Element types we don't have a mapping for fall back to
  *  a plain `<p>` so the writer's words still surface in the export. */
 function elementToXhtml(el: ProjectElement): string {
-  const content = escapeXmlText((el.content ?? "").trim())
-  if (!content) return ""
+  if (!plainInlineText(el.content ?? "").trim()) return ""
+  const content = inlineToHtml(el.content ?? "")
   switch (el.element_type) {
     case "scene_break":
       return `      <p class="scene-break">* * *</p>`
