@@ -30,7 +30,7 @@ export default function PacingChart({ data }: { data: PacingDatum[] }) {
           <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
           <Tooltip
             contentStyle={{ fontSize: 12 }}
-            formatter={(val: number) => [`${val}%`, "Relative density"]}
+            formatter={(value) => Number(value).toLocaleString()}
             labelFormatter={(label) => {
               const d = data[Number(label) - 1]
               return d ? `Scene ${label}: ${d.name}` : `Scene ${label}`
@@ -39,6 +39,7 @@ export default function PacingChart({ data }: { data: PacingDatum[] }) {
           <Area
             type="monotone"
             dataKey="words"
+            name="Words"
             stroke="hsl(var(--primary))"
             fill="hsl(var(--primary) / 0.2)"
             strokeWidth={2}
