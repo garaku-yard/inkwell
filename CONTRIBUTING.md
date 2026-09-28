@@ -187,6 +187,12 @@ Step-by-step:
 
 ### TypeScript / Next.js
 
+The client installs TypeScript 7's `tsc` through `@typescript/native` while
+`typescript` provides the TypeScript 6 API required by ESLint. Run
+`npx tsc --noEmit` for the native compiler and `npm run lint` for the parser;
+keep both aliases when updating either version. This follows the
+[TypeScript 7 side-by-side guidance](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-60).
+
 - **Types over `any`**: never use `any`. Use `unknown` and narrow, or derive types with `Awaited<ReturnType<...>>`.
 - **Service functions**: all API calls live in `client/services/`. Components call service functions, never `fetch` directly.
 - **Hooks**: stateful data-fetching logic lives in `client/hooks/`, not in page components.
