@@ -169,20 +169,21 @@ func (ResourceType) EnumDescriptor() ([]byte, []int) {
 
 // Project entity
 type Project struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	OwnerId       string                 `protobuf:"bytes,4,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
-	CreatedAt     *common.Timestamp      `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     *common.Timestamp      `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	Status        string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"` // "draft", "active", "completed", "archived"
-	IsStarred     bool                   `protobuf:"varint,8,opt,name=is_starred,json=isStarred,proto3" json:"is_starred,omitempty"`
-	Category      string                 `protobuf:"bytes,9,opt,name=category,proto3" json:"category,omitempty"`                     // "screenplay", "novel", "comic_script", "poetry", "interactive_fiction", "tabletop_rpg", "memoir", "lyrics"
-	DeletedAt     *common.Timestamp      `protobuf:"bytes,10,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"` // tombstone for sync (nil = live)
-	OrgId         string                 `protobuf:"bytes,11,opt,name=org_id,json=orgId,proto3" json:"org_id,omitempty"`             // owning organization (empty = personal project owned by owner_id)
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Id                   string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Title                string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Description          string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	OwnerId              string                 `protobuf:"bytes,4,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	CreatedAt            *common.Timestamp      `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt            *common.Timestamp      `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Status               string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"` // "draft", "active", "completed", "archived"
+	IsStarred            bool                   `protobuf:"varint,8,opt,name=is_starred,json=isStarred,proto3" json:"is_starred,omitempty"`
+	Category             string                 `protobuf:"bytes,9,opt,name=category,proto3" json:"category,omitempty"`                                                          // "screenplay", "novel", "comic_script", "poetry", "interactive_fiction", "tabletop_rpg", "memoir", "lyrics"
+	DeletedAt            *common.Timestamp      `protobuf:"bytes,10,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"`                                      // tombstone for sync (nil = live)
+	OrgId                string                 `protobuf:"bytes,11,opt,name=org_id,json=orgId,proto3" json:"org_id,omitempty"`                                                  // owning organization (empty = personal project owned by owner_id)
+	TtrpgStatSchemasJson string                 `protobuf:"bytes,12,opt,name=ttrpg_stat_schemas_json,json=ttrpgStatSchemasJson,proto3" json:"ttrpg_stat_schemas_json,omitempty"` // project-owned stat block shapes; [] for other formats
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *Project) Reset() {
@@ -288,6 +289,13 @@ func (x *Project) GetDeletedAt() *common.Timestamp {
 func (x *Project) GetOrgId() string {
 	if x != nil {
 		return x.OrgId
+	}
+	return ""
+}
+
+func (x *Project) GetTtrpgStatSchemasJson() string {
+	if x != nil {
+		return x.TtrpgStatSchemasJson
 	}
 	return ""
 }
@@ -1790,14 +1798,15 @@ func (x *GetProjectResponse) GetProject() *Project {
 }
 
 type UpdateProjectRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
-	Title         *string                `protobuf:"bytes,3,opt,name=title,proto3,oneof" json:"title,omitempty"`
-	Description   *string                `protobuf:"bytes,4,opt,name=description,proto3,oneof" json:"description,omitempty"`
-	Status        *string                `protobuf:"bytes,5,opt,name=status,proto3,oneof" json:"status,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId            string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId               string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
+	Title                *string                `protobuf:"bytes,3,opt,name=title,proto3,oneof" json:"title,omitempty"`
+	Description          *string                `protobuf:"bytes,4,opt,name=description,proto3,oneof" json:"description,omitempty"`
+	Status               *string                `protobuf:"bytes,5,opt,name=status,proto3,oneof" json:"status,omitempty"`
+	TtrpgStatSchemasJson *string                `protobuf:"bytes,6,opt,name=ttrpg_stat_schemas_json,json=ttrpgStatSchemasJson,proto3,oneof" json:"ttrpg_stat_schemas_json,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *UpdateProjectRequest) Reset() {
@@ -1861,6 +1870,13 @@ func (x *UpdateProjectRequest) GetDescription() string {
 func (x *UpdateProjectRequest) GetStatus() string {
 	if x != nil && x.Status != nil {
 		return *x.Status
+	}
+	return ""
+}
+
+func (x *UpdateProjectRequest) GetTtrpgStatSchemasJson() string {
+	if x != nil && x.TtrpgStatSchemasJson != nil {
+		return *x.TtrpgStatSchemasJson
 	}
 	return ""
 }
@@ -7732,7 +7748,7 @@ var File_scripts_scripts_proto protoreflect.FileDescriptor
 
 const file_scripts_scripts_proto_rawDesc = "" +
 	"\n" +
-	"\x15scripts/scripts.proto\x12\ascripts\x1a\x12common/types.proto\"\xec\x02\n" +
+	"\x15scripts/scripts.proto\x12\ascripts\x1a\x12common/types.proto\"\xa3\x03\n" +
 	"\aProject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
@@ -7749,7 +7765,8 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\n" +
 	"deleted_at\x18\n" +
 	" \x01(\v2\x11.common.TimestampR\tdeletedAt\x12\x15\n" +
-	"\x06org_id\x18\v \x01(\tR\x05orgId\"\xd4\x02\n" +
+	"\x06org_id\x18\v \x01(\tR\x05orgId\x125\n" +
+	"\x17ttrpg_stat_schemas_json\x18\f \x01(\tR\x14ttrpgStatSchemasJson\"\xd4\x02\n" +
 	"\x05Scene\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -7948,17 +7965,19 @@ const file_scripts_scripts_proto_rawDesc = "" +
 	"\vcaller_role\x18\x03 \x01(\x0e2\x13.scripts.CallerRoleR\n" +
 	"callerRole\"@\n" +
 	"\x12GetProjectResponse\x12*\n" +
-	"\aproject\x18\x01 \x01(\v2\x10.scripts.ProjectR\aproject\"\xd2\x01\n" +
+	"\aproject\x18\x01 \x01(\v2\x10.scripts.ProjectR\aproject\"\xaa\x02\n" +
 	"\x14UpdateProjectRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x19\n" +
 	"\x05title\x18\x03 \x01(\tH\x00R\x05title\x88\x01\x01\x12%\n" +
 	"\vdescription\x18\x04 \x01(\tH\x01R\vdescription\x88\x01\x01\x12\x1b\n" +
-	"\x06status\x18\x05 \x01(\tH\x02R\x06status\x88\x01\x01B\b\n" +
+	"\x06status\x18\x05 \x01(\tH\x02R\x06status\x88\x01\x01\x12:\n" +
+	"\x17ttrpg_stat_schemas_json\x18\x06 \x01(\tH\x03R\x14ttrpgStatSchemasJson\x88\x01\x01B\b\n" +
 	"\x06_titleB\x0e\n" +
 	"\f_descriptionB\t\n" +
-	"\a_status\"C\n" +
+	"\a_statusB\x1a\n" +
+	"\x18_ttrpg_stat_schemas_json\"C\n" +
 	"\x15UpdateProjectResponse\x12*\n" +
 	"\aproject\x18\x01 \x01(\v2\x10.scripts.ProjectR\aproject\"R\n" +
 	"\x18ToggleProjectStarRequest\x12\x1d\n" +

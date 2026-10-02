@@ -32,6 +32,10 @@ import { renameScene } from "./rename-scene"
 import { rewriteScene } from "./rewrite-scene"
 import { searchNotes } from "./search-notes"
 import { updateCharacterTool } from "./update-character"
+import { listStatSchemas, saveStatSchema, listTtrpgStatBlocks, createTtrpgStatBlock, updateTtrpgStatBlock } from "./ttrpg-stats"
+import { queryTtrpgBlocks, createTtrpgBlock, updateTtrpgBlock, rollTtrpgTable } from "./ttrpg-blocks"
+import { reorderSections, exportSectionMarkdown, listBeats, updateBeatTool, moveBeat } from "./project-structure"
+import { listProjectComments, addProjectComment } from "./comments"
 import type { ToolArgs, ToolEntry } from "./types"
 
 export type { ToolArgs, ToolContext, ToolEntry, ToolRequirement } from "./types"
@@ -53,15 +57,31 @@ const ENTRIES: ToolEntry[] = [
   listProjects,
   listScenes,
   readScene,
+  exportSectionMarkdown,
   listCharacters,
   readCharacter,
   searchNotes,
   readNote,
+  listStatSchemas,
+  listTtrpgStatBlocks,
+  listBeats,
+  listProjectComments,
+  queryTtrpgBlocks,
+  rollTtrpgTable,
   createProject,
   createScene,
   createCharacterTool,
   appendToScene,
   addBeat,
+  addProjectComment,
+  updateBeatTool,
+  moveBeat,
+  saveStatSchema,
+  createTtrpgStatBlock,
+  updateTtrpgStatBlock,
+  createTtrpgBlock,
+  updateTtrpgBlock,
+  reorderSections,
   renameScene,
   updateCharacterTool,
   rewriteScene,
@@ -75,6 +95,7 @@ const BY_NAME = new Map(ENTRIES.map((entry) => [entry.spec.name, entry]))
 export interface ToolAvailability {
   /** The project has vault notes wired as knowledge. */
   knowledge: boolean
+  category?: string
 }
 
 /** The declarations to offer the in-app chat, minus the ones whose
@@ -92,7 +113,9 @@ export interface ToolAvailability {
  *  ask their own chat to delete a scene they no longer wanted. */
 export function toolSpecsFor(available: ToolAvailability): ToolSpec[] {
   return ENTRIES.filter(
-    (entry) => entry.requires !== "knowledge" || available.knowledge,
+    (entry) => (entry.requires !== "knowledge" || available.knowledge) &&
+      (entry.requires !== "ttrpg" || available.category === "tabletop_rpg") &&
+      (entry.requires !== "ttrpg_or_if" || available.category === "tabletop_rpg" || available.category === "interactive_fiction"),
   ).map((entry) => entry.spec)
 }
 

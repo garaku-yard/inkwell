@@ -24,7 +24,7 @@ type ScriptsService interface {
 	// Project operations
 	CreateProject(ctx context.Context, title, description, category string, ownerID uuid.UUID, orgID *uuid.UUID) (*domain.Project, error)
 	GetProject(ctx context.Context, projectID, userID uuid.UUID, callerRole domain.CallerRole) (*domain.Project, error)
-	UpdateProject(ctx context.Context, projectID, userID uuid.UUID, title, description, status *string) (*domain.Project, error)
+	UpdateProject(ctx context.Context, projectID, userID uuid.UUID, title, description, status, statSchemas *string) (*domain.Project, error)
 	ToggleProjectStar(ctx context.Context, projectID, userID uuid.UUID) (*domain.Project, error)
 	DeleteProject(ctx context.Context, projectID, userID uuid.UUID) error
 	GetUserProjects(ctx context.Context, userID uuid.UUID, offset, limit int) ([]*domain.Project, int64, error)
@@ -135,15 +135,16 @@ func (s *scriptsService) CreateProject(ctx context.Context, title, description, 
 		category = "screenplay"
 	}
 	project := &domain.Project{
-		ID:          uuid.New(),
-		Title:       title,
-		Description: description,
-		Category:    category,
-		OwnerID:     ownerID,
-		OrgID:       orgID,
-		Status:      "draft",
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:                   uuid.New(),
+		Title:                title,
+		Description:          description,
+		TtrpgStatSchemasJSON: "[]",
+		Category:             category,
+		OwnerID:              ownerID,
+		OrgID:                orgID,
+		Status:               "draft",
+		CreatedAt:            time.Now(),
+		UpdatedAt:            time.Now(),
 	}
 
 	payload, err := json.Marshal(map[string]string{
@@ -213,7 +214,7 @@ func (s *scriptsService) GetProjectAccessMetadata(ctx context.Context, projectID
 // actor (Orbit #360) — ownership is, and has always been, checked
 // unconditionally here with no bypass; the only change is an explicit
 // missing-actor error instead of "not owner" for an absent id.
-func (s *scriptsService) UpdateProject(ctx context.Context, projectID, userID uuid.UUID, title, description, status *string) (*domain.Project, error) {
+func (s *scriptsService) UpdateProject(ctx context.Context, projectID, userID uuid.UUID, title, description, status, statSchemas *string) (*domain.Project, error) {
 	if userID == uuid.Nil {
 		return nil, domain.ErrMissingActor
 	}
@@ -249,6 +250,16 @@ func (s *scriptsService) UpdateProject(ctx context.Context, projectID, userID uu
 			return nil, fmt.Errorf("%w: invalid project status", domain.ErrInvalidProjectData)
 		}
 		project.Status = *status
+	}
+	if statSchemas != nil {
+		if project.Category != "tabletop_rpg" || len(*statSchemas) > 65536 {
+			return nil, fmt.Errorf("%w: invalid TTRPG stat schemas", domain.ErrInvalidProjectData)
+		}
+		var schemas []json.RawMessage
+		if err := json.Unmarshal([]byte(*statSchemas), &schemas); err != nil || schemas == nil {
+			return nil, fmt.Errorf("%w: stat schemas must be a JSON array", domain.ErrInvalidProjectData)
+		}
+		project.TtrpgStatSchemasJSON = *statSchemas
 	}
 	project.UpdatedAt = time.Now()
 

@@ -123,9 +123,9 @@ export const beatBoard: BeatBoardStorage = {
     push("height", patch.height)
     push("act", patch.act)
     push("order_index", patch.order)
-    push("start_page", patch.startPage ?? null)
-    push("end_page", patch.endPage ?? null)
-    push("image_url", patch.imageUrl ?? null)
+    push("start_page", patch.startPage)
+    push("end_page", patch.endPage)
+    push("image_url", patch.imageUrl)
     if (sets.length > 0) {
       sets.push("updated_at = ?")
       args.push(now())

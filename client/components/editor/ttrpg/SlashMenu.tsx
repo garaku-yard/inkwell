@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Dice6, FileText, Pencil, Pin, Quote, Table } from "lucide-react"
+import { Dice6, FileText, Pencil, Pin, Quote, Table, Clock3, MapPin, Link2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -21,6 +21,10 @@ const ITEMS: SlashMenuItem[] = [
   { command: "dice", label: "Dice table", description: "Random results indexed by die roll", type: "dice_table", icon: Dice6 },
   { command: "callout", label: "Callout", description: "Designer note in a coloured box", type: "callout", icon: Quote },
   { command: "rule", label: "Rule box", description: "Boxed rule reminder", type: "rule_box", icon: FileText },
+  { command: "clock", label: "Progress clock", description: "Segmented tracker", type: "ttrpg_clock", icon: Clock3 },
+  { command: "read", label: "Read aloud", description: "Player text and GM guidance", type: "ttrpg_read_aloud", icon: Quote },
+  { command: "location", label: "Keyed location", description: "Map key and contents", type: "ttrpg_keyed_location", icon: MapPin },
+  { command: "reference", label: "Cross-reference", description: "Stable link to another block", type: "ttrpg_cross_reference", icon: Link2 },
   { command: "heading", label: "Heading", description: "h2 section title", type: "h2", icon: Pencil },
 ]
 

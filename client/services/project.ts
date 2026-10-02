@@ -4,6 +4,7 @@
  * builds can share this file without modification.
  */
 import { getStorage } from "@/lib/storage"
+import type { StatSchema } from "@/lib/ttrpg/stat-schemas"
 import { type CollaboratorRole, CollaboratorRoles } from "@/models/constants/collaboratorRoles"
 
 export type ProjectCategory =
@@ -28,6 +29,7 @@ export interface Project {
   category: ProjectCategory
   status: string
   is_starred: boolean
+  ttrpg_stat_schemas?: StatSchema[]
   collaborator_count?: number
   /** Owning organization; absent for personal projects. */
   org_id?: string
@@ -48,6 +50,7 @@ export interface UpdateProjectRequest {
   title?: string
   description?: string
   status?: string
+  ttrpg_stat_schemas?: StatSchema[]
 }
 
 export interface ProjectElement {

@@ -34,11 +34,13 @@ describe("sync push mappers (local row → proto field names)", () => {
       id: "p1", title: "T", description: "D", owner_id: "u1",
       category: "screenplay", status: "draft", is_starred: 1,
       org_id: "org-1",
+      ttrpg_stat_schemas_json: '[{"id":"fault","name":"Fault","fields":[]}]',
       created_at: "2026-06-20T20:18:30.527Z", deleted_at: "2026-06-20T21:00:00.000Z",
     }
     const out = pushProject(row)
     expect(out.owner_id).toBeUndefined() // gateway forces the owner
     expect(out.org_id).toBe("org-1")
+    expect(out.ttrpg_stat_schemas_json).toBe(row.ttrpg_stat_schemas_json)
     expect(out.is_starred).toBe(true)
     expect(fromTs(out.deleted_at as { seconds: number })).toBe("2026-06-20T21:00:00.000Z")
   })

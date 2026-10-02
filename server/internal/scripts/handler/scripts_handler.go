@@ -131,7 +131,7 @@ func (h *ScriptsHandler) UpdateProject(ctx context.Context, req *scriptspb.Updat
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user_id: %v", err)
 	}
 
-	project, err := h.service.UpdateProject(ctx, projectID, userID, req.Title, req.Description, req.Status)
+	project, err := h.service.UpdateProject(ctx, projectID, userID, req.Title, req.Description, req.Status, req.TtrpgStatSchemasJson)
 	if err != nil {
 		return nil, handleServiceError(err)
 	}
@@ -716,13 +716,14 @@ func orgIDString(id *uuid.UUID) string {
 // convertProjectToProto maps a domain Project to the scripts proto Project message.
 func convertProjectToProto(project *domain.Project) *scriptspb.Project {
 	return &scriptspb.Project{
-		Id:          project.ID.String(),
-		Title:       project.Title,
-		Description: project.Description,
-		OwnerId:     project.OwnerID.String(),
-		Category:    project.Category,
-		Status:      project.Status,
-		IsStarred:   project.IsStarred,
+		Id:                   project.ID.String(),
+		Title:                project.Title,
+		Description:          project.Description,
+		TtrpgStatSchemasJson: project.TtrpgStatSchemasJSON,
+		OwnerId:              project.OwnerID.String(),
+		Category:             project.Category,
+		Status:               project.Status,
+		IsStarred:            project.IsStarred,
 		CreatedAt: &common.Timestamp{
 			Seconds: project.CreatedAt.Unix(),
 			Nanos:   int32(project.CreatedAt.Nanosecond()),

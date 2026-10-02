@@ -170,8 +170,8 @@ func NewProjectRepository(db *sql.DB) ProjectRepository {
 // CreateProject creates a new project in the database
 // projectInsert is the shared SQL used by CreateProject and CreateProjectTx.
 const projectInsert = `
-	INSERT INTO projects (project_id, title, description, owner_id, category, status, created_at, updated_at, org_id)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	INSERT INTO projects (project_id, title, description, owner_id, category, status, created_at, updated_at, org_id, ttrpg_stat_schemas_json)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE(NULLIF($10, ''), '[]')::jsonb)
 `
 
 // nullableUUID renders a *uuid.UUID as a value suitable for a nullable SQL
@@ -197,6 +197,7 @@ func (r *projectRepository) CreateProjectTx(ctx context.Context, tx *sql.Tx, pro
 		project.CreatedAt,
 		project.UpdatedAt,
 		nullableUUID(project.OrgID),
+		project.TtrpgStatSchemasJSON,
 	)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
@@ -218,6 +219,7 @@ func (r *projectRepository) CreateProject(ctx context.Context, project *domain.P
 		project.CreatedAt,
 		project.UpdatedAt,
 		nullableUUID(project.OrgID),
+		project.TtrpgStatSchemasJSON,
 	)
 
 	if err != nil {
@@ -233,7 +235,7 @@ func (r *projectRepository) CreateProject(ctx context.Context, project *domain.P
 // GetProjectByID retrieves a project by ID
 func (r *projectRepository) GetProjectByID(ctx context.Context, projectID uuid.UUID) (*domain.Project, error) {
 	query := `
-		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at, org_id
+		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at, org_id, ttrpg_stat_schemas_json
 		FROM projects
 		WHERE project_id = $1 AND deleted_at IS NULL
 	`
@@ -251,6 +253,7 @@ func (r *projectRepository) GetProjectByID(ctx context.Context, projectID uuid.U
 		&project.UpdatedAt,
 		&project.DeletedAt,
 		&project.OrgID,
+		&project.TtrpgStatSchemasJSON,
 	)
 
 	if err != nil {
@@ -276,7 +279,7 @@ func (r *projectRepository) GetProjectsByOwner(ctx context.Context, ownerID uuid
 
 	// Get projects
 	query := `
-		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at
+		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at, ttrpg_stat_schemas_json
 		FROM projects
 		WHERE owner_id = $1 AND org_id IS NULL AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -303,6 +306,7 @@ func (r *projectRepository) GetProjectsByOwner(ctx context.Context, ownerID uuid
 			&project.CreatedAt,
 			&project.UpdatedAt,
 			&project.DeletedAt,
+			&project.TtrpgStatSchemasJSON,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan project: %w", err)
@@ -316,7 +320,7 @@ func (r *projectRepository) GetProjectsByOwner(ctx context.Context, ownerID uuid
 // GetProjectsByOrg lists the live projects owned by an organization.
 func (r *projectRepository) GetProjectsByOrg(ctx context.Context, orgID uuid.UUID) ([]*domain.Project, error) {
 	query := `
-		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at, org_id
+		SELECT project_id, title, description, owner_id, category, status, is_starred, created_at, updated_at, deleted_at, org_id, ttrpg_stat_schemas_json
 		FROM projects
 		WHERE org_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -342,6 +346,7 @@ func (r *projectRepository) GetProjectsByOrg(ctx context.Context, orgID uuid.UUI
 			&project.UpdatedAt,
 			&project.DeletedAt,
 			&project.OrgID,
+			&project.TtrpgStatSchemasJSON,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan org project: %w", err)
 		}
@@ -355,7 +360,8 @@ func (r *projectRepository) GetProjectsByOrg(ctx context.Context, orgID uuid.UUI
 func (r *projectRepository) UpdateProject(ctx context.Context, project *domain.Project) error {
 	query := `
 		UPDATE projects 
-		SET title = $2, description = $3, status = $4, is_starred = $5, updated_at = $6
+		SET title = $2, description = $3, status = $4, is_starred = $5, updated_at = $6,
+		    ttrpg_stat_schemas_json = COALESCE(NULLIF($7, ''), '[]')::jsonb
 		WHERE project_id = $1 AND deleted_at IS NULL
 	`
 
@@ -366,6 +372,7 @@ func (r *projectRepository) UpdateProject(ctx context.Context, project *domain.P
 		project.Status,
 		project.IsStarred,
 		project.UpdatedAt,
+		project.TtrpgStatSchemasJSON,
 	)
 
 	if err != nil {

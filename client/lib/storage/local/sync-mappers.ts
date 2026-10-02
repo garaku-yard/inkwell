@@ -53,6 +53,7 @@ export function pushProject(row: Row): Row {
     id: r(row, "id"), title: r(row, "title"), description: r(row, "description"),
     category: r(row, "category"), status: r(row, "status"),
     is_starred: ri(row, "is_starred") === 1,
+    ttrpg_stat_schemas_json: r(row, "ttrpg_stat_schemas_json") || "[]",
     ...(r(row, "org_id") ? { org_id: r(row, "org_id") } : {}),
     created_at: toTs(r(row, "created_at")), deleted_at: toTs(r(row, "deleted_at")),
   }

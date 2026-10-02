@@ -7,6 +7,7 @@
 import Database from "@tauri-apps/plugin-sql"
 
 import categoriesData from "@/lib/categories.json"
+import { parseStatSchemas } from "@/lib/ttrpg/stat-schemas"
 
 import type {
   Beat,
@@ -161,6 +162,7 @@ export interface ProjectRow {
   category: string
   status: string
   is_starred: number
+  ttrpg_stat_schemas_json?: string
   created_at: string
   updated_at: string
 }
@@ -174,6 +176,7 @@ export function toProject(row: ProjectRow): Project {
     category: row.category as Project["category"],
     status: row.status,
     is_starred: row.is_starred === 1,
+    ttrpg_stat_schemas: parseStatSchemas(row.ttrpg_stat_schemas_json),
     // Absent rather than null for a personal project: `Project.org_id` is
     // optional, and callers test truthiness to decide "is this an org project".
     ...(row.org_id ? { org_id: row.org_id } : {}),

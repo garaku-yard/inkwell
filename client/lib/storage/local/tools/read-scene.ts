@@ -1,5 +1,8 @@
 import { elements } from "../elements"
 import { scenes } from "../scenes"
+import { projects } from "../projects"
+import { parseStatInstance, statInstanceToText } from "@/lib/ttrpg/stat-schemas"
+import { parseTtrpgBlock, ttrpgBlockToText } from "@/lib/ttrpg/blocks"
 import { sharedToolSpec } from "@/lib/ai/tool-contracts.generated"
 import { LOCAL_USER_ID } from "../shared"
 import type { ToolArgs, ToolEntry } from "./types"
@@ -38,9 +41,21 @@ export const readScene: ToolEntry = {
 
     const heading = scene.scene_heading || "(untitled scene)"
     const parts = await elements.listForScene(scene.id, LOCAL_USER_ID)
+    const project = await projects.getById(ctx.projectId, LOCAL_USER_ID)
     const body =
       parts.length > 0
-        ? parts.map((el) => `[${el.element_type}] ${el.content}`).join("\n")
+        ? parts.map((el) => {
+          if (el.element_type === "ttrpg_stat") {
+            const instance = parseStatInstance(el.content)
+            if (instance) {
+              const schema = project.ttrpg_stat_schemas?.find((item) => item.id === instance.schemaId)
+              return `[${schema?.name ?? "stat block"} id=${el.id}] ${statInstanceToText(instance, schema)}`
+            }
+          }
+          const block = parseTtrpgBlock(el.element_type, el.content)
+          if (block) return `[${el.element_type} id=${el.id}] ${ttrpgBlockToText(block)}`
+          return `[${el.element_type}] ${el.content}`
+        }).join("\n")
         : scene.content.trim()
 
     return body ? `${heading}\n\n${body}` : `${heading}\n\n(This scene is empty.)`

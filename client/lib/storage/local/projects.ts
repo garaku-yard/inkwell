@@ -113,6 +113,10 @@ export const projects: ProjectStorage = {
       sets.push("status = ?")
       args.push(patch.status)
     }
+    if (patch.ttrpg_stat_schemas !== undefined) {
+      sets.push("ttrpg_stat_schemas_json = ?")
+      args.push(JSON.stringify(patch.ttrpg_stat_schemas))
+    }
     sets.push("updated_at = ?")
     args.push(ts)
     args.push(projectId)
