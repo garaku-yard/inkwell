@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { useState } from "react"
 import { strFromU8, unzipSync } from "fflate"
 import { describe, expect, it, vi } from "vitest"
 
@@ -69,5 +70,101 @@ describe("inline content", () => {
 
     await user.click(screen.getByRole("button", { name: "Underline" }))
     expect(inlineToHtml(onValueChange.mock.lastCall?.[0])).toContain("<u>moon</u>")
+  })
+
+  it("keeps the inline selection when WebKit clears it before a toolbar click", () => {
+    const onValueChange = vi.fn()
+    render(<><InlineTextEditable value="the moon" onValueChange={onValueChange} /><InlineFormattingToolbar /></>)
+    const editor = screen.getByRole("textbox")
+    const range = document.createRange()
+    range.setStart(editor.firstChild!, 4)
+    range.setEnd(editor.firstChild!, 8)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const button = screen.getByRole("button", { name: "Strong emphasis" })
+    fireEvent.pointerDown(button)
+    selection.removeAllRanges()
+    fireEvent.click(button)
+    expect(inlineToHtml(onValueChange.mock.lastCall?.[0])).toContain("<strong>moon</strong>")
+  })
+
+  it("commits toolbar formatting through the editor and retains it after focus moves", () => {
+    function Editor() {
+      const [value, setValue] = useState("hello")
+      return <><InlineTextEditable value={value} onValueChange={setValue} /><InlineFormattingToolbar /><output data-testid="stored">{value}</output></>
+    }
+    render(<Editor />)
+    const editor = screen.getByRole("textbox")
+    editor.focus()
+    const range = document.createRange()
+    range.selectNodeContents(editor)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const button = screen.getByRole("button", { name: "Strong emphasis" })
+    fireEvent.pointerDown(button)
+    selection.removeAllRanges()
+    fireEvent.click(button)
+    expect(editor.innerHTML).toBe("<strong>hello</strong>")
+    expect(inlineToHtml(screen.getByTestId("stored").textContent!)).toBe("<strong>hello</strong>")
+    button.focus()
+    expect(editor.innerHTML).toBe("<strong>hello</strong>")
+  })
+
+  it("toggles bold off on the same selection without changing neighboring marks", () => {
+    const initial = writeInlineRuns([{ text: "a " }, { text: "bcde", strong: true, emphasis: true }, { text: " f" }])
+    const onValueChange = vi.fn()
+    render(<><InlineTextEditable value={initial} onValueChange={onValueChange} /><InlineFormattingToolbar /></>)
+    const editor = screen.getByRole("textbox")
+    const text = editor.querySelector("strong")!.querySelector("em")!.firstChild!
+    const range = document.createRange()
+    range.setStart(text, 1)
+    range.setEnd(text, 3)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const button = screen.getByRole("button", { name: "Strong emphasis" })
+
+    fireEvent.pointerDown(button)
+    fireEvent.click(button)
+    expect(editor.innerHTML).toBe("a <strong><em>b</em></strong><em>cd</em><strong><em>e</em></strong> f")
+    expect(selection.toString()).toBe("cd")
+
+    fireEvent.pointerDown(button)
+    fireEvent.click(button)
+    expect(editor.innerHTML).toBe("a <strong><em>bcde</em></strong> f")
+    expect(selection.toString()).toBe("cd")
+    expect(inlineToHtml(onValueChange.mock.lastCall?.[0])).toBe(editor.innerHTML)
+  })
+
+  it("highlights formatting controls for marked selections and shows mixed selections", () => {
+    const initial = writeInlineRuns([{ text: "plain " }, { text: "bold", strong: true }, { text: " tail" }])
+    render(<><InlineTextEditable value={initial} onValueChange={vi.fn()} /><InlineFormattingToolbar /></>)
+    const editor = screen.getByRole("textbox")
+    const button = screen.getByRole("button", { name: "Strong emphasis" })
+    const selection = window.getSelection()!
+    const range = document.createRange()
+
+    range.selectNodeContents(editor.querySelector("strong")!)
+    selection.removeAllRanges()
+    selection.addRange(range)
+    fireEvent(document, new Event("selectionchange"))
+    expect(button).toHaveAttribute("aria-pressed", "true")
+
+    range.setStart(editor.firstChild!, 4)
+    range.setEnd(editor.querySelector("strong")!.firstChild!, 2)
+    selection.removeAllRanges()
+    selection.addRange(range)
+    fireEvent(document, new Event("selectionchange"))
+    expect(button).toHaveAttribute("aria-pressed", "mixed")
+
+    fireEvent.pointerDown(button)
+    fireEvent.click(button)
+    expect(button).toHaveAttribute("aria-pressed", "true")
+    fireEvent.pointerDown(button)
+    fireEvent.click(button)
+    expect(button).toHaveAttribute("aria-pressed", "false")
+    expect(selection.toString()).toBe("n bo")
   })
 })
