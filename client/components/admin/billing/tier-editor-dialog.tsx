@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react"
 
 import {
   Dialog,
-  DialogContent,
+  DialogScrollContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -68,7 +68,7 @@ export function TierEditorDialog({ open, onOpenChange, tier, onSave }: TierEdito
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogScrollContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>{tier ? "Edit tier" : "Create tier"}</DialogTitle>
           <DialogDescription>
@@ -102,7 +102,7 @@ export function TierEditorDialog({ open, onOpenChange, tier, onSave }: TierEdito
             {tier ? "Update tier" : "Create tier"}
           </Button>
         </DialogFooter>
-      </DialogContent>
+      </DialogScrollContent>
     </Dialog>
   )
 }

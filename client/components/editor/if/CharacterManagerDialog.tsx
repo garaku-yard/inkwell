@@ -224,14 +224,14 @@ export function CharacterManagerDialog({
         </DialogHeader>
 
         <div className="grid min-h-0 flex-1 grid-cols-[15rem_1fr] overflow-hidden">
-          <aside className="flex min-h-[34rem] flex-col border-r bg-muted/20 p-3">
+          <aside className="flex min-h-[34rem] flex-col border-r bg-sidebar p-3">
             <Button variant="outline" size="sm" className="mb-3 justify-start gap-2" onClick={startNew}>
               <Plus className="h-3.5 w-3.5" /> New character
             </Button>
-            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
-              {loading && <p className="px-2 py-8 text-center text-xs text-muted-foreground">Loading…</p>}
+            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto bg-sidebar">
+              {loading && <p className="bg-sidebar px-2 py-8 text-center text-xs text-muted-foreground">Loading…</p>}
               {!loading && characters.length === 0 && (
-                <p className="px-2 py-8 text-center text-xs text-muted-foreground">No character profiles yet.</p>
+                <p className="bg-sidebar px-2 py-8 text-center text-xs text-muted-foreground">No character profiles yet.</p>
               )}
               {characters.map((character) => {
                 const mentions = mentionCount(character.name, passages)
@@ -242,7 +242,7 @@ export function CharacterManagerDialog({
                     onClick={() => choose(character)}
                     className={cn(
                       "w-full rounded-md px-3 py-2 text-left transition-colors",
-                      selectedId === character.id ? "bg-accent" : "hover:bg-accent/60",
+                      selectedId === character.id ? "bg-accent" : "bg-sidebar hover:bg-accent",
                     )}
                   >
                     <span className="block truncate text-sm font-medium">{character.name}</span>
@@ -255,7 +255,8 @@ export function CharacterManagerDialog({
             </div>
           </aside>
 
-          <div className="max-h-[34rem] space-y-4 overflow-y-auto px-6 py-5">
+          <div className="max-h-[34rem] overflow-y-auto bg-background px-6 py-5">
+            <div className="min-h-full space-y-4 bg-background">
             <div className="flex items-center gap-2 text-sm font-medium">
               <UserRound className="h-4 w-4 text-muted-foreground" />
               {selected ? `Edit ${selected.name}` : "New character"}
@@ -291,6 +292,7 @@ export function CharacterManagerDialog({
                 <Label htmlFor="character-relationships">Relationships</Label>
                 <Textarea id="character-relationships" value={draft.relationships} onChange={(event) => field("relationships", event.target.value)} placeholder="Mara distrusts Ivo; owes Nia a favor" />
               </div>
+            </div>
             </div>
           </div>
         </div>

@@ -11,7 +11,7 @@ import type { Scene } from "@/services/project"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
 
 interface Props {
@@ -50,7 +50,7 @@ export function DocumentFoundationDialog({ category, scene, onTemplate, onCaptur
           <Layers3 className="h-3.5 w-3.5" /> Templates & revisions
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogScrollContent>
         <DialogHeader>
           <DialogTitle>Templates & revisions</DialogTitle>
           <DialogDescription>Start a new {category === "poetry" ? "poem" : category === "lyrics" ? "song" : "chapter"} from a template, or save a snapshot of the current draft.</DialogDescription>
@@ -79,7 +79,7 @@ export function DocumentFoundationDialog({ category, scene, onTemplate, onCaptur
           ))}
         </section>}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      </DialogContent>
+      </DialogScrollContent>
     </Dialog>
   )
 }

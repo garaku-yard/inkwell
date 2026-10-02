@@ -14,7 +14,7 @@ import type {
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
-  DialogContent,
+  DialogScrollContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -222,7 +222,7 @@ export function ProjectKnowledgeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px] max-h-[85vh] overflow-y-auto">
+      <DialogScrollContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BookOpen className="h-4 w-4" />
@@ -433,7 +433,7 @@ export function ProjectKnowledgeDialog({
             Done
           </Button>
         </DialogFooter>
-      </DialogContent>
+      </DialogScrollContent>
     </Dialog>
   )
 }

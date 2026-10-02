@@ -18,7 +18,7 @@ import { Keyboard } from "lucide-react"
 
 import {
   Dialog,
-  DialogContent,
+  DialogScrollContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -164,7 +164,7 @@ export function KeyboardShortcutsDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogScrollContent className="max-w-2xl max-h-[80vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Keyboard className="h-4 w-4" />
@@ -199,7 +199,7 @@ export function KeyboardShortcutsDialog() {
             </section>
           ))}
         </div>
-      </DialogContent>
+      </DialogScrollContent>
     </Dialog>
   )
 }

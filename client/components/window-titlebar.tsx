@@ -6,8 +6,8 @@ import { isTauri } from "@tauri-apps/api/core"
 
 import { cn } from "@/lib/utils"
 
-/** Root `<html>` class toggled by the titlebar so global CSS can flatten
- *  border-radius + remove the frame outline when the window is maximised. */
+/** Root `<html>` class toggled by the titlebar to remove the frame outline
+ * when the window is maximised. */
 const MAXIMISED_CLASS = "window-maximised"
 
 /**
@@ -54,9 +54,8 @@ export function WindowTitlebar() {
     }
   }, [])
 
-  // Tag the root so `globals.css` can flatten the border-radius when the
-  // window is edge-to-edge. Only runs on the client under Tauri; the web
-  // build never adds the class.
+  // Tag the root so `globals.css` removes the frame outline when the window
+  // is edge-to-edge. The web build never adds the class.
   useEffect(() => {
     if (!tauri) return
     const el = document.documentElement
