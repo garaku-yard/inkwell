@@ -85,6 +85,8 @@ export function parseTweeToIF(text: string, fallbackTitle: string): ParsedProjec
   let isStoryInit = false
   let currentTags: string[] = []
   let currentColor = ""
+  let currentCondition = ""
+  let currentNote = ""
   const initialVariables: IFVariableDefinition[] = []
   let startSceneIndex = -1
 
@@ -112,7 +114,7 @@ export function parseTweeToIF(text: string, fallbackTitle: string): ParsedProjec
       const chunks = bodyLines.join("\n").split(/\n\s*\n/).filter((c) => c.trim().length > 0)
       scenes.push({
         heading: currentName,
-        content: serializePassageMetadata({ tags: currentTags.filter((tag) => tag !== "Start"), color: currentColor }),
+        content: serializePassageMetadata({ tags: currentTags.filter((tag) => tag !== "Start"), color: currentColor, condition: currentCondition, note: currentNote }),
         elements: chunks.map(chunkToElement),
       })
       if (currentTags.includes("Start")) startSceneIndex = scenes.length - 1
@@ -126,9 +128,16 @@ export function parseTweeToIF(text: string, fallbackTitle: string): ParsedProjec
       flush()
       let descriptor = header[1].trim()
       currentColor = ""
+      currentCondition = ""
+      currentNote = ""
       const metadataMatch = /\s+(\{.*\})\s*$/.exec(descriptor)
       if (metadataMatch) {
-        try { const metadata = JSON.parse(metadataMatch[1]); if (typeof metadata["inkwell-color"] === "string") currentColor = metadata["inkwell-color"] } catch { /* ignore foreign metadata */ }
+        try {
+          const metadata = JSON.parse(metadataMatch[1])
+          if (typeof metadata["inkwell-color"] === "string") currentColor = metadata["inkwell-color"]
+          if (typeof metadata["inkwell-condition"] === "string") currentCondition = metadata["inkwell-condition"]
+          if (typeof metadata["inkwell-note"] === "string") currentNote = metadata["inkwell-note"]
+        } catch { /* ignore foreign metadata */ }
         descriptor = descriptor.slice(0, metadataMatch.index).trim()
       }
       const tagsMatch = /\s*\[([^\]]*)\]\s*$/.exec(descriptor)

@@ -5,10 +5,10 @@ import type { Scene } from "@/services/project"
 import { cn } from "@/lib/utils"
 import { parsePassageMetadata } from "@/lib/interactive-fiction/runtime"
 
-const NODE_W = 160
-const NODE_H = 60
-const H_GAP = 220
-const V_GAP = 110
+const NODE_W = 220
+const NODE_H = 112
+const H_GAP = 280
+const V_GAP = 160
 
 interface NodePos {
   id: string
@@ -234,6 +234,12 @@ export function PassageGraph({ passages, activePassageId, onSelectPassage }: Pas
                   : "no links"}
                 {metadata.tags[0] ? ` · ${metadata.tags[0]}` : ""}
               </p>
+              {metadata.condition && <p className="mt-1 truncate text-[10px] text-foreground" title={`Trigger / condition: ${metadata.condition}`}>
+                <span className="font-semibold">Trigger:</span> {metadata.condition}
+              </p>}
+              {metadata.note && <p className="truncate text-[10px] text-muted-foreground" title={`Author note: ${metadata.note}`}>
+                <span className="font-semibold">Note:</span> {metadata.note}
+              </p>}
             </div>
           )
         })}

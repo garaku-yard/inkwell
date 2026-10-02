@@ -153,6 +153,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     () => (projectData.scenes ?? [])[0]?.id ?? null
   )
   const [view, setView] = useState<"write" | "graph" | "play">("write")
+  const [storyToolsOpen, setStoryToolsOpen] = useState(false)
   // Play-mode state: cursor passage + back-stack of previously visited
   // passage ids. Resets when the user re-enters play mode from the
   // toolbar so each playthrough starts from the start passage.
@@ -226,12 +227,14 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
         ...current,
         tags: passageMetadata.tags,
         color: passageMetadata.color,
+        condition: passageMetadata.condition,
+        note: passageMetadata.note,
         story: passageId === first.id ? settings : current.story,
       }))
     }
     await Promise.all([...updates].map(([id, content]) => updateSceneContent(id, user.id, content)))
     setPassages((current) => current.map((passage) => updates.has(passage.id) ? { ...passage, content: updates.get(passage.id)! } : passage))
-    toast({ title: "Story settings saved", description: "Variables, passage metadata, and test states are ready for Play and Twee export." })
+    toast({ title: "Story settings saved", description: "Passage details and test states are saved; author details stay out of Play." })
   }, [passages, toast, user?.id])
 
   const renameStartRef = useRef<Map<string, string>>(new Map())
@@ -637,7 +640,10 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
       els.forEach((el) => blocks.push({ key: el.id, kind: "element", passage: activePassage, el }))
     }
     const estimate = (b: IFBlock): number => {
-      if (b.kind === "passageHead") return 150
+      if (b.kind === "passageHead") {
+        const metadata = parsePassageMetadata(b.passage.content)
+        return 205 + (metadata.condition ? 48 + Math.ceil(metadata.condition.length / 75) * 20 : 0) + (metadata.note ? 48 + Math.ceil(metadata.note.length / 75) * 20 : 0)
+      }
       if (b.kind === "emptyPassage") return 40
       switch (b.el.element_type) {
         case "choice":
@@ -838,6 +844,16 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                 {metadata.tags.map((tag) => <span key={tag} className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">{tag}</span>)}
               </div>
             )}
+            <div className="mt-3 rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-muted-foreground">Author-only passage details</span>
+                <button type="button" className="text-primary hover:underline" onClick={() => setStoryToolsOpen(true)}>
+                  {metadata.condition || metadata.note ? "Edit details" : "Add details"}
+                </button>
+              </div>
+              {metadata.condition && <p className="mt-2 whitespace-pre-wrap"><span className="font-semibold">Trigger / condition:</span> {metadata.condition}</p>}
+              {metadata.note && <p className="mt-2 whitespace-pre-wrap"><span className="font-semibold">Author note:</span> {metadata.note}</p>}
+            </div>
           </div>
           <p className="text-xs text-muted-foreground/50 mb-8 mt-1.5">
             Link with{" "}
@@ -972,6 +988,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             </div>
             <CharacterManagerDialog projectId={projectData.id} userId={user?.id} passages={passages} />
             <StoryToolsDialog
+              open={storyToolsOpen}
+              onOpenChange={setStoryToolsOpen}
               passages={passages}
               activePassageId={activePassageId}
               runtimePassageId={playCursor}

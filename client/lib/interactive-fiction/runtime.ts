@@ -26,6 +26,9 @@ export interface IFStorySettings {
 export interface IFPassageMetadata {
   tags: string[]
   color: string
+  /** Author-facing planning fields; neither is evaluated by Play. */
+  condition?: string
+  note?: string
   story?: IFStorySettings
 }
 
@@ -42,6 +45,8 @@ export function parsePassageMetadata(content: string | null | undefined): IFPass
     return {
       tags: Array.isArray(raw.tags) ? raw.tags.filter((tag): tag is string => typeof tag === "string") : [],
       color: typeof raw.color === "string" ? raw.color : "",
+      ...(typeof raw.condition === "string" && raw.condition ? { condition: raw.condition } : {}),
+      ...(typeof raw.note === "string" && raw.note ? { note: raw.note } : {}),
       story: raw.story ? normalizeStorySettings(raw.story) : undefined,
     }
   } catch {
@@ -54,6 +59,8 @@ export function serializePassageMetadata(metadata: IFPassageMetadata): string {
     tags: [...new Set(metadata.tags.map((tag) => tag.trim()).filter(Boolean))],
     color: metadata.color.trim(),
   }
+  if (metadata.condition?.trim()) normalized.condition = metadata.condition.trim()
+  if (metadata.note?.trim()) normalized.note = metadata.note.trim()
   if (metadata.story) normalized.story = normalizeStorySettings(metadata.story)
   return METADATA_PREFIX + JSON.stringify(normalized)
 }

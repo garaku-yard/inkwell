@@ -69,8 +69,8 @@ describe("Inkwell IF runtime", () => {
       variables: [{ name: "gold", type: "number", initialValue: 2 }],
       testStates: [{ id: "rich", name: "Rich", passageId: "start", variables: { gold: 99 } }],
     }
-    const encoded = serializePassageMetadata({ tags: [" cave ", "cave"], color: "#aabbcc", story: settings })
-    expect(parsePassageMetadata(encoded)).toEqual({ tags: ["cave"], color: "#aabbcc", story: settings })
+    const encoded = serializePassageMetadata({ tags: [" cave ", "cave"], color: "#aabbcc", condition: " On alarm ", note: " Camera pans to the door ", story: settings })
+    expect(parsePassageMetadata(encoded)).toEqual({ tags: ["cave"], color: "#aabbcc", condition: "On alarm", note: "Camera pans to the door", story: settings })
   })
 
   it("exports the same logic as deterministic SugarCube Twee", () => {
@@ -102,6 +102,30 @@ describe("Inkwell IF runtime", () => {
       story: { variables: [{ name: "gold", type: "number", initialValue: 1 }] },
     })
     expect(imported.scenes[0].elements.map((item) => item.type)).toEqual(["set", "conditional"])
+  })
+
+  it("keeps author-only passage details out of Play and the Twee body while round-tripping them", () => {
+    const metadata = serializePassageMetadata({
+      tags: ["sim-trigger"], color: "", condition: "$alarm and camera_ready",
+      note: "Cue the door animation\nWait for the player",
+    })
+    const passage = scene("start", "Door opens", [element("line", "body", "The door opens.")], metadata)
+    const played = executePassage(passage, {})
+    expect(played.elements.map((item) => item.content)).toEqual(["The door opens."])
+    expect(JSON.stringify(played)).not.toContain("Cue the door animation")
+    expect(JSON.stringify(played)).not.toContain("camera_ready")
+
+    const exported = projectToTwee({
+      id: "p", title: "Sim script", category: "interactive_fiction", scenes: [passage],
+    } as FullProject)
+    expect(exported).toContain('"inkwell-condition":"$alarm and camera_ready"')
+    expect(exported).toContain('"inkwell-note":"Cue the door animation\\nWait for the player"')
+    expect(exported.split("\nThe door opens.")[0]).toContain("inkwell-note")
+    expect(exported.split("\nThe door opens.")[1]).not.toContain("Cue the door animation")
+    expect(parsePassageMetadata(parseTweeToIF(exported, "Fallback").scenes[0].content)).toMatchObject({
+      tags: ["sim-trigger"], condition: "$alarm and camera_ready",
+      note: "Cue the door animation\nWait for the player",
+    })
   })
 
   it("compiles operators without rewriting quoted text", () => {

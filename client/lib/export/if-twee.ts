@@ -87,8 +87,15 @@ export function projectToTwee(project: FullProject): string {
       .join("\n\n")
 
     const name = escapeName(passage.scene_heading || `Passage ${i + 1}`)
-    const color = metadata.color ? ` ${JSON.stringify({ "inkwell-color": metadata.color })}` : ""
-    blocks.push(`:: ${name}${formatTags(tags)}${color}\n${body}`)
+    // Inkwell-specific header metadata survives our importer without entering
+    // the playable passage body. External Twee tools may discard unknown keys.
+    const authorMetadata = {
+      ...(metadata.color ? { "inkwell-color": metadata.color } : {}),
+      ...(metadata.condition ? { "inkwell-condition": metadata.condition } : {}),
+      ...(metadata.note ? { "inkwell-note": metadata.note } : {}),
+    }
+    const headerMetadata = Object.keys(authorMetadata).length ? ` ${JSON.stringify(authorMetadata)}` : ""
+    blocks.push(`:: ${name}${formatTags(tags)}${headerMetadata}\n${body}`)
   }
 
   return blocks.join("\n\n") + "\n"
