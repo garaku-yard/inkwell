@@ -93,7 +93,6 @@ function buildScreenplayPDF(project: FullProject): jsPDF {
   doc.text(project.title.toUpperCase(), PAGE_W / 2, PAGE_H / 2 - 30, { align: "center" })
   doc.setFontSize(FONT_SIZE)
   doc.setFont("Courier", "normal")
-  doc.text("Written with Inkwell", PAGE_W / 2, PAGE_H / 2, { align: "center" })
 
   doc.addPage()
   page = 1
@@ -192,12 +191,6 @@ function buildScreenplayPDF(project: FullProject): jsPDF {
       }
     }
   }
-
-  // "FADE OUT." at the end
-  y += LINE_H * 2
-  ensureSpace(LINE_H)
-  doc.setFont("Courier", "bold")
-  doc.text("FADE OUT.", MARGIN_LEFT + TEXT_W, y, { align: "right" })
 
   return doc
 }
