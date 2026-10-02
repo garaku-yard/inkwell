@@ -402,7 +402,16 @@ export function diagnoseStory(passages: Scene[], settings: IFStorySettings): IFD
   const visit = (id: string) => { if (reachable.has(id)) return; reachable.add(id); for (const next of adjacency.get(id) ?? []) visit(next) }
   const start = passages.find((passage) => passage.id === settings.startPassageId) ?? passages[0]
   if (start) visit(start.id)
-  for (const passage of passages) if (passage.id !== start?.id && !reachable.has(passage.id)) diagnostics.push({ kind: "unreachable", severity: "warning", passageId: passage.id, message: `“${passage.scene_heading || "Untitled"}” cannot be reached from Start` })
+  for (const passage of passages) {
+    if (passage.id === start?.id || reachable.has(passage.id)) continue
+    const incoming = passages.filter((source) => adjacency.get(source.id)?.has(passage.id))
+    const title = passage.scene_heading || "Untitled"
+    const startTitle = start?.scene_heading || "Untitled"
+    const message = incoming.length === 0
+      ? `“${title}” has no incoming links (start passage: “${startTitle}”)`
+      : `“${title}” is linked only from passages unreachable from “${startTitle}”: ${incoming.map((source) => source.scene_heading || "Untitled").join(", ")}`
+    diagnostics.push({ kind: "unreachable", severity: "warning", passageId: passage.id, message })
+  }
   return diagnostics
 }
 

@@ -20,6 +20,35 @@ describe("IF author-only passage details", () => {
     expect(screen.getByText("Queue camera pan")).toBeInTheDocument()
   })
 
+  it("traces one passage's links and can show the complete graph", async () => {
+    const user = userEvent.setup()
+    const makePassage = (id: string, title: string, targets: string[]): Scene => ({
+      ...passage, id, scene_heading: title, content: "",
+      elements: targets.map((target, index) => ({
+        id: `${id}-${index}`, project_id: "p", scene_id: id, element_type: "choice",
+        content: `[[${target}]]`, line_number: index, formatting: {}, created_at: "", updated_at: "",
+      })),
+    })
+    const { container } = render(<PassageGraph
+      passages={[
+        makePassage("start", "Start", ["Branch A", "Branch B"]),
+        makePassage("a", "Branch A", ["End"]),
+        makePassage("b", "Branch B", ["End"]),
+        makePassage("end", "End", []),
+      ]}
+      activePassageId="start"
+      onSelectPassage={vi.fn()}
+    />)
+    const visibleLinks = () => container.querySelectorAll("path[marker-end]")
+    expect(visibleLinks()).toHaveLength(2)
+    await user.hover(screen.getAllByText("Branch A")[1])
+    expect(visibleLinks()).toHaveLength(2)
+    expect(container.querySelector('path[data-from="a"][data-to="end"]')).toBeInTheDocument()
+    expect(container.querySelector('path[data-from="start"][data-to="b"]')).not.toBeInTheDocument()
+    await user.click(screen.getByRole("checkbox", { name: "Show all links" }))
+    expect(visibleLinks()).toHaveLength(4)
+  })
+
   it("edits both fields with the selected passage's other metadata intact", async () => {
     const user = userEvent.setup()
     const onSave = vi.fn(async () => {})
