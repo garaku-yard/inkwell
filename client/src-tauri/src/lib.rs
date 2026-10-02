@@ -137,6 +137,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0020_local_comments.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 21,
+      description: "30-day recovery window for projects in removed personal workspaces",
+      sql: include_str!("../migrations/0021_workspace_project_retention.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 
