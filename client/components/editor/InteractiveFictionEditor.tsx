@@ -723,7 +723,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                       else void handleAddPassage(target)
                     }}
                     className={cn(
-                      "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer",
+                      "flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors cursor-pointer",
                       exists
                         ? "border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 hover:bg-green-500/10"
                         : "border-destructive/40 text-destructive bg-destructive/5 hover:bg-destructive/10 font-semibold underline underline-offset-2"
@@ -769,7 +769,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                     key={i}
                     onClick={() => exists && navigateToPassage(target)}
                     className={cn(
-                      "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors",
+                      "flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors",
                       exists
                         ? "border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 hover:bg-green-500/10 cursor-pointer"
                         : "border-destructive/40 text-destructive bg-destructive/5 cursor-default font-semibold underline underline-offset-2"
@@ -791,7 +791,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     if (el.element_type === "set") {
       return (
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-muted-foreground/50 mb-0.5 pl-1 select-none">Variable</div>
+          <div className="text-xs uppercase tracking-widest text-muted-foreground/50 mb-0.5 pl-1 select-none">Variable</div>
           <StableContentEditable
             id={`el-${el.id}`}
             value={el.content}
@@ -806,7 +806,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     if (el.element_type === "note") {
       return (
         <div className="opacity-60 hover:opacity-100 transition-opacity">
-          <div className="text-[10px] uppercase tracking-widest text-muted-foreground/50 mb-0.5 pl-1 select-none">Author note</div>
+          <div className="text-xs uppercase tracking-widest text-muted-foreground/50 mb-0.5 pl-1 select-none">Author note</div>
           <StableContentEditable
             id={`el-${el.id}`}
             value={el.content}
@@ -838,7 +838,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           )}
           <div className="mb-1">
             {isStart && (
-              <span className="text-[10px] font-bold uppercase tracking-wider text-primary mb-2 block">
+              <span className="text-xs font-bold uppercase tracking-wider text-primary mb-2 block">
                 Start passage
               </span>
             )}
@@ -853,7 +853,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             />
             {metadata.tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
-                {metadata.tags.map((tag) => <span key={tag} className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">{tag}</span>)}
+                {metadata.tags.map((tag) => <span key={tag} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{tag}</span>)}
               </div>
             )}
             <div className="mt-3 rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs">
@@ -869,9 +869,9 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           </div>
           <p className="text-xs text-muted-foreground/50 mb-8 mt-1.5">
             Link with{" "}
-            <code className="font-mono bg-muted px-1 rounded text-[11px]">[[Choice text → PassageName]]</code>
+            <code className="font-mono bg-muted px-1 rounded text-xs">[[Choice text → PassageName]]</code>
             {" "}or{" "}
-            <code className="font-mono bg-muted px-1 rounded text-[11px]">[[PassageName]]</code>
+            <code className="font-mono bg-muted px-1 rounded text-xs">[[PassageName]]</code>
           </p>
         </div>
       )
