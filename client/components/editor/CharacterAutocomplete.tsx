@@ -263,7 +263,7 @@ export const CharacterAutocomplete: React.FC<CharacterAutocompleteProps> = ({
       {/* Header */}
       <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
         <User className="h-3 w-3 text-gray-400" />
-        <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
           Characters
         </span>
       </div>
@@ -305,7 +305,7 @@ export const CharacterAutocomplete: React.FC<CharacterAutocompleteProps> = ({
               )}
               <span
                 className={cn(
-                  "text-[10px] tabular-nums",
+                  "text-xs tabular-nums",
                   index === selectedIndex
                     ? "text-blue-100"
                     : "text-gray-400 dark:text-gray-500"
@@ -320,7 +320,7 @@ export const CharacterAutocomplete: React.FC<CharacterAutocompleteProps> = ({
 
       {/* Footer hint */}
       <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
-        <div className="flex items-center gap-2 text-[10px] text-gray-400">
+        <div className="flex items-center gap-2 text-xs text-gray-400">
           <span className="flex items-center gap-1">
             <kbd className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-[9px] font-mono">↑↓</kbd>
             <span>navigate</span>

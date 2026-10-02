@@ -133,7 +133,7 @@ export function CloudProjectsButton({ onPulled }: { onPulled?: () => void }) {
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{p.title || "Untitled"}</p>
-                      <Badge variant="secondary" className="mt-0.5 text-[10px] capitalize">
+                      <Badge variant="secondary" className="mt-0.5 text-xs capitalize">
                         {p.category}
                       </Badge>
                     </div>

@@ -78,6 +78,9 @@ html.window-maximised body {
   --inkwell-editor-font: var(--font-courier-prime), 'Courier Prime', 'Courier New', Courier, monospace;
   --inkwell-ui-font: Inter, system-ui, sans-serif;
   --inkwell-editor-lh: 1.6;
+  /* Shared UI captions need at least 13px for clear desktop rendering. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
   --radius: 0.625rem;
   /* Milky cream surfaces — all share hue 90 (warm yellow-green) */
   --background: oklch(0.972 0.006 95);       /* warm milky canvas */

@@ -126,7 +126,7 @@ export function SyncSection() {
                       <span className="truncate text-sm font-medium">{r.title}</span>
                       <Badge
                         variant={r.status === "error" ? "destructive" : "secondary"}
-                        className="shrink-0 text-[10px]"
+                        className="shrink-0 text-xs"
                       >
                         {r.status === "error"
                           ? r.error || "error"

@@ -905,7 +905,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
               >
                 <FolderOpen className="mr-2 h-4 w-4" /> Change folder…
               </Button>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Changes only affect where Inkwell reads and writes. Existing
                 notes in the old folder are untouched.
               </p>
@@ -976,4 +976,3 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
     </div>
   )
 }
-
