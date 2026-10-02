@@ -509,15 +509,18 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                 ? <ChevronRight className="h-3.5 w-3.5 text-amber-700/60 dark:text-amber-500/60" />
                 : <ChevronDown className="h-3.5 w-3.5 text-amber-700/60 dark:text-amber-500/60" />}
             </button>
-            {!isCollapsed && (
-              <button
-                onClick={() => setTemplatePickerFor(el.id)}
-                className="flex items-center gap-1 text-xs text-amber-700/80 dark:text-amber-500/80 hover:text-amber-700 dark:hover:text-amber-500 transition-colors px-2 py-0.5 rounded hover:bg-amber-700/10"
-                title="Load template"
-              >
-                <Library className="h-3 w-3" /> Template
-              </button>
-            )}
+            <div className="flex items-center gap-1">
+              {!isCollapsed && (
+                <button
+                  onClick={() => setTemplatePickerFor(el.id)}
+                  className="flex items-center gap-1 text-xs text-amber-700/80 dark:text-amber-500/80 hover:text-amber-700 dark:hover:text-amber-500 transition-colors px-2 py-0.5 rounded hover:bg-amber-700/10"
+                  title="Load template"
+                >
+                  <Library className="h-3 w-3" /> Template
+                </button>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => void handleDeleteElement(sectionId, el.id)}>Delete block</Button>
+            </div>
           </div>
           {!isCollapsed && (
             <StableContentEditable
@@ -544,8 +547,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
               </span>
               {isCollapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" />}
             </div>
-            {!isCollapsed && (
-              <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1">
+              {!isCollapsed && <>
                 {mode === "preview" && parsed && parsed.rows.length > 0 && (
                   <button
                     onClick={() => rollDiceTable(el.id, el.content)}
@@ -558,8 +561,9 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                 <button onClick={() => toggleTableMode(el.id)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-background/60">
                   {mode === "edit" ? <><Table className="h-3 w-3" /> Preview</> : <><Pencil className="h-3 w-3" /> Edit</>}
                 </button>
-              </div>
-            )}
+              </>}
+              <Button size="sm" variant="ghost" onClick={() => void handleDeleteElement(sectionId, el.id)}>Delete block</Button>
+            </div>
           </div>
           {!isCollapsed && (
             mode === "preview" && parsed ? (
@@ -626,11 +630,12 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
               <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Table</span>
               {isCollapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" />}
             </div>
-            {!isCollapsed && (
-              <button onClick={() => toggleTableMode(el.id)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-background/60">
+            <div className="flex items-center gap-1">
+              {!isCollapsed && <button onClick={() => toggleTableMode(el.id)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-background/60">
                 {mode === "edit" ? <><Table className="h-3 w-3" /> Preview</> : <><Pencil className="h-3 w-3" /> Edit</>}
-              </button>
-            )}
+              </button>}
+              <Button size="sm" variant="ghost" onClick={() => void handleDeleteElement(sectionId, el.id)}>Delete block</Button>
+            </div>
           </div>
           {!isCollapsed && (
             mode === "preview" && parsed ? (
