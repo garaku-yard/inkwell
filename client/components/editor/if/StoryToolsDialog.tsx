@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   diagnoseStory,
   parsePassageMetadata,
@@ -23,6 +24,8 @@ import {
 import type { Scene } from "@/services/project"
 
 interface StoryToolsDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
   passages: Scene[]
   activePassageId: string | null
   runtimePassageId: string | null
@@ -46,10 +49,10 @@ function coerceValue(value: string, type: IFVariableType): IFValue {
 }
 
 export function StoryToolsDialog({
+  open, onOpenChange,
   passages, activePassageId, runtimePassageId, runtimeVariables, settings,
   onSave, onSelectPassage, onLoadTestState,
 }: StoryToolsDialogProps) {
-  const [open, setOpen] = useState(false)
   const [variables, setVariables] = useState<IFVariableDefinition[]>(settings.variables)
   const [testStates, setTestStates] = useState<IFTestState[]>(settings.testStates)
   const [startPassageId, setStartPassageId] = useState(settings.startPassageId ?? passages[0]?.id ?? "")
@@ -57,6 +60,8 @@ export function StoryToolsDialog({
   const storedMetadata = parsePassageMetadata(active?.content)
   const [tags, setTags] = useState(storedMetadata.tags.join(", "))
   const [color, setColor] = useState(storedMetadata.color)
+  const [condition, setCondition] = useState(storedMetadata.condition ?? "")
+  const [note, setNote] = useState(storedMetadata.note ?? "")
   const diagnostics = useMemo(
     () => diagnoseStory(passages, { startPassageId, variables, testStates }),
     [passages, startPassageId, testStates, variables],
@@ -69,6 +74,8 @@ export function StoryToolsDialog({
     const metadata = parsePassageMetadata(passages.find((passage) => passage.id === activePassageId)?.content)
     setTags(metadata.tags.join(", "))
     setColor(metadata.color)
+    setCondition(metadata.condition ?? "")
+    setNote(metadata.note ?? "")
   }
 
   const updateVariable = (index: number, patch: Partial<IFVariableDefinition>) => {
@@ -89,7 +96,7 @@ export function StoryToolsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (next) resetDraft() }}>
+    <Dialog open={open} onOpenChange={(next) => { onOpenChange(next); if (next) resetDraft() }}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
           <SlidersHorizontal className="h-3.5 w-3.5" /> Story tools
@@ -100,7 +107,7 @@ export function StoryToolsDialog({
         <DialogHeader>
           <DialogTitle>Story runtime and diagnostics</DialogTitle>
           <DialogDescription>
-            Define initial state, tag the selected passage, save reproducible test states, and inspect logic problems.
+            Define initial state, keep author-only passage details, save reproducible test states, and inspect logic problems.
           </DialogDescription>
         </DialogHeader>
 
@@ -146,17 +153,26 @@ export function StoryToolsDialog({
         <section className="grid gap-3 border-t pt-4 sm:grid-cols-2">
           <div><Label>Selected passage tags</Label><Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="cave, chapter-one, ending" /></div>
           <div><Label>Passage color</Label><div className="flex gap-2"><Input type="color" className="w-14 px-1" value={/^#[0-9a-f]{6}$/i.test(color) ? color : "#6b7280"} onChange={(event) => setColor(event.target.value)} /><Input value={color} onChange={(event) => setColor(event.target.value)} placeholder="#6b7280" /></div></div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="if-passage-condition">Trigger / condition</Label>
+            <Input id="if-passage-condition" value={condition} onChange={(event) => setCondition(event.target.value)} placeholder="When the sim trigger fires…" disabled={!active} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="if-passage-note">Author note</Label>
+            <Textarea id="if-passage-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Intent, implementation handoff, or continuity notes" disabled={!active} />
+          </div>
+          <p className="text-xs text-muted-foreground sm:col-span-2">These details stay with the passage for writing and graph planning. They do not affect Play logic or appear in the player view.</p>
         </section>
 
         <section className="space-y-2 border-t pt-4">
           <div className="flex items-center justify-between"><div><h3 className="text-sm font-semibold">Test states</h3><p className="text-xs text-muted-foreground">Capture the current passage entry state, then replay it exactly.</p></div><Button type="button" variant="outline" size="sm" disabled={!runtimePassageId} onClick={saveTestState}><Save className="mr-1 h-3.5 w-3.5" /> Capture play state</Button></div>
-          {testStates.map((state, index) => <div key={state.id} className="flex items-center gap-2 rounded-md border px-3 py-2"><Input className="h-8" value={state.name} onChange={(event) => setTestStates((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} /><span className="min-w-24 text-xs text-muted-foreground">{Object.keys(state.variables).length} variables</span><Button type="button" variant="ghost" size="sm" onClick={() => { onLoadTestState(state); setOpen(false) }}><Bug className="mr-1 h-3.5 w-3.5" /> Run</Button><Button type="button" variant="ghost" size="icon" onClick={() => setTestStates((current) => current.filter((item) => item.id !== state.id))}><Trash2 className="h-4 w-4" /></Button></div>)}
+          {testStates.map((state, index) => <div key={state.id} className="flex items-center gap-2 rounded-md border px-3 py-2"><Input className="h-8" value={state.name} onChange={(event) => setTestStates((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} /><span className="min-w-24 text-xs text-muted-foreground">{Object.keys(state.variables).length} variables</span><Button type="button" variant="ghost" size="sm" onClick={() => { onLoadTestState(state); onOpenChange(false) }}><Bug className="mr-1 h-3.5 w-3.5" /> Run</Button><Button type="button" variant="ghost" size="icon" onClick={() => setTestStates((current) => current.filter((item) => item.id !== state.id))}><Trash2 className="h-4 w-4" /></Button></div>)}
         </section>
 
         <section className="space-y-2 border-t pt-4">
           <h3 className="flex items-center gap-1.5 text-sm font-semibold"><AlertTriangle className="h-4 w-4 text-amber-500" /> Diagnostics ({diagnostics.length})</h3>
           {diagnostics.length === 0 ? <p className="text-xs text-muted-foreground">No structural or logic problems found.</p> : diagnostics.map((diagnostic, index) => (
-            <button key={`${diagnostic.kind}-${diagnostic.passageId}-${diagnostic.elementId ?? index}`} className="block w-full rounded-md border px-3 py-2 text-left text-xs hover:bg-muted" onClick={() => { onSelectPassage(diagnostic.passageId); setOpen(false) }}>
+            <button key={`${diagnostic.kind}-${diagnostic.passageId}-${diagnostic.elementId ?? index}`} className="block w-full rounded-md border px-3 py-2 text-left text-xs hover:bg-muted" onClick={() => { onSelectPassage(diagnostic.passageId); onOpenChange(false) }}>
               <span className={diagnostic.severity === "error" ? "font-semibold text-destructive" : "font-semibold text-amber-700 dark:text-amber-300"}>{diagnostic.kind.replaceAll("-", " ")}</span>{" · "}{diagnostic.message}
             </button>
           ))}
@@ -165,8 +181,8 @@ export function StoryToolsDialog({
         <DialogFooter>
           <Button onClick={async () => {
             const nextSettings = { startPassageId, variables, testStates }
-            await onSave(nextSettings, activePassageId, { tags: tags.split(","), color, story: activePassageId === passages[0]?.id ? nextSettings : storedMetadata.story })
-            setOpen(false)
+            await onSave(nextSettings, activePassageId, { tags: tags.split(","), color, condition, note, story: activePassageId === passages[0]?.id ? nextSettings : storedMetadata.story })
+            onOpenChange(false)
           }}>Save story settings</Button>
         </DialogFooter>
       </DialogScrollContent>
