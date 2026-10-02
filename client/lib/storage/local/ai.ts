@@ -295,6 +295,9 @@ export const ai: AiStorage = {
     const projectId = request.projectId
     if (projectId) {
       const knowledgeOn = await knowledge.hasScopes(projectId)
+      const projectRows = await (await getDb()).select<Array<{ category: string }>>(
+        "SELECT category FROM projects WHERE id = ?", [projectId],
+      )
       const conversation: AdapterMessage[] = toAdapterMessages(request.messages)
       if (knowledgeOn) {
         const lastUser = [...request.messages]
@@ -314,7 +317,7 @@ export const ai: AiStorage = {
         baseUrl,
         signal: options?.signal,
         projectId,
-        tools: toolSpecsFor({ knowledge: knowledgeOn }),
+        tools: toolSpecsFor({ knowledge: knowledgeOn, category: projectRows[0]?.category }),
       })
     }
 

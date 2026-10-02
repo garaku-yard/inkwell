@@ -226,9 +226,10 @@ func (h *ScriptsHandler) ToggleProjectStar(w http.ResponseWriter, r *http.Reques
 // rather than clobbering with the zero value. A client-supplied user_id is
 // ignored — the authenticated caller is the authorization subject.
 type updateProjectBody struct {
-	Title       *string `json:"title"`
-	Description *string `json:"description"`
-	Status      *string `json:"status"`
+	Title            *string         `json:"title"`
+	Description      *string         `json:"description"`
+	Status           *string         `json:"status"`
+	TtrpgStatSchemas json.RawMessage `json:"ttrpg_stat_schemas"`
 }
 
 // UpdateProject handles PUT /projects/{projectId}: rename/description edits and
@@ -251,12 +252,18 @@ func (h *ScriptsHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 				return nil, authErr
 			}
 
+			var statSchemas *string
+			if body.TtrpgStatSchemas != nil {
+				encoded := string(body.TtrpgStatSchemas)
+				statSchemas = &encoded
+			}
 			resp, err := h.scriptsClient.UpdateProject(r.Context(), &scriptspb.UpdateProjectRequest{
-				ProjectId:   projectID,
-				UserId:      userID,
-				Title:       body.Title,
-				Description: body.Description,
-				Status:      body.Status,
+				ProjectId:            projectID,
+				UserId:               userID,
+				Title:                body.Title,
+				Description:          body.Description,
+				Status:               body.Status,
+				TtrpgStatSchemasJson: statSchemas,
 			})
 			if err != nil {
 				return nil, err
@@ -923,14 +930,19 @@ func (h *ScriptsHandler) GetSceneElements(w http.ResponseWriter, r *http.Request
 
 // convertProjectFromProto converts a protobuf Project message to a JSON-serialisable map.
 func convertProjectFromProto(project *scriptspb.Project) map[string]interface{} {
+	statSchemas := project.TtrpgStatSchemasJson
+	if statSchemas == "" {
+		statSchemas = "[]"
+	}
 	result := map[string]interface{}{
-		"id":          project.Id,
-		"title":       project.Title,
-		"description": project.Description,
-		"owner_id":    project.OwnerId,
-		"category":    project.Category,
-		"status":      project.Status,
-		"is_starred":  project.IsStarred,
+		"id":                 project.Id,
+		"title":              project.Title,
+		"description":        project.Description,
+		"owner_id":           project.OwnerId,
+		"category":           project.Category,
+		"status":             project.Status,
+		"is_starred":         project.IsStarred,
+		"ttrpg_stat_schemas": json.RawMessage(statSchemas),
 	}
 
 	if project.OrgId != "" {

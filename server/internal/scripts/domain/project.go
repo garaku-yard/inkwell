@@ -9,17 +9,18 @@ import (
 
 // Project represents a writing project
 type Project struct {
-	ID          uuid.UUID  `json:"id" db:"project_id"`
-	Title       string     `json:"title" db:"title"`
-	Description string     `json:"description" db:"description"`
-	OwnerID     uuid.UUID  `json:"owner_id" db:"owner_id"`
-	Category    string     `json:"category" db:"category"` // "screenplay", "novel", "comic_script", "poetry", "interactive_fiction", "tabletop_rpg", "memoir", "lyrics"
-	Status      string     `json:"status" db:"status"`     // "draft", "active", "completed", "archived"
-	IsStarred   bool       `json:"is_starred" db:"is_starred"`
-	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
-	DeletedAt   *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
-	OrgID       *uuid.UUID `json:"org_id,omitempty" db:"org_id"` // owning org; nil = personal project
+	ID                   uuid.UUID  `json:"id" db:"project_id"`
+	Title                string     `json:"title" db:"title"`
+	Description          string     `json:"description" db:"description"`
+	TtrpgStatSchemasJSON string     `json:"ttrpg_stat_schemas_json" db:"ttrpg_stat_schemas_json"`
+	OwnerID              uuid.UUID  `json:"owner_id" db:"owner_id"`
+	Category             string     `json:"category" db:"category"` // "screenplay", "novel", "comic_script", "poetry", "interactive_fiction", "tabletop_rpg", "memoir", "lyrics"
+	Status               string     `json:"status" db:"status"`     // "draft", "active", "completed", "archived"
+	IsStarred            bool       `json:"is_starred" db:"is_starred"`
+	CreatedAt            time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at" db:"updated_at"`
+	DeletedAt            *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
+	OrgID                *uuid.UUID `json:"org_id,omitempty" db:"org_id"` // owning org; nil = personal project
 }
 
 // ProjectElement represents an individual line/element in a screenplay

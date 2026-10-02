@@ -23,7 +23,7 @@ export interface ToolContext {
  *  without any, the note tools can only ever answer "nothing is in scope",
  *  so they are left out of the declarations entirely rather than offered and
  *  then apologised for. */
-export type ToolRequirement = "knowledge"
+export type ToolRequirement = "knowledge" | "ttrpg" | "ttrpg_or_if"
 
 /** One capability an AI consumer may invoke: the declaration providers turn
  *  into their native tool format, paired with the handler that runs it.

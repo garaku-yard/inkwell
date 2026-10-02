@@ -98,6 +98,15 @@ describe("tools/list", () => {
       "create_character",
       "append_to_scene",
       "add_beat",
+      "add_project_comment",
+      "update_beat",
+      "move_beat",
+      "save_ttrpg_stat_schema",
+      "create_ttrpg_stat_block",
+      "update_ttrpg_stat_block",
+      "create_ttrpg_block",
+      "update_ttrpg_block",
+      "reorder_sections",
       "rename_scene",
       "update_character",
       "rewrite_scene",
@@ -105,14 +114,12 @@ describe("tools/list", () => {
     ])
   })
 
-  // The bridge gets the tools that can take writing away — the chat does not,
-  // because an MCP client prompts before running one and the chat cannot.
-  it("flags the two tools that remove writing, so a client can confirm harder", async () => {
+  it("flags tools that can replace writing, so a client can confirm harder", async () => {
     const { tools } = (await handle("tools/list", {})) as {
       tools: Array<{ name: string; annotations: { destructiveHint: boolean } }>
     }
     const destructive = tools.filter((t) => t.annotations.destructiveHint).map((t) => t.name)
-    expect(destructive).toEqual(["rewrite_scene", "delete_scene"])
+    expect(destructive).toEqual(["update_beat", "update_ttrpg_stat_block", "update_ttrpg_block", "reorder_sections", "rewrite_scene", "delete_scene"])
   })
 })
 

@@ -223,8 +223,9 @@ func syncProtoToProject(p *scriptspb.Project) *domain.Project {
 	orgID := parseUUIDPtr(p.OrgId)
 	return &domain.Project{
 		ID: id, Title: p.Title, Description: p.Description, OwnerID: owner,
-		OrgID:    orgID,
-		Category: p.Category, Status: p.Status, IsStarred: p.IsStarred,
+		TtrpgStatSchemasJSON: p.TtrpgStatSchemasJson,
+		OrgID:                orgID,
+		Category:             p.Category, Status: p.Status, IsStarred: p.IsStarred,
 		CreatedAt: goTime(p.CreatedAt), DeletedAt: goTimePtr(p.DeletedAt),
 	}
 }
@@ -395,7 +396,8 @@ func syncChangesToProto(c *domain.SyncChanges) *scriptspb.SyncChanges {
 func syncProjectToProto(p *domain.Project) *scriptspb.Project {
 	out := &scriptspb.Project{
 		Id: p.ID.String(), Title: p.Title, Description: p.Description,
-		OwnerId: p.OwnerID.String(), Category: p.Category, Status: p.Status,
+		TtrpgStatSchemasJson: p.TtrpgStatSchemasJSON,
+		OwnerId:              p.OwnerID.String(), Category: p.Category, Status: p.Status,
 		IsStarred: p.IsStarred, CreatedAt: protoTS(p.CreatedAt),
 		UpdatedAt: protoTS(p.UpdatedAt), DeletedAt: protoTSPtr(p.DeletedAt),
 	}

@@ -19,6 +19,7 @@ message Project {
   string category = 9; // "screenplay", "novel", "comic_script", "poetry", "interactive_fiction", "tabletop_rpg", "memoir", "lyrics"
   common.Timestamp deleted_at = 10; // tombstone for sync (nil = live)
   string org_id = 11; // owning organization (empty = personal project owned by owner_id)
+  string ttrpg_stat_schemas_json = 12; // project-owned stat block shapes; [] for other formats
 }
 
 // Note: Screenplay is now represented by Project entity
@@ -215,6 +216,7 @@ message UpdateProjectRequest {
   optional string title = 3;
   optional string description = 4;
   optional string status = 5;
+  optional string ttrpg_stat_schemas_json = 6;
 }
 
 message UpdateProjectResponse {

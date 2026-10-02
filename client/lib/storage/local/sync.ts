@@ -174,14 +174,18 @@ async function applyProject(db: DB, p: Row): Promise<void> {
   // the correct reading for a personal project and for anything a server that
   // predates the column returns.
   await db.execute(
-    `INSERT INTO projects (id, title, description, owner_id, category, status, is_starred, org_id, created_at, updated_at, deleted_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)
+    `INSERT INTO projects (id, title, description, owner_id, category, status, is_starred, org_id, ttrpg_stat_schemas_json, created_at, updated_at, deleted_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT(id) DO UPDATE SET title=excluded.title, description=excluded.description,
        category=excluded.category, status=excluded.status, is_starred=excluded.is_starred,
-       org_id=excluded.org_id, updated_at=excluded.updated_at, deleted_at=excluded.deleted_at`,
+       org_id=excluded.org_id,
+       ttrpg_stat_schemas_json=CASE WHEN ? THEN excluded.ttrpg_stat_schemas_json ELSE projects.ttrpg_stat_schemas_json END,
+       updated_at=excluded.updated_at, deleted_at=excluded.deleted_at`,
     [g(p, "id"), g(p, "title"), g(p, "description"), g(p, "owner_id"), g(p, "category"),
       g(p, "status"), p["is_starred"] ? 1 : 0, g(p, "org_id") || null,
-      gts(p, "created_at") ?? now(), gts(p, "updated_at") ?? now(), gts(p, "deleted_at")],
+      g(p, "ttrpg_stat_schemas_json") || "[]",
+      gts(p, "created_at") ?? now(), gts(p, "updated_at") ?? now(), gts(p, "deleted_at"),
+      typeof p["ttrpg_stat_schemas_json"] === "string" ? 1 : 0],
   )
 }
 async function applyScene(db: DB, s: Row): Promise<void> {

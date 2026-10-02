@@ -125,6 +125,18 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0018_drive_selection.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 19,
+      description: "project-owned TTRPG stat block schemas",
+      sql: include_str!("../migrations/0019_ttrpg_stat_schemas.sql"),
+      kind: MigrationKind::Up,
+    },
+    Migration {
+      version: 20,
+      description: "desktop project comments",
+      sql: include_str!("../migrations/0020_local_comments.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 

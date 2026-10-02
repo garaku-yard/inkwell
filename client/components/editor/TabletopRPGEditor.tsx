@@ -1,8 +1,17 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { ChevronRight, ChevronDown, Table, Pencil, Dice6, Library, Type, Pilcrow, Heading2, Boxes, Shield, StickyNote, ScrollText } from "lucide-react"
+import { ChevronRight, ChevronDown, Table, Pencil, Dice6, Library, Type, Pilcrow, Heading2, Boxes, Shield, StickyNote, ScrollText, Clock3, MapPin, Link2, Quote } from "lucide-react"
 import { StatBlockTemplatePicker } from "./ttrpg/StatBlockTemplatePicker"
+import { StatSchemaManager } from "./ttrpg/StatSchemaManager"
+import { TypedBlockEditor } from "./ttrpg/TypedBlockEditor"
+import { defaultTtrpgBlock, parseTtrpgBlock, ttrpgBlockToText } from "@/lib/ttrpg/blocks"
+import { parseRandomTable, rollRandomTable, type RandomTableRow } from "@/lib/ttrpg/random-table"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { useDataChanged } from "@/lib/live-refresh"
+import { getProjectById, updateProject } from "@/services/project"
+import { parseStatInstance, statInstanceToText, type StatInstance, type StatSchema } from "@/lib/ttrpg/stat-schemas"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
 import { useTheme } from "@/lib/ThemeContext"
@@ -40,10 +49,6 @@ import {
 } from "@/services/project"
 
 
-// dice_table: a random-result table with an implied die type based on row count
-// Standard die sizes: d4 d6 d8 d10 d12 d20 d100
-const DIE_FOR_ROWS: Record<number, string> = { 4: "d4", 6: "d6", 8: "d8", 10: "d10", 12: "d12", 20: "d20", 100: "d100" }
-
 function wordCount(text: string | null | undefined) {
   if (!text) return 0
   return text.trim().split(/\s+/).filter(Boolean).length
@@ -62,17 +67,6 @@ function parsePipeTable(content: string): ParsedTable | null {
   if (!headers.length) return null
   if (!/^[-|\s:]+$/.test(lines[1])) return null
   return { headers, rows: lines.slice(2).map(splitRow) }
-}
-
-function parseDiceTable(content: string): { die: string; rows: [string, string][] } | null {
-  const lines = content.split("\n").map(l => l.trim()).filter(l => l && !/^[-|]+$/.test(l))
-  if (lines.length < 2) return null
-  const die = DIE_FOR_ROWS[lines.length - 1] // subtract header row
-  const rows: [string, string][] = lines.slice(1).map((line, i) => {
-    const parts = line.split("|").map(p => p.trim())
-    return [String(i + 1), parts[parts.length - 1] ?? line]
-  })
-  return { die: die ?? `d${rows.length}`, rows }
 }
 
 interface TabletopRPGEditorProps {
@@ -104,6 +98,10 @@ const RPG_RAIL_ITEMS: RailEntry[] = [
       { type: "dice_table", label: "Random table", icon: Dice6 },
       { type: "callout", label: "Designer note", icon: StickyNote },
       { type: "rule_box", label: "Rule box", icon: ScrollText },
+      { type: "ttrpg_clock", label: "Progress clock", icon: Clock3 },
+      { type: "ttrpg_read_aloud", label: "Read aloud", icon: Quote },
+      { type: "ttrpg_keyed_location", label: "Keyed location", icon: MapPin },
+      { type: "ttrpg_cross_reference", label: "Cross-reference", icon: Link2 },
     ],
   },
 ]
@@ -111,6 +109,8 @@ const RPG_RAIL_ITEMS: RailEntry[] = [
 export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const { user } = useAuth()
   const [sections, setSections] = useState(() => projectData.scenes ?? [])
+  const [statSchemas, setStatSchemas] = useState<StatSchema[]>(() => projectData.ttrpg_stat_schemas ?? [])
+  const [isSchemaManagerOpen, setIsSchemaManagerOpen] = useState(false)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [tableMode, setTableMode] = useState<Record<string, "edit" | "preview">>({})
@@ -128,6 +128,13 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const runExport = useExportToast()
   const { toast } = useToast()
   const { editorFontStack } = useTheme()
+
+  useDataChanged((change) => {
+    if (change.projectId !== projectData.id) return
+    void getProjectById(projectData.id, user?.id ?? "").then((project) =>
+      setStatSchemas(project.ttrpg_stat_schemas ?? []),
+    ).catch(() => {})
+  })
   const {
     comments: projectComments,
     onAddComment,
@@ -165,7 +172,13 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   })
 
   const totalWords = sections.reduce((acc, s) =>
-    acc + (s.elements ?? []).reduce((a, el) => a + wordCount(el.content), 0), 0)
+    acc + (s.elements ?? []).reduce((a, el) => {
+      const instance = el.element_type === "ttrpg_stat" ? parseStatInstance(el.content) : null
+      const typed = parseTtrpgBlock(el.element_type, el.content)
+      return a + wordCount(instance
+        ? statInstanceToText(instance, statSchemas.find((schema) => schema.id === instance.schemaId))
+        : typed ? ttrpgBlockToText(typed) : el.content)
+    }, 0), 0)
 
   const activeCommentTarget = useEditorCommentTarget({ units: sections, focusedElementId, activeUnitId: activeSectionId })
 
@@ -241,9 +254,31 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       defaultContent = "Result\n---\nFirst outcome\nSecond outcome\nThird outcome\nFourth outcome\nFifth outcome\nSixth outcome"
     } else if (type === "table") {
       defaultContent = "Column A | Column B | Column C\n--- | --- | ---\n | | "
+    } else if (type.startsWith("ttrpg_") && type !== "ttrpg_stat") {
+      defaultContent = JSON.stringify(defaultTtrpgBlock(type.slice(6) as "clock" | "read_aloud" | "keyed_location" | "cross_reference"))
     }
     const el = await insertElement(sectionId, type, defaultContent, afterIdx)
     if (el) setTimeout(() => document.getElementById(`el-${el.id}`)?.focus(), 50)
+  }
+
+  const saveStatSchema = async (schema: StatSchema) => {
+    if (!user?.id) throw new Error("Sign in to save a template.")
+    const next = statSchemas.some((item) => item.id === schema.id)
+      ? statSchemas.map((item) => item.id === schema.id ? schema : item)
+      : [...statSchemas, schema]
+    const saved = await updateProject(projectData.id, user.id, { ttrpg_stat_schemas: next })
+    setStatSchemas(saved.ttrpg_stat_schemas ?? next)
+  }
+
+  const insertStatInstance = async (schema: StatSchema) => {
+    const sectionId = activeSectionId ?? sections[0]?.id
+    if (!sectionId) {
+      toast({ title: "Create a section before adding a stat block.", variant: "destructive" })
+      return
+    }
+    const instance: StatInstance = { schemaId: schema.id, name: "New " + schema.name, values: {} }
+    await insertElement(sectionId, "ttrpg_stat", JSON.stringify(instance))
+    setIsSchemaManagerOpen(false)
   }
 
   const handleDeleteElement = useCallback(
@@ -388,15 +423,71 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     handleContentChange(elementId, body, false)
   }
 
-  const rollDiceTable = (id: string, rows: [string, string][]) => {
-    if (rows.length === 0) return
-    const idx = Math.floor(Math.random() * rows.length)
-    const [roll, result] = rows[idx]
-    setDiceRoll(prev => ({ ...prev, [id]: { roll: Number(roll) || idx + 1, result } }))
+  const rollDiceTable = (id: string, content: string) => {
+    const table = parseRandomTable(content)
+    if (!table) return
+    const row = rollRandomTable(table)
+    setDiceRoll(prev => ({ ...prev, [id]: { roll: table.rows.indexOf(row) + 1, result: row.result } }))
   }
 
   const renderElement = (el: ProjectElement, sectionId: string, elIdx: number) => {
     const isCollapsed = collapsed.has(el.id)
+
+    if (el.element_type.startsWith("ttrpg_") && el.element_type !== "ttrpg_stat") {
+      const block = parseTtrpgBlock(el.element_type, el.content)
+      if (!block) return <div key={el.id} className="my-4 rounded-lg border p-3 text-destructive">Invalid typed block data. The saved data has been kept.</div>
+      const targets = sections.flatMap((section) => (section.elements ?? [])
+        .filter((item) => item.id !== el.id && item.element_type !== "ttrpg_cross_reference")
+        .map((item) => {
+          const stat = item.element_type === "ttrpg_stat" ? parseStatInstance(item.content) : null
+          const typed = parseTtrpgBlock(item.element_type, item.content)
+          return { id: item.id, label: `${section.scene_heading || "Untitled"} / ${stat?.name || (typed && ttrpgBlockToText(typed).split("\n")[0]) || item.content.slice(0, 60) || item.element_type}` }
+        }))
+      const title = { clock: "Progress clock", read_aloud: "Read aloud", keyed_location: "Keyed location", cross_reference: "Cross-reference" }[block.kind]
+      return <div key={el.id} id={`el-${el.id}`} className="my-4 rounded-lg border bg-muted/20 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{title}</span>
+          <Button size="sm" variant="ghost" onClick={() => void handleDeleteElement(sectionId, el.id)}>Delete block</Button>
+        </div>
+        <TypedBlockEditor block={block} targets={targets}
+          onChange={(next) => handleContentChange(el.id, JSON.stringify(next), false)}
+          onNavigate={(id) => document.getElementById(`el-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })} />
+      </div>
+    }
+
+    if (el.element_type === "ttrpg_stat") {
+      const instance = parseStatInstance(el.content)
+      const schema = statSchemas.find((item) => item.id === instance?.schemaId)
+      if (!instance || !schema) return <div key={el.id} id={`el-${el.id}`} className="my-4 rounded-lg border p-3 text-sm text-destructive">
+        This stat block&apos;s template is missing or its data is invalid. The saved data has been kept.
+        <pre className="mt-2 whitespace-pre-wrap text-foreground">{instance ? statInstanceToText(instance) : el.content}</pre>
+      </div>
+      const write = (next: StatInstance) => handleContentChange(el.id, JSON.stringify(next), false)
+      return <div key={el.id} id={`el-${el.id}`} className="my-4 rounded-lg border-2 border-amber-700/40 dark:border-amber-500/30 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-widest text-amber-700 dark:text-amber-500">{schema.name} stat block</span>
+          <div className="flex gap-1">
+            <Button size="sm" variant="ghost" onClick={() => setIsSchemaManagerOpen(true)}>Edit template</Button>
+            <Button size="sm" variant="ghost" onClick={() => void handleDeleteElement(sectionId, el.id)}>Delete block</Button>
+          </div>
+        </div>
+        <label className="grid gap-1 text-sm font-medium">Name
+          <Input value={instance.name} onChange={(event) => write({ ...instance, name: event.target.value })} />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {schema.fields.map((field) => <label key={field.id} className="grid gap-1 text-sm">{field.label}
+            {field.kind === "choice" ? <select className="h-9 rounded-md border bg-background px-2" value={instance.values[field.id] ?? ""}
+              onChange={(event) => write({ ...instance, values: { ...instance.values, [field.id]: event.target.value } })}>
+              <option value="">Choose…</option>
+              {(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
+            </select> : field.kind === "number" ? <Input type="number" value={instance.values[field.id] ?? ""}
+              onChange={(event) => write({ ...instance, values: { ...instance.values, [field.id]: event.target.value } })} />
+              : <textarea className="min-h-16 rounded-md border bg-background px-3 py-2" value={instance.values[field.id] ?? ""}
+                onChange={(event) => write({ ...instance, values: { ...instance.values, [field.id]: event.target.value } })} />}
+          </label>)}
+        </div>
+      </div>
+    }
 
     if (el.element_type === "h2") {
       return (
@@ -449,7 +540,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
 
     if (el.element_type === "dice_table") {
       const mode = tableMode[el.id] ?? "edit"
-      const parsed = mode === "preview" ? parseDiceTable(el.content) : null
+      const parsed = mode === "preview" ? parseRandomTable(el.content) : null
       return (
         <div key={el.id} className="my-4 rounded-lg border overflow-hidden">
           <div className="flex items-center justify-between px-3 py-1.5 bg-muted select-none">
@@ -464,7 +555,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
               <div className="flex items-center gap-1">
                 {mode === "preview" && parsed && parsed.rows.length > 0 && (
                   <button
-                    onClick={() => rollDiceTable(el.id, parsed.rows)}
+                    onClick={() => rollDiceTable(el.id, el.content)}
                     className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-background/60"
                     title={`Roll ${parsed.die}`}
                   >
@@ -482,7 +573,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
               <div className="overflow-x-auto">
                 {diceRoll[el.id] && (
                   <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200/50 dark:border-amber-900/30 text-sm">
-                    <span className="font-mono text-xs text-amber-700 dark:text-amber-400 mr-2">Rolled {diceRoll[el.id].roll}</span>
+                    <span className="font-mono text-xs text-amber-700 dark:text-amber-400 mr-2">{parsed.die === "weighted" ? "Selected row" : "Rolled"} {diceRoll[el.id].roll}</span>
                     <span className="text-foreground">{diceRoll[el.id].result}</span>
                   </div>
                 )}
@@ -494,8 +585,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {parsed.rows.map(([roll, result], ri) => {
-                      const isRolled = diceRoll[el.id]?.roll === Number(roll)
+                    {parsed.rows.map(({ label, result, weight }: RandomTableRow, ri) => {
+                      const isRolled = diceRoll[el.id]?.roll === ri + 1
                       return (
                         <tr
                           key={ri}
@@ -508,7 +599,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                                 : "bg-muted/20",
                           )}
                         >
-                          <td className="px-3 py-2 font-mono text-muted-foreground text-sm">{roll}</td>
+                          <td className="px-3 py-2 font-mono text-muted-foreground text-sm">{parsed.die === "weighted" ? weight : label}</td>
                           <td className="px-3 py-2">{result}</td>
                         </tr>
                       )
@@ -517,12 +608,15 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
                 </table>
               </div>
             ) : (
-              <StableContentEditable
-                id={`el-${el.id}`}
-                value={el.content}
-                onValueChange={(next) => handleContentChange(el.id, next, false)}
-                className="font-mono text-sm outline-none px-3 py-2 whitespace-pre-wrap min-h-[5rem] text-xs"
-              />
+              <div>
+                <StableContentEditable
+                  id={`el-${el.id}`}
+                  value={el.content}
+                  onValueChange={(next) => handleContentChange(el.id, next, false)}
+                  className="font-mono text-sm outline-none px-3 py-2 whitespace-pre-wrap min-h-[5rem] text-xs"
+                />
+                <p className="px-3 pb-2 text-xs text-muted-foreground">For custom odds, use a <code>Weight | Result</code> header and one <code>number | outcome</code> per line.</p>
+              </div>
             )
           )}
         </div>
@@ -648,7 +742,14 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         case "h2":
           return 56
         case "stat_block":
+        case "ttrpg_stat":
+        case "ttrpg_keyed_location":
           return 240
+        case "ttrpg_clock":
+        case "ttrpg_read_aloud":
+          return 180
+        case "ttrpg_cross_reference":
+          return 100
         case "dice_table":
           return 220
         case "table":
@@ -765,7 +866,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
               onClick: () => void runExport({
                 extension: "txt",
                 projectTitle: projectData.title,
-                run: () => exportProjectToText({ ...projectData, scenes: sections }),
+                run: () => exportProjectToText({ ...projectData, scenes: sections, ttrpg_stat_schemas: statSchemas }),
               }),
             },
             {
@@ -773,7 +874,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
               onClick: () => void runExport({
                 extension: "md",
                 projectTitle: projectData.title,
-                run: () => exportProjectToMarkdown({ ...projectData, scenes: sections }),
+                run: () => exportProjectToMarkdown({ ...projectData, scenes: sections, ttrpg_stat_schemas: statSchemas }),
               }),
             },
           ]}
@@ -794,6 +895,11 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
             if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
           }}
         >
+          <div className="flex items-center gap-2 px-4 pt-3">
+            <Button size="sm" variant="outline" onClick={() => setIsSchemaManagerOpen(true)}>
+              Project stat templates{statSchemas.length ? ` (${statSchemas.length})` : ""}
+            </Button>
+          </div>
           <PagedSheets
             pages={sheets}
             renderBlock={renderBlock}
@@ -827,6 +933,13 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         onPick={(body) => {
           if (templatePickerFor) loadStatBlockTemplate(templatePickerFor, body)
         }}
+      />
+      <StatSchemaManager
+        open={isSchemaManagerOpen}
+        onOpenChange={setIsSchemaManagerOpen}
+        schemas={statSchemas}
+        onSave={saveStatSchema}
+        onInsert={insertStatInstance}
       />
     </>
   )
