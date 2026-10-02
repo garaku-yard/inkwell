@@ -69,6 +69,8 @@ export interface StableContentEditableHandle {
   setContent(value: string): void
   /** Read the current content from the DOM in the configured mode. */
   getContent(): string
+  /** Publish a DOM edit made by an external control, such as a formatting button. */
+  commitContent(): void
   /** The underlying DOM node, or null before mount. Useful for
    *  composing with sibling components that need to position
    *  themselves relative to it (autocomplete popovers, comment pins). */
@@ -231,6 +233,13 @@ export function useStableContentEditable({
       const el = ref.current
       if (!el) return ""
       return readContent(el, mode)
+    },
+    commitContent() {
+      const el = ref.current
+      if (!el) return
+      const next = readContent(el, mode)
+      lastSyncedValue.current = next
+      onChangeRef.current(next)
     },
     get element() {
       return ref.current
