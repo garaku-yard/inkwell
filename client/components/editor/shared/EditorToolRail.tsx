@@ -34,6 +34,8 @@ export interface RailItem {
   type: string
   label: string
   icon: React.ComponentType<{ className?: string }>
+  /** Optional toggle state for formatting actions placed in the rail. */
+  active?: boolean
 }
 
 /**
@@ -90,12 +92,13 @@ function RailGroupButton({ group, onSelect }: { group: RailGroup; onSelect: (typ
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    className={cn("h-8 w-8 text-muted-foreground hover:text-foreground", item.active && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground")}
                     onClick={() => {
                       onSelect(item.type)
                       setOpen(false)
                     }}
                     aria-label={item.label}
+                    aria-pressed={item.active === undefined ? undefined : item.active}
                   >
                     <ItemIcon className="h-4 w-4" />
                   </Button>
@@ -124,9 +127,10 @@ function RailButtons({ items, onSelect }: { items: RailEntry[]; onSelect: (type:
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                className={cn("h-8 w-8 text-muted-foreground hover:text-foreground", entry.active && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground")}
                 onClick={() => onSelect(entry.type)}
                 aria-label={entry.label}
+                aria-pressed={entry.active === undefined ? undefined : entry.active}
               >
                 <Icon className="h-4 w-4" />
               </Button>

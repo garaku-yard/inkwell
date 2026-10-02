@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { AlignCenter, AlignLeft, Music, Hash, Feather, Minus, Tag } from "lucide-react"
+import { AlignCenter, AlignLeft, IndentIncrease, IndentDecrease, Music, Hash, Feather, Minus, Tag, Repeat2, Grid2X2, Pilcrow, Heading2 } from "lucide-react"
 import { syllable } from "syllable"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -22,7 +22,7 @@ import { importIntoProject } from "@/lib/import/import-into-project"
 import { type ParsedProject } from "@/lib/import/types"
 import { StableContentEditable } from "./shared/StableContentEditable"
 import { InlineTextEditable, InlineFormattingToolbar } from "./shared/InlineTextEditable"
-import { plainInlineText } from "@/lib/editor/inline-content"
+import { plainInlineText, readInlineRuns, writeInlineRuns } from "@/lib/editor/inline-content"
 import { EditorWorkspace } from "./shared/EditorWorkspace"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { PresencePips } from "./shared/PresencePips"
@@ -40,8 +40,10 @@ import { DocumentMetadataDialog } from "./shared/DocumentMetadataDialog"
 import { DocumentFoundationDialog } from "./shared/DocumentFoundationDialog"
 import { useDocumentFoundation } from "./shared/useDocumentFoundation"
 import { EditorCommandPalette, type EditorCommand } from "./shared/EditorCommandPalette"
-import { writeDocumentMetadata, type DocumentMetadata } from "@/lib/editor/document-metadata"
-import { updateSceneContent } from "@/services/project"
+import { readDocumentMetadata, writeDocumentMetadata, type DocumentMetadata } from "@/lib/editor/document-metadata"
+import { chordRowIssues, transposeChord, transposeChordRow } from "@/lib/editor/song-tools"
+import { VerseToolsDialog } from "./poetry/VerseToolsDialog"
+import { updateElementContent, updateSceneContent } from "@/services/project"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { paginate } from "@/lib/editor/paginate"
 import {
@@ -65,12 +67,14 @@ type PoemBlock =
 function countLines(elements: ProjectElement[]): number {
   return elements.filter(el => el.element_type === "line").length
 }
+function countProseBlocks(elements: ProjectElement[]): number {
+  return elements.filter(el => el.element_type === "prose_block").length
+}
 
 export function PoetryEditor({ projectData }: PoetryEditorProps) {
   const { user } = useAuth()
   const isLyrics = projectData.category === "lyrics"
   const [scenes, setScenes] = useState(() => projectData.scenes ?? [])
-  const [centered, setCentered] = useState(false)
   const [showSyllables, setShowSyllables] = useState(false)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const poemRefs = useRef<Map<string, HTMLElement | null>>(new Map())
@@ -125,6 +129,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   const foundation = useDocumentFoundation({ projectId: projectData.id, userId: user?.id, scenes, setScenes })
 
   const totalLines = scenes.reduce((acc, s) => acc + countLines(s.elements ?? []), 0)
+  const totalProseBlocks = scenes.reduce((acc, s) => acc + countProseBlocks(s.elements ?? []), 0)
 
   const saveMetadata = async (sceneId: string, metadata: DocumentMetadata) => {
     if (!user?.id) throw new Error("Sign in to save metadata.")
@@ -135,18 +140,58 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     setScenes((current) => current.map((item) => item.id === sceneId ? { ...item, content } : item))
   }
 
+  const activeScene = scenes.find((scene) => scene.id === activePoemId) ?? scenes[0]
+  const activeMetadata = activeScene ? readDocumentMetadata(activeScene.content) : {}
+  const indentFocusedLine = (direction: 1 | -1) => {
+    const element = scenes.flatMap((scene) => scene.elements ?? []).find((item) => item.id === focusedElementId)
+    if (!element || element.element_type !== "line") return
+    const runs = readInlineRuns(element.content)
+    if (direction === 1) runs.unshift({ text: "    " })
+    else if (runs[0]) runs[0] = { ...runs[0], text: runs[0].text.replace(/^ {1,4}/, "") }
+    handleContentChange(element.id, writeInlineRuns(runs), false)
+  }
+  const togglePoemAlignment = (sceneId: string) => {
+    const scene = scenes.find((item) => item.id === sceneId)
+    if (!scene) return
+    const metadata = readDocumentMetadata(scene.content)
+    void saveMetadata(sceneId, { ...metadata, alignment: metadata.alignment === "center" ? "left" : "center" }).catch((error) =>
+      toast({ title: "Could not save alignment", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" }),
+    )
+  }
+
+  const applyTransposition = async (sceneId: string, semitones: number) => {
+    if (!user?.id || !Number.isInteger(semitones) || Math.abs(semitones) > 11 || semitones === 0) return
+    const scene = scenes.find((item) => item.id === sceneId)
+    if (!scene) throw new Error("This song is no longer available.")
+    const rows = (scene.elements ?? []).filter((item) => item.element_type === "chord_row")
+    if (rows.some((row) => chordRowIssues(row.content).length)) throw new Error("Correct unrecognized chords before transposing.")
+    try {
+      for (const row of rows) await updateElementContent(row.id, user.id, transposeChordRow(row.content, semitones))
+      const metadata = readDocumentMetadata(scene.content)
+      const key = metadata.key ? transposeChord(metadata.key, semitones) : null
+      if (key) await saveMetadata(sceneId, { ...metadata, key })
+      setScenes((current) => current.map((item) => item.id === sceneId ? {
+        ...item, elements: (item.elements ?? []).map((row) => row.element_type === "chord_row" ? { ...row, content: transposeChordRow(row.content, semitones) } : row),
+      } : item))
+    } catch (error) {
+      await refreshDocument()
+      throw error
+    }
+  }
+
   const activeCommentTarget = useEditorCommentTarget({ units: scenes, focusedElementId, activeUnitId: activePoemId })
 
   const sidebarItems = useMemo<EditorSidebarItem[]>(
     () =>
       scenes.map((scene, i) => {
         const lc = countLines(scene.elements ?? [])
+        const pc = countProseBlocks(scene.elements ?? [])
         const here = peersByElement.get(scene.id)
         return {
           id: scene.id,
           title: scene.scene_heading || "Untitled",
           index: i + 1,
-          meta: lc > 0 ? `${lc} ${lc === 1 ? "line" : "lines"}` : undefined,
+          meta: [lc > 0 ? `${lc} ${lc === 1 ? "line" : "lines"}` : "", pc > 0 ? `${pc} ${pc === 1 ? "paragraph" : "paragraphs"}` : ""].filter(Boolean).join(" · ") || undefined,
           commentTargetIds: [scene.id, ...(scene.elements ?? []).map((e) => e.id)],
           adornment: here && here.length ? <PresencePips peers={here} /> : undefined,
         }
@@ -210,6 +255,11 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     if (el) setTimeout(() => document.getElementById(`el-${el.id}`)?.focus(), 50)
   }
 
+  const handleAddProseBlock = async (sceneId: string, afterIdx?: number) => {
+    const el = await insertElement(sceneId, "prose_block", "", afterIdx)
+    if (el) setTimeout(() => document.getElementById(`el-${el.id}`)?.focus(), 50)
+  }
+
   const handleAddStanzaBreak = async (sceneId: string, afterIdx?: number) => {
     await insertElement(sceneId, "stanza_break", "", afterIdx)
   }
@@ -265,6 +315,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
         scenes,
         isLyrics,
         insertLineAfter: (sceneId, afterIdx) => void handleAddLine(sceneId, afterIdx),
+        insertProseBlockAfter: (sceneId, afterIdx) => void handleAddProseBlock(sceneId, afterIdx),
         insertStanzaBreakAfter: (sceneId, afterIdx) =>
           void handleAddStanzaBreak(sceneId, afterIdx),
         insertSectionLabelAfter: (sceneId, afterIdx) =>
@@ -318,7 +369,12 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
           return 20
         case "section_label":
           return 48
+        case "prose_block":
+          return Math.max(30, Math.ceil(plainInlineText(b.el.content).length / 65) * 30)
         case "chord_row":
+          return 24
+        case "tab_row":
+        case "grid_row":
           return 24
         default:
           return 30
@@ -330,10 +386,22 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   const railItems: RailEntry[] = [
     { type: "line", label: "Line", icon: AlignLeft },
     { type: "stanza_break", label: "Stanza break", icon: Minus },
+    ...(!isLyrics ? [
+      { type: "prose_block", label: "Prose poem paragraph", icon: Pilcrow },
+      { type: "section_label", label: "Section heading", icon: Heading2 },
+      { label: "Poem layout", icon: IndentIncrease, items: [
+        { type: "indent_line", label: "Indent focused line", icon: IndentIncrease },
+        { type: "outdent_line", label: "Outdent focused line", icon: IndentDecrease },
+        { type: "toggle_center", label: "Center poem", icon: AlignCenter, active: activeMetadata.alignment === "center" },
+      ] },
+    ] : []),
     ...(isLyrics
       ? [
           { type: "section_label", label: "Section", icon: Tag },
           { type: "chord_row", label: "Chords", icon: Music },
+          { type: "section_repeat", label: "Repeat section", icon: Repeat2 },
+          { type: "tab_row", label: "Tab row", icon: AlignLeft },
+          { type: "grid_row", label: "Chord grid", icon: Grid2X2 },
         ]
       : []),
   ]
@@ -358,14 +426,33 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
       case "line":
         void handleAddLine(sceneId, afterIdx)
         break
+      case "prose_block":
+        void handleAddProseBlock(sceneId, afterIdx)
+        break
       case "stanza_break":
         void handleAddStanzaBreak(sceneId, afterIdx)
         break
+      case "indent_line":
+        indentFocusedLine(1)
+        break
+      case "outdent_line":
+        indentFocusedLine(-1)
+        break
+      case "toggle_center":
+        togglePoemAlignment(sceneId)
+        break
       case "section_label":
-        void handleAddSectionLabel(sceneId, "Verse", afterIdx)
+        void handleAddSectionLabel(sceneId, isLyrics ? "Verse" : "Section", afterIdx)
         break
       case "chord_row":
         void handleAddChordRow(sceneId, afterIdx)
+        break
+      case "section_repeat":
+        void insertElement(sceneId, type, "Chorus", afterIdx)
+        break
+      case "tab_row":
+      case "grid_row":
+        void insertElement(sceneId, type, "", afterIdx)
         break
     }
   }
@@ -415,22 +502,54 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
         </div>
       )
     }
+    if (el.element_type === "section_repeat" || el.element_type === "chorus_repeat") {
+      return <div key={el.id} className="my-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">↻ Repeat
+        <StableContentEditable id={`el-${el.id}`} value={el.content}
+          onValueChange={(next) => handleContentChange(el.id, next, false)}
+          onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+          className="min-w-20 outline-none" />
+      </div>
+    }
+    if (el.element_type === "tab_row" || el.element_type === "grid_row") {
+      return <InlineTextEditable key={el.id} id={`el-${el.id}`} value={el.content}
+        onValueChange={(next) => handleContentChange(el.id, next, false)}
+        onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+        className="min-h-5 whitespace-pre font-mono text-xs leading-6 outline-none empty:before:content-['Tab/grid…'] empty:before:text-muted-foreground/50" />
+    }
+    if (el.element_type === "chordpro_directive") {
+      return <StableContentEditable key={el.id} id={`el-${el.id}`} value={el.content}
+        onValueChange={(next) => handleContentChange(el.id, next, false)}
+        onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+        className="min-h-5 whitespace-pre font-mono text-xs leading-6 outline-none empty:before:content-['Directive…'] empty:before:text-muted-foreground/50" />
+    }
     if (el.element_type === "chord_row") {
+      const issues = chordRowIssues(el.content)
       return (
+        <div key={el.id} title={issues.length ? `Unrecognized chords: ${issues.join(", ")}` : undefined}>
         <StableContentEditable
           key={el.id}
           id={`el-${el.id}`}
           value={el.content}
           onValueChange={(next) => handleContentChange(el.id, next, false)}
           onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
-          className="font-mono text-xs text-primary/70 outline-none leading-tight min-h-[1rem] mt-1 empty:before:content-['Chords…'] empty:before:text-muted-foreground/50"
+          className={cn("font-mono text-xs outline-none leading-tight min-h-[1rem] mt-1 empty:before:content-['Chords…'] empty:before:text-muted-foreground/50", issues.length ? "text-amber-700 dark:text-amber-400" : "text-primary/70")}
         />
+        </div>
       )
     }
     if (el.element_type === "stanza_break") {
       return <div key={el.id} className="h-5" />
     }
-    const showLineNum = !isLyrics && !centered && lineNumber % 5 === 0
+    if (el.element_type === "prose_block") {
+      return <InlineTextEditable key={el.id} id={`el-${el.id}`} value={el.content}
+        onValueChange={(next) => handleContentChange(el.id, next, false)}
+        onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
+        className="min-h-[1.5rem] whitespace-pre-wrap text-base leading-loose outline-none empty:before:content-['Prose\00a0paragraph…'] empty:before:text-muted-foreground/50" />
+    }
+    const metadata = readDocumentMetadata(scene.content)
+    const centered = !isLyrics && metadata.alignment === "center"
+    const numbering = metadata.lineNumbering ?? "every5"
+    const showLineNum = !isLyrics && (numbering === "all" || (numbering === "every5" && lineNumber % 5 === 0))
     const lineText = plainInlineText(el.content)
     const sylCount = showSyllables && lineText.trim() ? syllable(lineText) : null
     return (
@@ -466,9 +585,16 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     { id: "new-unit", label: isLyrics ? "New song" : "New poem", group: "Document", run: () => handleAddPoem() },
     { id: "line", label: "Insert line", group: "Insert", keywords: ["verse"], run: () => handleRailSelect("line") },
     { id: "stanza", label: "Insert stanza break", group: "Insert", run: () => handleRailSelect("stanza_break") },
+    ...(!isLyrics ? [
+      { id: "prose-block", label: "Insert prose poem paragraph", group: "Insert", run: () => handleRailSelect("prose_block") },
+      { id: "poem-section", label: "Insert section heading", group: "Insert", run: () => handleRailSelect("section_label") },
+    ] : []),
     ...(isLyrics ? [
       { id: "section", label: "Insert section", group: "Insert", run: () => handleRailSelect("section_label") },
       { id: "chords", label: "Insert chord row", group: "Insert", run: () => handleRailSelect("chord_row") },
+      { id: "repeat", label: "Repeat section", group: "Insert", run: () => handleRailSelect("section_repeat") },
+      { id: "tab", label: "Insert tab row", group: "Insert", run: () => handleRailSelect("tab_row") },
+      { id: "grid", label: "Insert chord grid row", group: "Insert", run: () => handleRailSelect("grid_row") },
     ] : []),
     ...scenes.map((scene, index) => ({
       id: `go-${scene.id}`,
@@ -499,6 +625,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
             label: `${scenes.length} ${isLyrics ? (scenes.length === 1 ? "song" : "songs") : scenes.length === 1 ? "poem" : "poems"}`,
           },
           { icon: AlignLeft, label: `${totalLines} ${totalLines === 1 ? "line" : "lines"}` },
+          ...(!isLyrics && totalProseBlocks > 0 ? [{ icon: Pilcrow, label: `${totalProseBlocks} ${totalProseBlocks === 1 ? "paragraph" : "paragraphs"}` }] : []),
         ]}
         items={sidebarItems}
         activeItemId={activePoemId}
@@ -576,21 +703,22 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
           ]}
           leading={
             <>
-              {(scenes.find((scene) => scene.id === activePoemId) ?? scenes[0]) && (
+              {activeScene && (
                 <DocumentMetadataDialog
-                  key={activePoemId ?? scenes[0].id}
-                  scene={scenes.find((scene) => scene.id === activePoemId) ?? scenes[0]}
+                  key={activeScene.id}
+                  scene={activeScene}
                   label={isLyrics ? "Song" : "Poem"}
                   onSave={saveMetadata}
                 />
               )}
               <DocumentFoundationDialog
                 category={isLyrics ? "lyrics" : "poetry"}
-                scene={scenes.find((scene) => scene.id === activePoemId) ?? scenes[0]}
+                scene={activeScene}
                 onTemplate={foundation.createFromTemplate}
                 onCapture={foundation.captureRevision}
                 onVariant={foundation.openVariant}
               />
+              {activeScene && <VerseToolsDialog scene={activeScene} isLyrics={isLyrics} onTranspose={applyTransposition} />}
               <EditorCommandPalette commands={commands} />
               <InlineFormattingToolbar />
               <Button
@@ -605,17 +733,21 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
                 <Hash className="h-3.5 w-3.5" />
               </Button>
               {!isLyrics && (
+                <>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => indentFocusedLine(-1)} aria-label="Outdent focused line" title="Outdent focused line"><IndentDecrease className="h-3.5 w-3.5" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => indentFocusedLine(1)} aria-label="Indent focused line" title="Indent focused line"><IndentIncrease className="h-3.5 w-3.5" /></Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={cn("h-7 w-7", centered && "bg-muted text-foreground")}
-                  onClick={() => setCentered(c => !c)}
+                  className={cn("h-7 w-7", activeMetadata.alignment === "center" && "bg-muted text-foreground")}
+                  onClick={() => activeScene && togglePoemAlignment(activeScene.id)}
                   aria-label="Toggle centered poem alignment"
-                  aria-pressed={centered}
-                  title={centered ? "Left align" : "Center align"}
+                  aria-pressed={activeMetadata.alignment === "center"}
+                  title={activeMetadata.alignment === "center" ? "Left align" : "Center align"}
                 >
-                  {centered ? <AlignLeft className="h-3.5 w-3.5" /> : <AlignCenter className="h-3.5 w-3.5" />}
+                  {activeMetadata.alignment === "center" ? <AlignLeft className="h-3.5 w-3.5" /> : <AlignCenter className="h-3.5 w-3.5" />}
                 </Button>
+                </>
               )}
             </>
           }

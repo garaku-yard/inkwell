@@ -18,6 +18,10 @@ function slug(title: string) {
 
 /** Serialises any project to a plain-text document. */
 export function exportProjectToText(project: FullProject) {
+  if (project.category === "poetry") {
+    download(`${slug(project.title)}.txt`, projectToVerseText(project))
+    return
+  }
   const lines: string[] = [project.title, "=".repeat(project.title.length), ""]
 
   for (const scene of project.scenes ?? []) {
@@ -35,6 +39,17 @@ export function exportProjectToText(project: FullProject) {
   }
 
   download(`${slug(project.title)}.txt`, lines.join("\n"))
+}
+
+/** A readable poem text file with explicit boundaries only for collections. */
+export function projectToVerseText(project: FullProject): string {
+  const scenes = [...(project.scenes ?? [])].sort((a, b) => a.order_index - b.order_index)
+  return scenes.map((scene) => {
+    const lines = [...(scene.elements ?? [])].sort((a, b) => a.line_number - b.line_number).map((el) =>
+      el.element_type === "stanza_break" ? "" : plainInlineText(el.content),
+    )
+    return `${scenes.length > 1 ? `:::inkwell-poem ${JSON.stringify(scene.scene_heading)}\n` : ""}${lines.join("\n")}`
+  }).join("\n\n")
 }
 
 /** Exports a prose project as a Markdown document. */

@@ -45,6 +45,7 @@ interface CreatePoetryKeymapOptions {
   scenes: Scene[]
   isLyrics: boolean
   insertLineAfter: (sceneId: string, afterIdx: number) => void
+  insertProseBlockAfter: (sceneId: string, afterIdx: number) => void
   insertStanzaBreakAfter: (sceneId: string, afterIdx: number) => void
   insertSectionLabelAfter: (sceneId: string, afterIdx: number) => void
   insertChordRowAfter: (sceneId: string, afterIdx: number) => void
@@ -111,7 +112,8 @@ export function createPoetryKeymap(opts: CreatePoetryKeymapOptions): Keymap<Poet
     }),
     enter: (e, ctx) => {
       e.preventDefault()
-      opts.insertLineAfter(ctx.sceneId, ctx.elementIndex)
+      if (ctx.elementType === "prose_block") opts.insertProseBlockAfter(ctx.sceneId, ctx.elementIndex)
+      else opts.insertLineAfter(ctx.sceneId, ctx.elementIndex)
     },
     "shift+enter": (e, ctx) => {
       // Only `line` had the original Shift+Enter → stanza_break gesture.

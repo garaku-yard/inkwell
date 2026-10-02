@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 
 import { PagedSheets, A4_METRICS, type SheetMetrics } from "@/components/editor/shared/PagedSheets"
-import type { RailEntry } from "@/components/editor/shared/EditorToolRail"
+import { EditorToolRail, type RailEntry } from "@/components/editor/shared/EditorToolRail"
 
 /**
  * Pins the editor canvas visual contract (BRANDBOOK §8 "Editor canvas"): every
@@ -94,5 +94,22 @@ describe("PagedSheets (editor canvas contract)", () => {
       <PagedSheets pages={pages} renderBlock={renderBlock} fontFamily="serif" isEmpty={false} emptyState={null} />,
     )
     expect(screen.queryByRole("button", { name: "Heading" })).not.toBeInTheDocument()
+  })
+
+  it("exposes poetry block choices and an active layout control", () => {
+    const onSelect = vi.fn()
+    render(<EditorToolRail storageKey="poetry-rail-test" onSelect={onSelect} items={[
+      { type: "line", label: "Line", icon: Icon },
+      { type: "stanza_break", label: "Stanza break", icon: Icon },
+      { type: "prose_block", label: "Prose poem paragraph", icon: Icon },
+      { type: "section_label", label: "Section heading", icon: Icon },
+      { label: "Poem layout", icon: Icon, items: [
+        { type: "toggle_center", label: "Center poem", icon: Icon, active: true },
+      ] },
+    ]} />)
+    fireEvent.click(screen.getByRole("button", { name: "Prose poem paragraph" }))
+    expect(onSelect).toHaveBeenCalledWith("prose_block")
+    fireEvent.click(screen.getByRole("button", { name: "Poem layout" }))
+    expect(screen.getByRole("button", { name: "Center poem" })).toHaveAttribute("aria-pressed", "true")
   })
 })

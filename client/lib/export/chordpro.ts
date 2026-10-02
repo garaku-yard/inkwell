@@ -19,6 +19,10 @@
 
 import type { FullProject, ProjectElement } from "@/services/project"
 import { plainInlineText } from "@/lib/editor/inline-content"
+import { readDocumentMetadata } from "@/lib/editor/document-metadata"
+
+const sectionKind = (label: string) => /^(verse|chorus|bridge|pre[ -]?chorus|intro|outro|hook|refrain|solo|instrumental|tag)\b/i.exec(label)?.[1]?.toLowerCase().replace(/[ -]/g, "_")
+const directiveValue = (value: string) => value.replace(/[\r\n{}]/g, " ").trim()
 
 /** Inserts chord tokens from a chord_row into the matching line at
  *  the column positions implied by the chord_row's whitespace.
@@ -51,12 +55,19 @@ function mergeChordsIntoLine(chordRow: string, line: string): string {
   return result
 }
 
-/** Walks one song/poem's element list and emits its ChordPro body
- *  lines. Section labels become `{comment: …}` directives because
- *  arbitrary labels (Pre-Chorus / Outro / Tag …) outpace what
- *  ChordPro's named directives can express. */
+/** Walks one song/poem's element list and emits ChordPro sections and rows. */
 function songToChordPro(elements: ProjectElement[]): string[] {
   const lines: string[] = []
+  let openSection: string | null = null
+  let openLiteral: "tab" | "grid" | null = null
+  const closeSection = () => {
+    if (openSection) lines.push(`{end_of_${openSection}}`)
+    openSection = null
+  }
+  const closeLiteral = () => {
+    if (openLiteral) lines.push(`{end_of_${openLiteral}}`)
+    openLiteral = null
+  }
 
   for (let i = 0; i < elements.length; i++) {
     const el = elements[i]
@@ -64,22 +75,61 @@ function songToChordPro(elements: ProjectElement[]): string[] {
     const content = rawContent.trim()
 
     if (el.element_type === "section_label") {
-      if (content) lines.push(`{comment: ${content}}`)
+      closeLiteral()
+      closeSection()
+      if (content) {
+        const kind = sectionKind(content)
+        if (kind) {
+          lines.push(`{start_of_${kind}: ${directiveValue(content)}}`)
+          openSection = kind
+        } else lines.push(`{comment: ${directiveValue(content)}}`)
+      }
+      continue
+    }
+
+    if (el.element_type === "section_repeat" || el.element_type === "chorus_repeat") {
+      closeLiteral()
+      closeSection()
+      const chorusLabel = /^chorus:\s*(.+)$/i.exec(content)?.[1]
+      lines.push(/^chorus$/i.test(content) ? "{chorus}" : chorusLabel ? `{chorus: ${directiveValue(chorusLabel)}}` : `{x_inkwell_repeat: ${encodeURIComponent(rawContent)}}`)
+      continue
+    }
+
+    if (el.element_type === "tab_row" || el.element_type === "grid_row") {
+      closeSection()
+      const kind = el.element_type === "tab_row" ? "tab" : "grid"
+      if (openLiteral !== kind) {
+        closeLiteral()
+        lines.push(`{start_of_${kind}}`)
+        openLiteral = kind
+      }
+      lines.push(rawContent)
+      continue
+    }
+    closeLiteral()
+
+    if (el.element_type === "chordpro_directive") {
+      closeSection()
+      if (/^\{[^\r\n{}]+\}$/.test(content)) lines.push(content)
       continue
     }
 
     if (el.element_type === "chord_row") {
       // Chord row is rendered together with the next `line` element.
       // We peek ahead and consume it; if the next element isn't a
-      // line, fall back to emitting the chords as a comment so they
-      // aren't silently lost.
+      // line, use an extension directive that retains its exact spacing.
       const next = elements[i + 1]
       if (next && next.element_type === "line") {
         lines.push(mergeChordsIntoLine(rawContent, plainInlineText(next.content ?? "")))
         i += 1
         continue
       }
-      if (content) lines.push(`{comment: ${content}}`)
+      if (content) lines.push(`{x_inkwell_chord_row: ${encodeURIComponent(rawContent)}}`)
+      continue
+    }
+
+    if (el.element_type === "stanza_break") {
+      lines.push("")
       continue
     }
 
@@ -93,14 +143,15 @@ function songToChordPro(elements: ProjectElement[]): string[] {
     if (content) lines.push(content)
   }
 
+  closeLiteral()
+  closeSection()
+
   return lines
 }
 
 /**
- * Builds the ChordPro source for `project`. One song/poem per scene,
- * separated by a blank line and a `{comment: <title>}` directive when
- * the scene carries its own title. The project title goes at the top
- * via the `{title:}` directive so a parser can pick it up.
+ * Builds the ChordPro source for `project`. Lyrics emit a title and metadata
+ * per song; poetry retains the collection title and poem comments.
  */
 export function projectToChordPro(project: FullProject): string {
   const scenes = [...(project.scenes ?? [])].sort(
@@ -108,14 +159,20 @@ export function projectToChordPro(project: FullProject): string {
   )
 
   const blocks: string[] = []
-  if (project.title) blocks.push(`{title: ${project.title}}`)
+  if (project.category !== "lyrics" && project.title) blocks.push(`{title: ${directiveValue(project.title)}}`)
 
   for (const scene of scenes) {
     const elements = [...(scene.elements ?? [])].sort(
       (a, b) => a.line_number - b.line_number,
     )
     const sectionLines: string[] = []
-    if (scene.scene_heading) sectionLines.push(`{comment: ${scene.scene_heading}}`)
+    if (project.category === "lyrics") {
+      if (scene.scene_heading) sectionLines.push(`{title: ${directiveValue(scene.scene_heading)}}`)
+      const metadata = readDocumentMetadata(scene.content ?? "")
+      for (const [key, value] of Object.entries({ artist: metadata.artist, album: metadata.album, key: metadata.key, tempo: metadata.tempo, time: metadata.time, capo: metadata.capo })) {
+        if (value !== undefined && value !== "") sectionLines.push(`{${key}: ${directiveValue(String(value))}}`)
+      }
+    } else if (scene.scene_heading) sectionLines.push(`{comment: ${directiveValue(scene.scene_heading)}}`)
     sectionLines.push(...songToChordPro(elements))
     blocks.push(sectionLines.join("\n"))
   }

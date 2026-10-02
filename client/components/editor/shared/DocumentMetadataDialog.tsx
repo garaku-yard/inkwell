@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogScrollContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
 
 interface Props {
@@ -38,6 +38,8 @@ export function DocumentMetadataDialog({ scene, label, onSave }: Props) {
 
   const update = (field: keyof DocumentMetadata, value: string) =>
     setMetadata((current) => ({ ...current, [field]: value }))
+  const updateNumber = (field: "targetLines" | "targetSyllables" | "tempo" | "capo", value: string) =>
+    setMetadata((current) => ({ ...current, [field]: value === "" ? undefined : Number(value) }))
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -61,7 +63,7 @@ export function DocumentMetadataDialog({ scene, label, onSave }: Props) {
           {diagnostics.length > 0 && <span className="sr-only">, {diagnostics.length} warning</span>}
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogScrollContent>
         <DialogHeader>
           <DialogTitle>{label} metadata</DialogTitle>
           <DialogDescription>Details for {scene.scene_heading || `this ${label.toLowerCase()}`} stay with the document.</DialogDescription>
@@ -85,6 +87,53 @@ export function DocumentMetadataDialog({ scene, label, onSave }: Props) {
           <label className="grid gap-1 text-sm">Epigraph
             <Textarea value={metadata.epigraph ?? ""} onChange={(event) => update("epigraph", event.target.value)} />
           </label>
+          {label === "Poem" && <>
+            <label className="grid gap-1 text-sm">Form
+              <Input value={metadata.form ?? ""} onChange={(event) => update("form", event.target.value)} placeholder="Sonnet, villanelle, free verse…" />
+            </label>
+            <label className="grid gap-1 text-sm">Meter
+              <Input value={metadata.meter ?? ""} onChange={(event) => update("meter", event.target.value)} placeholder="Iambic pentameter, common meter…" />
+            </label>
+            <label className="grid gap-1 text-sm">Line alignment
+              <select className="h-9 rounded-md border bg-background px-3" value={metadata.alignment ?? "left"} onChange={(event) => update("alignment", event.target.value)}>
+                <option value="left">Left</option><option value="center">Center</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">Editor line numbers
+              <select className="h-9 rounded-md border bg-background px-3" value={metadata.lineNumbering ?? "every5"} onChange={(event) => update("lineNumbering", event.target.value)}>
+                <option value="none">None</option><option value="every5">Every fifth line</option><option value="all">Every line</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">Target lines (advisory)
+              <Input type="number" min="1" value={metadata.targetLines ?? ""} onChange={(event) => updateNumber("targetLines", event.target.value)} />
+            </label>
+            <label className="grid gap-1 text-sm">Target syllables per line (advisory)
+              <Input type="number" min="1" value={metadata.targetSyllables ?? ""} onChange={(event) => updateNumber("targetSyllables", event.target.value)} />
+            </label>
+            <label className="grid gap-1 text-sm">Rhyme scheme (advisory)
+              <Input value={metadata.rhymeScheme ?? ""} onChange={(event) => update("rhymeScheme", event.target.value)} placeholder="ABAB CDCD EFEF GG" />
+            </label>
+          </>}
+          {label === "Song" && <>
+            <label className="grid gap-1 text-sm">Artist
+              <Input value={metadata.artist ?? ""} onChange={(event) => update("artist", event.target.value)} />
+            </label>
+            <label className="grid gap-1 text-sm">Album
+              <Input value={metadata.album ?? ""} onChange={(event) => update("album", event.target.value)} />
+            </label>
+            <label className="grid gap-1 text-sm">Key
+              <Input value={metadata.key ?? ""} onChange={(event) => update("key", event.target.value)} placeholder="C, F#m…" />
+            </label>
+            <label className="grid gap-1 text-sm">Tempo (BPM)
+              <Input type="number" min="1" value={metadata.tempo ?? ""} onChange={(event) => updateNumber("tempo", event.target.value)} />
+            </label>
+            <label className="grid gap-1 text-sm">Time signature
+              <Input value={metadata.time ?? ""} onChange={(event) => update("time", event.target.value)} placeholder="4/4" />
+            </label>
+            <label className="grid gap-1 text-sm">Capo
+              <Input type="number" min="0" value={metadata.capo ?? ""} onChange={(event) => updateNumber("capo", event.target.value)} />
+            </label>
+          </>}
           <label className="grid gap-1 text-sm">Tags, separated by commas
             <Input value={tagsText} onChange={(event) => setTagsText(event.target.value)} />
           </label>
@@ -96,7 +145,7 @@ export function DocumentMetadataDialog({ scene, label, onSave }: Props) {
             <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save metadata"}</Button>
           </DialogFooter>
         </form>
-      </DialogContent>
+      </DialogScrollContent>
     </Dialog>
   )
 }
