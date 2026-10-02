@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef } from "react"
-import { ChevronRight, ChevronDown, Table, Pencil, Dice6, Library, Type, Pilcrow, Heading2, Boxes, Shield, StickyNote, ScrollText, Clock3, MapPin, Link2, Quote } from "lucide-react"
+import { ChevronRight, ChevronDown, Table, Pencil, Dice6, Library, Type, Pilcrow, Heading2, Shield, StickyNote, ScrollText, Clock3, MapPin, Link2, Quote } from "lucide-react"
 import { StatBlockTemplatePicker } from "./ttrpg/StatBlockTemplatePicker"
 import { StatSchemaManager } from "./ttrpg/StatSchemaManager"
 import { TypedBlockEditor } from "./ttrpg/TypedBlockEditor"
@@ -83,27 +83,20 @@ type RPGBlock =
   | { key: string; kind: "emptySection"; section: RPGScene }
   | { key: string; kind: "element"; section: RPGScene; el: ProjectElement; elIdx: number }
 
-/** TTRPG's element vocabulary for the right-edge tool rail. The five
- *  structured "block" types collapse behind one flyout so the rail
- *  stays short. */
+/** Each TTRPG block has its own insertion action. These are different authoring
+ * tools, not variants of one block, so they stay visible in the rail. */
 const RPG_RAIL_ITEMS: RailEntry[] = [
   { type: "body", label: "Body", icon: Pilcrow },
   { type: "h2", label: "Subheading", icon: Heading2 },
-  {
-    label: "Block",
-    icon: Boxes,
-    items: [
-      { type: "stat_block", label: "Stat block", icon: Shield },
-      { type: "table", label: "Table", icon: Table },
-      { type: "dice_table", label: "Random table", icon: Dice6 },
-      { type: "callout", label: "Designer note", icon: StickyNote },
-      { type: "rule_box", label: "Rule box", icon: ScrollText },
-      { type: "ttrpg_clock", label: "Progress clock", icon: Clock3 },
-      { type: "ttrpg_read_aloud", label: "Read aloud", icon: Quote },
-      { type: "ttrpg_keyed_location", label: "Keyed location", icon: MapPin },
-      { type: "ttrpg_cross_reference", label: "Cross-reference", icon: Link2 },
-    ],
-  },
+  { type: "ttrpg_stat", label: "Stat block", icon: Shield },
+  { type: "table", label: "Table", icon: Table },
+  { type: "dice_table", label: "Random table", icon: Dice6 },
+  { type: "callout", label: "Designer note", icon: StickyNote },
+  { type: "rule_box", label: "Rule box", icon: ScrollText },
+  { type: "ttrpg_clock", label: "Progress clock", icon: Clock3 },
+  { type: "ttrpg_read_aloud", label: "Read aloud", icon: Quote },
+  { type: "ttrpg_keyed_location", label: "Keyed location", icon: MapPin },
+  { type: "ttrpg_cross_reference", label: "Cross-reference", icon: Link2 },
 ]
 
 export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
@@ -768,6 +761,10 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
 
   // Rail click: insert after the focused element, else append to the section in view.
   const handleRailSelect = (type: string) => {
+    if (type === "ttrpg_stat") {
+      setIsSchemaManagerOpen(true)
+      return
+    }
     let sectionId: string | undefined
     let afterIdx: number | undefined
     if (focusedElementId) {
@@ -795,7 +792,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
             value={b.section.scene_heading ?? ""}
             onValueChange={(next) => handleContentChange(b.section.id, next, true)}
             className="text-3xl font-black uppercase tracking-wider outline-none mb-8 pb-3 border-b-2 border-foreground empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
-            data-placeholder="CHAPTER TITLE"
+            data-placeholder="SECTION TITLE"
           />
         </div>
       )
@@ -851,6 +848,10 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
           projectId={projectData.id}
           category={projectData.category}
           saveStatus={saveStatus}
+          leading={<Button size="sm" variant="outline" onClick={() => setIsSchemaManagerOpen(true)}>
+            <Shield className="mr-1.5 h-3.5 w-3.5" />
+            Stat templates{statSchemas.length ? ` (${statSchemas.length})` : ""}
+          </Button>}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
           importItems={[
@@ -895,11 +896,6 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
             if (id?.startsWith("el-")) setFocusedElementId(id.slice(3))
           }}
         >
-          <div className="flex items-center gap-2 px-4 pt-3">
-            <Button size="sm" variant="outline" onClick={() => setIsSchemaManagerOpen(true)}>
-              Project stat templates{statSchemas.length ? ` (${statSchemas.length})` : ""}
-            </Button>
-          </div>
           <PagedSheets
             pages={sheets}
             renderBlock={renderBlock}
