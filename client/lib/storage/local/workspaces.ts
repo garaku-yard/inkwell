@@ -9,6 +9,8 @@ import {
   toWorkspace,
   type WorkspaceRow,
 } from "./shared"
+import { reconcileWorkspaceProjects } from "./workspace-project-retention"
+import { sync } from "./sync"
 
 // ─── Workspaces (local-only; no members/invites) ──────────────────────────
 
@@ -17,6 +19,8 @@ export const workspaces: WorkspaceStorage = {
 
   list: async () => {
     const db = await getDb()
+    const expiredSyncedIds = await reconcileWorkspaceProjects()
+    for (const projectId of expiredSyncedIds) void sync.syncProject(projectId)
     const rows = await db.select<WorkspaceRow[]>(
       "SELECT * FROM workspaces ORDER BY name",
     )
@@ -47,6 +51,7 @@ export const workspaces: WorkspaceStorage = {
       )
       created.push(toWorkspace(rows[0]))
     }
+    await reconcileWorkspaceProjects()
     return { workspaces: created }
   },
 
@@ -109,6 +114,7 @@ export const workspaces: WorkspaceStorage = {
   delete: async (workspaceId) => {
     const db = await getDb()
     await db.execute("DELETE FROM workspaces WHERE id = ?", [workspaceId])
+    await reconcileWorkspaceProjects()
   },
 
   enableCategory: async (workspaceId, slug) => {
@@ -119,6 +125,7 @@ export const workspaces: WorkspaceStorage = {
       "UPDATE workspaces SET categories_json = ?, updated_at = ? WHERE id = ?",
       [JSON.stringify(next), now(), workspaceId],
     )
+    await reconcileWorkspaceProjects()
     return workspaces.get(workspaceId)
   },
 
@@ -130,6 +137,7 @@ export const workspaces: WorkspaceStorage = {
       "UPDATE workspaces SET categories_json = ?, updated_at = ? WHERE id = ?",
       [JSON.stringify(next), now(), workspaceId],
     )
+    await reconcileWorkspaceProjects()
     return workspaces.get(workspaceId)
   },
 }
