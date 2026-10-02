@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf"
 
 import type { FullProject } from "@/services/project"
 import type { IwFile } from "@/lib/iw/format"
+import { parseRuleBox } from "@/lib/ttrpg/rule-box"
 
 const PAGE_W = 612
 const PAGE_H = 792
@@ -62,6 +63,12 @@ export function renderGenericPdfBytes(project: FullProject, portable?: IwFile): 
     if (scene.content) paragraph(scene.content)
     const elements = [...(scene.elements ?? [])].sort((a, b) => a.line_number - b.line_number)
     for (const element of elements) {
+      if (element.element_type === "rule_box") {
+        const rule = parseRuleBox(element.content)
+        if (rule.name) paragraph(rule.name, 11, true)
+        if (rule.content) paragraph(rule.content)
+        continue
+      }
       const content = element.content?.trim()
       if (!content) continue
       const isHeading = /heading|chapter|title/i.test(element.element_type)

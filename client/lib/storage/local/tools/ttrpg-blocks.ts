@@ -4,6 +4,7 @@ import { scenes } from "../scenes"
 import { LOCAL_USER_ID } from "../shared"
 import { blockType, defaultTtrpgBlock, parseTtrpgBlock, ttrpgBlockToText, type TtrpgBlock } from "@/lib/ttrpg/blocks"
 import { parseRandomTable, rollRandomTable } from "@/lib/ttrpg/random-table"
+import { parseRuleBox, serializeRuleBox } from "@/lib/ttrpg/rule-box"
 import { createPlacedTtrpgElement } from "./ttrpg-placement"
 import { recordUndo } from "./undo"
 import type { ToolArgs, ToolContext, ToolEntry } from "./types"
@@ -84,7 +85,7 @@ function patchBlock(before: TtrpgBlock, args: ToolArgs): TtrpgBlock | string {
 
 export const queryTtrpgBlocks: ToolEntry = {
   spec: { name: "query_ttrpg_blocks", description: "List TTRPG blocks by kind and section; includes designer notes and tables. Returns stable block IDs and readable content.",
-    parameters: { type: "object", properties: { kind: { type: "string", description: "Block kind, e.g. clock, read_aloud, keyed_location, cross_reference, designer_note, rule_box, table, dice_table." }, section_id: { type: "string" } } } },
+    parameters: { type: "object", properties: { kind: { type: "string", description: "Block kind, e.g. clock, read_aloud, keyed_location, cross_reference, designer_note, rule_box, table, random_table. dice_table remains an alias for random_table." }, section_id: { type: "string" } } } },
   requires: "ttrpg", mutates: false, label: () => "Querying TTRPG blocks",
   async run(args, ctx) {
     const sections = await projectSections(ctx)
@@ -96,14 +97,17 @@ export const queryTtrpgBlocks: ToolEntry = {
       if (sectionId && section.id !== sectionId) continue
       for (const el of await elements.listForScene(section.id, LOCAL_USER_ID)) {
         const shortKind = el.element_type.startsWith("ttrpg_") ? el.element_type.slice(6) : el.element_type
-        if (kind && kind !== shortKind && !(kind === "designer_note" && shortKind === "callout") &&
-          !(kind === "random_table" && shortKind === "dice_table") &&
-          !(kind === "table" && shortKind === "dice_table")) continue
+        const canonicalKind = shortKind === "dice_table" ? "random_table" : shortKind === "callout" ? "designer_note" : shortKind
+        if (kind && kind !== canonicalKind && !(kind === "dice_table" && canonicalKind === "random_table") &&
+          !(kind === "callout" && canonicalKind === "designer_note") &&
+          !(kind === "table" && canonicalKind === "random_table")) continue
         const block = parseTtrpgBlock(el.element_type, el.content)
+        const rule = el.element_type === "rule_box" ? parseRuleBox(el.content) : null
         const target = block?.kind === "cross_reference"
           ? await resolveTarget(ctx.projectId, block.targetProjectId ?? "", block.targetId) : null
-        result.push({ id: el.id, section_id: section.id, section: section.scene_heading, kind: shortKind === "callout" ? "designer_note" : shortKind,
-          content: block ? ttrpgBlockToText(block, target && "label" in target ? target.label : undefined) : el.content,
+        result.push({ id: el.id, section_id: section.id, section: section.scene_heading, kind: canonicalKind,
+          content: block ? ttrpgBlockToText(block, target && "label" in target ? target.label : undefined) : rule ? rule.content : el.content,
+          ...(rule ? { name: rule.name } : {}),
           ...(block ?? {}), ...(target ? { target_status: "error" in target ? target.error : "ok", target_label: "label" in target ? target.label : block?.kind === "cross_reference" ? block.label : "" } : {}) })
       }
     }
@@ -116,7 +120,7 @@ export const createTtrpgBlock: ToolEntry = {
     parameters: { type: "object", properties: {
       section_id: { type: "string" }, after_block_id: { type: "string" },
       kind: { type: "string", enum: [...kinds, ...textKinds] },
-      name: { type: "string" }, segments: { type: "integer" }, filled: { type: "integer" }, note: { type: "string" },
+      name: { type: "string", description: "Clock/location name or optional rule-box title." }, segments: { type: "integer" }, filled: { type: "integer" }, note: { type: "string" },
       text: { type: "string" }, gmNote: { type: "string" }, key: { type: "string" },
       description: { type: "string" }, contents: { type: "string" }, targetId: { type: "string" }, targetProjectId: { type: "string" },
       content: { type: "string", description: "Text for table, designer_note, or rule_box; random tables accept 'Weight | Result' pipe rows." },
@@ -133,12 +137,17 @@ export const createTtrpgBlock: ToolEntry = {
       const type = elementType(kind)
       if (args.rows !== undefined && type !== "dice_table") return "rows only applies to a random table."
       if (args.rows !== undefined && args.content !== undefined) return "Supply either rows or content, not both."
+      if (args.content !== undefined && typeof args.content !== "string") return "content must be text."
+      if (args.name !== undefined && typeof args.name !== "string") return "name must be text."
       const content = tableContent(args, kind)
-      const error = validTextContent(type, content)
+      const name = str(args, "name")
+      if (type !== "rule_box" && args.name !== undefined) return "name only applies to a rule box among text blocks."
+      const error = type === "rule_box" ? (!name && !content ? "Give a rule-box title or content." : null) : validTextContent(type, content)
       if (error) return error
       const existing = await elements.listForScene(section.id, LOCAL_USER_ID)
-      const created = await createPlacedTtrpgElement(ctx.projectId, section.id, type, content, existing, str(args, "after_block_id"))
-      return typeof created === "string" ? created : `Created ${kind} block ${created.id} in ${section.scene_heading}.`
+      const savedContent = type === "rule_box" ? serializeRuleBox({ name, content }) : content
+      const created = await createPlacedTtrpgElement(ctx.projectId, section.id, type, savedContent, existing, str(args, "after_block_id"))
+      return typeof created === "string" ? created : `Created ${type === "dice_table" ? "random_table" : kind} block ${created.id} in ${section.scene_heading}.`
     }
     if (!kinds.some((item) => item === kind)) return "Unknown TTRPG block kind."
     const block = patchBlock(defaultTtrpgBlock(kind as TtrpgBlock["kind"]), args)
@@ -170,7 +179,9 @@ export const updateTtrpgBlock: ToolEntry = {
       const el = (await elements.listForScene(section.id, LOCAL_USER_ID)).find((item) => item.id === str(args, "block_id"))
       if (el) {
         const block = parseTtrpgBlock(el.element_type, el.content)
-        return `Update ${block?.kind.replaceAll("_", " ") ?? el.element_type} "${(block ? ttrpgBlockToText(block) : el.content).split("\n")[0]}" in ${section.scene_heading}`
+        const rule = el.element_type === "rule_box" ? parseRuleBox(el.content) : null
+        const label = block ? ttrpgBlockToText(block) : rule ? rule.name || rule.content : el.content
+        return `Update ${block?.kind.replaceAll("_", " ") ?? el.element_type} "${label.split("\n")[0]}" in ${section.scene_heading}`
       }
     }
     return ""
@@ -181,7 +192,19 @@ export const updateTtrpgBlock: ToolEntry = {
     const all = (await Promise.all(sections.map((item) => elements.listForScene(item.id, LOCAL_USER_ID)))).flat()
     const existing = all.find((item) => item.id === str(args, "block_id"))
     if (!existing) return "That block is not in this project."
-    if (["table", "dice_table", "callout", "rule_box"].includes(existing.element_type)) {
+    if (existing.element_type === "rule_box") {
+      if (Object.keys(args).some((key) => !["block_id", "name", "content"].includes(key))) return "Use name and content to edit a rule box."
+      if (args.name === undefined && args.content === undefined) return "Give a name or content to update."
+      if (args.name !== undefined && typeof args.name !== "string") return "name must be text."
+      if (args.content !== undefined && typeof args.content !== "string") return "content must be text."
+      const before = parseRuleBox(existing.content)
+      const next = { name: args.name === undefined ? before.name : str(args, "name"),
+        content: args.content === undefined ? before.content : str(args, "content") }
+      if (!next.name && !next.content) return "Give a rule-box title or content."
+      await elements.update(existing.id, { content: serializeRuleBox(next) })
+      return `Updated rule_box block ${existing.id}.`
+    }
+    if (["table", "dice_table", "callout"].includes(existing.element_type)) {
       if (Object.keys(args).some((key) => !["block_id", "content", "rows"].includes(key))) return "Use content (or rows for a random table) to edit this block."
       if (args.rows !== undefined && existing.element_type !== "dice_table") return "rows only applies to a random table."
       if (args.rows !== undefined && args.content !== undefined) return "Supply either rows or content, not both."
@@ -189,7 +212,7 @@ export const updateTtrpgBlock: ToolEntry = {
       const error = validTextContent(existing.element_type, content)
       if (error) return error
       await elements.update(existing.id, { content })
-      return `Updated ${existing.element_type} block ${existing.id}.`
+      return `Updated ${existing.element_type === "dice_table" ? "random_table" : existing.element_type} block ${existing.id}.`
     }
     const before = parseTtrpgBlock(existing.element_type, existing.content)
     if (!before) return "That ID is not a supported typed block, or its saved data is invalid."

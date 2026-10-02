@@ -68,7 +68,7 @@ it("creates and edits tables, weighted outcomes, notes, and rules", async () => 
   expect(h.createElement.mock.calls.at(-1)?.[0]).toMatchObject({ elementType: "table", content: "Day | Event\n--- | ---\n1 | Arrival" })
   expect(await createTtrpgBlock.run({ section_id: "s", kind: "random_table", rows: [
     { result: "Common", weight: 3 }, { result: "Rare", weight: 1 },
-  ] }, ctx)).toContain("Created")
+  ] }, ctx)).toContain("Created random_table")
   expect(h.createElement.mock.calls.at(-1)?.[0]).toMatchObject({ elementType: "dice_table", content: "Weight | Result\n--- | ---\n3 | Common\n1 | Rare" })
   expect(await createTtrpgBlock.run({ section_id: "s", kind: "random_table", rows: [{ result: "Invalid", weight: 0 }] }, ctx)).toContain("valid random-table")
   for (const [kind, type] of [["designer_note", "callout"], ["rule_box", "rule_box"]]) {
@@ -78,6 +78,32 @@ it("creates and edits tables, weighted outcomes, notes, and rules", async () => 
   h.listElements.mockResolvedValue([{ id: "table", element_type: "dice_table", content: "Result\n---\nOld" }])
   expect(await updateTtrpgBlock.run({ block_id: "table", rows: [{ result: "New", weight: 5 }] }, ctx)).toContain("Updated")
   expect(h.updateElement.mock.calls.at(-1)?.[1].content).toContain("5 | New")
+})
+
+it("keeps a rule-box title through creation, query, and editing while reading legacy boxes", async () => {
+  expect(await createTtrpgBlock.run({ section_id: "s", kind: "rule_box", name: 5, content: "Text" }, ctx)).toBe("name must be text.")
+  expect(await createTtrpgBlock.run({ section_id: "s", kind: "rule_box", name: "Hard rule", content: "No air without a seal." }, ctx)).toContain("Created")
+  const saved = h.createElement.mock.calls.at(-1)?.[0].content
+  expect(JSON.parse(saved)).toEqual({ kind: "rule_box", name: "Hard rule", content: "No air without a seal." })
+  h.listElements.mockResolvedValue([
+    { id: "new", element_type: "rule_box", content: saved },
+    { id: "old", element_type: "rule_box", content: "Legacy rule text" },
+  ])
+  const rules = JSON.parse(await queryTtrpgBlocks.run({ kind: "rule_box" }, ctx))
+  expect(rules).toMatchObject([
+    { id: "new", kind: "rule_box", name: "Hard rule", content: "No air without a seal." },
+    { id: "old", kind: "rule_box", name: "", content: "Legacy rule text" },
+  ])
+  expect(await updateTtrpgBlock.run({ block_id: "new", name: "Harder rule" }, ctx)).toContain("Updated")
+  expect(JSON.parse(h.updateElement.mock.calls.at(-1)?.[1].content)).toMatchObject({ name: "Harder rule", content: "No air without a seal." })
+})
+
+it("reports random_table consistently and keeps dice_table as a query alias", async () => {
+  h.listElements.mockResolvedValue([{ id: "roll", element_type: "dice_table", content: "Result\n---\nA\nB" }])
+  const canonical = JSON.parse(await queryTtrpgBlocks.run({ kind: "random_table" }, ctx))
+  const legacy = JSON.parse(await queryTtrpgBlocks.run({ kind: "dice_table" }, ctx))
+  expect(canonical).toMatchObject([{ id: "roll", kind: "random_table" }])
+  expect(legacy).toEqual(canonical)
 })
 
 it("places a new block after an ID in the selected section and marks shifted rows dirty", async () => {
