@@ -11,6 +11,21 @@ export interface DocumentMetadata {
   dedication?: string
   epigraph?: string
   tags?: string[]
+  /** Poetry submission and advisory form settings. */
+  alignment?: "left" | "center"
+  lineNumbering?: "none" | "every5" | "all"
+  form?: string
+  meter?: string
+  targetLines?: number
+  targetSyllables?: number
+  rhymeScheme?: string
+  /** Song metadata carried by ChordPro and the native document. */
+  artist?: string
+  album?: string
+  key?: string
+  tempo?: number
+  time?: string
+  capo?: number
 }
 
 interface MetadataEnvelope {
@@ -44,8 +59,13 @@ export function readDocumentMetadata(content: string): DocumentMetadata {
   if (value?.version !== DOCUMENT_METADATA_VERSION || !isObject(value.metadata)) return {}
   const source = value.metadata
   const result: DocumentMetadata = {}
-  for (const field of ["subtitle", "synopsis", "pointOfView", "status", "dedication", "epigraph"] as const) {
+  for (const field of ["subtitle", "synopsis", "pointOfView", "status", "dedication", "epigraph", "form", "meter", "rhymeScheme", "artist", "album", "key", "time"] as const) {
     if (typeof source[field] === "string") result[field] = source[field]
+  }
+  if (source.alignment === "left" || source.alignment === "center") result.alignment = source.alignment
+  if (source.lineNumbering === "none" || source.lineNumbering === "every5" || source.lineNumbering === "all") result.lineNumbering = source.lineNumbering
+  for (const field of ["targetLines", "targetSyllables", "tempo", "capo"] as const) {
+    if (typeof source[field] === "number" && Number.isFinite(source[field])) result[field] = source[field]
   }
   if (Array.isArray(source.tags)) result.tags = source.tags.filter((tag): tag is string => typeof tag === "string")
   return result
