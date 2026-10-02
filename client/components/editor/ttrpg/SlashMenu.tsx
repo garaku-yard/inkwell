@@ -110,9 +110,9 @@ export function SlashMenu({ query, position, onSelect, onDismiss }: SlashMenuPro
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 text-xs">
                 <span className="font-medium">{item.label}</span>
-                <span className="font-mono text-[10px] text-muted-foreground/70">/{item.command}</span>
+                <span className="font-mono text-xs text-muted-foreground/70">/{item.command}</span>
               </div>
-              <div className="truncate text-[11px] text-muted-foreground/80">{item.description}</div>
+              <div className="truncate text-xs text-muted-foreground/80">{item.description}</div>
             </div>
           </button>
         )

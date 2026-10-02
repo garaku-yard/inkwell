@@ -52,7 +52,7 @@ export function VaultBacklinksPane({
                       <FileText className="h-3 w-3 text-muted-foreground" />
                       {bl.title}
                     </div>
-                    <div className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                    <div className="line-clamp-2 text-xs leading-snug text-muted-foreground">
                       {bl.snippet}
                     </div>
                   </button>
