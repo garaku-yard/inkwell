@@ -2,8 +2,13 @@ import type { FullProject, ProjectElement } from "@/services/project"
 import { inlineToMarkdown, plainInlineText } from "@/lib/editor/inline-content"
 import { parseStatInstance, statInstanceToText } from "@/lib/ttrpg/stat-schemas"
 import { parseTtrpgBlock, ttrpgBlockToText } from "@/lib/ttrpg/blocks"
+import { parseRuleBox } from "@/lib/ttrpg/rule-box"
 
 function elementText(project: FullProject, el: ProjectElement): string {
+  if (el.element_type === "rule_box") {
+    const rule = parseRuleBox(el.content)
+    return [rule.name, rule.content].filter(Boolean).join("\n")
+  }
   if (el.element_type === "ttrpg_stat") {
     const instance = parseStatInstance(el.content)
     if (instance) return statInstanceToText(instance, project.ttrpg_stat_schemas?.find((schema) => schema.id === instance.schemaId))
@@ -19,6 +24,14 @@ function elementText(project: FullProject, el: ProjectElement): string {
     return ttrpgBlockToText(block, targetName)
   }
   return plainInlineText(el.content)
+}
+
+function markdownElementText(project: FullProject, el: ProjectElement): string {
+  if (el.element_type === "rule_box") {
+    const rule = parseRuleBox(el.content)
+    return [rule.name ? `**${rule.name}**` : "", inlineToMarkdown(rule.content)].filter(Boolean).join("\n\n")
+  }
+  return el.element_type.startsWith("ttrpg_") ? elementText(project, el) : inlineToMarkdown(el.content)
 }
 
 /** Downloads a string as a file. */
@@ -86,7 +99,7 @@ export function projectToMarkdown(project: FullProject, sectionId?: string): str
     if (scene.scene_heading) lines.push(`## ${scene.scene_heading}`, "")
     for (const el of scene.elements ?? []) {
       if (!elementText(project, el).trim()) continue
-      const content = el.element_type.startsWith("ttrpg_") ? elementText(project, el) : inlineToMarkdown(el.content)
+      const content = markdownElementText(project, el)
       if (el.element_type === "h2" || el.element_type === "chapter_heading") {
         lines.push(`### ${content}`, "")
       } else if (el.element_type === "heading_2") {

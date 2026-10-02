@@ -7,6 +7,7 @@ import { StatSchemaManager } from "./ttrpg/StatSchemaManager"
 import { TypedBlockEditor } from "./ttrpg/TypedBlockEditor"
 import { defaultTtrpgBlock, parseTtrpgBlock, ttrpgBlockToText } from "@/lib/ttrpg/blocks"
 import { parseRandomTable, rollRandomTable, type RandomTableRow } from "@/lib/ttrpg/random-table"
+import { parseRuleBox, serializeRuleBox } from "@/lib/ttrpg/rule-box"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useDataChanged } from "@/lib/live-refresh"
@@ -214,9 +215,10 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     acc + (s.elements ?? []).reduce((a, el) => {
       const instance = el.element_type === "ttrpg_stat" ? parseStatInstance(el.content) : null
       const typed = parseTtrpgBlock(el.element_type, el.content)
+      const rule = el.element_type === "rule_box" ? parseRuleBox(el.content) : null
       return a + wordCount(instance
         ? statInstanceToText(instance, statSchemas.find((schema) => schema.id === instance.schemaId))
-        : typed ? ttrpgBlockToText(typed) : el.content)
+        : typed ? ttrpgBlockToText(typed) : rule ? `${rule.name} ${rule.content}` : el.content)
     }, 0), 0)
 
   const activeCommentTarget = useEditorCommentTarget({ units: sections, focusedElementId, activeUnitId: activeSectionId })
@@ -737,13 +739,17 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     }
 
     if (el.element_type === "rule_box") {
+      const rule = parseRuleBox(el.content)
       return (
         <div key={el.id} className="my-4 rounded-lg border-2 border-border bg-muted/40 px-4 py-3">
           <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Rule</div>
+          <Input aria-label="Rule title" placeholder="Rule title (optional)" value={rule.name}
+            onChange={(event) => handleContentChange(el.id, serializeRuleBox({ ...rule, name: event.target.value }), false)}
+            className="mb-2 font-semibold" />
           <StableContentEditable
             id={`el-${el.id}`}
-            value={el.content}
-            onValueChange={(next) => handleContentChange(el.id, next, false)}
+            value={rule.content}
+            onValueChange={(next) => handleContentChange(el.id, serializeRuleBox({ ...rule, content: next }), false)}
             onKeyDown={(e) => handleKeyDown(e, sectionId, el, elIdx)}
             className="text-sm font-medium outline-none leading-relaxed min-h-[1.5rem] empty:before:content-['Rule\00a0text…'] empty:before:text-muted-foreground/50"
           />

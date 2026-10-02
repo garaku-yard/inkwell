@@ -1,6 +1,7 @@
 import { expect, it } from "vitest"
 import { defaultTtrpgBlock, parseTtrpgBlock, ttrpgBlockToText } from "@/lib/ttrpg/blocks"
 import { parseRandomTable, rollRandomTable } from "@/lib/ttrpg/random-table"
+import { parseRuleBox, serializeRuleBox } from "@/lib/ttrpg/rule-box"
 import { projectToMarkdown } from "@/lib/export/text-export"
 import type { FullProject, ProjectElement } from "@/services/project"
 
@@ -41,4 +42,20 @@ it("exports new blocks as readable Markdown and follows a renamed target by ID",
   expect(markdown).toContain("See: 2. New Dome Name")
   expect(markdown).toContain("Read aloud: The walls hum.\nGM note: Roll for pressure.")
   expect(markdown).not.toContain("targetId")
+})
+
+it("renders titled rule boxes in Markdown and keeps legacy plain-text rules readable", () => {
+  const titled = serializeRuleBox({ name: "Hard rule", content: "No air without a seal." })
+  expect(parseRuleBox(titled)).toEqual({ name: "Hard rule", content: "No air without a seal." })
+  expect(parseRuleBox("Legacy rule")).toEqual({ name: "", content: "Legacy rule" })
+  const project: FullProject = {
+    id: "p", title: "Attractor", description: "", owner_id: "u", category: "tabletop_rpg",
+    status: "draft", is_starred: false, created_at: "", updated_at: "",
+    scenes: [{ id: "s", project_id: "p", scene_heading: "Rules", content: "", order_index: 0,
+      created_at: "", updated_at: "", elements: [element("new", "rule_box", titled), element("old", "rule_box", "Legacy rule")] }],
+  }
+  const markdown = projectToMarkdown(project)
+  expect(markdown).toContain("**Hard rule**\n\nNo air without a seal.")
+  expect(markdown).toContain("Legacy rule")
+  expect(markdown).not.toContain("\"kind\":\"rule_box\"")
 })
