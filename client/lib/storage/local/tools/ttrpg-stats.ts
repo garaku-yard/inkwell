@@ -3,6 +3,7 @@ import { projects } from "../projects"
 import { scenes } from "../scenes"
 import { LOCAL_USER_ID, newId } from "../shared"
 import { parseStatInstance, validateStatInstance, type StatField, type StatInstance, type StatSchema } from "@/lib/ttrpg/stat-schemas"
+import { createPlacedTtrpgElement } from "./ttrpg-placement"
 import type { ToolArgs, ToolContext, ToolEntry } from "./types"
 
 const string = (args: ToolArgs, key: string): string =>
@@ -147,7 +148,7 @@ export const createTtrpgStatBlock: ToolEntry = {
     name: "create_ttrpg_stat_block",
     description: "Add a structured stat block to a TTRPG section using a project schema. List schemas first; values keys may be field labels or IDs.",
     parameters: { type: "object", properties: {
-      section_id: { type: "string" }, schema_id: { type: "string" }, name: { type: "string" },
+      section_id: { type: "string" }, after_block_id: { type: "string" }, schema_id: { type: "string" }, name: { type: "string" },
       values: { type: "object", additionalProperties: { type: "string" } },
     }, required: ["section_id", "schema_id", "name"] },
   },
@@ -167,10 +168,8 @@ export const createTtrpgStatBlock: ToolEntry = {
     const error = validateStatInstance(instance, schema)
     if (error) return error
     const existing = await elements.listForScene(section.id, LOCAL_USER_ID)
-    const order = existing.length ? existing[existing.length - 1].line_number + 1 : 0
-    const created = await elements.create({ projectId: ctx.projectId, sceneId: section.id,
-      elementOrder: order, elementType: "ttrpg_stat", content: JSON.stringify(instance) })
-    return `Created ${schema.name} block "${instance.name}" in ${section.scene_heading}. Its id is ${created.id}.`
+    const created = await createPlacedTtrpgElement(ctx.projectId, section.id, "ttrpg_stat", JSON.stringify(instance), existing, string(args, "after_block_id"))
+    return typeof created === "string" ? created : `Created ${schema.name} block "${instance.name}" in ${section.scene_heading}. Its id is ${created.id}.`
   },
 }
 

@@ -152,6 +152,18 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const [activePassageId, setActivePassageId] = useState<string | null>(
     () => (projectData.scenes ?? [])[0]?.id ?? null
   )
+  const followedExternalTarget = useRef(false)
+  useEffect(() => {
+    if (followedExternalTarget.current) return
+    const targetId = new URLSearchParams(window.location.search).get("target")
+    if (!targetId) return
+    const passage = passages.find((item) => item.id === targetId || (item.elements ?? []).some((element) => element.id === targetId))
+    if (!passage) return
+    followedExternalTarget.current = true
+    setActivePassageId(passage.id)
+    window.setTimeout(() => document.getElementById(targetId === passage.id ? `head-${passage.id}` : `el-${targetId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" }), 100)
+  }, [passages])
   const [view, setView] = useState<"write" | "graph" | "play">("write")
   const [storyToolsOpen, setStoryToolsOpen] = useState(false)
   // Play-mode state: cursor passage + back-stack of previously visited

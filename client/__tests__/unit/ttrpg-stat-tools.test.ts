@@ -4,6 +4,7 @@ const h = vi.hoisted(() => ({
   project: { id: "p1", category: "tabletop_rpg", ttrpg_stat_schemas: [] as unknown[] },
   getById: vi.fn(), updateProject: vi.fn(), listScenes: vi.fn(),
   listElements: vi.fn(), createElement: vi.fn(), updateElement: vi.fn(),
+  execute: vi.fn(), markDirty: vi.fn(),
 }))
 
 vi.mock("@/lib/storage/local/projects", () => ({ projects: { getById: h.getById, update: h.updateProject } }))
@@ -13,7 +14,7 @@ vi.mock("@/lib/storage/local/elements", () => ({ elements: {
 } }))
 vi.mock("@/lib/storage/local/shared", () => {
   let next = 0
-  return { LOCAL_USER_ID: "local", newId: () => `new-id-${++next}` }
+  return { LOCAL_USER_ID: "local", newId: () => `new-id-${++next}`, getDb: async () => ({ execute: h.execute }), markDirty: h.markDirty, now: () => "now" }
 })
 
 import { createTtrpgStatBlock, listStatSchemas, listTtrpgStatBlocks, saveStatSchema, updateTtrpgStatBlock } from "@/lib/storage/local/tools/ttrpg-stats"
@@ -34,6 +35,8 @@ beforeEach(() => {
   h.createElement.mockReset().mockImplementation(async (input) => ({ id: "e1", element_type: input.elementType,
     content: input.content, line_number: input.elementOrder }))
   h.updateElement.mockReset()
+  h.execute.mockReset()
+  h.markDirty.mockReset()
 })
 
 describe("project stat schemas", () => {
@@ -90,6 +93,14 @@ describe("structured stat blocks", () => {
     expect(await createTtrpgStatBlock.run({ section_id: "s1", schema_id: "fault", name: "Bad",
       values: { Status: "unknown" } }, ctx)).toContain("must be one of")
     expect(h.createElement).not.toHaveBeenCalled()
+  })
+
+  it("places a stat block after an existing block", async () => {
+    h.listElements.mockResolvedValue([{ id: "first", line_number: 0 }, { id: "last", line_number: 1 }])
+    expect(await createTtrpgStatBlock.run({ section_id: "s1", schema_id: "fault", name: "Liner Seep",
+      after_block_id: "first" }, ctx)).toContain("e1")
+    expect(h.createElement.mock.calls.at(-1)?.[0].elementOrder).toBe(1)
+    expect(h.execute).toHaveBeenCalledTimes(1)
   })
 
   it("patches only requested fields of a block in this project", async () => {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo, useRef } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { ChevronRight, ChevronDown, Table, Pencil, Dice6, Library, Type, Pilcrow, Heading2, Shield, StickyNote, ScrollText, Clock3, MapPin, Link2, Quote } from "lucide-react"
 import { StatBlockTemplatePicker } from "./ttrpg/StatBlockTemplatePicker"
 import { StatSchemaManager } from "./ttrpg/StatSchemaManager"
@@ -10,7 +10,7 @@ import { parseRandomTable, rollRandomTable, type RandomTableRow } from "@/lib/tt
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useDataChanged } from "@/lib/live-refresh"
-import { getProjectById, updateProject } from "@/services/project"
+import { getFullProject, getProjectById, updateProject } from "@/services/project"
 import { parseStatInstance, statInstanceToText, type StatInstance, type StatSchema } from "@/lib/ttrpg/stat-schemas"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/AuthContext"
@@ -102,6 +102,15 @@ const RPG_RAIL_ITEMS: RailEntry[] = [
 export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const { user } = useAuth()
   const [sections, setSections] = useState(() => projectData.scenes ?? [])
+  const followedExternalTarget = useRef(false)
+  useEffect(() => {
+    if (followedExternalTarget.current) return
+    const targetId = new URLSearchParams(window.location.search).get("target")
+    if (!targetId) return
+    followedExternalTarget.current = true
+    window.setTimeout(() => document.getElementById(`${sections.some((section) => section.id === targetId) ? "head" : "el"}-${targetId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" }), 100)
+  }, [sections])
   const [statSchemas, setStatSchemas] = useState<StatSchema[]>(() => projectData.ttrpg_stat_schemas ?? [])
   const [isSchemaManagerOpen, setIsSchemaManagerOpen] = useState(false)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
@@ -111,6 +120,8 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   // the table itself is the source of truth, the result is just a UI
   // affordance that helps GMs sanity-check distributions during prep.
   const [diceRoll, setDiceRoll] = useState<Record<string, { roll: number; result: string }>>({})
+  const [remoteTargetLabels, setRemoteTargetLabels] = useState<Record<string, string>>({})
+  const [remoteRevision, setRemoteRevision] = useState(0)
   // Element id of the stat_block whose template loader is currently open,
   // or null when the dialog is closed. We thread this through state
   // (rather than letting the dialog own its own visibility) so the
@@ -122,8 +133,43 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
   const { toast } = useToast()
   const { editorFontStack } = useTheme()
 
+  const remoteReferenceKey = sections.flatMap((section) => (section.elements ?? []).flatMap((element) => {
+    const block = parseTtrpgBlock(element.element_type, element.content)
+    return block?.kind === "cross_reference" && block.targetProjectId && block.targetProjectId !== projectData.id && block.targetId
+      ? [`${block.targetProjectId}:${block.targetId}`] : []
+  })).sort().join("|")
+
+  useEffect(() => {
+    if (!remoteReferenceKey) return
+    let cancelled = false
+    const references = remoteReferenceKey.split("|").map((key) => {
+      const separator = key.indexOf(":")
+      return { projectId: key.slice(0, separator), targetId: key.slice(separator + 1), key }
+    })
+    void Promise.all([...new Set(references.map((item) => item.projectId))].map(async (projectId) => {
+      try { return await getFullProject(projectId, user?.id ?? "") } catch { return null }
+    })).then((remoteProjects) => {
+      if (cancelled) return
+      const labels: Record<string, string> = {}
+      for (const reference of references) {
+        const project = remoteProjects.find((item) => item?.id === reference.projectId)
+        if (!project) continue
+        for (const scene of project.scenes ?? []) {
+          if (scene.id === reference.targetId) labels[reference.key] = `${project.title} / ${scene.scene_heading || "Untitled passage"}`
+          const target = (scene.elements ?? []).find((item) => item.id === reference.targetId)
+          if (target) labels[reference.key] = `${project.title} / ${scene.scene_heading || "Untitled"} / ${target.content.split("\n")[0].slice(0, 60)}`
+        }
+      }
+      setRemoteTargetLabels(labels)
+    })
+    return () => { cancelled = true }
+  }, [remoteReferenceKey, remoteRevision, user?.id])
+
   useDataChanged((change) => {
-    if (change.projectId !== projectData.id) return
+    if (change.projectId !== projectData.id) {
+      if (remoteReferenceKey.split("|").some((key) => key.startsWith(`${change.projectId}:`))) setRemoteRevision((current) => current + 1)
+      return
+    }
     void getProjectById(projectData.id, user?.id ?? "").then((project) =>
       setStatSchemas(project.ttrpg_stat_schemas ?? []),
     ).catch(() => {})
@@ -429,20 +475,21 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     if (el.element_type.startsWith("ttrpg_") && el.element_type !== "ttrpg_stat") {
       const block = parseTtrpgBlock(el.element_type, el.content)
       if (!block) return <div key={el.id} className="my-4 rounded-lg border p-3 text-destructive">Invalid typed block data. The saved data has been kept.</div>
-      const targets = sections.flatMap((section) => (section.elements ?? [])
+      const targets = sections.flatMap((section) => [{ id: section.id, label: `${section.scene_heading || "Untitled"} (passage)` }, ...(section.elements ?? [])
         .filter((item) => item.id !== el.id && item.element_type !== "ttrpg_cross_reference")
         .map((item) => {
           const stat = item.element_type === "ttrpg_stat" ? parseStatInstance(item.content) : null
           const typed = parseTtrpgBlock(item.element_type, item.content)
           return { id: item.id, label: `${section.scene_heading || "Untitled"} / ${stat?.name || (typed && ttrpgBlockToText(typed).split("\n")[0]) || item.content.slice(0, 60) || item.element_type}` }
-        }))
+        })])
       const title = { clock: "Progress clock", read_aloud: "Read aloud", keyed_location: "Keyed location", cross_reference: "Cross-reference" }[block.kind]
       return <div key={el.id} id={`el-${el.id}`} className="my-4 rounded-lg border bg-muted/20 p-4 space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{title}</span>
           <Button size="sm" variant="ghost" onClick={() => void handleDeleteElement(sectionId, el.id)}>Delete block</Button>
         </div>
-        <TypedBlockEditor block={block} targets={targets}
+        <TypedBlockEditor block={block} targets={targets} currentProjectId={projectData.id}
+          resolvedTargetLabel={block.kind === "cross_reference" ? remoteTargetLabels[`${block.targetProjectId}:${block.targetId}`] : undefined}
           onChange={(next) => handleContentChange(el.id, JSON.stringify(next), false)}
           onNavigate={(id) => document.getElementById(`el-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })} />
       </div>

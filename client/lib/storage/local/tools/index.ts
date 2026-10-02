@@ -33,7 +33,7 @@ import { rewriteScene } from "./rewrite-scene"
 import { searchNotes } from "./search-notes"
 import { updateCharacterTool } from "./update-character"
 import { listStatSchemas, saveStatSchema, listTtrpgStatBlocks, createTtrpgStatBlock, updateTtrpgStatBlock } from "./ttrpg-stats"
-import { queryTtrpgBlocks, createTtrpgBlock, updateTtrpgBlock, rollTtrpgTable } from "./ttrpg-blocks"
+import { queryTtrpgBlocks, createTtrpgBlock, updateTtrpgBlock, deleteTtrpgBlock, rollTtrpgTable } from "./ttrpg-blocks"
 import { reorderSections, exportSectionMarkdown, listBeats, updateBeatTool, moveBeat } from "./project-structure"
 import { listProjectComments, addProjectComment } from "./comments"
 import type { ToolArgs, ToolEntry } from "./types"
@@ -81,6 +81,7 @@ const ENTRIES: ToolEntry[] = [
   updateTtrpgStatBlock,
   createTtrpgBlock,
   updateTtrpgBlock,
+  deleteTtrpgBlock,
   reorderSections,
   renameScene,
   updateCharacterTool,
