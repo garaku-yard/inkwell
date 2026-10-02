@@ -48,7 +48,7 @@ export function ProjectNavMenu({ projectId, category, current = "editor" }: Proj
   ]
 
   return (
-    <nav aria-label="Switch project view" className="flex items-center gap-0.5">
+    <nav aria-label="Switch project view" className="flex items-center gap-0.5 text-sm leading-5">
       {items.map((item) => {
         const active = item.key === current
         if (active) {
@@ -56,7 +56,7 @@ export function ProjectNavMenu({ projectId, category, current = "editor" }: Proj
             <span
               key={item.key}
               aria-current="page"
-              className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground"
+              className="rounded-full bg-muted px-2.5 py-1 font-medium text-foreground"
             >
               {item.label}
             </span>
@@ -67,7 +67,7 @@ export function ProjectNavMenu({ projectId, category, current = "editor" }: Proj
             key={item.key}
             href={item.href}
             className={cn(
-              "rounded-full px-2.5 py-1 text-xs text-muted-foreground transition-colors",
+              "rounded-full px-2.5 py-1 text-muted-foreground transition-colors",
               "hover:bg-muted/60 hover:text-foreground",
             )}
           >

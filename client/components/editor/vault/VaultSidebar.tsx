@@ -125,7 +125,7 @@ export function VaultSidebar({
           <button
             type="button"
             onClick={() => setTagsExpanded((v) => !v)}
-            className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+            className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
           >
             {tagsExpanded ? (
               <ChevronDown className="h-3 w-3" />
@@ -145,7 +145,7 @@ export function VaultSidebar({
                     type="button"
                     onClick={() => onTagClick(t.tag)}
                     className={cn(
-                      "flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] transition-colors",
+                      "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition-colors",
                       active
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -173,7 +173,7 @@ export function VaultSidebar({
           <button
             type="button"
             onClick={() => setTagFilter(null)}
-            className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary hover:bg-primary/15"
+            className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary hover:bg-primary/15"
             title="Clear tag filter"
           >
             <Hash className="h-3 w-3" />
