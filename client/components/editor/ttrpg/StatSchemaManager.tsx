@@ -19,16 +19,17 @@ const blankSchema = (): StatSchema => ({ id: crypto.randomUUID(), name: "", fiel
 /** Project-defined shapes are edited here; an instance keeps the schema and
  * field IDs, so changing display labels does not detach old values. */
 export function StatSchemaManager({ open, onOpenChange, schemas, onSave, onInsert }: Props) {
-  const [draft, setDraft] = useState<StatSchema>(() => blankSchema())
+  const [draft, setDraft] = useState<StatSchema | null>(null)
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
 
   const updateField = (id: string, patch: Partial<StatField>) =>
-    setDraft((current) => ({ ...current, fields: current.fields.map((field) =>
+    setDraft((current) => current && ({ ...current, fields: current.fields.map((field) =>
       field.id === id ? { ...field, ...patch } : field,
     ) }))
 
   const save = async () => {
+    if (!draft) return
     const name = draft.name.trim()
     if (!name) return setError("Give this template a name.")
     if (schemas.some((schema) => schema.id !== draft.id && schema.name.toLowerCase() === name.toLowerCase())) {
@@ -58,17 +59,25 @@ export function StatSchemaManager({ open, onOpenChange, schemas, onSave, onInser
         <DialogTitle>Project stat block templates</DialogTitle>
         <DialogDescription>Define the fields used by Faults, Organisms, Systems, or any other game entity. Existing blocks keep their field values when labels change.</DialogDescription>
       </DialogHeader>
-      <div className="flex flex-wrap gap-2">
-        {schemas.map((schema) => <Button key={schema.id} variant={draft.id === schema.id ? "default" : "outline"}
+      {schemas.length > 0 && <div className="flex flex-wrap gap-2">
+        {schemas.map((schema) => <Button key={schema.id} variant={draft?.id === schema.id ? "default" : "outline"}
           size="sm" onClick={() => { setDraft(schema); setError("") }}>{schema.name}</Button>)}
-        <Button variant="outline" size="sm" onClick={() => { setDraft(blankSchema()); setError("") }}>New template</Button>
-      </div>
+        {schemas.some((schema) => schema.id === draft?.id) &&
+          <Button variant="outline" size="sm" onClick={() => { setDraft(blankSchema()); setError("") }}>Start another template</Button>}
+      </div>}
+      {!draft ? <div className="rounded-lg border border-dashed px-4 py-6 text-center">
+        <p className="mb-3 text-sm text-muted-foreground">
+          {schemas.length ? "Choose a template above to edit or insert it, or create another shape." : "No stat templates yet. Create a shape for the stats your game needs."}
+        </p>
+        <Button onClick={() => { setDraft(blankSchema()); setError("") }}>Create new template</Button>
+      </div> : <>
+      {!schemas.some((schema) => schema.id === draft.id) && <p className="text-sm font-medium">New template</p>}
       <label className="grid gap-1 text-sm">Template name
         <Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Fault" />
       </label>
       <div className="grid gap-3">
         <div className="flex items-center justify-between"><span className="text-sm font-medium">Fields</span>
-          <Button variant="outline" size="sm" onClick={() => setDraft((current) => ({ ...current,
+          <Button variant="outline" size="sm" onClick={() => setDraft((current) => current && ({ ...current,
             fields: [...current.fields, { id: crypto.randomUUID(), label: "", kind: "text" }],
           }))}>Add field</Button>
         </div>
@@ -85,7 +94,7 @@ export function StatSchemaManager({ open, onOpenChange, schemas, onSave, onInser
             <option value="text">Text</option><option value="number">Number</option><option value="choice">Choice</option>
           </select>
           <Button variant="ghost" size="sm" aria-label={`Remove ${field.label || "field"}`}
-            onClick={() => setDraft((current) => ({ ...current, fields: current.fields.filter((item) => item.id !== field.id) }))}>Remove</Button>
+            onClick={() => setDraft((current) => current && ({ ...current, fields: current.fields.filter((item) => item.id !== field.id) }))}>Remove</Button>
         </div>)}
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -93,6 +102,7 @@ export function StatSchemaManager({ open, onOpenChange, schemas, onSave, onInser
         {schemas.some((schema) => schema.id === draft.id) && <Button variant="outline" onClick={() => void onInsert(draft)}>Insert block</Button>}
         <Button disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save template"}</Button>
       </div>
+      </>}
     </DialogContent>
   </Dialog>
 }

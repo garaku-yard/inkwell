@@ -16,7 +16,7 @@ interface SlashMenuItem {
 }
 
 const ITEMS: SlashMenuItem[] = [
-  { command: "stat", label: "Stat block", description: "AC, HP, ability scores, traits, actions", type: "stat_block", icon: Pin },
+  { command: "stat", label: "Freeform stat block", description: "Plain text stats and abilities", type: "stat_block", icon: Pin },
   { command: "table", label: "Table", description: "Markdown pipe table", type: "table", icon: Table },
   { command: "dice", label: "Dice table", description: "Random results indexed by die roll", type: "dice_table", icon: Dice6 },
   { command: "callout", label: "Callout", description: "Designer note in a coloured box", type: "callout", icon: Quote },
