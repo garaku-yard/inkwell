@@ -119,15 +119,15 @@ export function EditorToolbar({
   }
 
   return (
-    <div className="flex h-11 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
+    <div className="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b bg-background px-4 py-1">
       {/* Left: per-format view controls. */}
-      <div className="flex min-w-0 items-center gap-2">{leading}</div>
+      <div className="flex min-w-0 flex-[1_1_36rem] flex-wrap items-center gap-x-2 gap-y-1">{leading}</div>
 
       {/* Hidden picker shared by all import items (see triggerImport). */}
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChosen} />
 
       {/* Right: import + export + knowledge + Writing Buddy. */}
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+      <div className="ml-auto flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
         {importItems && importItems.length === 1 && (
           <Button
             variant="ghost"

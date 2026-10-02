@@ -5,7 +5,7 @@ import { AlertTriangle, Bug, Plus, Save, SlidersHorizontal, Trash2 } from "lucid
 
 import { Button } from "@/components/ui/button"
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogScrollContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -96,7 +96,7 @@ export function StoryToolsDialog({
           {diagnostics.length > 0 && <span className="rounded-full bg-amber-500/15 px-1.5 text-amber-700 dark:text-amber-300">{diagnostics.length}</span>}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+      <DialogScrollContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Story runtime and diagnostics</DialogTitle>
           <DialogDescription>
@@ -169,7 +169,7 @@ export function StoryToolsDialog({
             setOpen(false)
           }}>Save story settings</Button>
         </DialogFooter>
-      </DialogContent>
+      </DialogScrollContent>
     </Dialog>
   )
 }

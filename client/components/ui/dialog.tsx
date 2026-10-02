@@ -80,6 +80,20 @@ function DialogContent({
   )
 }
 
+/** Keeps scrolling dialog text on an opaque content layer. WebKit can render
+ * moving contents in a separate layer from the dialog's background. */
+function DialogScrollContent({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DialogContent>) {
+  return (
+    <DialogContent className={cn("max-h-[85vh] overflow-y-auto", className)} {...props}>
+      <div className="grid min-h-full gap-4 bg-background">{children}</div>
+    </DialogContent>
+  )
+}
+
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -133,6 +147,7 @@ export {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogScrollContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
