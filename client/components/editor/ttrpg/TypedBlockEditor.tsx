@@ -5,11 +5,13 @@ import type { TtrpgBlock } from "@/lib/ttrpg/blocks"
 
 interface Target { id: string; label: string }
 
-export function TypedBlockEditor({ block, onChange, targets, onNavigate }: {
+export function TypedBlockEditor({ block, onChange, targets, onNavigate, currentProjectId, resolvedTargetLabel }: {
   block: TtrpgBlock
   onChange: (block: TtrpgBlock) => void
   targets: Target[]
   onNavigate: (id: string) => void
+  currentProjectId: string
+  resolvedTargetLabel?: string
 }) {
   const field = (label: string, value: string, update: (value: string) => void, multiline = false) =>
     <label className="grid gap-1 text-sm">{label}
@@ -46,9 +48,15 @@ export function TypedBlockEditor({ block, onChange, targets, onNavigate }: {
     {field("Description", block.description, (description) => onChange({ ...block, description }), true)}
     {field("Found here", block.contents, (contents) => onChange({ ...block, contents }), true)}
   </div>
-  const target = targets.find((item) => item.id === block.targetId)
+  const remote = !!block.targetProjectId && block.targetProjectId !== currentProjectId
+  const target = remote ? undefined : targets.find((item) => item.id === block.targetId)
   return <div className="space-y-2">
-    <label className="grid gap-1 text-sm">Linked block
+    {field("Target project ID (blank for this project)", block.targetProjectId ?? "", (targetProjectId) =>
+      onChange({ ...block, targetProjectId, targetId: "", label: "" }))}
+    {remote ? <>
+      {field("Target passage or block ID", block.targetId, (targetId) => onChange({ ...block, targetId }))}
+      {field("Link label", block.label, (label) => onChange({ ...block, label }))}
+    </> : <label className="grid gap-1 text-sm">Linked passage or block
       <select className="h-9 rounded-md border bg-background px-2" value={block.targetId}
         onChange={(event) => {
           const next = targets.find((item) => item.id === event.target.value)
@@ -57,8 +65,10 @@ export function TypedBlockEditor({ block, onChange, targets, onNavigate }: {
         <option value="">Select a block…</option>
         {targets.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
       </select>
-    </label>
-    {block.targetId && (target
+    </label>}
+    {block.targetId && (remote
+      ? <a className="text-sm text-primary underline" href={`/projects/editor?id=${encodeURIComponent(block.targetProjectId!)}&target=${encodeURIComponent(block.targetId)}`}>See: {resolvedTargetLabel || block.label || block.targetId}</a>
+      : target
       ? <button className="text-sm text-primary underline" onClick={() => onNavigate(block.targetId)}>See: {target.label}</button>
       : <p className="text-sm text-destructive">Linked block is missing (last known as {block.label || block.targetId}).</p>)}
   </div>

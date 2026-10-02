@@ -106,6 +106,7 @@ describe("tools/list", () => {
       "update_ttrpg_stat_block",
       "create_ttrpg_block",
       "update_ttrpg_block",
+      "delete_ttrpg_block",
       "reorder_sections",
       "rename_scene",
       "update_character",
@@ -119,7 +120,7 @@ describe("tools/list", () => {
       tools: Array<{ name: string; annotations: { destructiveHint: boolean } }>
     }
     const destructive = tools.filter((t) => t.annotations.destructiveHint).map((t) => t.name)
-    expect(destructive).toEqual(["update_beat", "update_ttrpg_stat_block", "update_ttrpg_block", "reorder_sections", "rewrite_scene", "delete_scene"])
+    expect(destructive).toEqual(["update_beat", "update_ttrpg_stat_block", "update_ttrpg_block", "delete_ttrpg_block", "reorder_sections", "rewrite_scene", "delete_scene"])
   })
 })
 

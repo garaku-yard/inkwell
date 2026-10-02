@@ -10,7 +10,7 @@ function elementText(project: FullProject, el: ProjectElement): string {
   }
   const block = parseTtrpgBlock(el.element_type, el.content)
   if (block) {
-    const target = block.kind === "cross_reference"
+    const target = block.kind === "cross_reference" && (!block.targetProjectId || block.targetProjectId === project.id)
       ? project.scenes?.flatMap((scene) => scene.elements ?? []).find((item) => item.id === block.targetId)
       : undefined
     const targetStat = target?.element_type === "ttrpg_stat" ? parseStatInstance(target.content) : null

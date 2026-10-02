@@ -2,7 +2,7 @@ export type TtrpgBlock =
   | { kind: "clock"; name: string; segments: number; filled: number; note: string }
   | { kind: "read_aloud"; text: string; gmNote: string }
   | { kind: "keyed_location"; key: string; name: string; description: string; contents: string }
-  | { kind: "cross_reference"; targetId: string; label: string }
+  | { kind: "cross_reference"; targetId: string; label: string; targetProjectId?: string }
 
 export const blockType = (kind: TtrpgBlock["kind"]) => `ttrpg_${kind}`
 
@@ -32,7 +32,8 @@ export function parseTtrpgBlock(type: string, content: string): TtrpgBlock | nul
       typeof value.key === "string" && typeof value.name === "string" &&
       typeof value.description === "string" && typeof value.contents === "string") return value as TtrpgBlock
     if (type === "ttrpg_cross_reference" && value.kind === "cross_reference" &&
-      typeof value.targetId === "string" && typeof value.label === "string") return value as TtrpgBlock
+      typeof value.targetId === "string" && typeof value.label === "string" &&
+      (value.targetProjectId === undefined || typeof value.targetProjectId === "string")) return value as TtrpgBlock
     return null
   } catch { return null }
 }
