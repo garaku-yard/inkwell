@@ -103,7 +103,7 @@ export function StoryToolsDialog({
           {diagnostics.length > 0 && <span className="rounded-full bg-amber-500/15 px-1.5 text-amber-700 dark:text-amber-300">{diagnostics.length}</span>}
         </Button>
       </DialogTrigger>
-      <DialogScrollContent className="max-w-3xl">
+      <DialogScrollContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Story runtime and diagnostics</DialogTitle>
           <DialogDescription>
@@ -112,9 +112,9 @@ export function StoryToolsDialog({
         </DialogHeader>
 
         <section className="space-y-3">
-          <div>
-            <Label>Start passage</Label>
-            <select className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={startPassageId} onChange={(event) => setStartPassageId(event.target.value)}>
+          <div className="grid gap-1.5">
+            <Label htmlFor="if-start-passage">Start passage</Label>
+            <select id="if-start-passage" className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={startPassageId} onChange={(event) => setStartPassageId(event.target.value)}>
               {passages.map((passage) => <option key={passage.id} value={passage.id}>{passage.scene_heading || "Untitled"}</option>)}
             </select>
           </div>
@@ -130,14 +130,14 @@ export function StoryToolsDialog({
           {variables.length === 0 && <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">No declared variables yet. Set elements may still create variables during play.</p>}
           {variables.map((variable, index) => (
             <div key={`${index}-${variable.name}`} className="grid grid-cols-[1fr_8rem_1fr_auto] items-end gap-2">
-              <div><Label className="text-xs">Name</Label><Input value={variable.name} onChange={(event) => updateVariable(index, { name: event.target.value.replace(/^\$/, "") })} /></div>
-              <div>
+              <div className="grid gap-1.5"><Label className="text-xs">Name</Label><Input value={variable.name} onChange={(event) => updateVariable(index, { name: event.target.value.replace(/^\$/, "") })} /></div>
+              <div className="grid gap-1.5">
                 <Label className="text-xs">Type</Label>
                 <select className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={variable.type} onChange={(event) => updateVariable(index, { type: event.target.value as IFVariableType })}>
                   <option value="boolean">Boolean</option><option value="number">Number</option><option value="string">Text</option>
                 </select>
               </div>
-              <div>
+              <div className="grid gap-1.5">
                 <Label className="text-xs">Initial value</Label>
                 {variable.type === "boolean" ? (
                   <select className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={String(variable.initialValue)} onChange={(event) => updateVariable(index, { initialValue: event.target.value === "true" })}>
@@ -151,13 +151,13 @@ export function StoryToolsDialog({
         </section>
 
         <section className="grid gap-3 border-t pt-4 sm:grid-cols-2">
-          <div><Label>Selected passage tags</Label><Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="cave, chapter-one, ending" /></div>
-          <div><Label>Passage color</Label><div className="flex gap-2"><Input type="color" className="w-14 px-1" value={/^#[0-9a-f]{6}$/i.test(color) ? color : "#6b7280"} onChange={(event) => setColor(event.target.value)} /><Input value={color} onChange={(event) => setColor(event.target.value)} placeholder="#6b7280" /></div></div>
-          <div className="sm:col-span-2">
+          <div className="grid gap-1.5"><Label>Selected passage tags</Label><Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="cave, chapter-one, ending" /></div>
+          <div className="grid gap-1.5"><Label>Passage color</Label><div className="flex gap-2"><Input type="color" className="w-14 px-1" value={/^#[0-9a-f]{6}$/i.test(color) ? color : "#6b7280"} onChange={(event) => setColor(event.target.value)} /><Input value={color} onChange={(event) => setColor(event.target.value)} placeholder="#6b7280" /></div></div>
+          <div className="grid gap-1.5 sm:col-span-2">
             <Label htmlFor="if-passage-condition">Trigger / condition</Label>
             <Input id="if-passage-condition" value={condition} onChange={(event) => setCondition(event.target.value)} placeholder="When the sim trigger fires…" disabled={!active} />
           </div>
-          <div className="sm:col-span-2">
+          <div className="grid gap-1.5 sm:col-span-2">
             <Label htmlFor="if-passage-note">Author note</Label>
             <Textarea id="if-passage-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Intent, implementation handoff, or continuity notes" disabled={!active} />
           </div>

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { deleteWorkspace, updateWorkspace, type Workspace } from "@/services/workspace"
+import { isTauri } from "@tauri-apps/api/core"
 
 interface GeneralSectionProps {
   workspace: Workspace
@@ -41,6 +42,9 @@ function workspaceInitials(name: string): string {
  *  the delete-confirmation dialog. */
 export function GeneralSection({ workspace, onUpdated, onDeleted }: GeneralSectionProps) {
   const { toast } = useToast()
+  const [isDesktop, setIsDesktop] = useState(false)
+  const recoverableProjects = isDesktop && workspace.type === "personal"
+  useEffect(() => setIsDesktop(isTauri()), [])
   const [name, setName] = useState(workspace.name)
   const [description, setDescription] = useState(workspace.description ?? "")
   const [saving, setSaving] = useState(false)
@@ -109,7 +113,10 @@ export function GeneralSection({ workspace, onUpdated, onDeleted }: GeneralSecti
     setDeleting(true)
     try {
       await deleteWorkspace(workspace.id)
-      toast({ title: "Workspace deleted" })
+      toast({
+        title: "Workspace deleted",
+        ...(recoverableProjects ? { description: "Its projects are hidden for 30 days. Recreate a workspace for the same format to recover them." } : {}),
+      })
       onDeleted()
     } catch {
       toast({ title: "Failed to delete workspace", variant: "destructive" })
@@ -210,7 +217,11 @@ export function GeneralSection({ workspace, onUpdated, onDeleted }: GeneralSecti
       <Card className="border-destructive/50">
         <CardHeader>
           <CardTitle className="text-base text-destructive">Danger Zone</CardTitle>
-          <CardDescription>Permanently delete this workspace and all its data.</CardDescription>
+          <CardDescription>
+            {recoverableProjects
+              ? "Remove this workspace. Projects with no other workspace for their format can be recovered for 30 days."
+              : "Permanently delete this workspace and all its data."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Button
@@ -229,7 +240,9 @@ export function GeneralSection({ workspace, onUpdated, onDeleted }: GeneralSecti
           <AlertDialogHeader>
             <AlertDialogTitle>Delete &quot;{workspace.name}&quot;?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the workspace and all its data. This action cannot be undone.
+              {recoverableProjects
+                ? "Projects with no other workspace for their format will be hidden for 30 days, then deleted from this device. Recreate a workspace for that format within 30 days to recover them. External vault folders and cloud backups stay where they are."
+                : "This will permanently delete the workspace and all its data. This action cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

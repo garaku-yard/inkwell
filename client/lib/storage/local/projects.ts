@@ -12,6 +12,7 @@ import {
   type ProjectRow,
   type SceneRow,
 } from "./shared"
+import { reconcileWorkspaceProjects } from "./workspace-project-retention"
 
 // ─── Projects ─────────────────────────────────────────────────────────────
 
@@ -46,7 +47,7 @@ export const projects: ProjectStorage = {
   getById: async (projectId) => {
     const db = await getDb()
     const rows = await db.select<ProjectRow[]>(
-      "SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL",
+      "SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL AND workspace_removed_at IS NULL",
       [projectId],
     )
     if (rows.length === 0) throw new Error(`Project not found: ${projectId}`)
@@ -78,6 +79,7 @@ export const projects: ProjectStorage = {
 
   listOwned: async () => {
     const db = await getDb()
+    await reconcileWorkspaceProjects()
     // The local DB is single-user, so every project is "yours" regardless of the
     // owner_id stored on the row. Filtering by the auth user's id would hide all
     // projects once a cloud account is linked (the working identity's id differs
@@ -88,7 +90,7 @@ export const projects: ProjectStorage = {
     // workspace of its own — without this filter it would appear in both places
     // (migration 0015).
     const rows = await db.select<ProjectRow[]>(
-      "SELECT * FROM projects WHERE deleted_at IS NULL AND org_id IS NULL ORDER BY updated_at DESC",
+      "SELECT * FROM projects WHERE deleted_at IS NULL AND workspace_removed_at IS NULL AND org_id IS NULL ORDER BY updated_at DESC",
     )
     const list = rows.map(toProject)
     return { projects: list, total: list.length }

@@ -117,25 +117,27 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       setWorkspaces(normalized)
       setOrganizations(orgs)
 
-      const all = [...(normalized.personal ?? []), ...(normalized.org ?? [])]
+      const personal = normalized.personal ?? []
 
-      if (all.length === 0 && orgs.length === 0) {
+      if (personal.length === 0 && orgs.length === 0) {
         setNeedsOnboarding(true)
         setActiveWorkspaceState(null)
+        setActiveOrgState(null)
         return
       }
 
       setNeedsOnboarding(false)
 
-      // Restore last active personal workspace from localStorage.
+      // An org is a separate context, not a fallback personal workspace.
       const savedId = typeof window !== "undefined" ? localStorage.getItem(ACTIVE_WORKSPACE_KEY) : null
-      const saved = savedId ? all.find((w) => w.id === savedId) : null
-      setActiveWorkspaceState(saved ?? all[0] ?? null)
+      const saved = savedId ? personal.find((w) => w.id === savedId) : null
+      setActiveWorkspaceState(saved ?? personal[0] ?? null)
 
-      // Restore org context if one was active and still exists.
+      // When no personal workspace remains, open an org if available rather
+      // than showing every personal project without a workspace filter.
       const savedOrgId = typeof window !== "undefined" ? localStorage.getItem(ACTIVE_ORG_KEY) : null
       const savedOrg = savedOrgId ? orgs.find((o) => o.id === savedOrgId) : null
-      setActiveOrgState(savedOrg ?? null)
+      setActiveOrgState(savedOrg ?? (personal.length === 0 ? orgs[0] ?? null : null))
     } catch (err) {
       console.error("Failed to load workspaces:", err)
     } finally {

@@ -58,6 +58,19 @@ describe("Inkwell IF runtime", () => {
     expect(kinds).toEqual(expect.arrayContaining(["broken-link", "unreachable", "dead-end", "undefined-variable", "impossible-condition", "syntax"]))
   })
 
+  it("explains whether an unreachable passage has no incoming link or only unreachable sources", () => {
+    const passages = [
+      scene("start", "Start", []),
+      scene("orphan", "Orphan", [element("link", "choice", "[[Child]]")]),
+      scene("child", "Child", []),
+    ]
+    const warnings = diagnoseStory(passages, { variables: [], testStates: [] }).filter((item) => item.kind === "unreachable")
+    expect(warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ passageId: "orphan", message: expect.stringContaining("no incoming links") }),
+      expect.objectContaining({ passageId: "child", message: expect.stringContaining("Orphan") }),
+    ]))
+  })
+
   it("renames only link targets and preserves labels", () => {
     expect(renamePassageLinks("[[Old]] [[Open door -> Old]] [[Old|tooltip]] [[Older]]", "Old", "New")).toBe(
       "[[New]] [[Open door -> New]] [[New|tooltip]] [[Older]]",

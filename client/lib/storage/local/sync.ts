@@ -16,6 +16,7 @@ import { apiClient, getAuthToken } from "@/lib/api"
 import type { SyncProjectState, SyncStorage } from "@/lib/storage"
 import { getDb, LOCAL_USER_ID, now, SYNCED_PROJECT_CHILD_TABLES } from "./shared"
 import { runVaultSync } from "./vault-sync"
+import { purgeWorkspaceProject, WORKSPACE_PROJECT_RECOVERY_MS } from "./workspace-project-retention"
 import {
   fromTs,
   pushBeat,
@@ -498,6 +499,18 @@ export const sync: SyncStorage = {
 
 async function purgeLocalTombstones(projectId: string): Promise<void> {
   const db = await getDb()
+  const workspaceCutoff = new Date(Date.now() - WORKSPACE_PROJECT_RECOVERY_MS).toISOString()
+  const expiredWorkspaceProjects = await db.select<Array<{ id: string }>>(
+    `SELECT id FROM projects
+     WHERE id = ? AND workspace_removed_at IS NOT NULL AND workspace_removed_at <= ?
+       AND deleted_at IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM sync_outbox WHERE project_id = projects.id)`,
+    [projectId, workspaceCutoff],
+  )
+  if (expiredWorkspaceProjects.length > 0) {
+    await purgeWorkspaceProject(projectId)
+    return
+  }
   const cutoff = new Date(Date.now() - TOMBSTONE_RETENTION_MS).toISOString()
   const tables = ["scenes", "script_elements", "characters", "locations", "beats", "connections", "lanes", "outline_items"]
   for (const t of tables) {

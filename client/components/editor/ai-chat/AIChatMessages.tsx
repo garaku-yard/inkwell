@@ -89,7 +89,7 @@ function BuddyMark({ error }: { error?: boolean }) {
 
 function Timestamp({ at }: { at: Date }) {
   return (
-    <span className="px-1 text-[10px] text-muted-foreground/50">
+    <span className="px-1 text-xs text-muted-foreground/50">
       {at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
     </span>
   )
