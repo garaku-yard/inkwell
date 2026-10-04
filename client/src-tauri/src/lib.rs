@@ -143,6 +143,12 @@ fn sql_migrations() -> Vec<Migration> {
       sql: include_str!("../migrations/0021_workspace_project_retention.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 22,
+      description: "desktop hosted comment sync",
+      sql: include_str!("../migrations/0022_local_comment_sync.sql"),
+      kind: MigrationKind::Up,
+    },
   ]
 }
 
