@@ -528,12 +528,13 @@ func (r *PostgresCollaborationRepository) IsProjectOwner(ctx context.Context, us
 }
 
 // Comment operations
-func (r *PostgresCollaborationRepository) CreateComment(ctx context.Context, comment *domain.Comment) error {
+func (r *PostgresCollaborationRepository) CreateComment(ctx context.Context, comment *domain.Comment) (bool, error) {
 	query := `
 		INSERT INTO comments (comment_id, project_id, screenplay_id, script_element_id, scene_id, user_id, content, line_number, char_position, parent_id, is_resolved, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		ON CONFLICT (comment_id) DO NOTHING`
 
-	_, err := r.db.ExecContext(ctx, query,
+	result, err := r.db.ExecContext(ctx, query,
 		comment.ID,
 		comment.ProjectID,
 		comment.ScreenplayID,
@@ -548,7 +549,11 @@ func (r *PostgresCollaborationRepository) CreateComment(ctx context.Context, com
 		comment.CreatedAt,
 		comment.UpdatedAt,
 	)
-	return err
+	if err != nil {
+		return false, err
+	}
+	inserted, err := result.RowsAffected()
+	return inserted > 0, err
 }
 
 func (r *PostgresCollaborationRepository) GetCommentByID(ctx context.Context, id uuid.UUID) (*domain.Comment, error) {
@@ -589,7 +594,7 @@ func (r *PostgresCollaborationRepository) GetProjectComments(ctx context.Context
 		SELECT comment_id, project_id, screenplay_id, script_element_id, scene_id, user_id, content, line_number, char_position, parent_id, is_resolved, created_at, updated_at
 		FROM comments
 		WHERE project_id = $1
-		ORDER BY created_at DESC
+		ORDER BY created_at DESC, comment_id DESC
 		OFFSET $2 LIMIT $3`
 
 	rows, err := r.db.QueryContext(ctx, query, projectID, offset, limit)
@@ -725,9 +730,9 @@ func (r *PostgresCollaborationRepository) UpdateComment(ctx context.Context, id 
 	return nil
 }
 
-func (r *PostgresCollaborationRepository) ResolveComment(ctx context.Context, id uuid.UUID) error {
-	query := `UPDATE comments SET is_resolved = true, updated_at = $1 WHERE comment_id = $2`
-	result, err := r.db.ExecContext(ctx, query, time.Now(), id)
+func (r *PostgresCollaborationRepository) SetCommentResolved(ctx context.Context, id uuid.UUID, resolved bool) error {
+	query := `UPDATE comments SET is_resolved = $1, updated_at = $2 WHERE comment_id = $3`
+	result, err := r.db.ExecContext(ctx, query, resolved, time.Now(), id)
 	if err != nil {
 		return err
 	}

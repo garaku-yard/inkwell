@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -17,11 +18,16 @@ import (
 
 type ownershipScriptsStub struct {
 	scripts.ScriptsServiceClient
-	ownerID string
+	ownerID         string
+	targetProjectID string
 }
 
 func (s ownershipScriptsStub) GetProjectAccessMetadata(context.Context, *scripts.GetProjectAccessMetadataRequest, ...grpc.CallOption) (*scripts.GetProjectAccessMetadataResponse, error) {
 	return &scripts.GetProjectAccessMetadataResponse{OwnerId: s.ownerID}, nil
+}
+
+func (s ownershipScriptsStub) GetResourceProject(context.Context, *scripts.GetResourceProjectRequest, ...grpc.CallOption) (*scripts.GetResourceProjectResponse, error) {
+	return &scripts.GetResourceProjectResponse{ProjectId: s.targetProjectID}, nil
 }
 
 type ownershipIdentityStub struct {
@@ -34,9 +40,11 @@ func (ownershipIdentityStub) GetUser(_ context.Context, req *identity.GetUserReq
 
 type ownershipCollabStub struct {
 	collab.CollaborationServiceClient
-	projectID    string
-	ownerID      string
-	removeCalled bool
+	projectID     string
+	ownerID       string
+	removeCalled  bool
+	addCalled     bool
+	commentOffset int32
 }
 
 func (s *ownershipCollabStub) GetProjectCollaborators(context.Context, *collab.GetProjectCollaboratorsRequest, ...grpc.CallOption) (*collab.GetProjectCollaboratorsResponse, error) {
@@ -53,6 +61,16 @@ func (s *ownershipCollabStub) GetResourceProject(context.Context, *collab.GetRes
 func (s *ownershipCollabStub) RemoveCollaborator(context.Context, *collab.RemoveCollaboratorRequest, ...grpc.CallOption) (*collab.RemoveCollaboratorResponse, error) {
 	s.removeCalled = true
 	return &collab.RemoveCollaboratorResponse{Success: true}, nil
+}
+
+func (s *ownershipCollabStub) AddComment(context.Context, *collab.AddCommentRequest, ...grpc.CallOption) (*collab.AddCommentResponse, error) {
+	s.addCalled = true
+	return &collab.AddCommentResponse{Comment: &collab.Comment{Id: "comment-1"}}, nil
+}
+
+func (s *ownershipCollabStub) GetComments(_ context.Context, req *collab.GetCommentsRequest, _ ...grpc.CallOption) (*collab.GetCommentsResponse, error) {
+	s.commentOffset = req.Offset
+	return &collab.GetCommentsResponse{}, nil
 }
 
 func ownershipRequest(method, path, userID string) *http.Request {
@@ -90,5 +108,34 @@ func TestLegacyOwnerProjectionCannotBeRemoved(t *testing.T) {
 	}
 	if cc.removeCalled {
 		t.Fatal("legacy owner projection reached removal RPC")
+	}
+}
+
+func TestAddCommentRejectsTargetFromAnotherProject(t *testing.T) {
+	cc := &ownershipCollabStub{projectID: "project-1", ownerID: "owner-1"}
+	h := &CollaborationHandler{client: cc, scriptsClient: ownershipScriptsStub{ownerID: cc.ownerID, targetProjectID: "project-2"}}
+	req := httptest.NewRequest(http.MethodPost, "/comments", strings.NewReader(`{"project_id":"project-1","scene_id":"foreign-scene","content":"No"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(contextx.WithUserID(req.Context(), cc.ownerID))
+	rec := httptest.NewRecorder()
+	h.AddComment(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	if cc.addCalled {
+		t.Fatal("foreign target reached AddComment")
+	}
+}
+
+func TestGetCommentsForwardsPageOffset(t *testing.T) {
+	cc := &ownershipCollabStub{projectID: "project-1", ownerID: "owner-1"}
+	h := &CollaborationHandler{client: cc, scriptsClient: ownershipScriptsStub{ownerID: cc.ownerID}}
+	rec := httptest.NewRecorder()
+	h.GetComments(rec, ownershipRequest(http.MethodGet, "/comments?screenplay_id=project-1&offset=100", cc.ownerID))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	if cc.commentOffset != 100 {
+		t.Fatalf("offset = %d, want 100", cc.commentOffset)
 	}
 }

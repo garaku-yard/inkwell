@@ -330,14 +330,18 @@ func (s *CollaborationService) RemoveCollaborator(ctx context.Context, userID, c
 }
 
 // Comment operations
-func (s *CollaborationService) AddComment(ctx context.Context, userID, projectID uuid.UUID, callerRole, content string, elementID, sceneID, parentID *uuid.UUID, lineNumber, charPosition *int32) (*domain.Comment, error) {
+func (s *CollaborationService) AddComment(ctx context.Context, userID, projectID uuid.UUID, callerRole, content string, elementID, sceneID, parentID *uuid.UUID, lineNumber, charPosition *int32, clientID *uuid.UUID) (*domain.Comment, error) {
 	// Check if user has access to the project
 	if err := s.CheckPermission(ctx, userID, projectID, callerRole, "viewer"); err != nil {
 		return nil, err
 	}
 
+	id := uuid.New()
+	if clientID != nil {
+		id = *clientID
+	}
 	comment := &domain.Comment{
-		ID:              uuid.New(),
+		ID:              id,
 		ProjectID:       projectID,
 		ScriptElementID: elementID,
 		SceneID:         sceneID,
@@ -351,12 +355,31 @@ func (s *CollaborationService) AddComment(ctx context.Context, userID, projectID
 		UpdatedAt:       time.Now(),
 	}
 
-	if err := s.repo.CreateComment(ctx, comment); err != nil {
+	created, err := s.repo.CreateComment(ctx, comment)
+	if err != nil {
 		return nil, err
+	}
+	if !created {
+		existing, err := s.repo.GetCommentByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if existing.ProjectID != projectID || existing.UserID != userID ||
+			!sameUUIDPtr(existing.ScriptElementID, elementID) || !sameUUIDPtr(existing.SceneID, sceneID) || !sameUUIDPtr(existing.ParentID, parentID) {
+			return nil, domain.ErrUnauthorized
+		}
+		return existing, nil
 	}
 
 	s.publishCommentAdded(ctx, comment)
 	return comment, nil
+}
+
+func sameUUIDPtr(a, b *uuid.UUID) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 // publishCommentAdded emits a best-effort comment.added event naming the
@@ -423,7 +446,7 @@ func (s *CollaborationService) GetComments(ctx context.Context, userID, projectI
 	}
 }
 
-func (s *CollaborationService) ResolveComment(ctx context.Context, userID, commentID uuid.UUID, callerRole string) error {
+func (s *CollaborationService) SetCommentResolved(ctx context.Context, userID, commentID uuid.UUID, callerRole string, resolved bool) error {
 	// Get comment to check permissions
 	comment, err := s.repo.GetCommentByID(ctx, commentID)
 	if err != nil {
@@ -435,7 +458,7 @@ func (s *CollaborationService) ResolveComment(ctx context.Context, userID, comme
 		return err
 	}
 
-	return s.repo.ResolveComment(ctx, commentID)
+	return s.repo.SetCommentResolved(ctx, commentID, resolved)
 }
 
 func (s *CollaborationService) DeleteComment(ctx context.Context, userID, commentID uuid.UUID, callerRole string) error {

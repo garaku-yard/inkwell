@@ -19,7 +19,7 @@ export const projectsHelpers = {
   },
 
   async listCommentArray(screenplayId: string): Promise<Comment[]> {
-    const response = await apiClient<Array<{
+    type HostedComment = {
       id: string
       script_element_id?: string
       scene_id?: string
@@ -28,7 +28,20 @@ export const projectsHelpers = {
       content: string
       is_resolved: boolean
       created_at: string
-    }>>(`comments?screenplay_id=${screenplayId}`, { method: "GET" })
+    }
+    const response: HostedComment[] = []
+    const seen = new Set<string>()
+    for (let offset = 0; ; offset += 100) {
+      const page = await apiClient<HostedComment[]>(
+        `comments?screenplay_id=${encodeURIComponent(screenplayId)}&offset=${offset}`, { method: "GET" },
+      )
+      for (const comment of page) {
+        if (seen.has(comment.id)) throw new Error("Comment pagination repeated a row")
+        seen.add(comment.id)
+        response.push(comment)
+      }
+      if (page.length < 100) break
+    }
     return response.map((c) => ({
       id: c.id,
       userName: c.username || `User ${c.user_id.slice(0, 8)}`,
