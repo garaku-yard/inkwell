@@ -5,11 +5,9 @@
  * markers, not by structural nesting. We stream that flat list into a
  * grouped shape that maps cleanly onto Inkwell's scene + element schema.
  *
- * The supported subset mirrors what `lib/export/screenplay-fdx.ts` writes,
- * so a round trip (export → reimport) preserves the content. Unknown
- * paragraph types are dropped rather than guessed at — downstream code
- * only knows the canonical element_type vocabulary, and silently
- * coercing "Singing" or "General" into ACTION risks misformatting.
+ * The supported subset mirrors what `lib/export/screenplay-fdx.ts` writes.
+ * Unsupported paragraph types retain their words as Action and are reported
+ * to the caller so an import cannot silently discard authored text.
  */
 
 /** Element-type strings that match Inkwell's canonical ProjectElement
@@ -22,6 +20,7 @@ const FDX_TO_INTERNAL: Record<string, string> = {
   "Dialogue": "DIALOG",
   "Transition": "TRANSITION",
   "Shot": "SHOT",
+  "Act Break": "NEW_ACT",
 }
 
 export interface ParsedFdxElement {
@@ -39,6 +38,8 @@ export interface ParsedFdxScene {
 export interface ParsedFdx {
   title: string
   scenes: ParsedFdxScene[]
+  warnings: string[]
+  unsupportedStyles: string[]
 }
 
 /** Pulls the body text out of a `<Paragraph>` node. FDX nests `<Text>`
@@ -53,6 +54,22 @@ function paragraphText(p: Element): string {
     out += texts[i].textContent ?? ""
   }
   return out.trim()
+}
+
+const escapeHtml = (text: string) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;")
+
+function paragraphHtml(p: Element, unsupportedStyles: string[]): string {
+  return [...p.getElementsByTagName("Text")].map(node => {
+    const style = node.getAttribute("Style") ?? ""
+    for (const name of style.split(/[+,\s]+/).filter(Boolean)) {
+      if (!["Bold", "Italic", "Underline"].includes(name) && !unsupportedStyles.includes(name)) unsupportedStyles.push(name)
+    }
+    let html = escapeHtml(node.textContent ?? "").replaceAll("\n", "<br>")
+    if (/(?:^|\W)Underline(?:$|\W)/i.test(style)) html = `<u>${html}</u>`
+    if (/(?:^|\W)Italic(?:$|\W)/i.test(style)) html = `<em>${html}</em>`
+    if (/(?:^|\W)Bold(?:$|\W)/i.test(style)) html = `<strong>${html}</strong>`
+    return html
+  }).join("")
 }
 
 /** Reads the title-page block. Final Draft puts the title in the first
@@ -89,18 +106,18 @@ export function parseFdx(xml: string): ParsedFdx {
     throw new Error("File doesn't look like a Final Draft script (missing <FinalDraft> root).")
   }
 
-  const contentNodes = root.getElementsByTagName("Content")
-  // The first <Content> is the script body; <TitlePage><Content> may
-  // come second. We walk the whole document and skip paragraphs that
-  // descend from a <TitlePage> ancestor.
-  const allParagraphs = root.getElementsByTagName("Paragraph")
+  // Only the root Content is script body. Header, Footer, and TitlePage
+  // contain Paragraph nodes too, but are never screenplay elements.
+  const bodyContent = [...root.children].find(node => node.tagName === "Content")
+  const allParagraphs = bodyContent?.getElementsByTagName("Paragraph") ?? []
 
   const scenes: ParsedFdxScene[] = []
+  const warnings: string[] = []
+  const unsupportedStyles: string[] = []
   let current: ParsedFdxScene | null = null
 
   for (let i = 0; i < allParagraphs.length; i++) {
     const p = allParagraphs[i]
-    if (p.closest("TitlePage")) continue
     const type = p.getAttribute("Type") ?? "Action"
     const text = paragraphText(p)
     if (!text) continue
@@ -118,23 +135,21 @@ export function parseFdx(xml: string): ParsedFdx {
       scenes.push(current)
     }
 
-    const internal = FDX_TO_INTERNAL[type]
-    if (!internal) continue
+    const internal = type === "Act Break" && p.getAttribute("InkwellType") === "END_ACT" ? "END_ACT" : FDX_TO_INTERNAL[type] ?? "ACTION"
+    if (!FDX_TO_INTERNAL[type] && !warnings.includes(type)) warnings.push(type)
 
     const content = type === "Parenthetical"
-      ? `(${text.replace(/^\(|\)$/g, "")})`
-      : text
+      ? `(${paragraphHtml(p, unsupportedStyles).replace(/^\(|\)$/g, "")})`
+      : paragraphHtml(p, unsupportedStyles)
 
     current.elements.push({ type: internal, content })
   }
 
-  // contentNodes is referenced once for shape-checking — empty body is
-  // OK as long as we found a TitlePage with a useful title; an empty
-  // both is worth telling the user about.
-  if (scenes.length === 0 && contentNodes.length === 0) {
+  // An empty script body is valid when the file still has a title page.
+  if (scenes.length === 0 && !bodyContent && !readTitle(doc)) {
     throw new Error("FDX file is empty.")
   }
 
   const title = readTitle(doc) || "Imported screenplay"
-  return { title, scenes }
+  return { title, scenes, warnings, unsupportedStyles }
 }

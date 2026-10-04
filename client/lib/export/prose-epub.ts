@@ -181,6 +181,10 @@ export function buildEpub(project: FullProject): Uint8Array {
   const scenes = [...(project.scenes ?? [])].sort(
     (a, b) => a.order_index - b.order_index,
   )
+  if (scenes.length === 0) scenes.push({
+    id: "empty-chapter", project_id: project.id, scene_heading: "Untitled", content: "", elements: [],
+    order_index: 0, created_at: "", updated_at: "",
+  })
 
   const archive: Zippable = {}
 
