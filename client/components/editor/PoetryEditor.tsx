@@ -45,6 +45,8 @@ import { chordRowIssues, transposeChord, transposeChordRow } from "@/lib/editor/
 import { VerseToolsDialog } from "./poetry/VerseToolsDialog"
 import { updateElementContent, updateSceneContent } from "@/services/project"
 import { type RailEntry } from "./shared/EditorToolRail"
+import { ManuscriptExportDialog } from "./shared/ManuscriptExportDialog"
+import type { ManuscriptSubmissionOptions } from "@/lib/export/manuscript-options"
 import { paginate } from "@/lib/editor/paginate"
 import {
   type ProjectElement,
@@ -75,6 +77,7 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
   const { user } = useAuth()
   const isLyrics = projectData.category === "lyrics"
   const [scenes, setScenes] = useState(() => projectData.scenes ?? [])
+  const [manuscriptFormat, setManuscriptFormat] = useState<"pdf" | "docx" | null>(null)
   const [showSyllables, setShowSyllables] = useState(false)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const poemRefs = useRef<Map<string, HTMLElement | null>>(new Map())
@@ -608,7 +611,21 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
     })),
   ]
 
+  const exportManuscript = (options: ManuscriptSubmissionOptions) => {
+    if (!manuscriptFormat) return
+    const format = manuscriptFormat
+    void runExport({
+      extension: format, projectTitle: projectData.title,
+      run: async () => {
+        const { downloadManuscript } = await import("@/lib/export/manuscript")
+        downloadManuscript({ ...projectData, scenes }, "poetry", format, options)
+      },
+    })
+  }
+
   return (
+    <>
+    {!isLyrics && <ManuscriptExportDialog project={projectData} profile="poetry" format={manuscriptFormat ?? "pdf"} open={manuscriptFormat !== null} onOpenChange={open => { if (!open) setManuscriptFormat(null) }} onExport={exportManuscript} />}
     <ProjectShell
       projectId={projectData.id}
       title={projectData.title}
@@ -681,23 +698,11 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
             ...(!isLyrics ? [
               {
                 label: "Submission PDF (.pdf)",
-                onClick: () => void runExport({
-                  extension: "pdf", projectTitle: projectData.title,
-                  run: async () => {
-                    const { downloadManuscript } = await import("@/lib/export/manuscript")
-                    downloadManuscript({ ...projectData, scenes }, "poetry", "pdf")
-                  },
-                }),
+                onClick: () => setManuscriptFormat("pdf"),
               },
               {
                 label: "Submission Word (.docx)",
-                onClick: () => void runExport({
-                  extension: "docx", projectTitle: projectData.title,
-                  run: async () => {
-                    const { downloadManuscript } = await import("@/lib/export/manuscript")
-                    downloadManuscript({ ...projectData, scenes }, "poetry", "docx")
-                  },
-                }),
+                onClick: () => setManuscriptFormat("docx"),
               },
             ] : []),
           ]}
@@ -787,5 +792,6 @@ export function PoetryEditor({ projectData }: PoetryEditorProps) {
           />
         </EditorWorkspace>
     </ProjectShell>
+    </>
   )
 }

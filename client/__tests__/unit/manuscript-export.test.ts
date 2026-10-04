@@ -81,4 +81,35 @@ describe("manuscript exports", () => {
     expect(document).toContain("<w:i/>")
     expect(document).toContain('<w:u w:val="single"/>')
   })
+
+  it("lays out a long poem across pages with a title page and running header", () => {
+    const data = project("poetry")
+    data.scenes![0].content = writeDocumentMetadata("", { epigraph: "For the long road" })
+    data.scenes![0].elements = Array.from({ length: 90 }, (_, index) =>
+      element("line", index % 8 === 0 ? "A deliberately long line of verse ".repeat(8) : `Line ${index + 1}: the words continue.`, index))
+    const options = { titlePage: true, byline: "Sample Author", contact: "author@example.test", runningHeader: "Author / Poem", lineSpacing: "one-and-half" as const }
+    const pdf = renderManuscriptPdfBytes(data, "poetry", options)
+    if (process.env.INKWELL_LONG_POETRY_QA_PDF) writeFileSync(process.env.INKWELL_LONG_POETRY_QA_PDF, pdf)
+    const docx = renderManuscriptDocxBytes(data, "poetry", options)
+    if (process.env.INKWELL_LONG_POETRY_QA_DOCX) writeFileSync(process.env.INKWELL_LONG_POETRY_QA_DOCX, docx)
+    const entries = unzipSync(docx)
+    expect(strFromU8(entries["word/document.xml"])).toContain("<w:titlePg/>")
+    expect(strFromU8(entries["word/header1.xml"])).toContain("Author / Poem")
+    expect(pdf.length).toBeGreaterThan(5_000)
+  })
+
+  it("renders a long prose submission with configurable author details", () => {
+    const data = project("novel")
+    data.scenes![0].elements = Array.from({ length: 55 }, (_, index) =>
+      element("paragraph", `Paragraph ${index + 1}. The chapter continues with another sentence for the reader.`, index))
+    const options = { titlePage: true, byline: "Sample Author", contact: "author@example.test", runningHeader: "Author / Story", lineSpacing: "double" as const }
+    const pdf = renderManuscriptPdfBytes(data, "prose", options)
+    if (process.env.INKWELL_LONG_PROSE_QA_PDF) writeFileSync(process.env.INKWELL_LONG_PROSE_QA_PDF, pdf)
+    const docx = renderManuscriptDocxBytes(data, "prose", options)
+    if (process.env.INKWELL_LONG_PROSE_QA_DOCX) writeFileSync(process.env.INKWELL_LONG_PROSE_QA_DOCX, docx)
+    const document = strFromU8(unzipSync(docx)["word/document.xml"])
+    expect(document).toContain("Sample Author")
+    expect(document).toContain('w:pStyle w:val="ProseBody"')
+    expect(pdf.length).toBeGreaterThan(5_000)
+  })
 })

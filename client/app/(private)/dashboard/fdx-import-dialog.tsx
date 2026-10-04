@@ -139,6 +139,8 @@ export function FdxImportDialog({ filePath, onCancel }: FdxImportDialogProps) {
           <div className="rounded-md border p-4 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Scenes</span><span className="font-medium">{parsed.scenes.length}</span></div>
             <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Elements</span><span className="font-medium">{elementCount}</span></div>
+            {parsed.warnings.length > 0 && <p className="mt-3 text-amber-700 dark:text-amber-300">Unsupported paragraph types will be imported as Action: {parsed.warnings.join(", ")}.</p>}
+            {parsed.unsupportedStyles.length > 0 && <p className="mt-2 text-amber-700 dark:text-amber-300">Unsupported inline styles will be omitted: {parsed.unsupportedStyles.join(", ")}.</p>}
           </div>
         )}
 

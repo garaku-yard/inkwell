@@ -44,6 +44,8 @@ import { DocumentFoundationDialog } from "./shared/DocumentFoundationDialog"
 import { useDocumentFoundation } from "./shared/useDocumentFoundation"
 import { EditorCommandPalette, type EditorCommand } from "./shared/EditorCommandPalette"
 import { writeDocumentMetadata, type DocumentMetadata } from "@/lib/editor/document-metadata"
+import { ManuscriptExportDialog } from "./shared/ManuscriptExportDialog"
+import type { ManuscriptSubmissionOptions } from "@/lib/export/manuscript-options"
 
 type ProseElementType =
   | "chapter_heading"
@@ -95,6 +97,7 @@ function wordCount(text: string | null | undefined): number {
 export function ProseEditor({ projectData }: ProseEditorProps) {
   const { user } = useAuth()
   const [scenes, setScenes] = useState(() => projectData.scenes ?? [])
+  const [manuscriptFormat, setManuscriptFormat] = useState<"pdf" | "docx" | null>(null)
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const chapterRefs = useRef<Map<string, HTMLElement | null>>(new Map())
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
@@ -576,7 +579,21 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     })),
   ]
 
+  const exportManuscript = (options: ManuscriptSubmissionOptions) => {
+    if (!manuscriptFormat) return
+    const format = manuscriptFormat
+    void runExport({
+      extension: format, projectTitle: projectData.title,
+      run: async () => {
+        const { downloadManuscript } = await import("@/lib/export/manuscript")
+        downloadManuscript({ ...projectData, scenes }, "prose", format, options)
+      },
+    })
+  }
+
   return (
+    <>
+    <ManuscriptExportDialog project={projectData} profile="prose" format={manuscriptFormat ?? "pdf"} open={manuscriptFormat !== null} onOpenChange={open => { if (!open) setManuscriptFormat(null) }} onExport={exportManuscript} />
     <ProjectShell
       projectId={projectData.id}
       title={projectData.title}
@@ -672,23 +689,11 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
             },
             {
               label: "Manuscript PDF (.pdf)",
-              onClick: () => void runExport({
-                extension: "pdf", projectTitle: projectData.title,
-                run: async () => {
-                  const { downloadManuscript } = await import("@/lib/export/manuscript")
-                  downloadManuscript({ ...projectData, scenes }, "prose", "pdf")
-                },
-              }),
+              onClick: () => setManuscriptFormat("pdf"),
             },
             {
               label: "Manuscript Word (.docx)",
-              onClick: () => void runExport({
-                extension: "docx", projectTitle: projectData.title,
-                run: async () => {
-                  const { downloadManuscript } = await import("@/lib/export/manuscript")
-                  downloadManuscript({ ...projectData, scenes }, "prose", "docx")
-                },
-              }),
+              onClick: () => setManuscriptFormat("docx"),
             },
           ]}
         />
@@ -723,5 +728,6 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           />
         </EditorWorkspace>
     </ProjectShell>
+    </>
   )
 }

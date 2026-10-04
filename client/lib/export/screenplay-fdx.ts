@@ -1,4 +1,5 @@
 import type { FullProject } from "@/services/project"
+import { editorHtmlToInline, plainInlineText, readInlineRuns } from "@/lib/editor/inline-content"
 
 // Maps our element types to Final Draft paragraph types
 const FDX_TYPE: Record<string, string> = {
@@ -23,7 +24,16 @@ function escapeXml(str: string): string {
     .replace(/'/g, "&apos;")
 }
 
-export function exportScreenplayToFDX(project: FullProject): void {
+function fdxRuns(content: string): string {
+  return readInlineRuns(editorHtmlToInline(content)).map(run => {
+    const styles = [run.strong && "Bold", run.emphasis && "Italic", run.underline && "Underline"].filter(Boolean)
+    return `<Text${styles.length ? ` Style="${styles.join("+")}"` : ""}>${escapeXml(run.text)}</Text>`
+  }).join("")
+}
+
+const plainScreenplayText = (content: string) => plainInlineText(editorHtmlToInline(content))
+
+export function buildScreenplayFdx(project: FullProject): string {
   const scenes = [...(project.scenes ?? [])].sort((a, b) => a.order_index - b.order_index)
 
   const paragraphs: string[] = []
@@ -32,7 +42,7 @@ export function exportScreenplayToFDX(project: FullProject): void {
     // Scene heading
     paragraphs.push(
       `    <Paragraph Type="Scene Heading">`,
-      `      <Text>${escapeXml(scene.scene_heading || "SCENE")}</Text>`,
+      `      <Text>${escapeXml(plainScreenplayText(scene.scene_heading || "SCENE"))}</Text>`,
       `    </Paragraph>`,
     )
 
@@ -56,14 +66,14 @@ export function exportScreenplayToFDX(project: FullProject): void {
           : content
 
       paragraphs.push(
-        `    <Paragraph Type="${fdxType}">`,
-        `      <Text>${escapeXml(text)}</Text>`,
+        `    <Paragraph Type="${fdxType}"${el.element_type === "END_ACT" ? ' InkwellType="END_ACT"' : ""}>`,
+        `      ${fdxRuns(text)}`,
         `    </Paragraph>`,
       )
     }
   }
 
-  const fdx = [
+  return [
     `<?xml version="1.0" encoding="UTF-8" standalone="no" ?>`,
     `<FinalDraft DocumentType="Script" Template="No" Version="5">`,
     `  <Content>`,
@@ -82,7 +92,10 @@ export function exportScreenplayToFDX(project: FullProject): void {
     `  </Footer>`,
     `</FinalDraft>`,
   ].join("\n")
+}
 
+export function exportScreenplayToFDX(project: FullProject): void {
+  const fdx = buildScreenplayFdx(project)
   const blob = new Blob([fdx], { type: "application/xml" })
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")

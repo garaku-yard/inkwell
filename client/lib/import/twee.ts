@@ -89,6 +89,7 @@ export function parseTweeToIF(text: string, fallbackTitle: string): ParsedProjec
   let currentNote = ""
   const initialVariables: IFVariableDefinition[] = []
   let startSceneIndex = -1
+  let storyDataStart = ""
 
   const flush = () => {
     if (currentName === null) {
@@ -98,6 +99,11 @@ export function parseTweeToIF(text: string, fallbackTitle: string): ParsedProjec
     if (isStoryTitle) {
       const t = bodyLines.join("\n").trim()
       if (t) title = t
+    } else if (isStoryData) {
+      try {
+        const data = JSON.parse(bodyLines.join("\n"))
+        if (typeof data.start === "string") storyDataStart = data.start
+      } catch { /* foreign or incomplete StoryData */ }
     } else if (isStoryInit) {
       const chunks = [...bodyLines.join("\n").matchAll(/<<set\s+[\s\S]*?>>/g)].map((match) => match[0])
       for (const chunk of chunks) {
@@ -154,7 +160,9 @@ export function parseTweeToIF(text: string, fallbackTitle: string): ParsedProjec
   }
   flush()
 
-  if (startSceneIndex > 0) scenes.unshift(scenes.splice(startSceneIndex, 1)[0])
+  const namedStartIndex = scenes.findIndex(scene => scene.heading === storyDataStart)
+  const chosenStartIndex = namedStartIndex >= 0 ? namedStartIndex : startSceneIndex
+  if (chosenStartIndex > 0) scenes.unshift(scenes.splice(chosenStartIndex, 1)[0])
 
   if (scenes[0] && initialVariables.length > 0) {
     const passageMetadata = parsePassageMetadata(scenes[0].content)

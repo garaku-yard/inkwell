@@ -31,6 +31,8 @@ import { exportScreenplayToFDX } from "@/lib/export/screenplay-fdx"
 import { useExportToast } from "@/lib/export/use-export-toast"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { ScreenplayExportDialog } from "./screenplay/ScreenplayExportDialog"
+import type { ScreenplaySubmissionOptions } from "@/lib/export/screenplay-pdf"
 
 type ScriptItem = { type: "SCENE_HEADING"; data: Scene } | { type: "ELEMENT"; data: ProjectElement }
 
@@ -405,7 +407,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
       setProject((prev) => ({ ...prev, scenes: [...(prev.scenes ?? []), ...created] }))
       if (created[0]) scrollToElement(created[0].id)
       const word = created.length === 1 ? "scene" : "scenes"
-      toast({ title: "Import complete", description: `Added ${created.length} ${word} from ${fileName}.` })
+      toast({ title: "Import complete", description: `Added ${created.length} ${word} from ${fileName}.${parsed.warnings.length ? ` Unsupported paragraph types preserved as Action: ${parsed.warnings.join(", ")}.` : ""}${parsed.unsupportedStyles.length ? ` Unsupported inline styles omitted: ${parsed.unsupportedStyles.join(", ")}.` : ""}` })
     } catch (err) {
       console.error("Failed to import FDX:", err)
       toast({
@@ -462,7 +464,18 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
     ],
   )
 
+  const [showSubmissionExport, setShowSubmissionExport] = useState(false)
+  const exportSubmission = (options: ScreenplaySubmissionOptions) => void runExport({
+    extension: "pdf", projectTitle: project.title,
+    run: async () => {
+      const { exportScreenplayToPDF } = await import("@/lib/export/screenplay-pdf")
+      exportScreenplayToPDF(project, options)
+    },
+  })
+
   return (
+    <>
+    <ScreenplayExportDialog open={showSubmissionExport} onOpenChange={setShowSubmissionExport} onExport={exportSubmission} />
     <ProjectShell
       projectId={project.id}
       title={project.title}
@@ -503,15 +516,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         exportItems={[
           {
             label: "Export as PDF",
-            onClick: () => void runExport({
-              extension: "pdf",
-              projectTitle: project.title,
-              run: async () => {
-                // jspdf is heavy — load it only when the user exports.
-                const { exportScreenplayToPDF } = await import("@/lib/export/screenplay-pdf")
-                await exportScreenplayToPDF(project)
-              },
-            }),
+            onClick: () => setShowSubmissionExport(true),
           },
           {
             label: "Export as FDX (Final Draft)",
@@ -552,5 +557,6 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
           />
       </EditorWorkspace>
     </ProjectShell>
+    </>
   )
 }

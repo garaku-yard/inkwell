@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { writeFileSync } from "node:fs"
 import { unzipSync, strFromU8 } from "fflate"
 
 import { buildEpub } from "@/lib/export/prose-epub"
@@ -42,6 +43,7 @@ describe("buildEpub", () => {
         } as never,
       ]),
     )
+    if (process.env.INKWELL_EPUB_QA_PATH) writeFileSync(process.env.INKWELL_EPUB_QA_PATH, bytes)
     const entries = unzipSync(bytes)
     expect(Object.keys(entries)).toContain("mimetype")
     expect(Object.keys(entries)).toContain("META-INF/container.xml")
@@ -95,5 +97,11 @@ describe("buildEpub", () => {
     const opf = strFromU8(unzipSync(buildEpub(project))["OEBPS/content.opf"])
     // Quotes don't need escaping inside an XML text node (only <, >, &).
     expect(opf).toContain(`R&amp;D &lt;"epic"&gt;`)
+  })
+
+  it("includes a readable spine item for an empty project", () => {
+    const entries = unzipSync(buildEpub(fakeProject([])))
+    expect(strFromU8(entries["OEBPS/content.opf"])).toContain('<itemref idref="chap-1" />')
+    expect(entries["OEBPS/chapter-001.xhtml"]).toBeDefined()
   })
 })

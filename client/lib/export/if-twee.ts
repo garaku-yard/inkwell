@@ -15,11 +15,12 @@ import {
   parsePassageMetadata,
 } from "@/lib/interactive-fiction/runtime"
 
-/** Wrap a tag set in the `[tag1 tag2]` form Twee expects. Tags with
- *  spaces are quoted because Twee treats whitespace as the separator. */
+/** Twee 3 tags cannot contain whitespace. Normalize author labels into
+ *  portable single-token tags for external compilers. */
 function formatTags(tags: string[]): string {
   if (tags.length === 0) return ""
-  const escaped = tags.map((t) => (/\s/.test(t) ? `"${t}"` : t))
+  const escaped = [...new Set(tags.map((t) => t.trim().replace(/\s+/g, "-").replace(/[\[\]{}]/g, "-")).filter(Boolean))]
+  if (escaped.length === 0) return ""
   return ` [${escaped.join(" ")}]`
 }
 
@@ -32,7 +33,16 @@ function escapeName(name: string): string {
 
 function stableIFID(project: FullProject): string {
   const compact = project.id.replace(/[^a-f0-9]/gi, "").toUpperCase()
-  if (compact.length >= 32) return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20, 32)}`
+  const uuid = (source: string) => {
+    const hex = `${source.slice(0, 12)}5${source.slice(13, 16)}8${source.slice(17, 32)}`
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
+  }
+  if (compact.length >= 32) {
+    const original = compact.slice(0, 32)
+    return /^[1-8]$/.test(original[12]) && /^[89AB]$/.test(original[16])
+      ? `${original.slice(0, 8)}-${original.slice(8, 12)}-${original.slice(12, 16)}-${original.slice(16, 20)}-${original.slice(20, 32)}`
+      : uuid(original)
+  }
   let a = 0x811c9dc5
   let b = 0x9e3779b9
   for (const ch of `${project.id}:${project.title}`) {
@@ -40,13 +50,13 @@ function stableIFID(project: FullProject): string {
     b = Math.imul(b ^ ch.charCodeAt(0), 0x85ebca6b) >>> 0
   }
   const hex = `${a.toString(16).padStart(8, "0")}${b.toString(16).padStart(8, "0")}${((a ^ b) >>> 0).toString(16).padStart(8, "0")}${(Math.imul(a, b) >>> 0).toString(16).padStart(8, "0")}`.toUpperCase()
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
+  return uuid(hex)
 }
 
 /**
  * Builds the Twee 3 source text for `project`. The first passage in
- * order_index becomes the `Start` passage by convention, with `Start`
- * added as a tag so Tweego picks it up correctly. Empty bodies are
+ * order_index becomes the start passage unless story settings override it.
+ * StoryData.start tells Twee compilers which passage to launch. Empty bodies are
  * emitted as-is — Twee tolerates them and preserves the passage in
  * the compiled story.
  */
@@ -62,21 +72,20 @@ export function projectToTwee(project: FullProject): string {
   // metadata. We emit both so a round trip through Tweego preserves
   // the project name.
   blocks.push(`:: StoryTitle\n${project.title}`)
-  blocks.push(
-    `:: StoryData\n${JSON.stringify({ ifid: stableIFID(project), format: "SugarCube", "format-version": "2.36.1" }, null, 2)}`,
-  )
-
   const story = passages[0] ? parsePassageMetadata(passages[0].content).story : undefined
+  const start = passages.find(passage => passage.id === story?.startPassageId) ?? passages[0]
+  blocks.push(
+    `:: StoryData\n${JSON.stringify({ ifid: stableIFID(project), format: "SugarCube", "format-version": "2.36.1", ...(start ? { start: start.scene_heading || `Passage ${passages.indexOf(start) + 1}` } : {}) }, null, 2)}`,
+  )
   if (story?.variables.length) {
     const initializers = story.variables.map((variable) => `<<set $${variable.name} = ${JSON.stringify(variable.initialValue)}>>`)
-    blocks.push(`:: StoryInit [script]\n${initializers.join("\n")}`)
+    blocks.push(`:: StoryInit\n${initializers.join("\n")}`)
   }
 
   for (let i = 0; i < passages.length; i++) {
     const passage = passages[i]
     const metadata = parsePassageMetadata(passage.content)
     const tags: string[] = [...metadata.tags]
-    if (passage.id === (story?.startPassageId ?? passages[0]?.id)) tags.push("Start")
 
     const elements = [...(passage.elements ?? [])].sort(
       (a, b) => a.line_number - b.line_number,

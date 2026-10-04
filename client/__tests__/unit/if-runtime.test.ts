@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { writeFileSync } from "node:fs"
 
 import {
   applySetStatement,
@@ -87,10 +88,12 @@ describe("Inkwell IF runtime", () => {
       ], metadata)],
     } as FullProject
     const first = projectToTwee(project)
+    if (process.env.INKWELL_TWEE_QA_PATH) writeFileSync(process.env.INKWELL_TWEE_QA_PATH, first)
     expect(projectToTwee(project)).toBe(first)
-    expect(first).toContain('"ifid": "11111111-2222-3333-4444-555555555555"')
-    expect(first).toContain(":: StoryInit [script]\n<<set $gold = 1>>")
-    expect(first).toContain(":: Start [cave Start] {\"inkwell-color\":\"#123456\"}")
+    expect(first).toContain('"ifid": "11111111-2222-5333-8444-555555555555"')
+    expect(first).toContain('"start": "Start"')
+    expect(first).toContain(":: StoryInit\n<<set $gold = 1>>")
+    expect(first).toContain(":: Start [cave] {\"inkwell-color\":\"#123456\"}")
     expect(first).toContain("<<set $gold = 10>>")
     expect(first).toContain("<<if $gold >= 10>>[[Enter -> Vault]]<<else>>[[Leave -> Road]]<</if>>")
     expect(first).not.toContain("author only")
@@ -159,8 +162,9 @@ describe("Inkwell IF runtime", () => {
     } as FullProject
 
     const twee = projectToTwee(project)
-    expect(twee).toContain(":: Vault [Start]")
-    expect(twee).not.toContain(":: Introduction [Start]")
+    if (process.env.INKWELL_TWEE_ALT_START_QA_PATH) writeFileSync(process.env.INKWELL_TWEE_ALT_START_QA_PATH, twee)
+    expect(twee).toContain('"start": "Vault"')
+    expect(twee).toContain(":: Vault\n")
     expect(parseTweeToIF(twee, "Fallback").scenes[0].heading).toBe("Vault")
   })
 })

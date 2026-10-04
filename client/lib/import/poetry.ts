@@ -125,6 +125,8 @@ export function parseChordProToPoetry(text: string, fallbackTitle: string): Pars
       pendingBreak = elements.length > 0
       continue
     }
+    // ChordPro processors may append chord diagram definitions as comments.
+    if (trimmed.startsWith("#")) continue
 
     const directive = DIRECTIVE.exec(trimmed)
     if (directive) {

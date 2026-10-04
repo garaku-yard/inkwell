@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf"
 import type { FullProject } from "@/services/project"
+import { editorHtmlToInline, plainInlineText } from "@/lib/editor/inline-content"
 
 // US Letter in points (72pt = 1 inch)
 const PAGE_W = 612
@@ -32,6 +33,8 @@ const MAX_W = {
   transition:    TEXT_W,
 }
 
+const screenplayText = (content: string) => plainInlineText(editorHtmlToInline(content))
+
 function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
   // jsPDF splitTextToSize handles word-wrap
   return doc.splitTextToSize(text, maxWidth)
@@ -44,7 +47,13 @@ function pageNumber(doc: jsPDF, n: number) {
   doc.text(label, PAGE_W - MARGIN_RIGHT, MARGIN_TOP - LINE_H, { align: "right" })
 }
 
-function buildScreenplayPDF(project: FullProject): jsPDF {
+export interface ScreenplaySubmissionOptions {
+  byline?: string
+  contact?: string
+  anonymous?: boolean
+}
+
+function buildScreenplayPDF(project: FullProject, options: ScreenplaySubmissionOptions = {}): jsPDF {
   const doc = new jsPDF({
     unit: "pt",
     format: "letter",
@@ -56,6 +65,7 @@ function buildScreenplayPDF(project: FullProject): jsPDF {
 
   let y = MARGIN_TOP
   let page = 1
+  let characterCue = ""
 
   function ensureSpace(needed: number) {
     if (y + needed > PAGE_H - MARGIN_BOTTOM) {
@@ -93,6 +103,12 @@ function buildScreenplayPDF(project: FullProject): jsPDF {
   doc.text(project.title.toUpperCase(), PAGE_W / 2, PAGE_H / 2 - 30, { align: "center" })
   doc.setFontSize(FONT_SIZE)
   doc.setFont("Courier", "normal")
+  if (!options.anonymous && options.byline?.trim()) {
+    doc.text(`Written by ${options.byline.trim()}`, PAGE_W / 2, PAGE_H / 2 + 12, { align: "center", maxWidth: TEXT_W })
+  }
+  if (!options.anonymous && options.contact?.trim()) {
+    doc.text(options.contact.trim().split(/\r?\n/), MARGIN_LEFT, PAGE_H - MARGIN_BOTTOM - 48)
+  }
 
   doc.addPage()
   page = 1
@@ -111,14 +127,14 @@ function buildScreenplayPDF(project: FullProject): jsPDF {
     ensureSpace(LINE_H * 2)
     y += LINE_H // blank line before scene heading
     writeBlock(
-      wrapText(doc, scene.scene_heading || "SCENE", MAX_W.scene),
+      wrapText(doc, screenplayText(scene.scene_heading || "SCENE"), MAX_W.scene),
       COL.scene,
       true,
       true,
     )
 
     for (const el of elements) {
-      const content = el.content?.trim() || ""
+      const content = screenplayText(el.content?.trim() || "")
       if (!content) continue
 
       switch (el.element_type) {
@@ -132,7 +148,9 @@ function buildScreenplayPDF(project: FullProject): jsPDF {
         }
         case "CHARACTER": {
           y += LINE_H // blank line before character cue
-          ensureSpace(LINE_H)
+          characterCue = content.toUpperCase()
+          // Keep the cue with at least the first line of its dialogue.
+          ensureSpace(LINE_H * 3)
           writeBlock(
             wrapText(doc, content, MAX_W.character),
             COL.character,
@@ -150,8 +168,20 @@ function buildScreenplayPDF(project: FullProject): jsPDF {
         case "DIALOG":
         case "DIALOGUE": {
           const lines = wrapText(doc, content, MAX_W.dialogue)
-          ensureSpace(lines.length * LINE_H)
-          writeBlock(lines, COL.dialogue)
+          for (let index = 0; index < lines.length; index++) {
+            const hasMore = index < lines.length - 1
+            if (y + LINE_H * (hasMore ? 2 : 1) > PAGE_H - MARGIN_BOTTOM) {
+              if (index > 0) {
+                doc.text("(MORE)", MARGIN_LEFT + COL.dialogue + MAX_W.dialogue, y, { align: "right" })
+                doc.addPage()
+                page++
+                pageNumber(doc, page)
+                y = MARGIN_TOP
+                if (characterCue) writeBlock([`${characterCue} (CONT'D)`], COL.character)
+              } else ensureSpace(LINE_H * 2)
+            }
+            writeBlock([lines[index]], COL.dialogue)
+          }
           break
         }
         case "TRANSITION": {
@@ -196,11 +226,11 @@ function buildScreenplayPDF(project: FullProject): jsPDF {
 }
 
 /** Produces PDF bytes without opening a save dialog (Drive backup path). */
-export function renderScreenplayPdfBytes(project: FullProject): Uint8Array {
-  return new Uint8Array(buildScreenplayPDF(project).output("arraybuffer"))
+export function renderScreenplayPdfBytes(project: FullProject, options: ScreenplaySubmissionOptions = {}): Uint8Array {
+  return new Uint8Array(buildScreenplayPDF(project, options).output("arraybuffer"))
 }
 
-export function exportScreenplayToPDF(project: FullProject): void {
+export function exportScreenplayToPDF(project: FullProject, options: ScreenplaySubmissionOptions = {}): void {
   const filename = `${project.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`
-  buildScreenplayPDF(project).save(filename)
+  buildScreenplayPDF(project, options).save(filename)
 }
