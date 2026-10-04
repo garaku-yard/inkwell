@@ -98,7 +98,7 @@ export const CommentPanel = React.memo(
                             <span className="mx-1.5">&middot;</span>
                             <span>{formatTimestamp(comment.timestamp)}</span>
                           </div>
-                          <div className="flex items-center gap-1 -mt-1">
+                          {comment.canEdit !== false && <div className="flex items-center gap-1 -mt-1">
                             <Button
                               variant="ghost"
                               size="icon"
@@ -141,7 +141,7 @@ export const CommentPanel = React.memo(
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             )}
-                          </div>
+                          </div>}
                         </div>
 
                         {editingComment?.id === comment.id && !comment.isResolved ? (

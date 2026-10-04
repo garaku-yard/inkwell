@@ -1428,6 +1428,7 @@ type AddCommentRequest struct {
 	CharPosition    int32                  `protobuf:"varint,8,opt,name=char_position,json=charPosition,proto3" json:"char_position,omitempty"`
 	ParentId        *string                `protobuf:"bytes,9,opt,name=parent_id,json=parentId,proto3,oneof" json:"parent_id,omitempty"` // For replies
 	CallerRole      CallerRole             `protobuf:"varint,10,opt,name=caller_role,json=callerRole,proto3,enum=collab.CallerRole" json:"caller_role,omitempty"`
+	ClientCommentId *string                `protobuf:"bytes,11,opt,name=client_comment_id,json=clientCommentId,proto3,oneof" json:"client_comment_id,omitempty"` // Stable desktop ID for retry-safe creation
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1532,6 +1533,13 @@ func (x *AddCommentRequest) GetCallerRole() CallerRole {
 	return CallerRole_CALLER_ROLE_UNSPECIFIED
 }
 
+func (x *AddCommentRequest) GetClientCommentId() string {
+	if x != nil && x.ClientCommentId != nil {
+		return *x.ClientCommentId
+	}
+	return ""
+}
+
 type AddCommentResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Comment       *Comment               `protobuf:"bytes,1,opt,name=comment,proto3" json:"comment,omitempty"`
@@ -1581,6 +1589,8 @@ type GetCommentsRequest struct {
 	ScreenplayId  string                 `protobuf:"bytes,1,opt,name=screenplay_id,json=screenplayId,proto3" json:"screenplay_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                    // For authorization check
 	LineNumber    *int32                 `protobuf:"varint,3,opt,name=line_number,json=lineNumber,proto3,oneof" json:"line_number,omitempty"` // Filter by line
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	Limit         int32                  `protobuf:"varint,5,opt,name=limit,proto3" json:"limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1632,6 +1642,20 @@ func (x *GetCommentsRequest) GetUserId() string {
 func (x *GetCommentsRequest) GetLineNumber() int32 {
 	if x != nil && x.LineNumber != nil {
 		return *x.LineNumber
+	}
+	return 0
+}
+
+func (x *GetCommentsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *GetCommentsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
 	}
 	return 0
 }
@@ -3243,7 +3267,7 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\vcaller_role\x18\x03 \x01(\x0e2\x12.collab.CallerRoleR\n" +
 	"callerRole\"6\n" +
 	"\x1aRemoveCollaboratorResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xa9\x03\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xf0\x03\n" +
 	"\x11AddCommentRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12#\n" +
@@ -3258,18 +3282,22 @@ const file_collab_collab_proto_rawDesc = "" +
 	"\tparent_id\x18\t \x01(\tH\x02R\bparentId\x88\x01\x01\x123\n" +
 	"\vcaller_role\x18\n" +
 	" \x01(\x0e2\x12.collab.CallerRoleR\n" +
-	"callerRoleB\x14\n" +
+	"callerRole\x12/\n" +
+	"\x11client_comment_id\x18\v \x01(\tH\x03R\x0fclientCommentId\x88\x01\x01B\x14\n" +
 	"\x12_script_element_idB\v\n" +
 	"\t_scene_idB\f\n" +
 	"\n" +
-	"_parent_id\"?\n" +
+	"_parent_idB\x14\n" +
+	"\x12_client_comment_id\"?\n" +
 	"\x12AddCommentResponse\x12)\n" +
-	"\acomment\x18\x01 \x01(\v2\x0f.collab.CommentR\acomment\"\x88\x01\n" +
+	"\acomment\x18\x01 \x01(\v2\x0f.collab.CommentR\acomment\"\xb6\x01\n" +
 	"\x12GetCommentsRequest\x12#\n" +
 	"\rscreenplay_id\x18\x01 \x01(\tR\fscreenplayId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12$\n" +
 	"\vline_number\x18\x03 \x01(\x05H\x00R\n" +
-	"lineNumber\x88\x01\x01B\x0e\n" +
+	"lineNumber\x88\x01\x01\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12\x14\n" +
+	"\x05limit\x18\x05 \x01(\x05R\x05limitB\x0e\n" +
 	"\f_line_number\"B\n" +
 	"\x13GetCommentsResponse\x12+\n" +
 	"\bcomments\x18\x01 \x03(\v2\x0f.collab.CommentR\bcomments\"\xe4\x01\n" +

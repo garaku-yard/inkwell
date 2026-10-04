@@ -415,8 +415,12 @@ func (h *CollaborationHandler) AddComment(ctx context.Context, req *collab_pb.Ad
 
 	lineNumber := parseOptionalInt32(req.LineNumber)
 	charPosition := parseOptionalInt32(req.CharPosition)
+	clientID, err := parseOptionalStringPtr(req.ClientCommentId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid client comment ID: %v", err)
+	}
 
-	comment, err := h.service.AddComment(ctx, userID, projectID, callerRoleFromProto(req.CallerRole), req.Content, elementID, sceneID, parentID, lineNumber, charPosition)
+	comment, err := h.service.AddComment(ctx, userID, projectID, callerRoleFromProto(req.CallerRole), req.Content, elementID, sceneID, parentID, lineNumber, charPosition, clientID)
 	if err != nil {
 		return nil, handleServiceError(err, "failed to add comment")
 	}
@@ -448,7 +452,7 @@ func (h *CollaborationHandler) AddComment(ctx context.Context, req *collab_pb.Ad
 }
 
 // GetComments retrieves comments for a project. screenplay_id is treated as project_id
-// in the current data model. Returns up to 100 comments starting from offset 0.
+// in the current data model. Returns a bounded page of comments.
 func (h *CollaborationHandler) GetComments(ctx context.Context, req *collab_pb.GetCommentsRequest) (*collab_pb.GetCommentsResponse, error) {
 	screenplayID, err := parseUUID(req.ScreenplayId)
 	if err != nil {
@@ -462,7 +466,15 @@ func (h *CollaborationHandler) GetComments(ctx context.Context, req *collab_pb.G
 
 	// For this simplified version, we'll get all comments for the project
 	// Since we're using project ID as screenplay ID, treat screenplay ID as project ID
-	comments, err := h.service.GetComments(ctx, userID, screenplayID, nil, nil, 0, 100)
+	limit := req.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+	offset := req.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	comments, err := h.service.GetComments(ctx, userID, screenplayID, nil, nil, offset, limit)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get comments: %v", err)
 	}
@@ -519,8 +531,8 @@ func (h *CollaborationHandler) UpdateComment(ctx context.Context, req *collab_pb
 		}
 	}
 
-	if req.IsResolved != nil && *req.IsResolved {
-		err = h.service.ResolveComment(ctx, userID, commentID, callerRoleFromProto(req.CallerRole))
+	if req.IsResolved != nil {
+		err = h.service.SetCommentResolved(ctx, userID, commentID, callerRoleFromProto(req.CallerRole), *req.IsResolved)
 		if err != nil {
 			return nil, handleServiceError(err, "failed to resolve comment")
 		}

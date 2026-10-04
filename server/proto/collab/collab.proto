@@ -177,6 +177,7 @@ message AddCommentRequest {
   int32 char_position = 8;
   optional string parent_id = 9; // For replies
   CallerRole caller_role = 10;
+  optional string client_comment_id = 11; // Stable desktop ID for retry-safe creation
 }
 
 message AddCommentResponse {
@@ -187,6 +188,8 @@ message GetCommentsRequest {
   string screenplay_id = 1;
   string user_id = 2; // For authorization check
   optional int32 line_number = 3; // Filter by line
+  int32 offset = 4;
+  int32 limit = 5;
 }
 
 message GetCommentsResponse {

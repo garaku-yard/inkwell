@@ -111,3 +111,50 @@ func TestValidateRoleRejectsProjectOwnerProjection(t *testing.T) {
 		t.Fatalf("ValidateRole(owner) = %v, want ErrInvalidRole", err)
 	}
 }
+
+type commentRetryRepo struct {
+	repository.CollaborationRepository
+	comment *domain.Comment
+	creates int
+}
+
+func (r *commentRetryRepo) CreateComment(_ context.Context, comment *domain.Comment) (bool, error) {
+	if r.comment != nil {
+		return false, nil
+	}
+	r.comment = comment
+	r.creates++
+	return true, nil
+}
+
+func (r *commentRetryRepo) GetCommentByID(_ context.Context, id uuid.UUID) (*domain.Comment, error) {
+	if r.comment == nil || r.comment.ID != id {
+		return nil, domain.ErrCommentNotFound
+	}
+	return r.comment, nil
+}
+
+func (r *commentRetryRepo) GetProjectCollaborators(context.Context, uuid.UUID) ([]*domain.Collaborator, error) {
+	return nil, nil
+}
+
+func TestAddCommentClientIDRetryIsIdempotentAndBoundToAuthor(t *testing.T) {
+	ctx := context.Background()
+	repo := &commentRetryRepo{}
+	svc := NewCollaborationService(nil, repo, nil, nil)
+	userID, projectID, commentID, elementID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	first, err := svc.AddComment(ctx, userID, projectID, "owner", "first text", &elementID, nil, nil, nil, nil, &commentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retry, err := svc.AddComment(ctx, userID, projectID, "owner", "edited while retrying", &elementID, nil, nil, nil, nil, &commentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ID != retry.ID || repo.creates != 1 {
+		t.Fatalf("retry created a second comment: first=%v retry=%v creates=%d", first.ID, retry.ID, repo.creates)
+	}
+	if _, err := svc.AddComment(ctx, uuid.New(), projectID, "owner", "other", &elementID, nil, nil, nil, nil, &commentID); !errors.Is(err, domain.ErrUnauthorized) {
+		t.Fatalf("another author reused the client ID: %v", err)
+	}
+}

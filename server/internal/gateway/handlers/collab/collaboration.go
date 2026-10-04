@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -389,6 +390,7 @@ func (h *CollaborationHandler) GetProjectCollaborators(w http.ResponseWriter, r 
 // addCommentBody is the JSON request shape for AddComment.
 type addCommentBody struct {
 	ProjectID       string  `json:"project_id"`
+	ClientCommentID *string `json:"client_comment_id,omitempty"`
 	ScreenplayID    string  `json:"screenplay_id"`
 	Content         string  `json:"content"`
 	ScriptElementID *string `json:"script_element_id,omitempty"`
@@ -424,9 +426,35 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 			if authErr != nil {
 				return nil, authErr
 			}
+			if req.ScriptElementID != nil && req.SceneID != nil {
+				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "choose one comment target")
+			}
+			if req.ScriptElementID != nil || req.SceneID != nil {
+				resourceType := scripts.ResourceType_RESOURCE_TYPE_ELEMENT
+				resourceID := req.ScriptElementID
+				if req.SceneID != nil {
+					resourceType = scripts.ResourceType_RESOURCE_TYPE_SCENE
+					resourceID = req.SceneID
+				}
+				owner, err := h.scriptsClient.GetResourceProject(ctx, &scripts.GetResourceProjectRequest{
+					ResourceType: resourceType, ResourceId: *resourceID,
+				})
+				if err != nil || owner.ProjectId != req.ProjectID {
+					return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "comment target is not in this project")
+				}
+			}
+			if req.ParentID != nil {
+				parent, err := h.client.GetResourceProject(ctx, &collab.GetResourceProjectRequest{
+					ResourceType: collab.ResourceType_RESOURCE_TYPE_COMMENT, ResourceId: *req.ParentID,
+				})
+				if err != nil || parent.ProjectId != req.ProjectID {
+					return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "comment parent is not in this project")
+				}
+			}
 
 			resp, err := h.client.AddComment(ctx, &collab.AddCommentRequest{
 				ProjectId:       req.ProjectID,
+				ClientCommentId: req.ClientCommentID,
 				ScreenplayId:    req.ScreenplayID,
 				UserId:          userID,
 				Content:         req.Content,
@@ -475,9 +503,17 @@ func (h *CollaborationHandler) AddComment(w http.ResponseWriter, r *http.Request
 	}.ServeHTTP(w, r)
 }
 
-// GetComments returns all comments for a project, identified by screenplay_id.
+// GetComments returns a page of comments for a project, identified by screenplay_id.
 // Verifies the caller has access via handlers.ResolveProjectAccess before fetching. Each
 // comment is enriched with the author's username from the identity service.
+func parseCommentOffset(value string) int32 {
+	n, err := strconv.ParseInt(value, 10, 32)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return int32(n)
+}
+
 func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Request) {
 	handlers.Endpoint[struct{}, []map[string]interface{}]{
 		Method: http.MethodGet,
@@ -500,6 +536,8 @@ func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Reques
 			resp, err := h.client.GetComments(ctx, &collab.GetCommentsRequest{
 				ScreenplayId: screenplayID,
 				UserId:       userID,
+				Offset:       parseCommentOffset(r.URL.Query().Get("offset")),
+				Limit:        100,
 			})
 			if err != nil {
 				return nil, apierror.New(apierror.CodeInternal, http.StatusInternalServerError, "Failed to get comments")
@@ -508,14 +546,16 @@ func (h *CollaborationHandler) GetComments(w http.ResponseWriter, r *http.Reques
 			// Convert response to JSON and fetch usernames
 			// Initialize as empty slice to ensure JSON encoding returns [] instead of null
 			comments := make([]map[string]interface{}, 0)
+			usernames := make(map[string]string)
 			for _, comment := range resp.Comments {
-				// Get username from identity service
-				username := comment.UserId // fallback to user ID
-				userResp, err := h.identityClient.GetUser(ctx, &identity.GetUserRequest{
-					UserId: comment.UserId,
-				})
-				if err == nil && userResp.User != nil {
-					username = userResp.User.Username
+				username, known := usernames[comment.UserId]
+				if !known {
+					username = comment.UserId // fallback to user ID
+					userResp, err := h.identityClient.GetUser(ctx, &identity.GetUserRequest{UserId: comment.UserId})
+					if err == nil && userResp.User != nil {
+						username = userResp.User.Username
+					}
+					usernames[comment.UserId] = username
 				}
 
 				comments = append(comments, map[string]interface{}{
@@ -1048,7 +1088,7 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 			if lookupErr != nil {
 				return nil, lookupErr
 			}
-			resolvingThread := updateData.IsResolved != nil && *updateData.IsResolved
+			resolvingThread := updateData.IsResolved != nil
 			isSelf := userID == resourceResp.OwnerUserId
 			action := handlers.ActionCommentModerate
 			if isSelf && !resolvingThread {
