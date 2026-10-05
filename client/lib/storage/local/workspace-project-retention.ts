@@ -57,9 +57,11 @@ async function expireWorkspaceProject(projectId: string, timestamp: string): Pro
 
 /** Reconcile the local format-workspace membership. Removing the last personal
  * workspace for a format hides its projects without deleting or syncing them.
- * Recreating that format within 30 days restores them. Expired local projects
- * are purged; synced ones become tombstones and are purged after sync confirms
- * the deletion. Returns expired synced IDs for a best-effort sync attempt. */
+ * A new workspace for the same format does not undo that deletion: only an
+ * explicit recovery action may clear workspace_removed_at. Expired local
+ * projects are purged; synced ones become tombstones and are purged after sync
+ * confirms the deletion. Returns expired synced IDs for a best-effort sync
+ * attempt. */
 async function reconcile(): Promise<string[]> {
   const db = await getDb()
   const timestamp = now()
@@ -79,11 +81,7 @@ async function reconcile(): Promise<string[]> {
     const removedAt = project.workspace_removed_at
     if (removedAt && removedAt <= cutoff) {
       if (await expireWorkspaceProject(project.id, timestamp)) expiredSyncedIds.add(project.id)
-    } else if (coversEveryCategory || coveredCategories.has(project.category)) {
-      if (removedAt) {
-        await db.execute("UPDATE projects SET workspace_removed_at = NULL WHERE id = ?", [project.id])
-      }
-    } else if (!removedAt) {
+    } else if (!removedAt && !coversEveryCategory && !coveredCategories.has(project.category)) {
       await db.execute(
         "UPDATE projects SET workspace_removed_at = ? WHERE id = ? AND workspace_removed_at IS NULL",
         [timestamp, project.id],

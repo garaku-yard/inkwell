@@ -41,7 +41,6 @@ beforeEach(() => {
   h.execute.mockReset().mockImplementation(async (sql: string, args: unknown[]) => {
     const row = h.projects.find((item) => item.id === (sql.includes("UPDATE projects SET deleted_at") ? args[2] : args.at(-1)))
     if (sql.includes("SET workspace_removed_at = ?") && row) row.workspace_removed_at = args[0] as string
-    if (sql.includes("SET workspace_removed_at = NULL") && row) row.workspace_removed_at = null
     if (sql.includes("SET deleted_at = ?") && row) row.deleted_at = args[0] as string
     if (sql.includes("DELETE FROM projects")) h.projects = h.projects.filter((item) => item.id !== args[0])
   })
@@ -50,7 +49,7 @@ beforeEach(() => {
 })
 
 describe("personal workspace project recovery", () => {
-  it("hides orphaned projects and restores them when their format workspace returns", async () => {
+  it("keeps deleted-workspace projects hidden when a new workspace for the format appears", async () => {
     h.projects = [project("poem"), project("org-poem")]
     h.projects[1].org_id = "org"
     await reconcileWorkspaceProjects()
@@ -59,16 +58,20 @@ describe("personal workspace project recovery", () => {
     expect(h.projects[0].deleted_at).toBeNull()
 
     h.workspaces = [{ categories_json: '[{"slug":"poetry"}]' }]
+    h.projects.push(project("new-poem"))
     await reconcileWorkspaceProjects()
-    expect(h.projects[0].workspace_removed_at).toBeNull()
-    expect(h.projects).toHaveLength(2)
+    expect(h.projects[0].workspace_removed_at).toBe(h.timestamp)
+    expect(h.projects[2].workspace_removed_at).toBeNull()
+    expect(h.projects).toHaveLength(3)
   })
 
   it("treats a personal workspace with no category restriction as covering all formats", async () => {
     h.workspaces = [{ categories_json: "[]" }]
-    h.projects = [project("poem"), project("script", "interactive_fiction")]
+    h.projects = [project("poem"), project("script", "interactive_fiction"), project("deleted", "poetry", h.timestamp)]
     await reconcileWorkspaceProjects()
-    expect(h.projects.every((item) => item.workspace_removed_at === null)).toBe(true)
+    expect(h.projects[0].workspace_removed_at).toBeNull()
+    expect(h.projects[1].workspace_removed_at).toBeNull()
+    expect(h.projects[2].workspace_removed_at).toBe(h.timestamp)
   })
 
   it("permanently removes an unsynced project after 30 days", async () => {
