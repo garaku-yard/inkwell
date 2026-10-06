@@ -151,6 +151,8 @@ export interface Comment {
   isResolved: boolean
   elementId?: string
   isScene?: boolean
+  /** Desktop: whether the linked account can change this locally. */
+  canEdit?: boolean
 }
 
 // ─── Projects ─────────────────────────────────────────────────────────────

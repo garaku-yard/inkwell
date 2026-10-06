@@ -42,13 +42,13 @@ type CollaborationRepository interface {
 	DeclineInvitationByID(ctx context.Context, invitationID uuid.UUID) error
 
 	// Comment operations
-	CreateComment(ctx context.Context, comment *domain.Comment) error
+	CreateComment(ctx context.Context, comment *domain.Comment) (bool, error)
 	GetCommentByID(ctx context.Context, id uuid.UUID) (*domain.Comment, error)
 	GetProjectComments(ctx context.Context, projectID uuid.UUID, offset, limit int32) ([]*domain.Comment, error)
 	GetElementComments(ctx context.Context, elementID uuid.UUID, offset, limit int32) ([]*domain.Comment, error)
 	GetSceneComments(ctx context.Context, sceneID uuid.UUID, offset, limit int32) ([]*domain.Comment, error)
 	UpdateComment(ctx context.Context, id uuid.UUID, content string) error
-	ResolveComment(ctx context.Context, id uuid.UUID) error
+	SetCommentResolved(ctx context.Context, id uuid.UUID, resolved bool) error
 	DeleteComment(ctx context.Context, id uuid.UUID) error
 
 	// Edit session operations (durable advisory locks). A session is active

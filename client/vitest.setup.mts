@@ -9,7 +9,7 @@ afterEach(() => {
 // jsdom doesn't ship matchMedia or ResizeObserver. Several editor
 // components and shadcn primitives reach for them at mount; stubbing
 // them here keeps individual tests from having to.
-if (!("matchMedia" in window)) {
+if (typeof window !== "undefined" && !("matchMedia" in window)) {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
@@ -25,7 +25,7 @@ if (!("matchMedia" in window)) {
   })
 }
 
-if (!("ResizeObserver" in window)) {
+if (typeof window !== "undefined" && !("ResizeObserver" in window)) {
   ;(window as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
     observe() {}
     unobserve() {}

@@ -139,6 +139,31 @@ project card + a Settings → Sync section. `SyncControl` (editor header) +
 (no `sync` capability). `CloudProjectsButton` on the dashboard lists cloud
 projects and pulls a chosen one onto a fresh device.
 
+## Desktop comments (collaboration service)
+
+Comments live in the hosted collaboration service, outside the scripts-service
+project-row delta. After a successful row sync, `local/comment-sync.ts` pushes
+the desktop project's pending `local_comments` changes through the authenticated
+comment API and reads every hosted page back into SQLite. The editor reloads
+when that pull completes. Offline creates keep their local UUID; the gateway
+accepts it as `client_comment_id`, and a repeated create returns the same
+comment after checking its project, author, and target. A lost POST response
+therefore cannot duplicate a comment. Edits use a revision guard, deletes stay
+hidden locally until confirmed, and an empty hosted list only removes local
+rows previously confirmed there. The queue survives restart in migration
+`0021_local_comment_sync.sql`.
+
+The gateway checks project access and verifies scene, element, and parent
+comment ownership before accepting a new comment. Desktop offline edits are
+limited to comments authored by the linked account. A later account switch can
+reload confirmed hosted comments; unsent edits from the previous account stay
+local and block that switch until reconciled. Conflict behavior is last sync
+wins for the same comment. This path uses a complete paginated hosted list each
+round because the collaboration service has no comment delta cursor yet; large
+projects should gain a cursor before increasing sync frequency. An in-memory
+two-device SQLite/API test covers add, edit, resolve/reopen, delete, retry, and
+pagination. A live two-device desktop/gateway check remains the release gate.
+
 ## Vault file sync (path-keyed engine)
 
 Vault projects are a folder of real files, not UUID rows, so they sync through a

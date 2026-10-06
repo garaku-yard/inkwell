@@ -40,6 +40,14 @@ export function useEditorComments(projectId: string) {
     void reloadComments()
   }, [reloadComments])
 
+  useEffect(() => {
+    const onSync = (event: Event) => {
+      if ((event as CustomEvent<{ projectId: string }>).detail?.projectId === projectId) void reloadComments()
+    }
+    window.addEventListener("inkwell-comments-synced", onSync)
+    return () => window.removeEventListener("inkwell-comments-synced", onSync)
+  }, [projectId, reloadComments])
+
   const onAddComment = useCallback(
     async (elementId: string, isScene: boolean, content: string) => {
       if (!content.trim()) return

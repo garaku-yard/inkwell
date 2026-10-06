@@ -16,6 +16,7 @@ import { apiClient, getAuthToken } from "@/lib/api"
 import type { SyncProjectState, SyncStorage } from "@/lib/storage"
 import { getDb, LOCAL_USER_ID, now, SYNCED_PROJECT_CHILD_TABLES } from "./shared"
 import { runVaultSync } from "./vault-sync"
+import { syncProjectComments } from "./comment-sync"
 import {
   fromTs,
   pushBeat,
@@ -434,6 +435,10 @@ export const sync: SyncStorage = {
       )
       // Drop the rows we just pushed; edits enqueued mid-sync (seq > maxSeq) stay.
       await db.execute("DELETE FROM sync_outbox WHERE project_id = ? AND seq <= ?", [projectId, maxSeq])
+      const projectRows = await db.select<Array<{ deleted_at: string | null }>>(
+        "SELECT deleted_at FROM projects WHERE id = ?", [projectId],
+      )
+      if (projectRows[0] && !projectRows[0].deleted_at) await syncProjectComments(projectId)
       // Time-based tombstone GC: reclaim rows deleted long enough ago that every
       // device has surely seen the deletion.
       await purgeLocalTombstones(projectId)
