@@ -5,6 +5,8 @@ import { readDocumentMetadata } from "@/lib/editor/document-metadata"
 import { plainInlineText, readInlineRuns, type InlineRun } from "@/lib/editor/inline-content"
 import type { FullProject, ProjectElement } from "@/services/project"
 import { manuscriptSubmissionDefaults, type ManuscriptProfile, type ManuscriptSubmissionOptions } from "./manuscript-options"
+import { PROSE_PAPER } from "@/lib/editor/prose-paper"
+import { novelBlockText, novelNumbering, novelReferenceLabel, parseNovelBlock } from "@/lib/editor/novel-blocks"
 export { manuscriptSubmissionDefaults } from "./manuscript-options"
 export type { ManuscriptProfile, ManuscriptSubmissionOptions } from "./manuscript-options"
 
@@ -16,24 +18,35 @@ const sortedElements = (elements: ProjectElement[] | undefined) => [...(elements
 const xml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;")
 
 function pageBlocks(project: FullProject, profile: ManuscriptProfile) {
+  const numbers = project.category === "novel" ? novelNumbering(project) : null
   return sortedScenes(project).map((scene) => ({
     title: scene.scene_heading || (profile === "poetry" ? "Untitled poem" : "Untitled chapter"),
     subtitle: readDocumentMetadata(scene.content).subtitle ?? "",
     dedication: readDocumentMetadata(scene.content).dedication ?? "",
     epigraph: readDocumentMetadata(scene.content).epigraph ?? "",
     alignment: readDocumentMetadata(scene.content).alignment ?? "left",
-    elements: sortedElements(scene.elements),
+    elements: sortedElements(scene.elements).map(element => {
+      const block = numbers && parseNovelBlock(element)
+      if (!block) return element
+      const label = block.kind === "figure" ? numbers.figureLabels.get(element.id)
+        : block.kind === "step" ? numbers.stepLabels.get(element.id)
+        : block.kind === "cross_reference" ? novelReferenceLabel(block, numbers) : undefined
+      return { ...element, content: novelBlockText(block, label, numbers), element_type: "paragraph" }
+    }),
   }))
 }
 
-/** US-letter submission layout: one-inch margins, page numbers, and separate
+/** Submission layout with page numbers and separate
  * prose/poetry spacing rules. A new chapter or poem starts on a fresh page. */
 export function renderManuscriptPdfBytes(project: FullProject, profile: ManuscriptProfile, choices: ManuscriptSubmissionOptions = {}): Uint8Array {
-  const doc = new jsPDF({ unit: "pt", format: "letter", orientation: "portrait" })
   const options = { ...manuscriptSubmissionDefaults(project, profile), ...choices }
-  const margin = 72
-  const width = 612 - margin * 2
-  const bottom = 792 - margin
+  const paper = PROSE_PAPER[profile === "prose" ? options.paperSize : "letter"]
+  const pageWidth = paper.widthMm * 72 / 25.4
+  const pageHeight = paper.heightMm * 72 / 25.4
+  const margin = paper.marginMm * 72 / 25.4
+  const doc = new jsPDF({ unit: "pt", format: [pageWidth, pageHeight], orientation: "portrait" })
+  const width = pageWidth - margin * 2
+  const bottom = pageHeight - margin
   const bodySpacing = spacingPoints(options.lineSpacing)
   let page = 1
   let y = margin
@@ -42,12 +55,20 @@ export function renderManuscriptPdfBytes(project: FullProject, profile: Manuscri
     doc.setFont("times", "normal")
     doc.setFontSize(10)
     const label = `${options.runningHeader.trim()}${options.runningHeader.trim() ? " / " : ""}${page}`
-    doc.text(label, 612 - margin, 48, { align: "right", maxWidth: width })
+    doc.text(label, pageWidth - margin, margin * 0.67, { align: "right", maxWidth: width })
   }
   const newPage = () => { doc.addPage(); page++; y = margin; header() }
+  if (profile === "prose" && /^data:image\/(jpeg|png);base64,/.test(options.coverImage)) {
+    const image = doc.getImageProperties(options.coverImage)
+    const scale = Math.min(width / image.width, (pageHeight - 2 * margin) / image.height)
+    const imageWidth = image.width * scale
+    const imageHeight = image.height * scale
+    doc.addImage(options.coverImage, image.fileType, (pageWidth - imageWidth) / 2, (pageHeight - imageHeight) / 2, imageWidth, imageHeight)
+    newPage()
+  }
   const line = (text: string, options: { center?: boolean; bold?: boolean; italic?: boolean; indent?: number; spacing?: number } = {}) => {
     const size = 12
-    const x = options.center ? 306 : margin + (options.indent ?? 0)
+    const x = options.center ? pageWidth / 2 : margin + (options.indent ?? 0)
     const usable = options.center ? width : width - (options.indent ?? 0)
     doc.setFont("times", options.bold ? "bold" : options.italic ? "italic" : "normal")
     doc.setFontSize(size)
@@ -62,7 +83,7 @@ export function renderManuscriptPdfBytes(project: FullProject, profile: Manuscri
 
   /** Preserve inline marks while wrapping each authored line. A continuation
    * hangs inward so a visual wrap cannot be mistaken for a new poem line. */
-  const poetryLine = (content: string, centered: boolean, proseBlock: boolean) => {
+  const richLine = (content: string, centered: boolean, proseBlock: boolean, indentPoints = 0, baseBold = false, spacing = bodySpacing) => {
     const source = readInlineRuns(content).map((run) => ({ ...run }))
     const leading = centered ? 0 : (plainInlineText(content).match(/^ */)?.[0].length ?? 0)
     let toStrip = leading
@@ -74,7 +95,7 @@ export function renderManuscriptPdfBytes(project: FullProject, profile: Manuscri
     }
     doc.setFont("times", "normal")
     doc.setFontSize(12)
-    const initialIndent = centered ? 0 : Math.min(width / 2, doc.getTextWidth(" ".repeat(leading)))
+    const initialIndent = centered ? 0 : indentPoints + Math.min(width / 2, doc.getTextWidth(" ".repeat(leading)))
     const hangingIndent = proseBlock || centered ? 0 : 18
     type Fragment = { text: string; width: number; marks: InlineRun }
     type Row = { fragments: Fragment[]; width: number }
@@ -83,7 +104,7 @@ export function renderManuscriptPdfBytes(project: FullProject, profile: Manuscri
     const available = () => width - initialIndent - (rows.length > 1 ? hangingIndent : 0)
     const nextRow = () => rows.push({ fragments: [], width: 0 })
     const font = (run: InlineRun) => {
-      doc.setFont("times", run.strong ? (run.emphasis ? "bolditalic" : "bold") : run.emphasis ? "italic" : "normal")
+      doc.setFont("times", run.strong || baseBold ? (run.emphasis ? "bolditalic" : "bold") : run.emphasis ? "italic" : "normal")
       doc.setFontSize(run.smallCaps ? 10 : 12)
     }
     const add = (value: string, run: InlineRun) => {
@@ -120,11 +141,15 @@ export function renderManuscriptPdfBytes(project: FullProject, profile: Manuscri
       }
     }
     for (let index = 0; index < rows.length; index++) {
-      if (y + bodySpacing > bottom) newPage()
+      if (y + spacing > bottom) newPage()
       const row = rows[index]
-      let x = centered ? 306 - row.width / 2 : margin + initialIndent + (index > 0 ? hangingIndent : 0)
+      let x = centered ? pageWidth / 2 - row.width / 2 : margin + initialIndent + (index > 0 ? hangingIndent : 0)
       for (const fragment of row.fragments) {
         font(fragment.marks)
+        if (fragment.marks.color) {
+          const hex = fragment.marks.color.slice(1)
+          doc.setTextColor(Number.parseInt(hex.slice(0, 2), 16), Number.parseInt(hex.slice(2, 4), 16), Number.parseInt(hex.slice(4, 6), 16))
+        } else doc.setTextColor(0)
         doc.text(fragment.text, x, y)
         if (fragment.marks.underline) {
           doc.setLineWidth(0.5)
@@ -133,23 +158,24 @@ export function renderManuscriptPdfBytes(project: FullProject, profile: Manuscri
         if (fragment.marks.href) doc.link(x, y - 11, fragment.width, 14, { url: fragment.marks.href })
         x += fragment.width
       }
-      y += bodySpacing
+      doc.setTextColor(0)
+      y += spacing
     }
   }
 
   if (options.titlePage) {
     doc.setFont("times", "bold")
     doc.setFontSize(16)
-    doc.text(doc.splitTextToSize(project.title || "Untitled", width), 306, 300, { align: "center" })
+    doc.text(doc.splitTextToSize(project.title || "Untitled", width), pageWidth / 2, pageHeight * 0.38, { align: "center" })
     if (options.byline.trim()) {
       doc.setFont("times", "normal")
       doc.setFontSize(12)
-      doc.text(options.byline.trim(), 306, 342, { align: "center", maxWidth: width })
+      doc.text(options.byline.trim(), pageWidth / 2, pageHeight * 0.43, { align: "center", maxWidth: width })
     }
     if (options.contact.trim()) {
       doc.setFont("times", "normal")
       doc.setFontSize(11)
-      doc.text(options.contact.trim().split(/\r?\n/), margin, 612)
+      doc.text(options.contact.trim().split(/\r?\n/), margin, pageHeight * 0.77)
     }
     newPage()
   } else header()
@@ -172,12 +198,12 @@ export function renderManuscriptPdfBytes(project: FullProject, profile: Manuscri
       if (!text.trim()) { y += profile === "poetry" ? 18 : 24; continue }
       if (element.element_type === "section_label" || /heading|stinger/.test(element.element_type)) {
         y += 12
-        line(text, { bold: true, spacing: profile === "prose" ? 24 : 18 })
+        richLine(element.content, false, true, 0, true, profile === "prose" ? 24 : 18)
       } else if (element.element_type === "dialogue") {
-        line(text, { indent: 36 })
+        richLine(element.content, false, true, 36)
       } else {
-        if (profile === "poetry") poetryLine(element.content, block.alignment === "center" && element.element_type !== "prose_block", element.element_type === "prose_block")
-        else line(text, { indent: 36 })
+        if (profile === "poetry") richLine(element.content, block.alignment === "center" && element.element_type !== "prose_block", element.element_type === "prose_block")
+        else richLine(element.content, false, true, 36)
       }
     }
   })
@@ -190,6 +216,7 @@ function wordRuns(content: string): string {
     const properties = [
       run.strong ? "<w:b/>" : "", run.emphasis ? "<w:i/>" : "",
       run.underline ? '<w:u w:val="single"/>' : "", run.smallCaps ? "<w:smallCaps/>" : "",
+      run.color ? `<w:color w:val="${run.color.slice(1).toUpperCase()}"/>` : "",
     ].join("")
     return `<w:r>${properties ? `<w:rPr>${properties}</w:rPr>` : ""}<w:t xml:space="preserve">${xml(run.text)}</w:t></w:r>`
   }).join("")
@@ -204,13 +231,26 @@ function wordParagraph(content: string, style: string, breakBefore = false): str
 export function renderManuscriptDocxBytes(project: FullProject, profile: ManuscriptProfile, choices: ManuscriptSubmissionOptions = {}): Uint8Array {
   const options = { ...manuscriptSubmissionDefaults(project, profile), ...choices }
   const paragraphs: string[] = []
+  const coverMatch = profile === "prose" ? options.coverImage.match(/^data:image\/(jpeg|png);base64,(.+)$/) : null
+  const hasCover = Boolean(coverMatch)
+  if (coverMatch) {
+    const paper = PROSE_PAPER[options.paperSize]
+    const availableWidth = paper.widthMm - 2 * paper.marginMm
+    const availableHeight = paper.heightMm - 2 * paper.marginMm
+    const ratio = Number.isFinite(options.coverAspectRatio) && options.coverAspectRatio > 0 ? options.coverAspectRatio : 1
+    const imageWidth = Math.min(availableWidth, availableHeight * ratio)
+    const imageHeight = imageWidth / ratio
+    const cx = Math.round(imageWidth * 36000)
+    const cy = Math.round(imageHeight * 36000)
+    paragraphs.push(`<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="1" name="Novel cover"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="1" name="cover.${coverMatch[1] === "jpeg" ? "jpg" : "png"}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rId3"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`)
+  }
   if (options.titlePage) {
-    paragraphs.push(wordParagraph(project.title || "Untitled", "TitlePageTitle"))
+    paragraphs.push(wordParagraph(project.title || "Untitled", "TitlePageTitle", hasCover))
     if (options.byline.trim()) paragraphs.push(wordParagraph(options.byline.trim(), "Byline"))
     for (const line of options.contact.trim().split(/\r?\n/).filter(Boolean)) paragraphs.push(wordParagraph(line, "Contact"))
   }
   pageBlocks(project, profile).forEach((block, index) => {
-    paragraphs.push(wordParagraph(block.title, "DocumentTitle", index > 0 || options.titlePage))
+    paragraphs.push(wordParagraph(block.title, "DocumentTitle", index > 0 || options.titlePage || hasCover))
     if (block.subtitle) paragraphs.push(wordParagraph(block.subtitle, "Subtitle"))
     if (block.dedication) paragraphs.push(wordParagraph(block.dedication, "Dedication"))
     if (block.epigraph) paragraphs.push(wordParagraph(block.epigraph, "Epigraph"))
@@ -226,7 +266,11 @@ export function renderManuscriptDocxBytes(project: FullProject, profile: Manuscr
   if (paragraphs.length === 0) paragraphs.push(wordParagraph("This project has no pages yet.", "ProseBody"))
   const headerReference = options.pageNumbers ? '<w:headerReference w:type="default" r:id="rId2"/>' : ""
   const firstPageHeader = options.titlePage && options.pageNumbers ? "<w:titlePg/>" : ""
-  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${paragraphs.join("")}<w:sectPr>${headerReference}${firstPageHeader}<w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720"/></w:sectPr></w:body></w:document>`
+  const paper = PROSE_PAPER[profile === "prose" ? options.paperSize : "letter"]
+  const pageWidthTwips = Math.round(paper.widthMm * 1440 / 25.4)
+  const pageHeightTwips = Math.round(paper.heightMm * 1440 / 25.4)
+  const marginTwips = Math.round(paper.marginMm * 1440 / 25.4)
+  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${paragraphs.join("")}<w:sectPr>${headerReference}${firstPageHeader}<w:pgSz w:w="${pageWidthTwips}" w:h="${pageHeightTwips}"/><w:pgMar w:top="${marginTwips}" w:right="${marginTwips}" w:bottom="${marginTwips}" w:left="${marginTwips}" w:header="${Math.min(720, Math.round(marginTwips / 2))}"/></w:sectPr></w:body></w:document>`
   const lineTwips = options.lineSpacing === "single" ? 240 : options.lineSpacing === "double" ? 480 : 360
   const proseSpacing = `<w:spacing w:line="${lineTwips}" w:lineRule="auto"/>`
   const poetrySpacing = proseSpacing
@@ -251,12 +295,13 @@ export function renderManuscriptDocxBytes(project: FullProject, profile: Manuscr
   </w:styles>`
   const headerXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:pPr><w:jc w:val="right"/></w:pPr>${options.runningHeader.trim() ? wordRuns(`${options.runningHeader.trim()} / `) : ""}<w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p></w:hdr>`
   const archive: Zippable = {
-    "[Content_Types].xml": strToU8(`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>${options.pageNumbers ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : ""}</Types>`),
+    "[Content_Types].xml": strToU8(`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${hasCover ? `<Default Extension="${coverMatch![1] === "jpeg" ? "jpg" : "png"}" ContentType="image/${coverMatch![1]}"/>` : ""}<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>${options.pageNumbers ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : ""}</Types>`),
     "_rels/.rels": strToU8('<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'),
     "word/document.xml": strToU8(documentXml),
     "word/styles.xml": strToU8(styles),
-    "word/_rels/document.xml.rels": strToU8(`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>${options.pageNumbers ? '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' : ""}</Relationships>`),
+    "word/_rels/document.xml.rels": strToU8(`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>${options.pageNumbers ? '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' : ""}${hasCover ? `<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/cover.${coverMatch![1] === "jpeg" ? "jpg" : "png"}"/>` : ""}</Relationships>`),
   }
+  if (coverMatch) archive[`word/media/cover.${coverMatch[1] === "jpeg" ? "jpg" : "png"}`] = Uint8Array.from(atob(coverMatch[2]), char => char.charCodeAt(0))
   if (options.pageNumbers) archive["word/header1.xml"] = strToU8(headerXml)
   return zipSync(archive, { level: 6 })
 }

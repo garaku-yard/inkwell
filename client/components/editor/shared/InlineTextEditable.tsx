@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react"
 import type { ComponentProps, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ClipboardEvent } from "react"
-import { Bold, Italic, Underline, Link2, CaseUpper } from "lucide-react"
+import { Bold, Italic, Underline, Link2, CaseUpper, Palette } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { editorHtmlToInline, inlineToHtml, plainInlineText, readInlineRuns, safeInlineHref, writeInlineRuns, type InlineRun } from "@/lib/editor/inline-content"
+import { colorInlineRange, editorHtmlToInline, inlineToHtml, plainInlineText, readInlineRuns, writeInlineRuns, safeInlineHref, type InlineRun } from "@/lib/editor/inline-content"
 import { StableContentEditable, type StableContentEditableHandle } from "./StableContentEditable"
 
 type Mark = "strong" | "emphasis" | "underline" | "smallCaps" | "link"
@@ -148,6 +148,26 @@ function applyMark(mark: Mark, href?: string, captured?: Range | null): boolean 
   return true
 }
 
+function applyColor(value: string | null, captured?: Range | null): boolean {
+  const context = selectionContext(captured)
+  if (!context) return false
+  const { root, start, end } = context
+  const changed = colorInlineRange(editorHtmlToInline(root.innerHTML), start, end, value)
+  if (changed === null) return false
+  root.innerHTML = inlineToHtml(changed)
+  root.focus()
+  const selection = window.getSelection()
+  const next = document.createRange()
+  const startBoundary = boundaryAt(root, start)
+  const endBoundary = boundaryAt(root, end)
+  next.setStart(startBoundary.node, startBoundary.offset)
+  next.setEnd(endBoundary.node, endBoundary.offset)
+  selection?.removeAllRanges()
+  selection?.addRange(next)
+  root.dispatchEvent(new Event("inkwell:inline-format", { bubbles: true }))
+  return true
+}
+
 function askForLink(captured?: Range | null): boolean {
   const range = captured ?? selectedRange()
   if (!range) return false
@@ -214,6 +234,7 @@ export function InlineTextEditable({ value, onValueChange, onKeyDown, onPaste, c
 export function InlineFormattingToolbar() {
   const capturedRange = useRef<Range | null>(null)
   const [markStates, setMarkStates] = useState<Record<Mark, MarkState>>(EMPTY_MARK_STATES)
+  const [color, setColor] = useState("#b42318")
   useEffect(() => {
     const update = () => {
       const next = markStatesAtSelection()
@@ -250,5 +271,7 @@ export function InlineFormattingToolbar() {
   ] as const
   return <div role="group" aria-label="Inline formatting" className="flex items-center gap-0.5 border-l pl-2">
     {items.map(({ mark, label, shortcut, icon: Icon }) => <Button key={mark} variant="ghost" size="icon" className={cn("h-7 w-7", markStates[mark] === "on" && "bg-primary text-primary-foreground hover:bg-primary/90", markStates[mark] === "mixed" && "bg-primary/10 text-primary ring-1 ring-primary/40")} aria-label={label} aria-pressed={markStates[mark] === "mixed" ? "mixed" : markStates[mark] === "on"} title={`${label} (${shortcut})`} onPointerDown={keepSelection} onMouseDown={(event) => { if (!capturedRange.current) capturedRange.current = selectedRange(); event.preventDefault() }} onClick={click(mark)}><Icon className="h-3.5 w-3.5" /></Button>)}
+    <label className="relative flex h-7 w-7 cursor-pointer items-center justify-center rounded hover:bg-accent" title="Text color" onPointerDownCapture={() => { capturedRange.current = selectedRange() }}><Palette className="h-3.5 w-3.5" /><input type="color" aria-label="Text color" value={color} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onPointerDown={() => { if (!capturedRange.current) capturedRange.current = selectedRange() }} onChange={event => { const next = event.target.value; setColor(next); applyColor(next, capturedRange.current); capturedRange.current = null }} /></label>
+    <Button variant="ghost" size="sm" className="h-7 px-1 text-xs" title="Remove text color" onPointerDown={keepSelection} onClick={() => { applyColor(null, capturedRange.current); capturedRange.current = null }}>Default</Button>
   </div>
 }

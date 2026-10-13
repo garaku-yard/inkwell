@@ -29,6 +29,8 @@ import { useExportToast } from "@/lib/export/use-export-toast"
 import { parseMarkdownToTtrpg } from "@/lib/import/markdown-ttrpg"
 import { importIntoProject } from "@/lib/import/import-into-project"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import { InlineTextEditable, InlineFormattingToolbar } from "./shared/InlineTextEditable"
+import { plainInlineText } from "@/lib/editor/inline-content"
 import { EditorWorkspace } from "./shared/EditorWorkspace"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { PresencePips } from "./shared/PresencePips"
@@ -218,7 +220,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       const rule = el.element_type === "rule_box" ? parseRuleBox(el.content) : null
       return a + wordCount(instance
         ? statInstanceToText(instance, statSchemas.find((schema) => schema.id === instance.schemaId))
-        : typed ? ttrpgBlockToText(typed) : rule ? `${rule.name} ${rule.content}` : el.content)
+        : typed ? ttrpgBlockToText(typed) : rule ? `${rule.name} ${plainInlineText(rule.content)}` : plainInlineText(el.content))
     }, 0), 0)
 
   const activeCommentTarget = useEditorCommentTarget({ units: sections, focusedElementId, activeUnitId: activeSectionId })
@@ -406,11 +408,12 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       // Trigger only when the entire element starts with "/" — limits
       // the slash menu to fresh / one-line bodies and keeps it from
       // interfering with rules text that mentions slashes.
-      if (!text.startsWith("/") || text.includes("\n")) {
+      const visible = plainInlineText(text)
+      if (!visible.startsWith("/") || visible.includes("\n")) {
         setSlashMenu(null)
         return
       }
-      const query = text.slice(1)
+      const query = visible.slice(1)
       // The body element renders with id="el-<elementId>" so we can
       // look it up here without threading the DOM ref through state.
       const node = document.getElementById(`el-${el.id}`)
@@ -533,7 +536,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
 
     if (el.element_type === "h2") {
       return (
-        <StableContentEditable
+        <InlineTextEditable
           key={el.id}
           id={`el-${el.id}`}
           value={el.content}
@@ -727,7 +730,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
       return (
         <div key={el.id} className="my-4 rounded-lg border-l-4 border-primary bg-primary/5 px-4 py-3">
           <div className="text-xs font-bold uppercase tracking-widest text-primary mb-1.5">Designer Note</div>
-          <StableContentEditable
+          <InlineTextEditable
             id={`el-${el.id}`}
             value={el.content}
             onValueChange={(next) => handleContentChange(el.id, next, false)}
@@ -746,7 +749,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
           <Input aria-label="Rule title" placeholder="Rule title (optional)" value={rule.name}
             onChange={(event) => handleContentChange(el.id, serializeRuleBox({ ...rule, name: event.target.value }), false)}
             className="mb-2 font-semibold" />
-          <StableContentEditable
+          <InlineTextEditable
             id={`el-${el.id}`}
             value={rule.content}
             onValueChange={(next) => handleContentChange(el.id, serializeRuleBox({ ...rule, content: next }), false)}
@@ -759,7 +762,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
 
     // body
     return (
-      <StableContentEditable
+      <InlineTextEditable
         key={el.id}
         id={`el-${el.id}`}
         value={el.content}
@@ -809,7 +812,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
         case "rule_box":
           return 96
         default: {
-          const len = (b.el.content ?? "").length
+          const len = plainInlineText(b.el.content ?? "").length
           return 16 + Math.max(1, Math.ceil(len / 80)) * 28
         }
       }
@@ -857,7 +860,7 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
     }
     if (b.kind === "emptySection") {
       return (
-        <StableContentEditable
+      <StableContentEditable
           value=""
           onValueChange={() => { /* empty-state placeholder; first Enter creates a body element */ }}
           className="text-base outline-none leading-relaxed min-h-[1.5rem] empty:before:content-['Start\00a0writing…'] empty:before:text-muted-foreground/50"
@@ -906,10 +909,10 @@ export function TabletopRPGEditor({ projectData }: TabletopRPGEditorProps) {
           projectId={projectData.id}
           category={projectData.category}
           saveStatus={saveStatus}
-          leading={<Button size="sm" variant="outline" onClick={() => setIsSchemaManagerOpen(true)}>
+          leading={<><Button size="sm" variant="outline" onClick={() => setIsSchemaManagerOpen(true)}>
             <Shield className="mr-1.5 h-3.5 w-3.5" />
             Stat templates{statSchemas.length ? ` (${statSchemas.length})` : ""}
-          </Button>}
+          </Button><InlineFormattingToolbar /></>}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
           importItems={[

@@ -30,6 +30,8 @@ export interface SheetMetrics {
   minHeight: string
   /** Tailwind padding classes for the sheet content box. */
   paddingClass: string
+  /** Optional physical padding for sizes that do not use Tailwind's fixed spacing. */
+  padding?: string
   /** Tailwind typography classes for the inner content wrapper. Kept separate
    *  so a format (e.g. screenplay's 12pt/1.5) isn't fought by an inherited
    *  default leading. */
@@ -70,6 +72,7 @@ interface PagedSheetsProps<T extends { key: React.Key }> {
   pageIdPrefix?: string
   /** Sheet geometry. Defaults to A4 so the manuscript editors are untouched. */
   pageSize?: SheetMetrics
+  coverImage?: string
 }
 
 const SHEET_BASE =
@@ -86,6 +89,7 @@ export function PagedSheets<T extends { key: React.Key }>({
   emptyState,
   pageIdPrefix = "page",
   pageSize = A4_METRICS,
+  coverImage,
 }: PagedSheetsProps<T>) {
   const sheetClass = cn(SHEET_BASE, pageSize.paddingClass)
   const pageNumberClass = cn(
@@ -97,8 +101,12 @@ export function PagedSheets<T extends { key: React.Key }>({
       {/* Page column + rail wrapper. */}
       <div className="relative max-w-[calc(100%-7rem)]" style={{ width: pageSize.width }}>
         <div className="inkwell-editor-content space-y-8" style={{ fontFamily }}>
+          {coverImage && <div className={sheetClass} style={{ width: pageSize.width, minHeight: pageSize.minHeight, padding: pageSize.padding }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={coverImage} alt="Novel cover" className="h-full w-full object-contain" style={{ maxHeight: `calc(${pageSize.minHeight} - 2 * ${pageSize.padding ?? "0px"})` }} />
+          </div>}
           {isEmpty ? (
-            <div className={sheetClass} style={{ minHeight: pageSize.minHeight }}>
+            <div className={sheetClass} style={{ minHeight: pageSize.minHeight, padding: pageSize.padding }}>
               {emptyState}
             </div>
           ) : (
@@ -107,7 +115,7 @@ export function PagedSheets<T extends { key: React.Key }>({
                 key={pageIdx}
                 id={`${pageIdPrefix}-${pageIdx}`}
                 className={sheetClass}
-                style={{ minHeight: pageSize.minHeight }}
+                style={{ minHeight: pageSize.minHeight, padding: pageSize.padding }}
               >
                 <div className={pageSize.contentClass}>
                   {page.map((item, i) => (

@@ -1,4 +1,5 @@
 import type { FullProject } from "@/services/project"
+import type { ProsePaperSize } from "@/lib/editor/prose-paper"
 
 export type ManuscriptProfile = "prose" | "poetry"
 
@@ -10,6 +11,9 @@ export interface ManuscriptSubmissionOptions {
   runningHeader?: string
   lineSpacing?: "single" | "one-and-half" | "double"
   pageNumbers?: boolean
+  paperSize?: ProsePaperSize
+  coverImage?: string
+  coverAspectRatio?: number
 }
 
 export function manuscriptSubmissionDefaults(project: FullProject, profile: ManuscriptProfile): Required<ManuscriptSubmissionOptions> {
@@ -20,5 +24,8 @@ export function manuscriptSubmissionDefaults(project: FullProject, profile: Manu
     runningHeader: project.title,
     lineSpacing: profile === "prose" ? "double" : "one-and-half",
     pageNumbers: true,
+    paperSize: "letter",
+    coverImage: "",
+    coverAspectRatio: 1,
   }
 }

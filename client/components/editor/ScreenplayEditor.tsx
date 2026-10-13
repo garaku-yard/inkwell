@@ -4,6 +4,7 @@ import type React from "react"
 import { useState, useRef, useCallback, useMemo, useEffect } from "react"
 import { ProjectShell } from "./shared/ProjectShell"
 import { EditorToolbar } from "./shared/EditorToolbar"
+import { InlineFormattingToolbar } from "./shared/InlineTextEditable"
 import { type RailEntry } from "./shared/EditorToolRail"
 import { PagedSheets, type SheetMetrics } from "./shared/PagedSheets"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
@@ -506,6 +507,7 @@ export function ScreenplayEditor({ projectData: initialProjectData }: Screenplay
         saveStatus={saveStatus}
         onToggleAI={toggleAIChat}
         isAIOpen={isAIChatOpen}
+        leading={<InlineFormattingToolbar />}
         importItems={[
           {
             label: "Final Draft (.fdx)",

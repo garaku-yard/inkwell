@@ -1,4 +1,4 @@
-import { Paperclip, PanelRight, Trash2 } from "lucide-react"
+import { Palette, Paperclip, PanelRight, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,8 @@ interface VaultNoteToolbarProps {
    *  `attachments/` folder, and append a markdown link/image to the
    *  current note. Disabled on the web build. */
   onAttach?: () => void
+  onTextColor: (color: string) => void
+  onClearTextColor: () => void
 }
 
 /** Toolbar above the markdown editor — clickable / inline-editable
@@ -33,6 +35,8 @@ export function VaultNoteToolbar({
   onToggleBacklinks,
   onDelete,
   onAttach,
+  onTextColor,
+  onClearTextColor,
 }: VaultNoteToolbarProps) {
   return (
     <div className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
@@ -76,6 +80,12 @@ export function VaultNoteToolbar({
           <Paperclip className="h-4 w-4" />
         </Button>
       )}
+
+      <label className="relative flex h-8 w-8 cursor-pointer items-center justify-center rounded hover:bg-accent" title="Color selected text">
+        <Palette className="h-4 w-4" />
+        <input type="color" aria-label="Text color" defaultValue="#b42318" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={event => onTextColor(event.target.value)} />
+      </label>
+      <Button size="sm" variant="ghost" className="h-8 px-1 text-xs" onClick={onClearTextColor} title="Remove selected text color">Default</Button>
 
       <Button
         size="icon"

@@ -2,6 +2,7 @@ import { writeFileSync } from "node:fs"
 
 import { strFromU8, unzipSync } from "fflate"
 import { describe, expect, it } from "vitest"
+import { writeInlineRuns } from "@/lib/editor/inline-content"
 
 import {
   renderComicScriptDocxBytes,
@@ -90,5 +91,12 @@ describe("comic script exports", () => {
     expect(styles).toContain('w:styleId="PanelHeading"')
     expect(styles).toContain('w:styleId="Character"')
     expect(styles).toContain('w:styleId="Dialogue"')
+  })
+
+  it("preserves selected-word color in Word runs", () => {
+    const colored = { ...project, scenes: [{ ...project.scenes![0], elements: [element("panel", writeInlineRuns([{ text: "Red", color: "#aa2233" }, { text: " sky" }]), 0)] }] } as FullProject
+    const xml = strFromU8(unzipSync(renderComicScriptDocxBytes(colored))["word/document.xml"])
+    expect(xml).toContain('<w:color w:val="AA2233"/>')
+    expect(xml).toContain("Red")
   })
 })

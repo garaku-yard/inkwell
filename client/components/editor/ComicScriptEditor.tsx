@@ -15,7 +15,7 @@ import { dispatchKey } from "@/lib/editor/keymap"
 import { createComicKeymap, type ComicElementType as KeymapComicElementType } from "./comic/keymap"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { useExportToast } from "@/lib/export/use-export-toast"
-import { StableContentEditable } from "./shared/StableContentEditable"
+import { InlineTextEditable, InlineFormattingToolbar } from "./shared/InlineTextEditable"
 import { EditorWorkspace } from "./shared/EditorWorkspace"
 import { useEditorRealtime } from "./shared/useEditorRealtime"
 import { PresencePips } from "./shared/PresencePips"
@@ -291,7 +291,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
           <div className="text-xs font-bold uppercase tracking-widest text-primary mb-1 select-none">
             Panel {panelNum}
           </div>
-          <StableContentEditable
+          <InlineTextEditable
             id={`el-${el.id}`}
             value={el.content}
             onValueChange={(next) => handleContentChange(el.id, next, false)}
@@ -305,7 +305,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
     if (el.element_type === "character") {
       return (
         <div className="mt-4">
-          <StableContentEditable
+          <InlineTextEditable
             id={`el-${el.id}`}
             value={el.content}
             onValueChange={(next) => handleContentChange(el.id, next, false)}
@@ -318,7 +318,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
     if (el.element_type === "balloon") {
       return (
         <div className="pl-4">
-          <StableContentEditable
+          <InlineTextEditable
             id={`el-${el.id}`}
             value={el.content}
             onValueChange={(next) => handleContentChange(el.id, next, false)}
@@ -332,7 +332,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
       return (
         <div className="mt-3 border-l-2 border-muted pl-3">
           <div className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-0.5 select-none">Caption</div>
-          <StableContentEditable
+          <InlineTextEditable
             id={`el-${el.id}`}
             value={el.content}
             onValueChange={(next) => handleContentChange(el.id, next, false)}
@@ -346,7 +346,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
       return (
         <div className="mt-3">
           <div className="text-xs uppercase tracking-widest text-muted-foreground/60 mb-0.5 select-none">SFX</div>
-          <StableContentEditable
+          <InlineTextEditable
             id={`el-${el.id}`}
             value={el.content}
             onValueChange={(next) => handleContentChange(el.id, next, false)}
@@ -359,7 +359,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
     if (el.element_type === "transition") {
       return (
         <div className="mt-4 text-right">
-          <StableContentEditable
+          <InlineTextEditable
             id={`el-${el.id}`}
             value={el.content}
             onValueChange={(next) => handleContentChange(el.id, next, false)}
@@ -377,7 +377,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
     if (b.kind === "pageHead") {
       return (
         <div ref={(el) => { pageRefs.current.set(b.page.id, el) }} className="mb-6">
-          <StableContentEditable
+          <InlineTextEditable
             id={`head-${b.page.id}`}
             value={b.page.scene_heading ?? ""}
             onValueChange={(next) => handleContentChange(b.page.id, next, true)}
@@ -444,6 +444,7 @@ export function ComicScriptEditor({ projectData }: ComicScriptEditorProps) {
           saveStatus={saveStatus}
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
+          leading={<InlineFormattingToolbar />}
           exportItems={[
             {
               label: "Export as Plain Text (.txt)",

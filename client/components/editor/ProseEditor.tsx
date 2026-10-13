@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useCallback, useMemo, useRef } from "react"
+import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { BookOpen, Pilcrow, Quote, Heading, Heading1, Heading2, Heading3, Clock, Asterisk, Hash, Type } from "lucide-react"
 import { type RailEntry } from "./shared/EditorToolRail"
-import { PagedSheets } from "./shared/PagedSheets"
+import { PagedSheets, type SheetMetrics } from "./shared/PagedSheets"
+import { PROSE_PAPER, isProsePaperSize, type ProsePaperSize } from "@/lib/editor/prose-paper"
 import {
   EditorSidebar,
   type EditorSidebarItem,
@@ -46,6 +47,8 @@ import { EditorCommandPalette, type EditorCommand } from "./shared/EditorCommand
 import { writeDocumentMetadata, type DocumentMetadata } from "@/lib/editor/document-metadata"
 import { ManuscriptExportDialog } from "./shared/ManuscriptExportDialog"
 import type { ManuscriptSubmissionOptions } from "@/lib/export/manuscript-options"
+import { defaultNovelBlock, NOVEL_BLOCK_KINDS, novelNumbering, novelReferenceLabel, parseNovelBlock, type NovelBlockKind } from "@/lib/editor/novel-blocks"
+import { NovelBlockEditor } from "./prose/NovelBlockEditor"
 
 type ProseElementType =
   | "chapter_heading"
@@ -55,6 +58,7 @@ type ProseElementType =
   | "dialogue"
   | "scene_break"
   | "scene_heading_stinger"
+  | "figure" | "step" | "materials" | "callout" | "build_card" | "cross_reference" | "glossary" | "index"
 
 /** Prose's element vocabulary for the right-edge tool rail. Headings collapse
  *  into one expandable group so the rail stays short as the set grows. */
@@ -72,6 +76,18 @@ const PROSE_RAIL_ITEMS: RailEntry[] = [
   },
   { type: "scene_heading_stinger", label: "Stinger", icon: Clock },
   { type: "scene_break", label: "Scene break", icon: Asterisk },
+]
+
+const NOVEL_RAIL_ITEMS: RailEntry[] = [
+  ...PROSE_RAIL_ITEMS,
+  { type: "figure", label: "Figure", icon: BookOpen },
+  { type: "step", label: "Step", icon: Hash },
+  { type: "materials", label: "Materials / tools", icon: Pilcrow },
+  { type: "callout", label: "Warning / aside", icon: Quote },
+  { type: "build_card", label: "Build card", icon: BookOpen },
+  { type: "cross_reference", label: "Cross-reference", icon: Hash },
+  { type: "glossary", label: "Glossary", icon: BookOpen },
+  { type: "index", label: "Index", icon: BookOpen },
 ]
 
 interface ProseEditorProps {
@@ -98,11 +114,67 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const { user } = useAuth()
   const [scenes, setScenes] = useState(() => projectData.scenes ?? [])
   const [manuscriptFormat, setManuscriptFormat] = useState<"pdf" | "docx" | null>(null)
+  const [paperSize, setPaperSize] = useState<ProsePaperSize>("a4")
+  const [coverImage, setCoverImage] = useState("")
+  const [coverAspectRatio, setCoverAspectRatio] = useState(1)
+  const coverInputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const saved = window.localStorage.getItem(`inkwell.prose.paper.${projectData.id}`)
+    if (isProsePaperSize(saved)) setPaperSize(saved)
+    setCoverImage(window.localStorage.getItem(`inkwell.prose.cover.${projectData.id}`) ?? "")
+  }, [projectData.id])
+  useEffect(() => {
+    if (!coverImage) return
+    const image = new Image()
+    image.onload = () => setCoverAspectRatio(image.naturalWidth / image.naturalHeight)
+    image.src = coverImage
+  }, [coverImage])
+  const changePaperSize = (size: ProsePaperSize) => {
+    setPaperSize(size)
+    window.localStorage.setItem(`inkwell.prose.paper.${projectData.id}`, size)
+  }
+  const paper = PROSE_PAPER[paperSize]
+  const compact = projectData.category === "novel" && (paperSize === "a6" || paperSize === "a7")
+  const small = projectData.category === "novel" && paperSize === "a5"
+  const pageType = compact
+    ? paperSize === "a7"
+      ? { content: "font-sans text-[11px] leading-[1.45]", fontPx: 11, linePx: 16, headPx: 98, indent: "", chapter: "text-[17px] mb-5 min-h-[1.4rem]", label: "text-[9px] mb-2" }
+      : { content: "font-sans text-[13px] leading-[1.45]", fontPx: 13, linePx: 19, headPx: 120, indent: "", chapter: "text-[21px] mb-6 min-h-[1.7rem]", label: "text-[10px] mb-2" }
+    : small
+      ? { content: "text-[15px] leading-[1.6]", fontPx: 15, linePx: 24, headPx: 112, indent: "pl-7", chapter: "text-[22px] mb-9 min-h-[1.9rem]", label: "text-xs mb-2" }
+      : { content: "text-base leading-loose", fontPx: 16, linePx: 30, headPx: 150, indent: "pl-10", chapter: "text-2xl mb-12 min-h-[2rem]", label: "text-xs mb-2" }
+  const sheetMetrics = useMemo<SheetMetrics>(() => ({
+    width: `${paper.widthMm}mm`, minHeight: `${paper.heightMm}mm`,
+    paddingClass: "", padding: `${paper.marginMm}mm`, contentClass: pageType.content,
+    pageNumber: { position: "bottom-right", render: (n) => n },
+  }), [paper, pageType.content])
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const chapterRefs = useRef<Map<string, HTMLElement | null>>(new Map())
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
   const { toast } = useToast()
+  const changeCover = (file: File | undefined) => {
+    if (!file) return
+    if (!["image/jpeg", "image/png"].includes(file.type) || file.size > 750_000) {
+      toast({ title: "Choose a JPG or PNG under 750 KB" })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result !== "string") return
+      try {
+        window.localStorage.setItem(`inkwell.prose.cover.${projectData.id}`, reader.result)
+        setCoverImage(reader.result)
+      } catch {
+        toast({ title: "Could not save the cover on this device" })
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+  const removeCover = () => {
+    window.localStorage.removeItem(`inkwell.prose.cover.${projectData.id}`)
+    setCoverImage("")
+  }
   const { editorFontStack } = useTheme()
   const {
     comments: projectComments,
@@ -154,8 +226,13 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const [activeElement, setActiveElement] = useState<{ sceneId: string; elementId: string | null } | null>(null)
 
   const totalWords = scenes.reduce((acc, scene) => {
-    return acc + (scene.elements ?? []).reduce((s, el) => s + wordCount(el.content), 0)
+    return acc + (scene.elements ?? []).reduce((s, el) => s + (parseNovelBlock(el) ? 0 : wordCount(el.content)), 0)
   }, 0)
+  const numbers = useMemo(() => novelNumbering({ ...projectData, scenes }), [projectData, scenes])
+  const referenceTargets = useMemo(() => [
+    ...Array.from(numbers.chapterLabels, ([id, label]) => ({ id, type: "chapter" as const, label })),
+    ...Array.from(numbers.figureLabels, ([id, label]) => ({ id, type: "figure" as const, label })),
+  ], [numbers])
 
   const saveMetadata = async (sceneId: string, metadata: DocumentMetadata) => {
     if (!user?.id) throw new Error("Sign in to save metadata.")
@@ -229,7 +306,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const handleAddElement = async (sceneId: string, type: ProseElementType, afterIdx?: number) => {
     const el = await insertElement(sceneId, {
       elementType: type,
-      content: type === "scene_break" ? "* * *" : "",
+      content: NOVEL_BLOCK_KINDS.includes(type as NovelBlockKind) ? JSON.stringify(defaultNovelBlock(type as NovelBlockKind)) : type === "scene_break" ? "* * *" : "",
       afterIndex: afterIdx,
     })
     if (!el) return
@@ -240,16 +317,17 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
 
   // Change an element's type in place (slash on an empty line: "turn this into X").
   const handleTransformElement = async (sceneId: string, elementId: string, type: ProseElementType) => {
+    const content = NOVEL_BLOCK_KINDS.includes(type as NovelBlockKind) ? JSON.stringify(defaultNovelBlock(type as NovelBlockKind)) : type === "scene_break" ? "* * *" : ""
     setScenes(prev => prev.map(s => s.id !== sceneId ? s : {
       ...s,
       elements: (s.elements ?? []).map(el =>
         el.id === elementId
-          ? { ...el, element_type: type, content: type === "scene_break" ? "* * *" : el.content }
+          ? { ...el, element_type: type, content }
           : el,
       ),
     }))
     try {
-      await updateScriptElement(elementId, { elementType: type })
+      await updateScriptElement(elementId, { elementType: type, content })
     } catch (err) {
       toast({
         title: "Couldn't change that element",
@@ -265,11 +343,19 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   const handleRailSelect = (type: string) => {
     const t = type as ProseElementType
     const a = activeElement
+    if (projectData.category === "novel" && t === "build_card") {
+      const sceneId = a?.sceneId ?? activeChapterId ?? scenes[0]?.id
+      if (!sceneId) return
+      const existing = scenes.find(scene => scene.id === sceneId)?.elements?.find(element => element.element_type === "build_card")
+      if (existing) document.getElementById(`el-${existing.id}`)?.focus()
+      else void handleAddElement(sceneId, t, -1)
+      return
+    }
     if (a?.elementId) {
       const scene = scenes.find((s) => s.id === a.sceneId)
       const idx = scene?.elements?.findIndex((e) => e.id === a.elementId) ?? -1
       const el = idx >= 0 ? scene!.elements![idx] : null
-      if (el && plainInlineText(el.content ?? "") === "") {
+      if (el && !parseNovelBlock(el) && plainInlineText(el.content ?? "") === "") {
         void handleTransformElement(a.sceneId, a.elementId, t)
         return
       }
@@ -354,30 +440,38 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
   // a chapter boundary while typing. The estimate is deliberately coarse and a
   // touch generous; sheets use min-height so an off-by-a-line never clips text.
   const pages = useMemo<ProseBlock[][]>(() => {
-    const CHARS_PER_LINE = 78
-    const LINE_PX = 30 // text-base at leading-loose
-    const A4_CONTENT_PX = 940 // ~297mm less the top/bottom page padding
+    const CHARS_PER_LINE = Math.max(12, Math.round(78 * (paper.widthMm - 2 * paper.marginMm) / 168 * 16 / pageType.fontPx))
+    const LINE_PX = pageType.linePx
+    const pageContentPx = (paper.heightMm - 2 * paper.marginMm) * 96 / 25.4
 
     const estimate = (b: ProseBlock): number => {
-      if (b.kind === "chapterHead") return 150
+      if (b.kind === "chapterHead") return pageType.headPx
       if (b.kind === "emptyChapter") return 40
       const { el } = b
-      if (el.element_type === "scene_break") return 80
+      if (NOVEL_BLOCK_KINDS.includes(el.element_type as NovelBlockKind)) {
+        const block = parseNovelBlock(el)
+        if (block?.kind === "build_card") return compact ? 64 : 100
+        if (block?.kind === "callout") return 40 + Math.max(1, Math.ceil(block.body.length / CHARS_PER_LINE)) * LINE_PX
+        if (block?.kind === "cross_reference") return LINE_PX + 16
+        if (block?.kind === "figure" || block?.kind === "step") return 320
+        return block?.kind === "glossary" || block?.kind === "index" ? 280 : 180
+      }
+      if (el.element_type === "scene_break") return compact ? 48 : small ? 64 : 80
       const len = plainInlineText(el.content ?? "").length
       if (el.element_type === "chapter_heading") {
-        return 56 + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * 34
+        return (compact ? 30 : small ? 44 : 56) + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * (compact ? 24 : small ? 28 : 34)
       }
       if (el.element_type === "heading_2") {
-        return 44 + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * 30
+        return (compact ? 25 : small ? 36 : 44) + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * (compact ? 21 : small ? 26 : 30)
       }
       if (el.element_type === "heading_3") {
-        return 36 + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * 28
+        return (compact ? 20 : small ? 30 : 36) + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * (compact ? 19 : small ? 24 : 28)
       }
       if (el.element_type === "scene_heading_stinger") {
-        return 96 + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * LINE_PX
+        return (compact ? 52 : small ? 72 : 96) + Math.max(1, Math.ceil(len / CHARS_PER_LINE)) * LINE_PX
       }
-      const perLine = el.element_type === "dialogue" ? 70 : CHARS_PER_LINE
-      return 12 + Math.max(1, Math.ceil(len / perLine)) * LINE_PX
+      const perLine = el.element_type === "dialogue" ? Math.max(12, CHARS_PER_LINE - 4) : CHARS_PER_LINE
+      return (compact ? 8 : small ? 8 : 12) + Math.max(1, Math.ceil(len / perLine)) * LINE_PX
     }
 
     const result: ProseBlock[][] = []
@@ -400,7 +494,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
       els.forEach((el, elIdx) => {
         const block: ProseBlock = { key: el.id, kind: "element", scene, el, elIdx }
         const h = estimate(block)
-        if (curH + h > A4_CONTENT_PX && cur.length > 0) {
+        if (curH + h > pageContentPx && cur.length > 0) {
           result.push(cur)
           cur = []
           curH = 0
@@ -411,11 +505,52 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
     })
     if (cur.length) result.push(cur)
     return result
-  }, [scenes])
+  }, [scenes, paper, pageType.fontPx, pageType.linePx, pageType.headPx, compact, small])
+
+  const moveStep = async (sceneId: string, elementId: string, direction: -1 | 1) => {
+    const scene = scenes.find(item => item.id === sceneId)
+    const steps = (scene?.elements ?? []).filter(item => item.element_type === "step")
+    const index = steps.findIndex(item => item.id === elementId)
+    const neighbor = steps[index + direction]
+    if (!neighbor || !steps[index]) return
+    const current = steps[index]
+    const currentContent = current.content
+    const neighborContent = neighbor.content
+    try {
+      await updateScriptElement(current.id, { content: neighborContent })
+      try {
+        await updateScriptElement(neighbor.id, { content: currentContent })
+      } catch (error) {
+        await updateScriptElement(current.id, { content: currentContent })
+        throw error
+      }
+      setScenes(previous => previous.map(item => item.id !== sceneId ? item : ({
+        ...item, elements: (item.elements ?? []).map(element => element.id === current.id ? { ...element, content: neighborContent } : element.id === neighbor.id ? { ...element, content: currentContent } : element),
+      })))
+    } catch (error) {
+      toast({ title: "Could not move step", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" })
+      void refreshDocument()
+    }
+  }
 
   /** Render one body element with its per-type prose styling. */
   const renderElement = (scene: ProseScene, el: ProjectElement, elIdx: number) => {
     const onFocus = () => setActiveElement({ sceneId: scene.id, elementId: el.id })
+    if (projectData.category === "novel") {
+      const block = parseNovelBlock(el)
+      if (block) {
+        const steps = (scene.elements ?? []).filter(item => item.element_type === "step")
+        const stepIndex = steps.findIndex(item => item.id === el.id)
+        const label = block.kind === "figure" ? numbers.figureLabels.get(el.id)
+          : block.kind === "step" ? numbers.stepLabels.get(el.id)
+          : block.kind === "cross_reference" ? novelReferenceLabel(block, numbers) : undefined
+        return <NovelBlockEditor key={el.id} id={el.id} block={block} label={label} targets={referenceTargets}
+          onChange={next => handleContentChange(el.id, JSON.stringify(next), false)} onFocus={onFocus}
+          onDelete={() => void handleDeleteElement(scene.id, el.id)}
+          onMove={direction => void moveStep(scene.id, el.id, direction)}
+          canMoveUp={stepIndex > 0} canMoveDown={stepIndex >= 0 && stepIndex < steps.length - 1} />
+      }
+    }
     if (el.element_type === "scene_break") {
       return (
         <div key={el.id} className="text-center text-muted-foreground my-8 tracking-widest select-none">
@@ -432,7 +567,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           onValueChange={(next) => handleContentChange(el.id, next, false)}
           onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
           onFocus={onFocus}
-          className="text-xl font-semibold mt-10 mb-3 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
+          className={cn("font-semibold outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50", compact ? "text-[1.2em] mt-6 mb-2" : small ? "text-xl mt-8 mb-3" : "text-xl mt-10 mb-3")}
           data-placeholder="Heading 1"
         />
       )
@@ -446,7 +581,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           onValueChange={(next) => handleContentChange(el.id, next, false)}
           onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
           onFocus={onFocus}
-          className="text-lg font-semibold mt-8 mb-2 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
+          className={cn("font-semibold outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50", compact ? "text-[1.1em] mt-4 mb-1" : small ? "text-lg mt-6 mb-2" : "text-lg mt-8 mb-2")}
           data-placeholder="Heading 2"
         />
       )
@@ -460,7 +595,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           onValueChange={(next) => handleContentChange(el.id, next, false)}
           onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
           onFocus={onFocus}
-          className="text-base font-semibold mt-6 mb-1 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
+          className={cn("font-semibold outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50", compact ? "text-[1em] mt-3 mb-1" : "text-base mt-6 mb-1")}
           data-placeholder="Heading 3"
         />
       )
@@ -475,7 +610,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           onValueChange={(next) => handleContentChange(el.id, next, false)}
           onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
           onFocus={onFocus}
-          className="mt-12 mb-6 italic text-base tracking-wider uppercase text-foreground/80 border-b border-border/40 pb-2 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:not-italic empty:before:normal-case empty:before:tracking-normal"
+          className={cn("italic tracking-wider uppercase text-foreground/80 border-b border-border/40 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:not-italic empty:before:normal-case empty:before:tracking-normal", compact ? "mt-6 mb-3 pb-1" : "mt-12 mb-6 pb-2")}
           data-placeholder="Stinger…"
         />
       )
@@ -490,7 +625,7 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           onValueChange={(next) => handleContentChange(el.id, next, false)}
           onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
           onFocus={onFocus}
-          className="outline-none min-h-[1.75rem] pl-10 -indent-6 leading-relaxed before:content-['“'] before:mr-1 before:text-muted-foreground/60 empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0 empty:before:mr-0"
+          className={cn("outline-none before:content-['“'] before:mr-1 before:text-muted-foreground/60 empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0 empty:before:mr-0", compact ? "min-h-[1.2rem] pl-5 -indent-3" : "min-h-[1.75rem] pl-10 -indent-6 leading-relaxed")}
           data-placeholder="Dialogue…"
         />
       )
@@ -505,13 +640,13 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         onKeyDown={(e) => handleElementKeyDown(e, scene.id, el, elIdx)}
         onFocus={onFocus}
         className={cn(
-          "outline-none min-h-[1.75rem]",
+          "outline-none", compact ? "min-h-[1.2rem] mb-2" : "min-h-[1.75rem]",
           elIdx === 0 ||
             ["chapter_heading", "heading_2", "heading_3", "scene_heading_stinger", "dialogue", "scene_break"].includes(
               (scene.elements ?? [])[elIdx - 1]?.element_type ?? "",
             )
             ? ""
-            : "pl-10",
+            : pageType.indent,
           "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50 empty:before:pl-0",
         )}
         data-placeholder={elIdx === 0 ? "Start writing…" : ""}
@@ -526,15 +661,16 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
         <div
           key={b.key}
           ref={(el) => { chapterRefs.current.set(b.scene.id, el) }}
+          className={compact ? "border-t border-current/15 pt-4 mt-7" : undefined}
         >
-          <p className="text-center text-xs tracking-[0.2em] uppercase text-muted-foreground mb-2 select-none">
+          <p className={cn("tracking-[0.2em] uppercase select-none text-muted-foreground", compact && "font-bold", !compact && "text-center", pageType.label)}>
             Chapter {b.chapterIdx + 1}
           </p>
           <StableContentEditable
             id={`head-${b.scene.id}`}
             value={b.scene.scene_heading ?? ""}
             onValueChange={(next) => handleContentChange(b.scene.id, next, true)}
-            className="text-center text-2xl font-semibold leading-tight outline-none mb-12 min-h-[2rem] empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
+            className={cn("font-semibold leading-tight outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50", !compact && "text-center", pageType.chapter)}
             data-placeholder="Untitled"
           />
         </div>
@@ -586,14 +722,14 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
       extension: format, projectTitle: projectData.title,
       run: async () => {
         const { downloadManuscript } = await import("@/lib/export/manuscript")
-        downloadManuscript({ ...projectData, scenes }, "prose", format, options)
+        downloadManuscript({ ...projectData, scenes }, "prose", format, { ...options, coverImage: projectData.category === "novel" ? coverImage : "", coverAspectRatio })
       },
     })
   }
 
   return (
     <>
-    <ManuscriptExportDialog project={projectData} profile="prose" format={manuscriptFormat ?? "pdf"} open={manuscriptFormat !== null} onOpenChange={open => { if (!open) setManuscriptFormat(null) }} onExport={exportManuscript} />
+    <ManuscriptExportDialog key={paperSize} project={projectData} profile="prose" paperSize={projectData.category === "novel" ? paperSize : undefined} allowPaperSize={projectData.category === "novel"} format={manuscriptFormat ?? "pdf"} open={manuscriptFormat !== null} onOpenChange={open => { if (!open) setManuscriptFormat(null) }} onExport={exportManuscript} />
     <ProjectShell
       projectId={projectData.id}
       title={projectData.title}
@@ -633,6 +769,16 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           onToggleAI={() => setIsAIChatOpen(o => !o)}
           isAIOpen={isAIChatOpen}
           leading={<>
+            {projectData.category === "novel" && <label className="flex items-center gap-2 text-xs text-muted-foreground">Paper
+              <select aria-label="Novel paper size" value={paperSize} onChange={event => changePaperSize(event.target.value as ProsePaperSize)} className="border-input bg-background h-8 rounded-md border px-2 text-foreground">
+                {Object.entries(PROSE_PAPER).map(([value, size]) => <option key={value} value={value}>{size.label}</option>)}
+              </select>
+            </label>}
+            {projectData.category === "novel" && <>
+              <input ref={coverInputRef} type="file" accept="image/jpeg,image/png" className="hidden" aria-label="Novel cover image" onChange={event => { changeCover(event.target.files?.[0]); event.target.value = "" }} />
+              <button type="button" className="text-xs text-foreground underline" onClick={() => coverInputRef.current?.click()}>{coverImage ? "Change cover" : "Add cover"}</button>
+              {coverImage && <button type="button" className="text-xs text-muted-foreground underline" onClick={removeCover}>Remove cover</button>}
+            </>}
             {(scenes.find((scene) => scene.id === activeChapterId) ?? scenes[0]) && (
               <DocumentMetadataDialog
                 key={activeChapterId ?? scenes[0].id}
@@ -659,6 +805,16 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
             },
           ]}
           exportItems={[
+            ...(projectData.category === "novel" ? (["a6", "a7"] as const).map(preset => ({
+              label: `Typesetting HTML (${preset.toUpperCase()})`,
+              onClick: () => void runExport({
+                extension: "html", projectTitle: projectData.title,
+                run: async () => {
+                  const { downloadNovelHtml } = await import("@/lib/export/novel-html")
+                  downloadNovelHtml({ ...projectData, scenes }, preset)
+                },
+              }),
+            })) : []),
             {
               label: "Export as Plain Text (.txt)",
               onClick: () => void runExport({
@@ -710,10 +866,12 @@ export function ProseEditor({ projectData }: ProseEditorProps) {
           onToolComplete={() => void refreshDocument().catch(() => {})}
         >
           <PagedSheets
+            pageSize={projectData.category === "novel" ? sheetMetrics : undefined}
+            coverImage={projectData.category === "novel" ? coverImage : undefined}
             pages={pages}
             renderBlock={renderBlock}
             fontFamily={editorFontStack("prose")}
-            railItems={PROSE_RAIL_ITEMS}
+            railItems={projectData.category === "novel" ? NOVEL_RAIL_ITEMS : PROSE_RAIL_ITEMS}
             onRailSelect={handleRailSelect}
             railStorageKey="editor.rail.prose"
             pageIdPrefix="prose-page"

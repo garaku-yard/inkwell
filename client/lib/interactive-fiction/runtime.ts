@@ -1,4 +1,5 @@
 import type { ProjectElement, Scene } from "@/services/project"
+import { plainInlineText, readInlineRuns } from "@/lib/editor/inline-content"
 
 export type IFValue = string | number | boolean
 export type IFVariableType = "string" | "number" | "boolean"
@@ -326,6 +327,7 @@ export function initialVariables(definitions: IFVariableDefinition[]): IFVariabl
 
 export function parseLinks(text: string | null | undefined): Array<{ label: string; target: string }> {
   if (!text) return []
+  text = plainInlineText(text)
   const links: Array<{ label: string; target: string }> = []
   const re = /\[\[(?:([^\]]*?)\s*->\s*)?([^\]|>]+?)(?:\s*\|[^\]]*)?\]\]/g
   let match: RegExpExecArray | null
@@ -371,7 +373,7 @@ export function diagnoseStory(passages: Scene[], settings: IFStorySettings): IFD
   for (const passage of passages) {
     let linkCount = 0
     for (const element of passage.elements ?? []) {
-      let runtimeText = element.content
+      let runtimeText = element.element_type === "body" ? plainInlineText(element.content) : element.content
       try {
         if (element.element_type === "set") {
           const statement = parseSetStatement(element.content)
@@ -426,6 +428,7 @@ export function compileElementToSugarCube(element: ProjectElement): string {
     const otherwise = statement.whenFalse ? `<<else>>${statement.whenFalse}` : ""
     return `<<if ${toSugarCubeExpression(statement.expression)}>>${statement.whenTrue}${otherwise}<</if>>`
   }
+  if (element.element_type === "body") return readInlineRuns(element.content ?? "").map(run => run.color ? `<span style="color:${run.color}">${run.text}</span>` : run.text).join("")
   return element.content ?? ""
 }
 

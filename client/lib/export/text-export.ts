@@ -3,8 +3,17 @@ import { inlineToMarkdown, plainInlineText } from "@/lib/editor/inline-content"
 import { parseStatInstance, statInstanceToText } from "@/lib/ttrpg/stat-schemas"
 import { parseTtrpgBlock, ttrpgBlockToText } from "@/lib/ttrpg/blocks"
 import { parseRuleBox } from "@/lib/ttrpg/rule-box"
+import { novelBlockText, novelNumbering, novelReferenceLabel, parseNovelBlock } from "@/lib/editor/novel-blocks"
 
 function elementText(project: FullProject, el: ProjectElement): string {
+  const novel = parseNovelBlock(el)
+  if (novel) {
+    const numbers = novelNumbering(project)
+    const label = novel.kind === "figure" ? numbers.figureLabels.get(el.id)
+      : novel.kind === "step" ? numbers.stepLabels.get(el.id)
+      : novel.kind === "cross_reference" ? novelReferenceLabel(novel, numbers) : undefined
+    return novelBlockText(novel, label, numbers)
+  }
   if (el.element_type === "rule_box") {
     const rule = parseRuleBox(el.content)
     return [rule.name, rule.content].filter(Boolean).join("\n")
@@ -27,6 +36,7 @@ function elementText(project: FullProject, el: ProjectElement): string {
 }
 
 function markdownElementText(project: FullProject, el: ProjectElement): string {
+  if (parseNovelBlock(el)) return elementText(project, el)
   if (el.element_type === "rule_box") {
     const rule = parseRuleBox(el.content)
     return [rule.name ? `**${rule.name}**` : "", inlineToMarkdown(rule.content)].filter(Boolean).join("\n\n")

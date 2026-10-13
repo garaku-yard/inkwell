@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react"
+import { colorMarkdownRange } from "@/lib/editor/markdown-color"
 
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands"
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown"
@@ -47,6 +48,11 @@ interface MarkdownEditorProps {
   className?: string
 }
 
+export interface MarkdownEditorHandle {
+  setTextColor(color: string): boolean
+  clearTextColor(): boolean
+}
+
 /**
  * CodeMirror 6 editor with Obsidian-style Live Preview rendering. The
  * component is "controlled" in the React sense: the parent holds the
@@ -57,7 +63,7 @@ interface MarkdownEditorProps {
  * full-doc replace into the existing view instead of recreating it, so
  * the undo history + view state stay intact across navigations.
  */
-export function MarkdownEditor({
+export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor({
   value,
   onChange,
   onWikilinkClick,
@@ -66,9 +72,33 @@ export function MarkdownEditor({
   vaultPath,
   placeholder,
   className,
-}: MarkdownEditorProps) {
+}: MarkdownEditorProps, forwardedRef) {
   const host = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
+  useImperativeHandle(forwardedRef, () => ({
+    setTextColor(value: string) {
+      const view = viewRef.current
+      if (!view) return false
+      const selection = view.state.selection.main
+      const source = view.state.doc.toString()
+      const changed = colorMarkdownRange(source, selection.from, selection.to, value)
+      if (!changed) return false
+      view.dispatch({ changes: { from: 0, to: source.length, insert: changed.content }, selection: { anchor: changed.selectionStart, head: changed.selectionStart + selection.to - selection.from } })
+      view.focus()
+      return true
+    },
+    clearTextColor() {
+      const view = viewRef.current
+      if (!view) return false
+      const selection = view.state.selection.main
+      const source = view.state.doc.toString()
+      const changed = colorMarkdownRange(source, selection.from, selection.to, null)
+      if (!changed) return false
+      view.dispatch({ changes: { from: 0, to: source.length, insert: changed.content }, selection: { anchor: changed.selectionStart, head: changed.selectionStart + selection.to - selection.from } })
+      view.focus()
+      return true
+    },
+  }), [])
   // Hold the latest onChange in a ref so we don't need to recreate the
   // CodeMirror view every time the parent re-renders with a new handler.
   const onChangeRef = useRef(onChange)
@@ -162,4 +192,4 @@ export function MarkdownEditor({
       data-placeholder={placeholder ?? ""}
     />
   )
-}
+})

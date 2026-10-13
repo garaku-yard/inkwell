@@ -83,6 +83,7 @@ describe("tools/list", () => {
     expect(names[0]).toBe("use_project")
     expect(names).toContain("read_scene")
     expect(names).toContain("append_to_scene")
+    for (const name of ["list_novel_blocks", "read_novel_block", "create_novel_block", "update_novel_block", "move_novel_step", "delete_novel_block", "export_novel_html"]) expect(names).toContain(name)
     // Every tool carries a schema, or a client can't call it.
     for (const t of tools) expect(t.inputSchema, t.name).toBeTruthy()
   })
@@ -105,6 +106,11 @@ describe("tools/list", () => {
       "create_ttrpg_stat_block",
       "update_ttrpg_stat_block",
       "create_ttrpg_block",
+      "create_novel_block",
+      "update_novel_block",
+      "set_text_color",
+      "move_novel_step",
+      "delete_novel_block",
       "update_ttrpg_block",
       "delete_ttrpg_block",
       "reorder_sections",
@@ -120,7 +126,7 @@ describe("tools/list", () => {
       tools: Array<{ name: string; annotations: { destructiveHint: boolean } }>
     }
     const destructive = tools.filter((t) => t.annotations.destructiveHint).map((t) => t.name)
-    expect(destructive).toEqual(["update_beat", "update_ttrpg_stat_block", "update_ttrpg_block", "delete_ttrpg_block", "reorder_sections", "rewrite_scene", "delete_scene"])
+    expect(destructive).toEqual(["update_beat", "update_ttrpg_stat_block", "update_novel_block", "delete_novel_block", "update_ttrpg_block", "delete_ttrpg_block", "reorder_sections", "rewrite_scene", "delete_scene"])
   })
 })
 

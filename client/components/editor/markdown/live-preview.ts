@@ -552,6 +552,22 @@ function buildDecorations(view: EditorView): DecorationSet {
     }
   }
 
+  // Vault notes are Markdown files. Keep the color as portable HTML while
+  // showing only the colored words when the author is off that line.
+  const source = view.state.doc.toString()
+  const colorSpan = /<span style="color:(#[0-9a-fA-F]{6})">([\s\S]*?)<\/span>/g
+  let colored: RegExpExecArray | null
+  while ((colored = colorSpan.exec(source))) {
+    const openEnd = colored.index + colored[0].indexOf(">") + 1
+    const closeStart = colored.index + colored[0].lastIndexOf("</span>")
+    if (openEnd >= closeStart) continue
+    pushMark(openEnd, closeStart, Decoration.mark({ attributes: { style: `color:${colored[1]}` } }))
+    if (!rangeOnActiveLines(colored.index, colored.index + colored[0].length)) {
+      pushReplace(colored.index, openEnd, Decoration.replace({}))
+      pushReplace(closeStart, colored.index + colored[0].length, Decoration.replace({}))
+    }
+  }
+
   pending.sort(
     (a, b) => a.from - b.from || a.priority - b.priority || a.to - b.to,
   )
