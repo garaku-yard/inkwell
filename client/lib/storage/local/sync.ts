@@ -16,8 +16,8 @@ import { apiClient, getAuthToken } from "@/lib/api"
 import type { SyncProjectState, SyncStorage } from "@/lib/storage"
 import { getDb, LOCAL_USER_ID, now, SYNCED_PROJECT_CHILD_TABLES } from "./shared"
 import { runVaultSync } from "./vault-sync"
-import { purgeWorkspaceProject, WORKSPACE_PROJECT_RECOVERY_MS } from "./workspace-project-retention"
 import { syncProjectComments } from "./comment-sync"
+import { purgeWorkspaceProject, WORKSPACE_PROJECT_RECOVERY_MS } from "./workspace-project-retention"
 import {
   fromTs,
   pushBeat,

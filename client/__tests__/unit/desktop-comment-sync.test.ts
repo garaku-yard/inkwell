@@ -31,7 +31,7 @@ function device() {
   `)
   sqlite.exec(readFileSync("src-tauri/migrations/0010_sync_state.sql", "utf8"))
   sqlite.exec(readFileSync("src-tauri/migrations/0020_local_comments.sql", "utf8"))
-  sqlite.exec(readFileSync("src-tauri/migrations/0021_local_comment_sync.sql", "utf8"))
+  sqlite.exec(readFileSync("src-tauri/migrations/0022_local_comment_sync.sql", "utf8"))
   sqlite.prepare("INSERT INTO projects (id) VALUES (?)").run(projectId)
   sqlite.prepare("INSERT INTO scenes (id, project_id) VALUES (?, ?)").run(sceneId, projectId)
   sqlite.prepare("INSERT INTO script_elements (id, project_id) VALUES (?, ?)").run(elementId, projectId)
