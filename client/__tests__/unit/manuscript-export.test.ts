@@ -26,6 +26,24 @@ function project(category: "novel" | "poetry"): FullProject {
 }
 
 describe("manuscript exports", () => {
+  it("uses the selected novel page size and embeds a cover in both formats", () => {
+    const data = project("novel")
+    const coverImage = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+    const pdf = renderManuscriptPdfBytes(data, "prose", { paperSize: "a5", coverImage })
+    if (process.env.INKWELL_COVER_QA_DIR) writeFileSync(`${process.env.INKWELL_COVER_QA_DIR}/cover.pdf`, pdf)
+    const pdfText = new TextDecoder("latin1").decode(pdf)
+    expect(pdfText).toMatch(/\/MediaBox\s*\[0 0 419\.5\d* 595\.2\d*\]/)
+    expect(pdfText).toContain("/Subtype /Image")
+
+    const docx = renderManuscriptDocxBytes(data, "prose", { paperSize: "a5", coverImage })
+    if (process.env.INKWELL_COVER_QA_DIR) writeFileSync(`${process.env.INKWELL_COVER_QA_DIR}/cover.docx`, docx)
+    const entries = unzipSync(docx)
+    const document = strFromU8(entries["word/document.xml"])
+    expect(document).toContain('<w:pgSz w:w="8391" w:h="11906"/>')
+    expect(document).toContain('r:embed="rId3"')
+    expect(entries["word/media/cover.png"]).toBeDefined()
+  })
+
   it.each(["prose", "poetry"] as const)("renders %s as PDF and styled Word", (profile) => {
     const data = project(profile === "poetry" ? "poetry" : "novel")
     const pdf = renderManuscriptPdfBytes(data, profile)

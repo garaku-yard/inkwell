@@ -24,6 +24,8 @@ import { useExportToast } from "@/lib/export/use-export-toast"
 import { parseTweeToIF } from "@/lib/import/twee"
 import { importIntoProject } from "@/lib/import/import-into-project"
 import { StableContentEditable } from "./shared/StableContentEditable"
+import { InlineTextEditable, InlineFormattingToolbar } from "./shared/InlineTextEditable"
+import { plainInlineText, readInlineRuns } from "@/lib/editor/inline-content"
 import {
   EditorSidebar,
   type EditorSidebarItem,
@@ -105,6 +107,7 @@ const IF_RAIL_ITEMS: RailEntry[] = [
 // abstraction in some code paths.
 function parseLinks(text: string | null | undefined): string[] {
   if (!text) return []
+  text = plainInlineText(text)
   const re = /\[\[(?:[^\]]*?->\s*)?([^\]|>]+?)(?:\s*\|[^\]]*)?\]\]/g
   const targets: string[] = []
   let m
@@ -119,27 +122,38 @@ function parseLinks(text: string | null | undefined): string[] {
 // surrounding text and the visible label so the player can render
 // inline clickable spans rather than just listing targets.
 type BodySegment =
-  | { kind: "text"; value: string }
+  | { kind: "text"; value: string; color?: string }
   | { kind: "link"; label: string; target: string }
 function tokenizeBody(text: string): BodySegment[] {
+  const runs = readInlineRuns(text)
+  text = runs.map(run => run.text).join("")
   const re = /\[\[(?:([^\]]*?)\s*->\s*)?([^\]|>]+?)(?:\s*\|[^\]]*)?\]\]/g
   const out: BodySegment[] = []
+  const appendText = (from: number, to: number) => {
+    let position = 0
+    for (const run of runs) {
+      const start = Math.max(from, position)
+      const end = Math.min(to, position + run.text.length)
+      if (start < end) out.push({ kind: "text", value: text.slice(start, end), color: run.color })
+      position += run.text.length
+    }
+  }
   let last = 0
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
-    if (m.index > last) out.push({ kind: "text", value: text.slice(last, m.index) })
+    if (m.index > last) appendText(last, m.index)
     const target = m[2].trim()
     const label = (m[1]?.trim() || target)
     out.push({ kind: "link", label, target })
     last = re.lastIndex
   }
-  if (last < text.length) out.push({ kind: "text", value: text.slice(last) })
+  if (last < text.length) appendText(last, text.length)
   return out
 }
 
 function wordCount(text: string | null | undefined) {
   if (!text) return 0
-  return text.trim().split(/\s+/).filter(Boolean).length
+  return plainInlineText(text).trim().split(/\s+/).filter(Boolean).length
 }
 
 interface InteractiveFictionEditorProps {
@@ -667,7 +681,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
         case "note":
           return 64
         default: {
-          const len = (b.el.content ?? "").length
+          const len = plainInlineText(b.el.content ?? "").length
           return 16 + Math.max(1, Math.ceil(len / 80)) * 28
         }
       }
@@ -684,7 +698,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const renderIFElement = (el: ProjectElement) => {
     if (el.element_type === "body") {
       return (
-        <StableContentEditable
+        <InlineTextEditable
           id={`el-${el.id}`}
           value={el.content}
           onValueChange={(next) => {
@@ -807,7 +821,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
       return (
         <div className="opacity-60 hover:opacity-100 transition-opacity">
           <div className="text-xs uppercase tracking-widest text-muted-foreground/50 mb-0.5 pl-1 select-none">Author note</div>
-          <StableContentEditable
+          <InlineTextEditable
             id={`el-${el.id}`}
             value={el.content}
             onValueChange={(next) => handleContentChange(el.id, next, false)}
@@ -963,6 +977,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           ]}
           leading={
             <div className="flex items-center gap-2">
+            <InlineFormattingToolbar />
             <div role="group" aria-label="View mode" className="flex items-center rounded-md border overflow-hidden text-xs">
               <button
                 onClick={() => setView("write")}
@@ -1157,7 +1172,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                                 {seg.label}
                               </button>
                             ) : (
-                              <span key={i}>{seg.value}</span>
+                              <span key={i} style={seg.color ? { color: seg.color } : undefined}>{seg.value}</span>
                             ),
                           )}
                         </p>

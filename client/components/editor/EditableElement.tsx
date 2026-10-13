@@ -66,6 +66,15 @@ export const EditableElement = React.memo(
       ),
       mode: "html",
     })
+    useEffect(() => {
+      const root = ref.current
+      if (!root) return
+      const commit = () => handle.commitContent()
+      root.addEventListener("inkwell:inline-format", commit)
+      return () => root.removeEventListener("inkwell:inline-format", commit)
+      // The stable contentEditable ref and its commit method share the same DOM node.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     // Expose a DOM ref augmented with focusAtEnd so the screenplay
     // editor can keep its existing `ref.current.focusAtEnd()` call
@@ -134,6 +143,7 @@ export const EditableElement = React.memo(
           id={isScene ? `head-${element.id}` : `el-${element.id}`}
           data-id={element.id}
           data-screenplay-text
+          data-inline-editor
           data-placeholder={isScene ? "Scene heading..." : getPlaceholderText(type)}
           aria-label={isScene ? "Scene heading" : `${type.toLowerCase()} element`}
           aria-placeholder={isScene ? "Scene heading..." : getPlaceholderText(type)}

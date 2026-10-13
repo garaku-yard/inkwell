@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogScrollContent, DialogTitle } from "@/components/ui/dialog"
 import { manuscriptSubmissionDefaults, type ManuscriptProfile, type ManuscriptSubmissionOptions } from "@/lib/export/manuscript-options"
 import type { FullProject } from "@/services/project"
+import { PROSE_PAPER, type ProsePaperSize } from "@/lib/editor/prose-paper"
 
 export function ManuscriptExportDialog({
-  project, profile, format, open, onOpenChange, onExport,
+  project, profile, format, open, onOpenChange, onExport, paperSize, allowPaperSize,
 }: {
   project: FullProject
   profile: ManuscriptProfile
@@ -17,8 +18,10 @@ export function ManuscriptExportDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   onExport: (options: ManuscriptSubmissionOptions) => void
+  paperSize?: ProsePaperSize
+  allowPaperSize?: boolean
 }) {
-  const [options, setOptions] = useState<Required<ManuscriptSubmissionOptions>>(() => manuscriptSubmissionDefaults(project, profile))
+  const [options, setOptions] = useState<Required<ManuscriptSubmissionOptions>>(() => ({ ...manuscriptSubmissionDefaults(project, profile), paperSize: paperSize ?? "letter" }))
   const set = <K extends keyof ManuscriptSubmissionOptions>(key: K, value: Required<ManuscriptSubmissionOptions>[K]) =>
     setOptions(current => ({ ...current, [key]: value }))
 
@@ -29,6 +32,9 @@ export function ManuscriptExportDialog({
         <DialogDescription>Choose the submission layout. Your manuscript content stays the same.{profile === "poetry" ? " Long lines wrap with a hanging indent; exact spatial positioning is not preserved." : ""}</DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 text-sm">
+        {profile === "prose" && allowPaperSize && <label className="grid gap-1.5">Paper size<select value={options.paperSize} onChange={event => set("paperSize", event.target.value as ProsePaperSize)} className="border-input bg-background h-9 rounded-md border px-3">
+          {Object.entries(PROSE_PAPER).map(([value, paper]) => <option key={value} value={value}>{paper.label}</option>)}
+        </select></label>}
         <label className="flex items-center gap-3"><Checkbox checked={options.titlePage} onCheckedChange={checked => set("titlePage", checked === true)} />Include title page</label>
         <label className="grid gap-1.5">Byline<Input value={options.byline} onChange={event => set("byline", event.target.value)} placeholder="Name as it should appear" disabled={!options.titlePage} /></label>
         <label className="grid gap-1.5">Contact information<textarea value={options.contact} onChange={event => set("contact", event.target.value)} rows={3} placeholder="Shown on title page" disabled={!options.titlePage} className="border-input bg-background w-full rounded-md border px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>

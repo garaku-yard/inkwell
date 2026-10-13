@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   ArrowLeft,
@@ -34,7 +34,7 @@ import { useTheme } from "@/lib/ThemeContext"
 import { AppHeaderActions } from "@/components/AppHeaderActions"
 import { ProjectNavMenu } from "./shared/ProjectNavMenu"
 import type { FullProject } from "@/services/project"
-import { MarkdownEditor } from "./markdown/MarkdownEditor"
+import { MarkdownEditor, type MarkdownEditorHandle } from "./markdown/MarkdownEditor"
 import { VaultGraph } from "./VaultGraph"
 import { useVaultAutosave } from "./vault/useVaultAutosave"
 import { useVaultBacklinks } from "./vault/useVaultBacklinks"
@@ -66,6 +66,7 @@ interface VaultEditorProps {
  * view, or filesystem watcher yet — those live in follow-up chunks.
  */
 export function VaultEditor({ projectData }: VaultEditorProps) {
+  const markdownEditor = useRef<MarkdownEditorHandle>(null)
   const projectId = projectData.id
   const {
     storage,
@@ -672,6 +673,8 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
           ) : (
             <>
               <VaultNoteToolbar
+                onTextColor={color => markdownEditor.current?.setTextColor(color)}
+                onClearTextColor={() => { markdownEditor.current?.clearTextColor() }}
                 title={selected.title}
                 renameDraft={renameDraft}
                 setRenameDraft={setRenameDraft}
@@ -690,6 +693,7 @@ export function VaultEditor({ projectData }: VaultEditorProps) {
                 style={{ ['--inkwell-vault-font' as string]: editorFontStack("vault") }}
               >
                 <MarkdownEditor
+                  ref={markdownEditor}
                   value={content}
                   onChange={onContentChange}
                   onWikilinkClick={(target) => void onWikilinkClick(target)}

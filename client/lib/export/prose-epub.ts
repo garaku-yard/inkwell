@@ -19,6 +19,7 @@
 import { strToU8, zipSync, type Zippable } from "fflate"
 import type { FullProject, Scene, ProjectElement } from "@/services/project"
 import { inlineToHtml, plainInlineText } from "@/lib/editor/inline-content"
+import { novelBlockText, novelNumbering, novelReferenceLabel, parseNovelBlock } from "@/lib/editor/novel-blocks"
 
 // ─── XML helpers ────────────────────────────────────────────────────
 
@@ -45,7 +46,15 @@ function slugify(s: string): string {
 /** Render one prose element as a paragraph- or heading-shaped XHTML
  *  fragment. Element types we don't have a mapping for fall back to
  *  a plain `<p>` so the writer's words still surface in the export. */
-function elementToXhtml(el: ProjectElement): string {
+function elementToXhtml(el: ProjectElement, project: FullProject): string {
+  const block = parseNovelBlock(el)
+  if (block) {
+    const numbers = novelNumbering(project)
+    const label = block.kind === "figure" ? numbers.figureLabels.get(el.id)
+      : block.kind === "step" ? numbers.stepLabels.get(el.id)
+      : block.kind === "cross_reference" ? novelReferenceLabel(block, numbers) : undefined
+    return `      <p>${escapeXmlText(novelBlockText(block, label, numbers))}</p>`
+  }
   if (!plainInlineText(el.content ?? "").trim()) return ""
   const content = inlineToHtml(el.content ?? "")
   switch (el.element_type) {
@@ -69,12 +78,12 @@ function elementToXhtml(el: ProjectElement): string {
 
 /** Render one chapter (scene) as a complete XHTML 1.1 document so it
  *  can stand alone inside the EPUB spine. */
-function chapterToXhtml(idx: number, scene: Scene): string {
+function chapterToXhtml(idx: number, scene: Scene, project: FullProject): string {
   const title = scene.scene_heading || `Chapter ${idx + 1}`
   const elements = [...(scene.elements ?? [])].sort(
     (a, b) => a.line_number - b.line_number,
   )
-  const body = elements.map(elementToXhtml).filter(Boolean).join("\n")
+  const body = elements.map(element => elementToXhtml(element, project)).filter(Boolean).join("\n")
   return `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en">
@@ -208,7 +217,7 @@ export function buildEpub(project: FullProject): Uint8Array {
 
   scenes.forEach((scene, idx) => {
     archive[`OEBPS/${chapters[idx].href}`] = [
-      strToU8(chapterToXhtml(idx, scene)),
+      strToU8(chapterToXhtml(idx, scene, project)),
       { level: 6 },
     ]
   })

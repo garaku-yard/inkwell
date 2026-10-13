@@ -13,6 +13,7 @@ import {
 } from "@/lib/interactive-fiction/runtime"
 import { projectToTwee } from "@/lib/export/if-twee"
 import { parseTweeToIF } from "@/lib/import/twee"
+import { writeInlineRuns } from "@/lib/editor/inline-content"
 import type { FullProject, ProjectElement, Scene } from "@/services/project"
 
 const element = (id: string, type: string, content: string, line = 0): ProjectElement => ({
@@ -26,6 +27,13 @@ const scene = (id: string, heading: string, elements: ProjectElement[], content 
 })
 
 describe("Inkwell IF runtime", () => {
+  it("keeps selected-word color in playable Twee prose", () => {
+    const prose = writeInlineRuns([{ text: "The " }, { text: "red", color: "#aa2233" }, { text: " door." }])
+    const project = { id: "p", title: "Color", category: "interactive_fiction", scenes: [scene("start", "Start", [element("body", "body", prose)])] } as FullProject
+    const twee = projectToTwee(project)
+    expect(twee).toContain('<span style="color:#aa2233">red</span>')
+    expect(twee).not.toContain("inkwell.editor.inline")
+  })
   it("executes typed assignments and selects one conditional branch", () => {
     let variables = applySetStatement("{set $gold:number to 10}", {})
     variables = applySetStatement("{set $gold to $gold + 5 * 2}", variables)

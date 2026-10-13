@@ -1,5 +1,6 @@
 import { strToU8, zipSync, type Zippable } from "fflate"
 import { jsPDF } from "jspdf"
+import { plainInlineText, readInlineRuns, writeInlineRuns } from "@/lib/editor/inline-content"
 
 import type { FullProject, ProjectElement } from "@/services/project"
 
@@ -29,6 +30,9 @@ function escapeXml(value: string): string {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&apos;")
 }
+
+const writeUppercaseRuns = (content: string) => writeInlineRuns(readInlineRuns(content).map(run => ({ ...run, text: run.text.toUpperCase() })))
+const prefixRuns = (prefix: string, content: string) => writeInlineRuns([{ text: prefix }, ...readInlineRuns(content)])
 
 function downloadBytes(filename: string, bytes: Uint8Array, mime: string): void {
   const blob = new Blob([bytes as BlobPart], { type: mime })
@@ -67,8 +71,9 @@ function buildComicScriptPdf(project: FullProject): jsPDF {
     text: string,
     options: { bold?: boolean; size?: number; indent?: number; align?: "left" | "right" | "center"; uppercase?: boolean; after?: number } = {},
   ) => {
-    const content = (options.uppercase ? text.toUpperCase() : text).trim()
-    if (!content) return
+    const runs = readInlineRuns(text).map(run => ({ ...run, text: options.uppercase ? run.text.toUpperCase() : run.text }))
+    const content = runs.map(run => run.text).join("")
+    if (!content.trim()) return
     const size = options.size ?? 11
     const indent = options.indent ?? 0
     const align = options.align ?? "left"
@@ -83,8 +88,35 @@ function buildComicScriptPdf(project: FullProject): jsPDF {
       : align === "right"
         ? PDF_WIDTH - PDF_MARGIN
         : PDF_MARGIN + indent
-    doc.text(lines, x, y, { align })
-    y += lines.length * lineHeight + (options.after ?? 5)
+    let cursor = 0
+    const colored = runs.flatMap(run => {
+      const start = cursor
+      cursor += run.text.length
+      return run.color ? [{ start, end: cursor, color: run.color }] : []
+    })
+    cursor = 0
+    for (const row of lines) {
+      const rowStart = content.indexOf(row, cursor)
+      const start = rowStart < 0 ? cursor : rowStart
+      const end = start + row.length
+      const left = align === "center" ? x - doc.getTextWidth(row) / 2 : align === "right" ? x - doc.getTextWidth(row) : x
+      const boundaries = [start, end, ...colored.flatMap(mark => [Math.max(start, Math.min(end, mark.start)), Math.max(start, Math.min(end, mark.end))])].sort((a, b) => a - b)
+      for (let i = 0; i < boundaries.length - 1; i++) {
+        const from = boundaries[i]
+        const to = boundaries[i + 1]
+        if (from === to) continue
+        const mark = colored.find(item => item.start <= from && item.end >= to)
+        if (mark) {
+          const hex = mark.color.slice(1)
+          doc.setTextColor(Number.parseInt(hex.slice(0, 2), 16), Number.parseInt(hex.slice(2, 4), 16), Number.parseInt(hex.slice(4, 6), 16))
+        } else doc.setTextColor(0)
+        doc.text(content.slice(from, to), left + doc.getTextWidth(row.slice(0, from - start)), y)
+      }
+      cursor = end
+      y += lineHeight
+    }
+    doc.setTextColor(0)
+    y += options.after ?? 5
   }
 
   doc.setFont("courier", "bold")
@@ -107,8 +139,8 @@ function buildComicScriptPdf(project: FullProject): jsPDF {
 
     let panelNumber = 0
     for (const element of orderedElements(page.elements)) {
-      const content = element.content?.trim() ?? ""
-      if (!content) continue
+      const content = element.content ?? ""
+      if (!plainInlineText(content).trim()) continue
       switch (element.element_type) {
         case "panel":
           panelNumber += 1
@@ -122,10 +154,10 @@ function buildComicScriptPdf(project: FullProject): jsPDF {
           paragraph(content, { indent: 90, after: 7 })
           break
         case "caption":
-          paragraph(`CAPTION: ${content}`, { after: 8 })
+          paragraph(prefixRuns("CAPTION: ", content), { after: 8 })
           break
         case "sfx":
-          paragraph(`SFX: ${content}`, { bold: true, uppercase: true, after: 8 })
+          paragraph(prefixRuns("SFX: ", content), { bold: true, uppercase: true, after: 8 })
           break
         case "transition":
           paragraph(content, { bold: true, uppercase: true, align: "right", after: 10 })
@@ -158,7 +190,8 @@ function wordParagraph(
     options.pageBreakBefore ? "<w:pageBreakBefore/>" : "",
     options.keepNext ? "<w:keepNext/>" : "",
   ].join("")
-  return `<w:p>${properties ? `<w:pPr>${properties}</w:pPr>` : ""}<w:r><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`
+  const runs = readInlineRuns(text).map(run => `<w:r>${run.color ? `<w:rPr><w:color w:val="${run.color.slice(1).toUpperCase()}"/></w:rPr>` : ""}<w:t xml:space="preserve">${escapeXml(run.text)}</w:t></w:r>`).join("")
+  return `<w:p>${properties ? `<w:pPr>${properties}</w:pPr>` : ""}${runs}</w:p>`
 }
 
 function comicDocumentXml(project: FullProject): string {
@@ -178,8 +211,8 @@ function comicDocumentXml(project: FullProject): string {
     }))
     let panelNumber = 0
     for (const element of orderedElements(page.elements)) {
-      const content = element.content?.trim() ?? ""
-      if (!content) continue
+      const content = element.content ?? ""
+      if (!plainInlineText(content).trim()) continue
       switch (element.element_type) {
         case "panel":
           panelNumber += 1
@@ -187,19 +220,19 @@ function comicDocumentXml(project: FullProject): string {
           paragraphs.push(wordParagraph(content, { style: "PanelDescription" }))
           break
         case "character":
-          paragraphs.push(wordParagraph(content.toUpperCase(), { style: "Character", keepNext: true }))
+          paragraphs.push(wordParagraph(writeUppercaseRuns(content), { style: "Character", keepNext: true }))
           break
         case "balloon":
           paragraphs.push(wordParagraph(content, { style: "Dialogue" }))
           break
         case "caption":
-          paragraphs.push(wordParagraph(`CAPTION: ${content}`, { style: "Caption" }))
+          paragraphs.push(wordParagraph(prefixRuns("CAPTION: ", content), { style: "Caption" }))
           break
         case "sfx":
-          paragraphs.push(wordParagraph(`SFX: ${content.toUpperCase()}`, { style: "Sfx" }))
+          paragraphs.push(wordParagraph(prefixRuns("SFX: ", writeUppercaseRuns(content)), { style: "Sfx" }))
           break
         case "transition":
-          paragraphs.push(wordParagraph(content.toUpperCase(), { style: "Transition" }))
+          paragraphs.push(wordParagraph(writeUppercaseRuns(content), { style: "Transition" }))
           break
         default:
           paragraphs.push(wordParagraph(content))

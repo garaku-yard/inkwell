@@ -36,6 +36,8 @@ import { listStatSchemas, saveStatSchema, listTtrpgStatBlocks, createTtrpgStatBl
 import { queryTtrpgBlocks, createTtrpgBlock, updateTtrpgBlock, deleteTtrpgBlock, rollTtrpgTable } from "./ttrpg-blocks"
 import { reorderSections, exportSectionMarkdown, listBeats, updateBeatTool, moveBeat } from "./project-structure"
 import { listProjectComments, addProjectComment } from "./comments"
+import { listNovelBlocks, readNovelBlock, createNovelBlock, updateNovelBlock, moveNovelStep, deleteNovelBlock, exportNovelHtmlTool } from "./novel-blocks"
+import { setTextColor } from "./text-color"
 import type { ToolArgs, ToolEntry } from "./types"
 
 export type { ToolArgs, ToolContext, ToolEntry, ToolRequirement } from "./types"
@@ -67,6 +69,9 @@ const ENTRIES: ToolEntry[] = [
   listBeats,
   listProjectComments,
   queryTtrpgBlocks,
+  listNovelBlocks,
+  readNovelBlock,
+  exportNovelHtmlTool,
   rollTtrpgTable,
   createProject,
   createScene,
@@ -80,6 +85,11 @@ const ENTRIES: ToolEntry[] = [
   createTtrpgStatBlock,
   updateTtrpgStatBlock,
   createTtrpgBlock,
+  createNovelBlock,
+  updateNovelBlock,
+  setTextColor,
+  moveNovelStep,
+  deleteNovelBlock,
   updateTtrpgBlock,
   deleteTtrpgBlock,
   reorderSections,
@@ -116,6 +126,7 @@ export function toolSpecsFor(available: ToolAvailability): ToolSpec[] {
   return ENTRIES.filter(
     (entry) => (entry.requires !== "knowledge" || available.knowledge) &&
       (entry.requires !== "ttrpg" || available.category === "tabletop_rpg") &&
+      (entry.requires !== "novel" || available.category === "novel") &&
       (entry.requires !== "ttrpg_or_if" || available.category === "tabletop_rpg" || available.category === "interactive_fiction"),
   ).map((entry) => entry.spec)
 }

@@ -35,6 +35,16 @@ describe("inline content", () => {
     expect(inlineToHtml(saved)).toContain("<strong> on</strong>")
   })
 
+  it("preserves safe text colors and rejects injected CSS", () => {
+    const colored = writeInlineRuns([{ text: "red", color: "#B42318" }, { text: " text" }])
+    expect(inlineToHtml(colored)).toContain('style="color:#b42318"')
+    expect(editorHtmlToInline(inlineToHtml(colored))).toBe(colored)
+    const smallCaps = writeInlineRuns([{ text: "red", color: "#b42318", smallCaps: true }])
+    expect(editorHtmlToInline(inlineToHtml(smallCaps))).toBe(smallCaps)
+    expect(writeInlineRuns([{ text: "safe", color: "red;position:absolute" }])).toBe("safe")
+    expect(editorHtmlToInline('<span style="color:red;position:absolute">safe</span>')).toBe("safe")
+  })
+
   it("survives .iw and sync, and renders semantic EPUB XHTML", () => {
     const project = {
       id: "p", title: "Night", description: "", owner_id: "u", category: "novel", status: "draft",
@@ -87,6 +97,25 @@ describe("inline content", () => {
     selection.removeAllRanges()
     fireEvent.click(button)
     expect(inlineToHtml(onValueChange.mock.lastCall?.[0])).toContain("<strong>moon</strong>")
+  })
+
+  it("colors only the selected words and can restore the default", () => {
+    const onValueChange = vi.fn()
+    render(<><InlineTextEditable value="the moon" onValueChange={onValueChange} /><InlineFormattingToolbar /></>)
+    const editor = screen.getByRole("textbox")
+    const range = document.createRange()
+    range.setStart(editor.firstChild!, 4)
+    range.setEnd(editor.firstChild!, 8)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const picker = screen.getByLabelText("Text color")
+    fireEvent.pointerDown(picker)
+    selection.removeAllRanges()
+    fireEvent.change(picker, { target: { value: "#336699" } })
+    expect(inlineToHtml(onValueChange.mock.lastCall?.[0])).toContain('style="color:#336699">moon</span>')
+    fireEvent.click(screen.getByRole("button", { name: "Default" }))
+    expect(onValueChange.mock.lastCall?.[0]).toBe("the moon")
   })
 
   it("commits toolbar formatting through the editor and retains it after focus moves", () => {

@@ -18,6 +18,7 @@ export type ProseElementType =
   | "dialogue"
   | "scene_break"
   | "scene_heading_stinger"
+  | "figure" | "step" | "materials" | "callout" | "build_card" | "cross_reference" | "glossary" | "index"
 
 /** mod+digit insert shortcuts. Paragraph on 1 because that's the
  *  workhorse; chapter_heading on 2 for the obvious section break;
