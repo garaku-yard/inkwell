@@ -1048,6 +1048,16 @@ type updateCommentBody struct {
 	IsResolved *bool   `json:"is_resolved,omitempty"`
 }
 
+func commentIDFromRequest(r *http.Request) string {
+	if id := chi.URLParam(r, "commentId"); id != "" {
+		return id
+	}
+	// Direct handler tests do not mount a chi route.
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1")
+	path = strings.TrimPrefix(path, "/comments/")
+	return strings.Split(path, "/")[0]
+}
+
 // UpdateComment applies partial updates to an existing comment. Only non-nil fields
 // are forwarded: content replaces the body text, and is_resolved marks the thread resolved.
 func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Request) {
@@ -1057,9 +1067,7 @@ func (h *CollaborationHandler) UpdateComment(w http.ResponseWriter, r *http.Requ
 		Auth:   true,
 		Decode: handlers.JSONBody[updateCommentBody],
 		Handle: func(r *http.Request, userID string, updateData *updateCommentBody) (*map[string]interface{}, error) {
-			// Get comment ID from URL path
-			path := strings.TrimPrefix(r.URL.Path, "/comments/")
-			commentID := strings.Split(path, "/")[0]
+			commentID := commentIDFromRequest(r)
 			if commentID == "" {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Comment ID is required")
 			}
@@ -1143,9 +1151,7 @@ func (h *CollaborationHandler) DeleteComment(w http.ResponseWriter, r *http.Requ
 		Auth:   true,
 		Decode: handlers.NoBody[struct{}],
 		Handle: func(r *http.Request, userID string, _ *struct{}) (*map[string]interface{}, error) {
-			// Get comment ID from URL path
-			path := strings.TrimPrefix(r.URL.Path, "/comments/")
-			commentID := strings.Split(path, "/")[0]
+			commentID := commentIDFromRequest(r)
 			if commentID == "" {
 				return nil, apierror.New(apierror.CodeInvalidArgument, http.StatusBadRequest, "Comment ID is required")
 			}

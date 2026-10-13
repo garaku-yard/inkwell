@@ -169,7 +169,7 @@ func newRoleCommentHandler(commentOwnerID, callerID, orgRole, directRole string)
 func TestUpdateComment_OrgOnlyViewer(t *testing.T) {
 	t.Run("editing own comment is allowed", func(t *testing.T) {
 		h, cc := newOrgOnlyCommentHandler(orgViewerUserID)
-		req := authedRequest(t, http.MethodPatch, "/comments/"+orgViewerCommentID, orgViewerUserID, `{"content":"edited"}`)
+		req := authedRequest(t, http.MethodPatch, "/api/v1/comments/"+orgViewerCommentID, orgViewerUserID, `{"content":"edited"}`)
 		rec := httptest.NewRecorder()
 		h.UpdateComment(rec, req)
 		if rec.Code != http.StatusOK {
@@ -210,7 +210,7 @@ func TestUpdateComment_OrgOnlyViewer(t *testing.T) {
 func TestDeleteComment_OrgOnlyViewer(t *testing.T) {
 	t.Run("deleting own comment is allowed", func(t *testing.T) {
 		h, cc := newOrgOnlyCommentHandler(orgViewerUserID)
-		req := authedRequest(t, http.MethodDelete, "/comments/"+orgViewerCommentID, orgViewerUserID, "")
+		req := authedRequest(t, http.MethodDelete, "/api/v1/comments/"+orgViewerCommentID, orgViewerUserID, "")
 		rec := httptest.NewRecorder()
 		h.DeleteComment(rec, req)
 		if rec.Code != http.StatusOK {
