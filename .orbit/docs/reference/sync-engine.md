@@ -151,7 +151,7 @@ comment after checking its project, author, and target. A lost POST response
 therefore cannot duplicate a comment. Edits use a revision guard, deletes stay
 hidden locally until confirmed, and an empty hosted list only removes local
 rows previously confirmed there. The queue survives restart in migration
-`0021_local_comment_sync.sql`.
+`0022_local_comment_sync.sql`.
 
 The gateway checks project access and verifies scene, element, and parent
 comment ownership before accepting a new comment. Desktop offline edits are
