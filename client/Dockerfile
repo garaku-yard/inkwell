@@ -26,7 +26,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
 
 # Build the application
-RUN npm run build
+RUN npm run build -- --webpack
 
 # Production image, copy all the files and run next
 FROM base AS runner
