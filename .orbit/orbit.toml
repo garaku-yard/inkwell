@@ -3,7 +3,7 @@
 
 [template]
 source = 'ssh://git@github.com/garaku-yard/orbit.git'
-version = 'templates/v0.1.0'
+version = 'templates/v1.0.0'
 
 [template.files]
-'.orbit/rules/studio.md' = 'sha256:88355e54b8146b1748fda13dae68f0d953c70cfd67d2bbe3849e56338591f063'
+'.orbit/rules/studio.md' = 'sha256:b43327957feabae01867a254433a56fbb64120842e3ef5686364c56e9a7adcc4'
