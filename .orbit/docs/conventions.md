@@ -1,25 +1,26 @@
 # Conventions
 
-> The studio git standard (seeded) plus this stack's language letter — the
-> handful of idioms and gotchas that are genuine judgment calls. Formatters and
-> linters own mechanical style and are not restated here. For the full
-> contribution flow, the four-layer service recipe, and the PR checklist, see
-> the public [CONTRIBUTING.md](../../CONTRIBUTING.md) — this doc is the
-> internal-facing companion, not a replacement.
+Inkwell's own rules: this stack's language letter and the judgment calls that
+are specific to it. The studio standard (git, docs, engineering judgment) is
+vendored in [`.orbit/rules/studio.md`](../rules/studio.md); a rule here
+overrides it only when it is labelled as a deviation. Formatters and linters
+own mechanical style. For the full contribution flow, the four-layer service
+recipe, and the PR checklist, see the public
+[CONTRIBUTING.md](../../CONTRIBUTING.md).
 
-## Git standard (studio-wide)
+## Always
 
-- **Conventional Commits.** `type(scope): imperative subject`; a body that
-  explains the *why*, not the *what*. Existing history uses
-  `feat(realtime):`, `fix(auth):`, `refactor(editor):`, `build:`, `chore:`.
-- **Branch + PR, not commit-to-main.** Land each change through a pull request.
-- **One logical change per commit.** Keep diffs reviewable and revertable.
-- **No `Co-Authored-By` (or any AI-author) trailer.** Commits are authored by
-  the human; tooling is not a co-author.
-- **Never override git identity.** Use the machine's configured author.
-
-> Note: this repo's prior local practice was commit-straight-to-main. Branch + PR
-> is the recorded go-forward standard as of the docs migration.
+- **Before committing, run what you touched.** Server:
+  `cd server && gofmt -l . && go vet ./... && go test -race -count=1 ./...`
+  (`gofmt -l` must print nothing). Client:
+  `cd client && npm run lint && npx tsc --noEmit && npm test`.
+- **Commit bodies explain the *why*,** not the *what*. Scopes in use:
+  `realtime`, `auth`, `editor`, `sync`, `client`, `deps`.
+- **Reuse is engine + per-format config,** never a `<BaseEditor>`-style shared
+  component across the nine formats
+  ([decisions/0012](./decisions/0012-engine-plus-config-over-baseeditor.md)).
+- **Product copy follows the brand voice:** quiet craft, writer-centric,
+  action-first; no "empower / unleash / journey".
 
 ## Go (server)
 
@@ -74,29 +75,22 @@ Beyond that:
 - Field names `snake_case`; generated Go is `CamelCase` — don't edit generated
   files. Regenerate with `make proto` / `task proto:gen`.
 
-## Engineering judgment (studio taste)
+## Inkwell — engineering judgment
 
-These are the calls that keep the codebase from bloating — recorded because
-they've been actively enforced:
+The studio's engineering judgment (rule of three, root causes, defer
+explicitly) applies here. What it looks like in Inkwell:
 
-- **Rule of three before extracting.** A pattern needs 3+ concrete appearances
-  before it becomes a shared module. Two copies stay duplicated. Premature
-  abstraction produces props-soup that fits no call site.
-- **Don't generalise across features that only look similar.** No `<BaseEditor>`
+- **Don't generalise across formats that only look similar.** No `<BaseEditor>`
   for the nine formats; no "project shell" that wraps shadcn and adds nothing.
-  Concrete beats abstract; the formats are stable. See
+  The formats are stable. See
   [decisions/0012](./decisions/0012-engine-plus-config-over-baseeditor.md).
 - **Engine + per-format config** when something *does* deserve reuse: keep the
   generic part minimal, let each consumer own its config (`keymap.ts` engine +
   per-format `keymap.ts`; `StableContentEditable`; `useElementAutosave`;
   `useProjectLoader`).
-- **Fix root causes, not band-aids.** No toasts that do nothing; honesty over
-  fake success. If tests fail, say so.
 - **Verifying behaviour.** When a refactor moves bodies verbatim: type-check +
   run tests + keep the smoke harness. When an extraction touches save logic, add
   a smoke test for that file *before* extracting.
-- **Defer big items explicitly and track them** ([roadmap.md](./roadmap.md)) —
-  never silently skip.
 
 ## Copy / brand voice
 
@@ -108,7 +102,5 @@ no "empower / unleash / journey." Full guidance in
 
 - **Go:** godoc as above.
 - **TypeScript:** TSDoc as above.
-- **These `.orbit/docs/`:** evergreen docs (overview, architecture, brand,
-  conventions, glossary, roadmap, runbook) are rewritten freely to match
-  reality; `decisions/`, `changelog.md`, and `log/` are **append-only** — a
-  wrong past decision is *superseded* by a new ADR, never edited in place.
+- **These `.orbit/docs/`:** as the studio standard's Docs section says;
+  `changelog.md` is append-only like `decisions/` and `log/`.
