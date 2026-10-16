@@ -1,0 +1,9 @@
+# Written by `orbit template upgrade` and read by `orbit template check`.
+# The hashes are of the managed files as written; do not edit them by hand.
+
+[template]
+source = 'ssh://git@github.com/garaku-yard/orbit.git'
+version = 'templates/v0.1.0'
+
+[template.files]
+'.orbit/rules/studio.md' = 'sha256:88355e54b8146b1748fda13dae68f0d953c70cfd67d2bbe3849e56338591f063'
