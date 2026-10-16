@@ -222,3 +222,18 @@ jobs:
             --file client/Dockerfile \
             --tag inkwell-client:ci \
             client
+
+  rules:
+    name: Studio rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Vendored studio rules match the pinned templates/v* release, the
+      # Always sections fit their budget, and log/ entries are dated (orbit
+      # ADR 0026).
+      - name: Install orbit
+        run: |
+          curl -fsSL https://orbit.garakuyard.com/dl/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Template check
+        run: orbit template check
