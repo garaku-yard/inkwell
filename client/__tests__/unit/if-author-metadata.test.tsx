@@ -58,7 +58,7 @@ describe("IF author-only passage details", () => {
       settings={{ variables: [], testStates: [] }} onSave={onSave}
       onSelectPassage={vi.fn()} onLoadTestState={vi.fn()}
     />)
-    const condition = screen.getByRole("textbox", { name: "Trigger / condition" })
+    const condition = screen.getByRole("textbox", { name: "Planning condition" })
     const note = screen.getByRole("textbox", { name: "Author note" })
     expect(condition).toHaveValue("Alarm level above 2")
     expect(note).toHaveValue("Queue camera pan")

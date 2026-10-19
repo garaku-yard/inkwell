@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
-import { Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Play, RotateCcw, ChevronLeft, AlignLeft, Split, Braces, StickyNote, Activity } from "lucide-react"
+import { Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Play, RotateCcw, ChevronLeft, AlignLeft, Split, Braces, StickyNote, Activity, Zap } from "lucide-react"
 import { PassageGraph } from "./PassageGraph"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -18,6 +18,8 @@ import { createIFKeymap } from "./if/keymap"
 import { PassageAutocomplete } from "./if/PassageAutocomplete"
 import { CharacterManagerDialog } from "./if/CharacterManagerDialog"
 import { StoryToolsDialog } from "./if/StoryToolsDialog"
+import { TriggerBlockEditor } from "./if/TriggerBlockEditor"
+import { updateScriptElement } from "@/services/editor"
 import { exportProjectToText } from "@/lib/export/text-export"
 import { exportProjectToTwee } from "@/lib/export/if-twee"
 import { useExportToast } from "@/lib/export/use-export-toast"
@@ -49,11 +51,16 @@ import {
 } from "@/services/project"
 import {
   EMPTY_IF_STORY_SETTINGS,
+  defaultTriggerBlock,
   executePassage,
+  executeTrigger,
   initialVariables,
   parsePassageMetadata,
+  parseTriggerBlock,
   renamePassageLinks,
   serializePassageMetadata,
+  serializeTriggerBlock,
+  triggerFromLegacyText,
   type IFExecutionEvent,
   type IFPassageMetadata,
   type IFRenderedElement,
@@ -67,8 +74,9 @@ import {
 // choice      — [[Choice text -> PassageName]] link(s)
 // conditional — {if $flag: [[Yes -> A]] else: [[No -> B]]}
 // set         — variable assignment: {set $gold to 10}
+// trigger     — named runtime event with ordered reveal/set/conditional actions
 // note        — author note, never shown in-game
-type IFElementType = "body" | "choice" | "conditional" | "set" | "note"
+type IFElementType = "body" | "choice" | "conditional" | "set" | "trigger" | "note"
 
 type IFScene = NonNullable<FullProject["scenes"]>[number]
 
@@ -79,6 +87,7 @@ interface PlaySnapshot {
   rendered: IFRenderedElement[]
   events: IFExecutionEvent[]
   errors: string[]
+  firedTriggerIds: string[]
 }
 
 /** One renderable unit on the active passage's A4 sheet — its header
@@ -97,6 +106,7 @@ const IF_RAIL_ITEMS: RailEntry[] = [
   { type: "choice", label: "Choice link", icon: Link2 },
   { type: "conditional", label: "Conditional", icon: Split },
   { type: "set", label: "Set variable", icon: Braces },
+  { type: "trigger", label: "Event trigger", icon: Zap },
   { type: "note", label: "Author note", icon: StickyNote },
 ]
 
@@ -190,6 +200,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const [playRendered, setPlayRendered] = useState<IFRenderedElement[]>([])
   const [playEvents, setPlayEvents] = useState<IFExecutionEvent[]>([])
   const [playErrors, setPlayErrors] = useState<string[]>([])
+  const [playFiredTriggerIds, setPlayFiredTriggerIds] = useState<string[]>([])
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
   const runExport = useExportToast()
@@ -227,6 +238,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
     const start = passages.find((passage) => passage.id === storySettings.startPassageId) ?? passages[0]
     setPlayHistory([])
     setPlayEvents([])
+    setPlayFiredTriggerIds([])
     if (!start) {
       setPlayCursor(null); setPlayInputVariables({}); setPlayVariables({}); setPlayRendered([]); setPlayErrors([])
       return
@@ -237,6 +249,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const loadTestState = useCallback((state: IFTestState) => {
     setPlayHistory([])
     setPlayEvents([])
+    setPlayFiredTriggerIds([])
     enterPlayPassage(state.passageId, state.variables, [])
     setView("play")
   }, [enterPlayPassage])
@@ -434,6 +447,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
       choice: "[[Option text -> Passage Name]]",
       conditional: "{if $flag: [[Yes -> Passage A]] else: [[No -> Passage B]]}",
       set: "{set $variable to value}",
+      trigger: serializeTriggerBlock(defaultTriggerBlock()),
       note: "",
     }
     const el = await insertElement(activePassageId, {
@@ -678,6 +692,8 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
           return 88
         case "set":
           return 64
+        case "trigger":
+          return 210
         case "note":
           return 64
         default: {
@@ -697,17 +713,43 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   /** Render one passage element with its per-type IF styling + link badges. */
   const renderIFElement = (el: ProjectElement) => {
     if (el.element_type === "body") {
+      const legacyTrigger = triggerFromLegacyText(el.content)
       return (
-        <InlineTextEditable
-          id={`el-${el.id}`}
-          value={el.content}
-          onValueChange={(next) => {
-            handleContentChange(el.id, next, false)
-            setAutocomplete(computeAutocompleteContext(el.id))
-          }}
-          onKeyDown={(e) => handleKeyDown(e, el)}
-          className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Passage\00a0text…'] empty:before:text-muted-foreground/50"
-        />
+        <div>
+          {legacyTrigger && (
+            <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs">
+              <span>This reads like a trigger note, but it does not run yet.</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 shrink-0"
+                onClick={() => {
+                  const content = serializeTriggerBlock(legacyTrigger)
+                  void updateScriptElement(el.id, { elementType: "trigger", content }).then((updated) => {
+                    setPassages((current) => current.map((passage) => ({
+                      ...passage,
+                      elements: (passage.elements ?? []).map((item) => item.id === el.id ? updated : item),
+                    })))
+                    toast({ title: "Trigger converted", description: "Add the ordered actions that should run when this event fires." })
+                  }).catch((error) => toast({ title: "Couldn't convert trigger", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" }))
+                }}
+              >
+                <Zap className="mr-1 h-3 w-3" /> Convert
+              </Button>
+            </div>
+          )}
+          <InlineTextEditable
+            id={`el-${el.id}`}
+            value={el.content}
+            onValueChange={(next) => {
+              handleContentChange(el.id, next, false)
+              setAutocomplete(computeAutocompleteContext(el.id))
+            }}
+            onKeyDown={(e) => handleKeyDown(e, el)}
+            className="outline-none text-base leading-relaxed min-h-[1.5rem] empty:before:content-['Passage\00a0text…'] empty:before:text-muted-foreground/50"
+          />
+        </div>
       )
     }
 
@@ -817,6 +859,16 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
       )
     }
 
+    if (el.element_type === "trigger") {
+      return (
+        <TriggerBlockEditor
+          id={`el-${el.id}`}
+          value={el.content}
+          onValueChange={(next) => handleContentChange(el.id, next, false)}
+        />
+      )
+    }
+
     if (el.element_type === "note") {
       return (
         <div className="opacity-60 hover:opacity-100 transition-opacity">
@@ -877,7 +929,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                   {metadata.condition || metadata.note ? "Edit details" : "Add details"}
                 </button>
               </div>
-              {metadata.condition && <p className="mt-2 whitespace-pre-wrap"><span className="font-semibold">Trigger / condition:</span> {metadata.condition}</p>}
+              {metadata.condition && <p className="mt-2 whitespace-pre-wrap"><span className="font-semibold">Planning condition:</span> {metadata.condition}</p>}
               {metadata.note && <p className="mt-2 whitespace-pre-wrap"><span className="font-semibold">Author note:</span> {metadata.note}</p>}
             </div>
           </div>
@@ -1060,6 +1112,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               rendered: playRendered,
               events: playEvents,
               errors: playErrors,
+              firedTriggerIds: playFiredTriggerIds,
             }])
             enterPlayPassage(next.id, playVariables, playEvents)
           }
@@ -1073,6 +1126,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
               setPlayRendered(previous.rendered)
               setPlayEvents(previous.events)
               setPlayErrors(previous.errors)
+              setPlayFiredTriggerIds(previous.firedTriggerIds)
               return prev.slice(0, -1)
             })
           }
@@ -1180,6 +1234,40 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                     })}
                   </article>
                   <aside className="space-y-4 text-xs">
+                    <div className="rounded-md border bg-background/60 p-3">
+                      <h3 className="mb-2 flex items-center gap-1.5 font-semibold"><Zap className="h-3.5 w-3.5" /> Events</h3>
+                      {(cursor.elements ?? []).filter((element) => element.element_type === "trigger").length === 0 ? (
+                        <p className="text-muted-foreground">No events in this passage.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {(cursor.elements ?? []).filter((element) => element.element_type === "trigger").map((element) => {
+                            let trigger
+                            try { trigger = parseTriggerBlock(element.content) } catch { return <p key={element.id} className="text-destructive">Invalid trigger block.</p> }
+                            const fired = playFiredTriggerIds.includes(element.id)
+                            return (
+                              <Button
+                                key={element.id}
+                                variant="outline"
+                                size="sm"
+                                className="h-auto w-full justify-start py-2 text-left"
+                                disabled={trigger.once && fired}
+                                title={trigger.note || `Fire ${trigger.event}`}
+                                onClick={() => {
+                                  const result = executeTrigger(cursor.id, element.id, trigger, playVariables, storySettings.variables, playEvents.length)
+                                  setPlayVariables(result.variables)
+                                  setPlayRendered((current) => [...current, ...result.elements])
+                                  setPlayEvents((current) => [...current, ...result.events])
+                                  setPlayErrors((current) => [...current, ...result.errors])
+                                  if (trigger.once) setPlayFiredTriggerIds((current) => current.includes(element.id) ? current : [...current, element.id])
+                                }}
+                              >
+                                <span><span className="block font-medium">{trigger.label}</span><span className="font-mono text-[10px] text-muted-foreground">{trigger.event}{fired ? " · fired" : ""}</span></span>
+                              </Button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
                     <div className="rounded-md border bg-background/60 p-3">
                       <h3 className="mb-2 font-semibold">Variable watch</h3>
                       {Object.keys(playVariables).length === 0 ? <p className="text-muted-foreground">No variables set.</p> : (

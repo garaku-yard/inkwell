@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import type { Scene } from "@/services/project"
 import { cn } from "@/lib/utils"
-import { parseConditionalStatement, parseLinks, parsePassageMetadata } from "@/lib/interactive-fiction/runtime"
+import { parseConditionalStatement, parseLinks, parsePassageMetadata, parseTriggerBlock } from "@/lib/interactive-fiction/runtime"
 
 const NODE_W = 168
 const NODE_H = 92
@@ -33,12 +33,23 @@ function collectEdges(passages: Scene[]): Edge[] {
 
   for (const passage of passages) {
     for (const element of passage.elements ?? []) {
-      if (element.element_type !== "body" && element.element_type !== "choice" && element.element_type !== "conditional") continue
+      if (element.element_type !== "body" && element.element_type !== "choice" && element.element_type !== "conditional" && element.element_type !== "trigger") continue
       let text = element.content
       if (element.element_type === "conditional") {
         try {
           const condition = parseConditionalStatement(text)
           text = `${condition.whenTrue} ${condition.whenFalse}`
+        } catch {
+          continue
+        }
+      }
+      if (element.element_type === "trigger") {
+        try {
+          text = parseTriggerBlock(text).actions.map((action) => {
+            if (action.kind !== "conditional") return action.content
+            const condition = parseConditionalStatement(action.content)
+            return `${condition.whenTrue} ${condition.whenFalse}`
+          }).join(" ")
         } catch {
           continue
         }
@@ -282,8 +293,8 @@ export function PassageGraph({ passages, activePassageId, onSelectPassage }: Pas
                     : "no links"}
                   {metadata.tags[0] ? ` · ${metadata.tags[0]}` : ""}
                 </p>
-                {metadata.condition && <p className="mt-1 truncate text-xs text-foreground" title={`Trigger / condition: ${metadata.condition}`}>
-                  <span className="font-semibold">Trigger:</span> {metadata.condition}
+                {metadata.condition && <p className="mt-1 truncate text-xs text-foreground" title={`Planning condition: ${metadata.condition}`}>
+                  <span className="font-semibold">Condition:</span> {metadata.condition}
                 </p>}
                 {metadata.note && <p className="truncate text-xs text-muted-foreground" title={`Author note: ${metadata.note}`}>
                   <span className="font-semibold">Note:</span> {metadata.note}

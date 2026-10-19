@@ -256,6 +256,104 @@ export function evaluateExpression(expression: string, variables: IFVariables): 
 export interface SetStatement { name: string; declaredType?: IFVariableType; expression: string }
 export interface ConditionalStatement { expression: string; whenTrue: string; whenFalse: string }
 
+export type IFTriggerActionKind = "reveal" | "set" | "conditional"
+
+export interface IFTriggerAction {
+  id: string
+  kind: IFTriggerActionKind
+  content: string
+}
+
+export interface IFTriggerBlock {
+  event: string
+  label: string
+  note: string
+  once: boolean
+  actions: IFTriggerAction[]
+}
+
+const TRIGGER_PREFIX = "inkwell-if-trigger:v1:"
+const EVENT_NAME = /^[A-Za-z][A-Za-z0-9_.:-]*$/
+
+/** Create a writable trigger with one reveal action. */
+export function defaultTriggerBlock(): IFTriggerBlock {
+  return {
+    event: "event_name",
+    label: "Event name",
+    note: "",
+    once: true,
+    actions: [{ id: "action-1", kind: "reveal", content: "" }],
+  }
+}
+
+/** Convert a display label into a stable event identifier. */
+export function eventNameFromLabel(label: string): string {
+  const event = label.trim().toLowerCase().replace(/[^a-z0-9_.:-]+/g, "_").replace(/^_+|_+$/g, "")
+  return /^[a-z]/.test(event) ? event : `event_${event || "name"}`
+}
+
+/** Decode a structured trigger element. Invalid content throws for diagnostics. */
+export function parseTriggerBlock(source: string): IFTriggerBlock {
+  if (!source.startsWith(TRIGGER_PREFIX)) throw new Error("Expected a structured trigger")
+  let raw: unknown
+  try {
+    raw = JSON.parse(source.slice(TRIGGER_PREFIX.length))
+  } catch {
+    throw new Error("Trigger data is not valid JSON")
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Trigger data must be an object")
+  const value = raw as Record<string, unknown>
+  if (typeof value.event !== "string" || !EVENT_NAME.test(value.event)) throw new Error("Trigger event must start with a letter and use letters, numbers, dot, colon, dash, or underscore")
+  if (!Array.isArray(value.actions) || value.actions.length === 0) throw new Error("Trigger needs at least one action")
+  const actions = value.actions.map((action, index): IFTriggerAction => {
+    if (!action || typeof action !== "object" || Array.isArray(action)) throw new Error(`Trigger action ${index + 1} is invalid`)
+    const item = action as Record<string, unknown>
+    if (!["reveal", "set", "conditional"].includes(String(item.kind))) throw new Error(`Trigger action ${index + 1} has an unknown kind`)
+    if (typeof item.content !== "string") throw new Error(`Trigger action ${index + 1} is invalid`)
+    return {
+      id: typeof item.id === "string" && item.id ? item.id : `action-${index + 1}`,
+      kind: item.kind as IFTriggerActionKind,
+      content: item.content,
+    }
+  })
+  return {
+    event: value.event,
+    label: typeof value.label === "string" ? value.label : value.event,
+    note: typeof value.note === "string" ? value.note : "",
+    once: value.once !== false,
+    actions,
+  }
+}
+
+/** Encode a trigger block into an element's content field. */
+export function serializeTriggerBlock(trigger: IFTriggerBlock): string {
+  return TRIGGER_PREFIX + JSON.stringify({
+    event: trigger.event.trim(),
+    label: trigger.label,
+    note: trigger.note,
+    once: trigger.once,
+    actions: trigger.actions.map((action, index) => ({
+      id: action.id || `action-${index + 1}`,
+      kind: action.kind,
+      content: action.content,
+    })),
+  })
+}
+
+/** Turn a legacy `TRIGGER — label. notes` body into an editable trigger draft. */
+export function triggerFromLegacyText(source: string): IFTriggerBlock | null {
+  const match = /^\s*TRIGGER\s*(?:—|–|-|:)\s*([^\n.]+)\.?\s*([\s\S]*)$/i.exec(plainInlineText(source))
+  if (!match) return null
+  const label = match[1].trim()
+  return {
+    event: eventNameFromLabel(label),
+    label,
+    note: match[2].trim(),
+    once: true,
+    actions: [{ id: "action-1", kind: "reveal", content: "" }],
+  }
+}
+
 export function parseSetStatement(source: string): SetStatement {
   const match = /^\s*\{set\s+\$([A-Za-z_][A-Za-z0-9_]*)(?::(string|number|boolean))?\s+to\s+([\s\S]+)\}\s*$/i.exec(source)
   if (!match) throw new Error("Expected {set $name[:type] to value}")
@@ -295,6 +393,33 @@ export function evaluateConditional(source: string, variables: IFVariables): str
 export interface IFRenderedElement { id: string; type: "body" | "choice"; content: string }
 export interface IFExecutionEvent { passageId: string; elementId: string; message: string; variables: IFVariables }
 export interface IFPassageResult { elements: IFRenderedElement[]; variables: IFVariables; events: IFExecutionEvent[]; errors: string[] }
+
+/** Execute one named trigger's ordered actions against the current Play state. */
+export function executeTrigger(passageId: string, elementId: string, trigger: IFTriggerBlock, input: IFVariables, definitions: IFVariableDefinition[] = [], invocation = 0): IFPassageResult {
+  let variables = { ...input }
+  const elements: IFRenderedElement[] = []
+  const events: IFExecutionEvent[] = [{ passageId, elementId, message: `Fired ${trigger.event}`, variables: { ...variables } }]
+  const errors: string[] = []
+  for (const action of trigger.actions) {
+    try {
+      if (!action.content.trim()) throw new Error("Trigger action is empty")
+      if (action.kind === "set") {
+        variables = applySetStatement(action.content, variables, definitions)
+        const name = parseSetStatement(action.content).name
+        events.push({ passageId, elementId, message: `Set $${name} to ${JSON.stringify(variables[name])}`, variables: { ...variables } })
+      } else if (action.kind === "conditional") {
+        const content = evaluateConditional(action.content, variables)
+        if (content) elements.push({ id: `${elementId}:${invocation}:${action.id}`, type: parseLinks(content).length > 0 ? "choice" : "body", content })
+        events.push({ passageId, elementId, message: `Evaluated ${parseConditionalStatement(action.content).expression}`, variables: { ...variables } })
+      } else {
+        elements.push({ id: `${elementId}:${invocation}:${action.id}`, type: parseLinks(action.content).length > 0 ? "choice" : "body", content: action.content })
+      }
+    } catch (error) {
+      errors.push(`${elementId}:${action.id}: ${error instanceof Error ? error.message : "Invalid trigger action"}`)
+    }
+  }
+  return { elements, variables, events, errors }
+}
 
 export function executePassage(passage: Scene, input: IFVariables, definitions: IFVariableDefinition[] = []): IFPassageResult {
   let variables = { ...input }
@@ -349,7 +474,7 @@ export function renamePassageLinks(text: string, previous: string, next: string)
   })
 }
 
-export type IFDiagnosticKind = "syntax" | "broken-link" | "dead-end" | "unreachable" | "undefined-variable" | "impossible-condition" | "duplicate-passage"
+export type IFDiagnosticKind = "syntax" | "broken-link" | "dead-end" | "unreachable" | "undefined-variable" | "impossible-condition" | "duplicate-passage" | "duplicate-trigger" | "unstructured-trigger"
 export interface IFDiagnostic { kind: IFDiagnosticKind; severity: "error" | "warning"; passageId: string; elementId?: string; message: string }
 
 function referencedVariables(expression: string): string[] {
@@ -366,12 +491,19 @@ export function diagnoseStory(passages: Scene[], settings: IFStorySettings): IFD
   for (const group of names.values()) if (group.length > 1) for (const passage of group) diagnostics.push({ kind: "duplicate-passage", severity: "error", passageId: passage.id, message: `Duplicate passage name “${passage.scene_heading}”` })
 
   const defined = new Set(settings.variables.map((item) => item.name))
-  for (const passage of passages) for (const element of passage.elements ?? []) if (element.element_type === "set") {
-    try { defined.add(parseSetStatement(element.content).name) } catch { /* syntax diagnostic below */ }
+  for (const passage of passages) for (const element of passage.elements ?? []) {
+    if (element.element_type === "set") {
+      try { defined.add(parseSetStatement(element.content).name) } catch { /* syntax diagnostic below */ }
+    } else if (element.element_type === "trigger") {
+      try {
+        for (const action of parseTriggerBlock(element.content).actions) if (action.kind === "set" && action.content.trim()) defined.add(parseSetStatement(action.content).name)
+      } catch { /* syntax diagnostic below */ }
+    }
   }
   const adjacency = new Map(passages.map((passage) => [passage.id, new Set<string>()]))
   for (const passage of passages) {
     let linkCount = 0
+    const triggerEvents = new Set<string>()
     for (const element of passage.elements ?? []) {
       let runtimeText = element.element_type === "body" ? plainInlineText(element.content) : element.content
       try {
@@ -386,10 +518,34 @@ export function diagnoseStory(passages: Scene[], settings: IFStorySettings): IFD
           runtimeText = `${statement.whenTrue} ${statement.whenFalse}`
           if (referencedVariables(statement.expression).length === 0 && !truthy(evaluateExpression(statement.expression, {}))) diagnostics.push({ kind: "impossible-condition", severity: "warning", passageId: passage.id, elementId: element.id, message: "Condition is always false" })
         }
+        if (element.element_type === "trigger") {
+          const trigger = parseTriggerBlock(element.content)
+          if (triggerEvents.has(trigger.event)) diagnostics.push({ kind: "duplicate-trigger", severity: "error", passageId: passage.id, elementId: element.id, message: `Duplicate trigger event “${trigger.event}” in this passage` })
+          triggerEvents.add(trigger.event)
+          runtimeText = ""
+          for (const action of trigger.actions) {
+            if (!action.content.trim()) {
+              diagnostics.push({ kind: "syntax", severity: "error", passageId: passage.id, elementId: element.id, message: `Trigger ${trigger.event} has an empty action` })
+              continue
+            }
+            if (action.kind === "set") {
+              const statement = parseSetStatement(action.content)
+              for (const name of referencedVariables(statement.expression)) if (!defined.has(name)) diagnostics.push({ kind: "undefined-variable", severity: "error", passageId: passage.id, elementId: element.id, message: `Undefined variable $${name} in trigger ${trigger.event}` })
+              defined.add(statement.name)
+            } else if (action.kind === "conditional") {
+              const statement = parseConditionalStatement(action.content)
+              for (const name of referencedVariables(statement.expression)) if (!defined.has(name)) diagnostics.push({ kind: "undefined-variable", severity: "error", passageId: passage.id, elementId: element.id, message: `Undefined variable $${name} in trigger ${trigger.event}` })
+              runtimeText += ` ${statement.whenTrue} ${statement.whenFalse}`
+            } else {
+              runtimeText += ` ${plainInlineText(action.content)}`
+            }
+          }
+        }
       } catch (error) {
         diagnostics.push({ kind: "syntax", severity: "error", passageId: passage.id, elementId: element.id, message: error instanceof Error ? error.message : "Invalid story logic" })
         continue
       }
+      if (element.element_type === "body" && /^\s*TRIGGER\b/i.test(plainInlineText(element.content))) diagnostics.push({ kind: "unstructured-trigger", severity: "warning", passageId: passage.id, elementId: element.id, message: "This looks like a trigger note, but it cannot run until it is converted to a Trigger block" })
       if (element.element_type === "note") continue
       for (const link of parseLinks(runtimeText)) {
         linkCount++
@@ -427,6 +583,21 @@ export function compileElementToSugarCube(element: ProjectElement): string {
     const statement = parseConditionalStatement(element.content)
     const otherwise = statement.whenFalse ? `<<else>>${statement.whenFalse}` : ""
     return `<<if ${toSugarCubeExpression(statement.expression)}>>${statement.whenTrue}${otherwise}<</if>>`
+  }
+  if (element.element_type === "trigger") {
+    const trigger = parseTriggerBlock(element.content)
+    const actions = trigger.actions.map((action) => {
+      if (action.kind === "set") return compileElementToSugarCube({ ...element, element_type: "set", content: action.content })
+      if (action.kind === "conditional") return compileElementToSugarCube({ ...element, element_type: "conditional", content: action.content })
+      return compileElementToSugarCube({ ...element, element_type: "body", content: action.content })
+    }).join("\n")
+    const control = trigger.once
+      ? `<<linkreplace ${JSON.stringify(trigger.label)}>>${actions}<</linkreplace>>`
+      : (() => {
+          const target = `inkwell-trigger-${element.id.replace(/[^A-Za-z0-9_-]/g, "-")}`
+          return `<span id="${target}"></span><<link ${JSON.stringify(trigger.label)}>><<append "#${target}">>${actions}<</append>><</link>>`
+        })()
+    return `<!-- inkwell-trigger:${encodeURIComponent(element.content)} -->\n${control}`
   }
   if (element.element_type === "body") return readInlineRuns(element.content ?? "").map(run => run.color ? `<span style="color:${run.color}">${run.text}</span>` : run.text).join("")
   return element.content ?? ""

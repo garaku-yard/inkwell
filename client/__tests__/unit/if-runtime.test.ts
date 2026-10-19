@@ -6,9 +6,13 @@ import {
   diagnoseStory,
   evaluateConditional,
   executePassage,
+  executeTrigger,
   parsePassageMetadata,
+  parseTriggerBlock,
   renamePassageLinks,
   serializePassageMetadata,
+  serializeTriggerBlock,
+  triggerFromLegacyText,
   type IFStorySettings,
 } from "@/lib/interactive-fiction/runtime"
 import { projectToTwee } from "@/lib/export/if-twee"
@@ -27,6 +31,45 @@ const scene = (id: string, heading: string, elements: ProjectElement[], content 
 })
 
 describe("Inkwell IF runtime", () => {
+  it("fires structured triggers in action order", () => {
+    const trigger = {
+      event: "first_pour", label: "First pour", note: "After water starts moving", once: true,
+      actions: [
+        { id: "line", kind: "reveal" as const, content: "The air takes the first of it." },
+        { id: "wet", kind: "set" as const, content: "{set $soil_wet:boolean to true}" },
+        { id: "next", kind: "conditional" as const, content: "{if $soil_wet: [[Plant -> First Crop]]}" },
+      ],
+    }
+    const encoded = serializeTriggerBlock(trigger)
+    expect(parseTriggerBlock(encoded)).toEqual(trigger)
+    const result = executeTrigger("start", "pour", trigger, {}, [], 2)
+    expect(result.variables).toEqual({ soil_wet: true })
+    expect(result.elements).toEqual([
+      { id: "pour:2:line", type: "body", content: "The air takes the first of it." },
+      { id: "pour:2:next", type: "choice", content: "[[Plant -> First Crop]]" },
+    ])
+    expect(result.events.map((event) => event.message)).toEqual(["Fired first_pour", "Set $soil_wet to true", "Evaluated $soil_wet"])
+  })
+
+  it("diagnoses prose that only looks executable and duplicate event names", () => {
+    expect(triggerFromLegacyText("TRIGGER — run start. Hold the dome at day 0.")).toMatchObject({
+      event: "run_start", label: "run start", note: "Hold the dome at day 0.", once: true,
+    })
+    const trigger = serializeTriggerBlock({
+      event: "run_start", label: "Run start", note: "", once: true,
+      actions: [{ id: "line", kind: "reveal", content: "Wake up." }],
+    })
+    const diagnostics = diagnoseStory([scene("start", "Start", [
+      element("note", "body", "TRIGGER — run start. Deliver this later."),
+      element("one", "trigger", trigger),
+      element("two", "trigger", trigger),
+    ])], { variables: [], testStates: [] })
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "unstructured-trigger", elementId: "note" }),
+      expect.objectContaining({ kind: "duplicate-trigger", elementId: "two" }),
+    ]))
+  })
+
   it("keeps selected-word color in playable Twee prose", () => {
     const prose = writeInlineRuns([{ text: "The " }, { text: "red", color: "#aa2233" }, { text: " door." }])
     const project = { id: "p", title: "Color", category: "interactive_fiction", scenes: [scene("start", "Start", [element("body", "body", prose)])] } as FullProject
@@ -126,6 +169,34 @@ describe("Inkwell IF runtime", () => {
       story: { variables: [{ name: "gold", type: "number", initialValue: 1 }] },
     })
     expect(imported.scenes[0].elements.map((item) => item.type)).toEqual(["set", "conditional"])
+  })
+
+  it("exports executable trigger controls and restores their structured actions", () => {
+    const trigger = serializeTriggerBlock({
+      event: "standpipe", label: "Reach the standpipe", note: "Also used by the first tablet raise", once: true,
+      actions: [
+        { id: "line", kind: "reveal", content: "There's your first job." },
+        { id: "set", kind: "set", content: "{set $briefed:boolean to true}" },
+      ],
+    })
+    const project = {
+      id: "p", title: "Events", category: "interactive_fiction",
+      scenes: [scene("start", "Start", [element("event", "trigger", trigger)])],
+    } as FullProject
+    const twee = projectToTwee(project)
+    expect(twee).toContain("inkwell-trigger:")
+    expect(twee).toContain('<<linkreplace "Reach the standpipe">>')
+    expect(twee).toContain("<<set $briefed = true>>")
+    const restored = parseTweeToIF(twee, "Fallback").scenes[0].elements[0]
+    expect(restored.type).toBe("trigger")
+    expect(parseTriggerBlock(restored.content)).toMatchObject({ event: "standpipe", once: true })
+
+    const repeatable = serializeTriggerBlock({ ...parseTriggerBlock(trigger), event: "pour", label: "Pour", once: false })
+    const repeatableTwee = projectToTwee({
+      ...project,
+      scenes: [scene("start", "Start", [element("repeat", "trigger", repeatable)])],
+    } as FullProject)
+    expect(repeatableTwee).toContain('<<link "Pour">><<append "#inkwell-trigger-repeat">>')
   })
 
   it("keeps author-only passage details out of Play and the Twee body while round-tripping them", () => {

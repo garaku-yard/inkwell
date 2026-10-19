@@ -154,8 +154,8 @@ export function StoryToolsDialog({
           <div className="grid gap-1.5"><Label>Selected passage tags</Label><Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="cave, chapter-one, ending" /></div>
           <div className="grid gap-1.5"><Label>Passage color</Label><div className="flex gap-2"><Input type="color" className="w-14 px-1" value={/^#[0-9a-f]{6}$/i.test(color) ? color : "#6b7280"} onChange={(event) => setColor(event.target.value)} /><Input value={color} onChange={(event) => setColor(event.target.value)} placeholder="#6b7280" /></div></div>
           <div className="grid gap-1.5 sm:col-span-2">
-            <Label htmlFor="if-passage-condition">Trigger / condition</Label>
-            <Input id="if-passage-condition" value={condition} onChange={(event) => setCondition(event.target.value)} placeholder="When the sim trigger fires…" disabled={!active} />
+            <Label htmlFor="if-passage-condition">Planning condition</Label>
+            <Input id="if-passage-condition" value={condition} onChange={(event) => setCondition(event.target.value)} placeholder="Continuity or implementation condition…" disabled={!active} />
           </div>
           <div className="grid gap-1.5 sm:col-span-2">
             <Label htmlFor="if-passage-note">Author note</Label>
