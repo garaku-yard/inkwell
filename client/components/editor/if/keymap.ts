@@ -10,7 +10,7 @@ import type { Scene } from "@/services/project"
 
 /** Interactive Fiction element types — keep in sync with the union in
  *  InteractiveFictionEditor.tsx. */
-export type IFElementType = "body" | "choice" | "conditional" | "set" | "note"
+export type IFElementType = "body" | "choice" | "conditional" | "set" | "trigger" | "note"
 
 /** Tab cycles between body and choice — the two most-frequently
  *  alternating types when laying out a branch. Other types ignore Tab
@@ -21,15 +21,16 @@ const NEXT_ELEMENT_ON_TAB: Partial<Record<IFElementType, IFElementType>> = {
   choice: "body",
 }
 
-/** mod+digit shortcuts for the five element types. body on 1 because
+/** mod+digit shortcuts for the six element types. body on 1 because
  *  it's the most common; choice on 2 because branches are the next
- *  most common; conditional / set / note round out 3-5. */
+ *  most common; conditional, set, note, and trigger round out 3-6. */
 const NUMBER_KEY_TO_ELEMENT: Record<string, IFElementType> = {
   "1": "body",
   "2": "choice",
   "3": "conditional",
   "4": "set",
   "5": "note",
+  "6": "trigger",
 }
 
 export interface IFKeyContext {

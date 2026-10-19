@@ -4,8 +4,21 @@ import { parseStatInstance, statInstanceToText } from "@/lib/ttrpg/stat-schemas"
 import { parseTtrpgBlock, ttrpgBlockToText } from "@/lib/ttrpg/blocks"
 import { parseRuleBox } from "@/lib/ttrpg/rule-box"
 import { novelBlockText, novelNumbering, novelReferenceLabel, parseNovelBlock } from "@/lib/editor/novel-blocks"
+import { parseTriggerBlock } from "@/lib/interactive-fiction/runtime"
 
 function elementText(project: FullProject, el: ProjectElement): string {
+  if (el.element_type === "trigger") {
+    try {
+      const trigger = parseTriggerBlock(el.content)
+      return [
+        `TRIGGER ${trigger.event} — ${trigger.label}${trigger.once ? " (once)" : " (repeatable)"}`,
+        trigger.note,
+        ...trigger.actions.map((action, index) => `${index + 1}. ${action.kind}: ${plainInlineText(action.content)}`),
+      ].filter(Boolean).join("\n")
+    } catch {
+      return "TRIGGER — invalid structured data"
+    }
+  }
   const novel = parseNovelBlock(el)
   if (novel) {
     const numbers = novelNumbering(project)
@@ -36,6 +49,7 @@ function elementText(project: FullProject, el: ProjectElement): string {
 }
 
 function markdownElementText(project: FullProject, el: ProjectElement): string {
+  if (el.element_type === "trigger") return elementText(project, el)
   if (parseNovelBlock(el)) return elementText(project, el)
   if (el.element_type === "rule_box") {
     const rule = parseRuleBox(el.content)

@@ -38,6 +38,22 @@ The false branch is optional. Undefined variables and invalid syntax stop that
 element and appear in Play plus Story tools diagnostics; they never silently
 select a branch.
 
+## Named event triggers
+
+A Trigger block gives a passage a stable event name and an ordered list of
+actions. Event names begin with a letter and may contain letters, numbers,
+dot, colon, dash, or underscore. Actions can reveal writing, apply the same
+`{set ...}` statements as passage entry, or evaluate the same `{if ...}`
+conditions. Play lists the active passage's events explicitly; firing one runs
+its actions in order against the current variable state. Triggers fire once by
+default and can be marked repeatable.
+
+Plain prose beginning with `TRIGGER —` remains prose. Diagnostics flag it and
+the editor offers an explicit conversion so planning copy is never mistaken
+for executable logic. Conversion preserves the note and creates an empty
+action for the writer to finish; it does not guess which following paragraphs
+belong to the event.
+
 ## Links and passages
 
 Links use `[[Passage]]`, `[[Visible label -> Passage]]`, or
@@ -50,7 +66,11 @@ local storage, cloud sync, and `.iw` archives.
 ## Twee 3 / SugarCube
 
 Export targets Twee 3 with SugarCube 2.36.1. Assignments compile to `<<set>>`
-and conditionals to `<<if>>` / `<<else>>`. Initial variables compile into
-`StoryInit`; the selected start passage receives the `Start` tag. Passage tags
-and Inkwell colors are emitted in the header. IFIDs are stable for a project,
-so identical project state produces identical source and repeatable tests.
+and conditionals to `<<if>>` / `<<else>>`. Once-only Trigger blocks compile to
+`<<linkreplace>>`; repeatable triggers use `<<link>>` with `<<append>>`, so the
+exported story keeps an actionable preview. Each also carries an ignored
+encoded marker for lossless Inkwell re-import. Initial variables compile into
+`StoryInit`; the selected
+start passage receives the `Start` tag. Passage tags and Inkwell colors are
+emitted in the header. IFIDs are stable for a project, so identical project
+state produces identical source and repeatable tests.

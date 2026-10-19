@@ -23,6 +23,13 @@ const ONLY_LINKS = /^(\[\[[^\]]*\]\]\s*)+$/
 
 function chunkToElement(chunk: string): ParsedElement {
   const trimmed = chunk.trim()
+  const trigger = /^<!--\s*inkwell-trigger:([^\s]+)\s*-->/.exec(trimmed)
+  if (trigger) {
+    try {
+      const content = decodeURIComponent(trigger[1])
+      return { type: "trigger", content }
+    } catch { /* malformed Inkwell metadata falls through as ordinary body text */ }
+  }
   const set = /^<<set\s+\$([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([\s\S]+?)>>$/.exec(trimmed)
   if (set) {
     let declared = ""
