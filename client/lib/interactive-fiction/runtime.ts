@@ -392,14 +392,15 @@ export function evaluateConditional(source: string, variables: IFVariables): str
 
 export interface IFRenderedElement { id: string; type: "body" | "choice"; content: string }
 export interface IFExecutionEvent { passageId: string; elementId: string; message: string; variables: IFVariables }
-export interface IFPassageResult { elements: IFRenderedElement[]; variables: IFVariables; events: IFExecutionEvent[]; errors: string[] }
+export interface IFExecutionError { passageId: string; elementId: string; actionId?: string; message: string }
+export interface IFPassageResult { elements: IFRenderedElement[]; variables: IFVariables; events: IFExecutionEvent[]; errors: IFExecutionError[] }
 
 /** Execute one named trigger's ordered actions against the current Play state. */
 export function executeTrigger(passageId: string, elementId: string, trigger: IFTriggerBlock, input: IFVariables, definitions: IFVariableDefinition[] = [], invocation = 0): IFPassageResult {
   let variables = { ...input }
   const elements: IFRenderedElement[] = []
-  const events: IFExecutionEvent[] = [{ passageId, elementId, message: `Fired ${trigger.event}`, variables: { ...variables } }]
-  const errors: string[] = []
+  const events: IFExecutionEvent[] = [{ passageId, elementId, message: `Fired ${trigger.label || trigger.event}`, variables: { ...variables } }]
+  const errors: IFExecutionError[] = []
   for (const action of trigger.actions) {
     try {
       if (!action.content.trim()) throw new Error("Trigger action is empty")
@@ -415,7 +416,12 @@ export function executeTrigger(passageId: string, elementId: string, trigger: IF
         elements.push({ id: `${elementId}:${invocation}:${action.id}`, type: parseLinks(action.content).length > 0 ? "choice" : "body", content: action.content })
       }
     } catch (error) {
-      errors.push(`${elementId}:${action.id}: ${error instanceof Error ? error.message : "Invalid trigger action"}`)
+      errors.push({
+        passageId,
+        elementId,
+        actionId: action.id,
+        message: error instanceof Error ? error.message : "Invalid trigger action",
+      })
     }
   }
   return { elements, variables, events, errors }
@@ -425,7 +431,7 @@ export function executePassage(passage: Scene, input: IFVariables, definitions: 
   let variables = { ...input }
   const elements: IFRenderedElement[] = []
   const events: IFExecutionEvent[] = []
-  const errors: string[] = []
+  const errors: IFExecutionError[] = []
   for (const element of [...(passage.elements ?? [])].sort((a, b) => a.line_number - b.line_number)) {
     try {
       if (element.element_type === "set") {
@@ -440,7 +446,11 @@ export function executePassage(passage: Scene, input: IFVariables, definitions: 
         elements.push({ id: element.id, type: element.element_type, content: element.content })
       }
     } catch (error) {
-      errors.push(`${element.id}: ${error instanceof Error ? error.message : "Invalid story logic"}`)
+      errors.push({
+        passageId: passage.id,
+        elementId: element.id,
+        message: error instanceof Error ? error.message : "Invalid story logic",
+      })
     }
   }
   return { elements, variables, events, errors }

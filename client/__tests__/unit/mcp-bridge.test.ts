@@ -83,6 +83,7 @@ describe("tools/list", () => {
     expect(names[0]).toBe("use_project")
     expect(names).toContain("read_scene")
     expect(names).toContain("append_to_scene")
+    expect(names).toContain("create_if_trigger")
     for (const name of ["list_novel_blocks", "read_novel_block", "create_novel_block", "update_novel_block", "move_novel_step", "delete_novel_block", "export_novel_html"]) expect(names).toContain(name)
     // Every tool carries a schema, or a client can't call it.
     for (const t of tools) expect(t.inputSchema, t.name).toBeTruthy()
@@ -98,6 +99,7 @@ describe("tools/list", () => {
       "create_scene",
       "create_character",
       "append_to_scene",
+      "create_if_trigger",
       "add_beat",
       "add_project_comment",
       "update_beat",
