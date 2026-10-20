@@ -221,6 +221,11 @@ describe("tool registry", () => {
     expect(specs).toContain("create_scene")
   })
 
+  it("offers executable trigger authoring only in Interactive Fiction", () => {
+    expect(toolSpecsFor({ knowledge: false, category: "interactive_fiction" }).map((spec) => spec.name)).toContain("create_if_trigger")
+    expect(toolSpecsFor({ knowledge: false, category: "novel" }).map((spec) => spec.name)).not.toContain("create_if_trigger")
+  })
+
   it("gives every tool a label to show while it runs, even with no arguments", () => {
     for (const spec of toolSpecsFor({ knowledge: true })) {
       const entry = tool(spec.name)
