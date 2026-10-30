@@ -15,7 +15,7 @@ Legend: ✅ shipped & working · ⚠️ partial · 🚧 planned / not built
 | Desktop app (Tauri v2 + Next.js static export) | ✅ | Windows + Linux bundles plus Apple Silicon + Intel macOS DMGs via GH Actions; macOS is ad-hoc signed until Developer ID enrollment |
 | Local-first storage (SQLite + on-disk `.md`) | ✅ | `lib/storage` abstraction with local (SQLite/FS) + remote (gateway) impls |
 | Hosted stack (Go microservices / gRPC / Postgres / Redis / Kafka) | ✅ | Self-hostable, optional — most users never need it |
-| Releases | ✅ | v0.2.0–v0.6.0 on GitHub Releases |
+| Releases | ✅ | v0.2.0–v0.7.0 on GitHub Releases |
 
 ## Editors — nine format-native surfaces
 

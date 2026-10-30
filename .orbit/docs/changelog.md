@@ -6,6 +6,18 @@
 > handoff notes + git history). The live status matrix is
 > [PLANNING.md](../../PLANNING.md); forward intent is [roadmap.md](./roadmap.md).
 
+## v0.7.0 closes the dependency advisories across client, desktop and server
+
+A studio-wide dependency audit found no compromised packages, but several
+advisories sat on paths Inkwell actually runs. The client moves to Next.js
+16.4.3, past two unauthenticated remote-code-execution advisories in image
+optimization and `use cache`, and its production audit is clean again. The
+desktop updater moves to `zip` 9, whose fixes stop an update archive writing
+outside its destination, alongside patched `rustls` and `tokio`. The server
+moves to Go 1.27 with `x/net` 0.62, which fixes the HTTP/2 framing bugs reached
+through gRPC and the Paddle client, including an HPACK race that could crash
+the server. `rust-version` now states the 1.90 that Tauri already required.
+
 ## Interactive Fiction Play now runs the story authors wrote
 
 Play now executes typed variable assignments and conditional branches through

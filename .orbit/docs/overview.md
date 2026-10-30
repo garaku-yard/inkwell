@@ -58,5 +58,5 @@ Obsidian-adjacent vaults), and honest about what it is: a **tool**, not a
 
 Pre-1.0. The desktop build is the primary surface and is usable day-to-day;
 the hosted stack is functional but still tightening around identity + billing.
-Shipped releases: **v0.2.0 – v0.6.0** on GitHub Releases (Windows + Linux). The
+Shipped releases: **v0.2.0 – v0.7.0** on GitHub Releases (Windows + Linux). The
 live at-a-glance tracker is [PLANNING.md](../../PLANNING.md).
