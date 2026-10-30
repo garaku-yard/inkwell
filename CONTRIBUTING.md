@@ -66,7 +66,7 @@ The gateway is **not** a service — it is the public application gateway (BFF).
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.27+
 - Node.js 20+
 - Docker + Docker Compose
 - `protoc` with `protoc-gen-go` and `protoc-gen-go-grpc` (only needed when changing proto files)

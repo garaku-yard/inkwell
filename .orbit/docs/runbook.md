@@ -7,7 +7,7 @@
 
 ## Prerequisites
 
-- Go 1.24 (CI pins it; 1.22+ works locally)
+- Go 1.27 (go.mod requires it; CI and the service images pin it)
 - Node.js 22 (CI); 20+ locally
 - Docker + Docker Compose
 - `protoc` + `protoc-gen-go` + `protoc-gen-go-grpc` — only when changing protos
