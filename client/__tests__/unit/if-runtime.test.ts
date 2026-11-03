@@ -48,7 +48,21 @@ describe("Inkwell IF runtime", () => {
       { id: "pour:2:line", type: "body", content: "The air takes the first of it." },
       { id: "pour:2:next", type: "choice", content: "[[Plant -> First Crop]]" },
     ])
-    expect(result.events.map((event) => event.message)).toEqual(["Fired first_pour", "Set $soil_wet to true", "Evaluated $soil_wet"])
+    expect(result.events.map((event) => event.message)).toEqual(["Fired First pour", "Set $soil_wet to true", "Evaluated $soil_wet"])
+  })
+
+  it("keeps trigger failures structured for writer-facing Play feedback", () => {
+    const result = executeTrigger("start", "pour", {
+      event: "first_pour", label: "First pour", note: "", once: true,
+      actions: [{ id: "empty", kind: "reveal", content: "" }],
+    }, {})
+
+    expect(result.errors).toEqual([{
+      passageId: "start",
+      elementId: "pour",
+      actionId: "empty",
+      message: "Trigger action is empty",
+    }])
   })
 
   it("diagnoses prose that only looks executable and duplicate event names", () => {

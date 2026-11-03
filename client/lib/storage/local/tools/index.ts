@@ -38,6 +38,7 @@ import { reorderSections, exportSectionMarkdown, listBeats, updateBeatTool, move
 import { listProjectComments, addProjectComment } from "./comments"
 import { listNovelBlocks, readNovelBlock, createNovelBlock, updateNovelBlock, moveNovelStep, deleteNovelBlock, exportNovelHtmlTool } from "./novel-blocks"
 import { setTextColor } from "./text-color"
+import { createIfTrigger } from "./if-triggers"
 import type { ToolArgs, ToolEntry } from "./types"
 
 export type { ToolArgs, ToolContext, ToolEntry, ToolRequirement } from "./types"
@@ -77,6 +78,7 @@ const ENTRIES: ToolEntry[] = [
   createScene,
   createCharacterTool,
   appendToScene,
+  createIfTrigger,
   addBeat,
   addProjectComment,
   updateBeatTool,
@@ -126,6 +128,7 @@ export function toolSpecsFor(available: ToolAvailability): ToolSpec[] {
   return ENTRIES.filter(
     (entry) => (entry.requires !== "knowledge" || available.knowledge) &&
       (entry.requires !== "ttrpg" || available.category === "tabletop_rpg") &&
+      (entry.requires !== "if" || available.category === "interactive_fiction") &&
       (entry.requires !== "novel" || available.category === "novel") &&
       (entry.requires !== "ttrpg_or_if" || available.category === "tabletop_rpg" || available.category === "interactive_fiction"),
   ).map((entry) => entry.spec)

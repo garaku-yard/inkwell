@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
-import { Plus, Link2, GitBranch, PenLine, AlertCircle, CheckCircle2, Play, RotateCcw, ChevronLeft, AlignLeft, Split, Braces, StickyNote, Activity, Zap } from "lucide-react"
+import { Plus, Link2, GitBranch, PenLine, AlertCircle, Check, CheckCircle2, Play, RotateCcw, ChevronLeft, AlignLeft, Split, Braces, StickyNote, Activity, Zap } from "lucide-react"
 import { PassageGraph } from "./PassageGraph"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -61,6 +61,7 @@ import {
   serializePassageMetadata,
   serializeTriggerBlock,
   triggerFromLegacyText,
+  type IFExecutionError,
   type IFExecutionEvent,
   type IFPassageMetadata,
   type IFRenderedElement,
@@ -86,7 +87,7 @@ interface PlaySnapshot {
   variables: IFVariables
   rendered: IFRenderedElement[]
   events: IFExecutionEvent[]
-  errors: string[]
+  errors: IFExecutionError[]
   firedTriggerIds: string[]
 }
 
@@ -199,7 +200,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
   const [playVariables, setPlayVariables] = useState<IFVariables>({})
   const [playRendered, setPlayRendered] = useState<IFRenderedElement[]>([])
   const [playEvents, setPlayEvents] = useState<IFExecutionEvent[]>([])
-  const [playErrors, setPlayErrors] = useState<string[]>([])
+  const [playErrors, setPlayErrors] = useState<IFExecutionError[]>([])
   const [playFiredTriggerIds, setPlayFiredTriggerIds] = useState<string[]>([])
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
   const { saveStatus, scheduleSave } = useElementAutosave({ userId: user?.id })
@@ -1131,6 +1132,9 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
             })
           }
           const restart = startPlay
+          const triggerElements = (cursor?.elements ?? []).filter((element) => element.element_type === "trigger")
+          const triggerElementIds = new Set(triggerElements.map((element) => element.id))
+          const passageErrors = playErrors.filter((error) => !triggerElementIds.has(error.elementId))
           return (
             <div className="flex-1 overflow-y-auto inkwell-quiet-scroll bg-secondary dark:bg-background">
               {/* The same background is repeated on this inner page, and it is
@@ -1143,7 +1147,7 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                   on 1.78px stems, the one that scrolls at 0.0% on 2.53px —
                   zero fringing is the signature of the fallback, not of clean
                   text. Same fix as EditorSidebar; see the note there. */}
-              <div className="max-w-[960px] mx-auto bg-secondary px-8 py-10 dark:bg-background">
+              <div className="mx-auto max-w-[1040px] bg-secondary px-8 py-10 dark:bg-background">
                 {/* Player toolbar */}
                 <div className="flex items-center justify-between mb-6 text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">
@@ -1175,12 +1179,21 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_220px]">
+                  <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_260px]">
                   <article className="prose prose-sm max-w-none">
                     <h2 className="text-xl font-semibold mb-6">
                       {cursor.scene_heading || "Untitled"}
                     </h2>
-                    {playErrors.map((error) => <div key={error} className="my-3 rounded border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</div>)}
+                    {passageErrors.length > 0 && (
+                      <div className="not-prose my-4 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-xs text-destructive">
+                        <div className="mb-1.5 flex items-center gap-1.5 font-medium">
+                          <AlertCircle className="h-3.5 w-3.5" /> Story logic needs attention
+                        </div>
+                        <ul className="space-y-1 pl-5">
+                          {passageErrors.map((error, index) => <li key={`${error.elementId}-${index}`} className="list-disc">{error.message}</li>)}
+                        </ul>
+                      </div>
+                    )}
                     {playRendered.map((el) => {
                       // body and choice both tokenize identically; the
                       // difference is presentation. Choice elements
@@ -1234,41 +1247,75 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                     })}
                   </article>
                   <aside className="space-y-4 text-xs">
-                    <div className="rounded-md border bg-background/60 p-3">
-                      <h3 className="mb-2 flex items-center gap-1.5 font-semibold"><Zap className="h-3.5 w-3.5" /> Events</h3>
-                      {(cursor.elements ?? []).filter((element) => element.element_type === "trigger").length === 0 ? (
+                    <section className="rounded-lg border bg-background/70 p-3.5 shadow-sm">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <h3 className="flex items-center gap-1.5 font-semibold"><Zap className="h-3.5 w-3.5 text-orange-600 dark:text-orange-300" /> Events</h3>
+                        {triggerElements.length > 0 && <span className="text-[10px] tabular-nums text-muted-foreground">{triggerElements.length}</span>}
+                      </div>
+                      {triggerElements.length === 0 ? (
                         <p className="text-muted-foreground">No events in this passage.</p>
                       ) : (
-                        <div className="space-y-2">
-                          {(cursor.elements ?? []).filter((element) => element.element_type === "trigger").map((element) => {
+                        <div className="space-y-2.5">
+                          {triggerElements.map((element) => {
                             let trigger
-                            try { trigger = parseTriggerBlock(element.content) } catch { return <p key={element.id} className="text-destructive">Invalid trigger block.</p> }
+                            try { trigger = parseTriggerBlock(element.content) } catch {
+                              return (
+                                <div key={element.id} className="rounded-md border border-destructive/25 bg-destructive/5 p-2.5 text-destructive">
+                                  <div className="flex items-center gap-1.5 font-medium"><AlertCircle className="h-3.5 w-3.5" /> Event needs attention</div>
+                                  <p className="mt-1 text-[11px] text-destructive/80">Open Write to repair this event.</p>
+                                </div>
+                              )
+                            }
                             const fired = playFiredTriggerIds.includes(element.id)
+                            const eventErrors = playErrors.filter((error) => error.elementId === element.id)
+                            const hasErrors = eventErrors.length > 0
                             return (
-                              <Button
-                                key={element.id}
-                                variant="outline"
-                                size="sm"
-                                className="h-auto w-full justify-start py-2 text-left"
-                                disabled={trigger.once && fired}
-                                title={trigger.note || `Fire ${trigger.event}`}
-                                onClick={() => {
-                                  const result = executeTrigger(cursor.id, element.id, trigger, playVariables, storySettings.variables, playEvents.length)
-                                  setPlayVariables(result.variables)
-                                  setPlayRendered((current) => [...current, ...result.elements])
-                                  setPlayEvents((current) => [...current, ...result.events])
-                                  setPlayErrors((current) => [...current, ...result.errors])
-                                  if (trigger.once) setPlayFiredTriggerIds((current) => current.includes(element.id) ? current : [...current, element.id])
-                                }}
-                              >
-                                <span><span className="block font-medium">{trigger.label}</span><span className="font-mono text-[10px] text-muted-foreground">{trigger.event}{fired ? " · fired" : ""}</span></span>
-                              </Button>
+                              <div key={element.id} className={cn("overflow-hidden rounded-md border bg-background transition-colors", hasErrors && "border-destructive/30")}>
+                                <button
+                                  type="button"
+                                  className="group flex w-full items-start gap-2.5 p-2.5 text-left transition-colors hover:bg-accent/50 disabled:cursor-default disabled:hover:bg-transparent"
+                                  disabled={trigger.once && fired}
+                                  aria-label={`${fired && !trigger.once ? "Run again" : "Run"} ${trigger.label}`}
+                                  onClick={() => {
+                                    const result = executeTrigger(cursor.id, element.id, trigger, playVariables, storySettings.variables, playEvents.length)
+                                    setPlayVariables(result.variables)
+                                    setPlayRendered((current) => [...current, ...result.elements])
+                                    setPlayEvents((current) => [...current, ...result.events])
+                                    setPlayErrors((current) => [...current.filter((error) => error.elementId !== element.id), ...result.errors])
+                                    if (trigger.once) setPlayFiredTriggerIds((current) => current.includes(element.id) ? current : [...current, element.id])
+                                  }}
+                                >
+                                  <span className={cn("mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full", hasErrors ? "bg-destructive/10 text-destructive" : fired ? "bg-primary/10 text-primary" : "bg-orange-500/10 text-orange-700 dark:text-orange-300")}>
+                                    {hasErrors ? <AlertCircle className="h-3.5 w-3.5" /> : fired ? <Check className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5" />}
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block break-words font-medium leading-4 text-foreground">{trigger.label || "Untitled event"}</span>
+                                    <span className="mt-1 block break-all font-mono text-[10px] leading-3.5 text-muted-foreground">{trigger.event}</span>
+                                  </span>
+                                  <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    {hasErrors ? "Issue" : fired ? (trigger.once ? "Fired" : "Again") : (trigger.once ? "Once" : "Repeat")}
+                                  </span>
+                                </button>
+                                {hasErrors && (
+                                  <div className="border-t border-destructive/20 bg-destructive/5 px-2.5 py-2 text-[11px] text-destructive">
+                                    {eventErrors.map((error, index) => {
+                                      const actionIndex = trigger.actions.findIndex((action) => action.id === error.actionId)
+                                      return (
+                                        <div key={`${error.actionId ?? "event"}-${index}`} className="flex items-start gap-1.5">
+                                          <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                                          <span>{actionIndex >= 0 ? `Action ${actionIndex + 1}: ` : ""}{error.message === "Trigger action is empty" ? "Add content before running this event." : error.message}</span>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
                             )
                           })}
                         </div>
                       )}
-                    </div>
-                    <div className="rounded-md border bg-background/60 p-3">
+                    </section>
+                    <section className="rounded-lg border bg-background/70 p-3.5 shadow-sm">
                       <h3 className="mb-2 font-semibold">Variable watch</h3>
                       {Object.keys(playVariables).length === 0 ? <p className="text-muted-foreground">No variables set.</p> : (
                         <dl className="space-y-1.5 font-mono">
@@ -1277,13 +1324,13 @@ export function InteractiveFictionEditor({ projectData }: InteractiveFictionEdit
                           ))}
                         </dl>
                       )}
-                    </div>
-                    <div className="rounded-md border bg-background/60 p-3">
+                    </section>
+                    <section className="rounded-lg border bg-background/70 p-3.5 shadow-sm">
                       <h3 className="mb-2 flex items-center gap-1.5 font-semibold"><Activity className="h-3.5 w-3.5" /> Execution history</h3>
                       {playEvents.length === 0 ? <p className="text-muted-foreground">No logic executed yet.</p> : (
-                        <ol className="space-y-2 text-muted-foreground">{playEvents.map((event, index) => <li key={`${event.elementId}-${index}`}><span className="mr-1 font-mono text-foreground">{index + 1}.</span>{event.message}</li>)}</ol>
+                        <ol className="inkwell-quiet-scroll max-h-60 space-y-2 overflow-y-auto pr-1 text-muted-foreground">{playEvents.map((event, index) => <li key={`${event.elementId}-${index}`} className="flex gap-2 leading-4"><span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" /><span>{event.message}</span></li>)}</ol>
                       )}
-                    </div>
+                    </section>
                   </aside>
                   </div>
                 )}
